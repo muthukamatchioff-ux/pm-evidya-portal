@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      String   @default("VIEWER") // ADMIN, ACCOUNTS, VIEWER
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  auditLogs        AuditLog[]
+}
+
+model SME {
+  id          String   @id @default(cuid())
+  name        String
+  designation String?
+  institute   String?
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  workEntries SMEWorkEntry[]
+}
+
+model SMEWorkEntry {
+  id              String   @id @default(cuid())
+  smeId           String
+  sme             SME      @relation(fields: [smeId], references: [id], onDelete: Cascade)
+  trade           String
+  topic           String
+  attendanceFrom  DateTime?
+  attendanceTo    DateTime?
+  days            Float?
+  ratePerDay      Float?
+  taAmount        Float?
+  otherAmount     Float?
+  status          String   @default("PENDING")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  payments        Payment[]
+  documents       Document[]
+}
+
+model Payment {
+  id             String       @id @default(cuid())
+  workEntryId    String
+  workEntry      SMEWorkEntry @relation(fields: [workEntryId], references: [id], onDelete: Cascade)
+  grossAmount    Float
+  taAmount       Float?
+  otherAmount    Float?
+  totalAmount    Float
+  status         String       @default("DRAFT") // DRAFT, PENDING_APPROVAL, APPROVED, PROCESSING, PAID, REJECTED
+  utrNumber      String?
+  paymentDate    DateTime?
+  remarks        String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  
+  documents      Document[]
+}
+
+model BudgetHead {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  approvedBudget Float    @default(0)
+  utilizedAmount Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Document {
+  id               String   @id @default(cuid())
+  name             String
+  type             String   // APPROVAL_LETTER, ATTENDANCE, PAYMENT_APPROVAL, etc.
+  status           String   @default("UPLOADED") // MISSING, PENDING, GENERATED, UPLOADED, APPROVED, REJECTED
+  filePath         String?
+  version          Int      @default(1)
+  
+  workEntryId      String?
+  workEntry        SMEWorkEntry? @relation(fields: [workEntryId], references: [id], onDelete: Cascade)
+  paymentId        String?
+  payment          Payment?      @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id])
+  action       String
+  entity       String
+  entityId     String
+  previousData String?
+  newData      String?
+  createdAt    DateTime @default(now())
+}
