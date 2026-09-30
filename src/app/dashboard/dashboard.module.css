@@ -1,0 +1,127 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  padding: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.header h1 {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.userProfile {
+  font-size: 14px;
+  color: var(--text-secondary);
+  background: var(--surface-color);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.summarySection {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+}
+
+.statCard {
+  background: var(--surface-color);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.statCard h3 {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.statValue {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.monitorSection h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tableWrapper {
+  background: var(--surface-color);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.table {
+  width: 100%;
+  text-align: left;
+}
+
+.table th {
+  background: var(--bg-color);
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.table td {
+  padding: 16px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.emptyState {
+  text-align: center;
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: 32px !important;
+}
+
+.smeStats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.smeStatCard {
+  background: var(--surface-color);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}

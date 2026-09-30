@@ -1,0 +1,72 @@
+.container {
+  padding: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.header h1 {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.emptyState {
+  text-align: center;
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: 32px !important;
+}
+
+.smeLink {
+  color: var(--primary);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.smeLink:hover {
+  text-decoration: underline;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btnAction {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  background: var(--surface-color);
+  font-weight: 500;
+}
+
+.btnAction:hover {
+  background: var(--bg-color);
+}
+
+.badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-draft { background: #f1f5f9; color: #475569; }
+.badge-pending_approval { background: var(--warning-bg); color: var(--warning); }
+.badge-approved { background: #e0f2fe; color: #0284c7; }
+.badge-paid { background: var(--success-bg); color: var(--success); }
+.badge-rejected { background: var(--danger-bg); color: var(--danger); }
+.badge-pending { background: #f3f4f6; color: #374151; }

@@ -1,0 +1,113 @@
+.container {
+  padding: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.header h1 {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.tradeText {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.topicText {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.amountText {
+  font-weight: 600;
+}
+
+.utrText {
+  font-family: monospace;
+  font-size: 13px;
+  background: var(--bg-color);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+
+.badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-draft { background: #f1f5f9; color: #475569; }
+.badge-pending_approval { background: var(--warning-bg); color: var(--warning); }
+.badge-processing { background: #fef08a; color: #a16207; }
+.badge-approved { background: #e0f2fe; color: #0284c7; }
+.badge-paid { background: var(--success-bg); color: var(--success); }
+.badge-rejected { background: var(--danger-bg); color: var(--danger); }
+
+.editingRow {
+  background-color: #f1f5f9;
+}
+
+.input {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  width: 100%;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btnEdit {
+  color: var(--primary);
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.btnEdit:hover { background: var(--bg-color); }
+
+.btnSave {
+  background: var(--success);
+  color: white;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+}
+.btnSave:hover { background: #15803d; }
+
+.btnCancel {
+  background: var(--bg-color);
+  color: var(--text-secondary);
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.btnCancel:hover { background: #e2e8f0; }
+
+.emptyState {
+  text-align: center;
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: 32px !important;
+}
