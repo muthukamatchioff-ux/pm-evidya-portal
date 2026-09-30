@@ -1,54 +1,48 @@
-import { promises as fs } from 'fs';
-import path from 'path';
+import { del, get, put } from '@vercel/blob';
 
-// Storage abstraction
 export interface StorageProvider {
   upload(file: File, key: string): Promise<string>;
   download(key: string): Promise<Buffer>;
   delete(key: string): Promise<void>;
 }
 
-export class LocalStorageProvider implements StorageProvider {
-  private baseDir: string;
+const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
 
-  constructor() {
-    this.baseDir = path.join(process.cwd(), 'uploads');
-  }
+if (!blobToken) {
+  throw new Error('BLOB_READ_WRITE_TOKEN is not configured');
+}
 
-  private async ensureDir() {
-    try {
-      await fs.access(this.baseDir);
-    } catch {
-      await fs.mkdir(this.baseDir, { recursive: true });
-    }
-  }
-
+export class VercelBlobStorageProvider implements StorageProvider {
   async upload(file: File, key: string): Promise<string> {
-    await this.ensureDir();
-    const filePath = path.join(this.baseDir, key);
-    
-    // Convert Web File to Node Buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    
-    await fs.writeFile(filePath, buffer);
-    return filePath;
+    const blob = await put(key, file, {
+      access: 'private',
+      addRandomSuffix: false,
+      token: blobToken,
+    });
+
+    return blob.url;
   }
 
   async download(key: string): Promise<Buffer> {
-    const filePath = path.join(this.baseDir, key);
-    return await fs.readFile(filePath);
+    const pathname = new URL(key).pathname.slice(1);
+
+    const result = await get(pathname, {
+      access: 'private',
+      token: blobToken,
+    });
+
+    if (!result) {
+      throw new Error('Blob not found');
+    }
+
+    return Buffer.from(await new Response(result.stream).arrayBuffer());
   }
 
   async delete(key: string): Promise<void> {
-    const filePath = path.join(this.baseDir, key);
-    try {
-      await fs.unlink(filePath);
-    } catch (error: any) {
-      if (error.code !== 'ENOENT') throw error;
-    }
+    await del(key, {
+      token: blobToken,
+    });
   }
 }
 
-// Export the configured provider
-export const storage = new LocalStorageProvider();
+export const storage = new VercelBlobStorageProvider();

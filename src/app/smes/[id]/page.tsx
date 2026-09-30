@@ -144,7 +144,7 @@ export default async function SMEProfilePage(props: { params: Promise<{ id: stri
                     <div className={styles.documentActions}>
                       {doc ? (
                         <>
-                          <button className={styles.btnAction}>Preview</button>
+                          <a href={`/api/documents/${doc.id}`} target="_blank" rel="noopener noreferrer" className={styles.btnAction}>Preview</a>
                           <a href={`/api/documents/${doc.id}`} target="_blank" rel="noopener noreferrer" className={styles.btnAction}>Download</a>
                           <UploadButton smeId={sme.id} workEntryId={entry.id} type={docTemplate.type} />
                         </>
@@ -172,3 +172,4 @@ export default async function SMEProfilePage(props: { params: Promise<{ id: stri
     </div>
   );
 }
+
