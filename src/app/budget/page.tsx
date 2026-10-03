@@ -1,11 +1,18 @@
 import React from 'react';
-import { prisma } from '@/lib/prisma';
 import BudgetClient from './BudgetClient';
+import { getBudgetComponents } from './actions';
+import styles from './budget.module.css';
 
 export default async function BudgetPage() {
-  const budgetHeads = await prisma.budgetHead.findMany({
-    orderBy: { createdAt: 'desc' }
-  });
+  const components = await getBudgetComponents();
 
-  return <BudgetClient initialData={budgetHeads} />;
+  return (
+    <div className={styles.container}>
+      <header className={styles.header}>
+        <h1 className={styles.title}>Budget Component Master</h1>
+        <p className={styles.subtitle}>Manage the Approved Budget for all main PM e-Vidya components.</p>
+      </header>
+      <BudgetClient initialData={components} />
+    </div>
+  );
 }

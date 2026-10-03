@@ -1,0 +1,172 @@
+.container {
+  display: flex;
+  gap: 24px;
+  height: calc(100vh - 100px);
+}
+
+.sidebar {
+  width: 350px;
+  background: var(--surface-color);
+  border-right: 1px solid var(--border);
+  padding: 24px;
+  overflow-y: auto;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.previewArea {
+  flex: 1;
+  background: var(--slate-100);
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  padding: 32px;
+  border-radius: var(--radius-lg);
+}
+
+.a4Page {
+  width: 210mm;
+  min-height: 297mm;
+  background: white;
+  box-shadow: var(--shadow-md);
+  padding: 25mm 20mm;
+  position: relative;
+  font-family: 'Arial', 'Helvetica', sans-serif;
+  color: #000;
+  box-sizing: border-box;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary);
+  margin: 16px 0 8px 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.fieldGroup label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.input {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+/* Print Styles inside A4 */
+.header {
+  text-align: center;
+  border-bottom: 1px solid #000;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+.header h1 {
+  font-size: 16px;
+  font-weight: bold;
+  margin: 0 0 4px 0;
+}
+
+.header p {
+  font-size: 12px;
+  margin: 2px 0;
+}
+
+.header .email {
+  text-decoration: underline;
+  color: #0000EE;
+}
+
+.refRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+.toSection {
+  font-size: 12px;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.subject {
+  font-size: 12px;
+  margin-bottom: 20px;
+  font-weight: bold;
+  display: flex;
+  gap: 10px;
+}
+
+.subjectLabel {
+  white-space: nowrap;
+}
+
+.subjectText {
+  text-align: justify;
+}
+
+.bodyText {
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: justify;
+  margin-bottom: 16px;
+  text-indent: 40px;
+}
+
+.regards {
+  margin-top: 40px;
+  font-size: 12px;
+  text-align: left;
+}
+
+.footer {
+  margin-top: 50px;
+  border-top: 1px solid #000;
+  padding-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+@media print {
+  :global(body *) {
+    visibility: hidden;
+  }
+  .a4Page, .a4Page * {
+    visibility: visible;
+  }
+  .a4Page {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0;
+    padding: 10mm 15mm !important;
+    box-shadow: none;
+    background: white;
+  }
+}

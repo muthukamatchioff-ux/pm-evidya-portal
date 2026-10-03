@@ -1,33 +1,48 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import RoleSwitcher from '@/components/RoleSwitcher'
 import * as auth from '@/lib/auth'
 
 // Mock the auth module since it has server actions
 jest.mock('@/lib/auth', () => ({
-  setRole: jest.fn(),
+  login: jest.fn(),
+  logout: jest.fn()
 }))
 
 describe('RoleSwitcher Component', () => {
-  it('renders correctly with the initial role', () => {
-    render(<RoleSwitcher currentRole="ADMIN" />)
+  it('renders correctly with an authenticated user', () => {
+    render(<RoleSwitcher currentEmail="test@example.com" currentRole="VISITOR" />)
     
-    // Check if label exists
-    expect(screen.getByText('Simulate Role')).toBeInTheDocument()
+    // Check if authenticated email is shown
+    expect(screen.getByText('Authenticated As')).toBeInTheDocument()
+    expect(screen.getByText('test@example.com')).toBeInTheDocument()
+    expect(screen.getByText('Role: VISITOR')).toBeInTheDocument()
     
-    // Check if select has correct value
-    const select = screen.getByRole('combobox') as HTMLSelectElement
-    expect(select.value).toBe('ADMIN')
+    // Logout button
+    const logoutBtn = screen.getByRole('button', { name: /logout/i })
+    expect(logoutBtn).toBeInTheDocument()
   })
 
-  it('calls setRole when a new role is selected', () => {
-    render(<RoleSwitcher currentRole="VIEWER" />)
+  it('renders login form when unauthenticated', () => {
+    render(<RoleSwitcher currentEmail={null} currentRole="VISITOR" />)
     
-    const select = screen.getByRole('combobox')
+    expect(screen.getByText('Login Simulation')).toBeInTheDocument()
+    const input = screen.getByPlaceholderText('Enter email to login')
+    expect(input).toBeInTheDocument()
+    const loginBtn = screen.getByRole('button', { name: /login/i })
+    expect(loginBtn).toBeInTheDocument()
+  })
+
+  it('calls login when form is submitted', async () => {
+    render(<RoleSwitcher currentEmail={null} currentRole="VISITOR" />)
     
-    // Simulate user changing the dropdown
-    fireEvent.change(select, { target: { value: 'ACCOUNTS' } })
+    const input = screen.getByPlaceholderText('Enter email to login')
+    const loginBtn = screen.getByRole('button', { name: /login/i })
     
-    // Expect our mocked action to be called
-    expect(auth.setRole).toHaveBeenCalledWith('ACCOUNTS')
+    fireEvent.change(input, { target: { value: 'muthukamatchi.off@gmail.com' } })
+    fireEvent.click(loginBtn)
+    
+    await waitFor(() => {
+      expect(auth.login).toHaveBeenCalledWith('muthukamatchi.off@gmail.com')
+    })
   })
 })

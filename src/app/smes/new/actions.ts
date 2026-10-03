@@ -5,12 +5,14 @@ import { redirect } from 'next/navigation';
 import { requireAuth } from '@/lib/auth';
 
 export async function createSMEWithEntry(formData: FormData) {
-  await requireAuth(['ADMIN', 'ACCOUNTS']);
+  await requireAuth(['ADMIN']);
   
   // Extract SME details
   const name = formData.get('name') as string;
   const designation = formData.get('designation') as string;
   const institute = formData.get('institute') as string;
+  const location = formData.get('location') as string;
+  const address = formData.get('address') as string;
   
   // Extract Work Entry details
   const trade = formData.get('trade') as string;
@@ -35,6 +37,8 @@ export async function createSMEWithEntry(formData: FormData) {
         name,
         designation,
         institute,
+        location,
+        address,
         workEntries: {
           create: {
             trade,
@@ -55,7 +59,7 @@ export async function createSMEWithEntry(formData: FormData) {
             }
           }
         }
-      }
+      } as any
     });
 
     await prisma.auditLog.create({

@@ -12,7 +12,7 @@ export async function uploadDocument(
   formData: FormData
 ) {
   try {
-    await requireAuth(['ADMIN', 'ACCOUNTS']);
+    await requireAuth(['ADMIN']);
     const file = formData.get('file') as File;
     if (!file) throw new Error('No file provided');
 
@@ -79,5 +79,61 @@ export async function uploadDocument(
   } catch (error: any) {
     console.error('Document upload error:', error);
     return { success: false, error: error.message || 'Upload failed' };
+  }
+}
+
+export async function updateSMERecord(smeId: string, entryId: string | undefined, data: any) {
+  await requireAuth(['ADMIN']);
+  
+  try {
+    // Update SME master data
+    await prisma.sME.update({
+      where: { id: smeId },
+      data: {
+        name: data.smeName,
+        designation: data.smeDesignation,
+        institute: data.smeInst,
+        location: data.smePlace,
+      } as any
+    });
+
+    // Update Work Entry data if it exists
+    if (entryId) {
+      await prisma.sMEWorkEntry.update({
+        where: { id: entryId },
+        data: {
+          trade: data.trade,
+          topic: data.topic,
+          attendanceFrom: data.startDate ? new Date(data.startDate) : null,
+          attendanceTo: data.endDate ? new Date(data.endDate) : null,
+          days: data.totalDays,
+          ratePerDay: data.ratePerDay,
+          taAmount: data.taAmount,
+          otherAmount: data.otherAmount,
+        }
+      });
+      
+      const payments = await prisma.payment.findMany({ where: { workEntryId: entryId } });
+      if (payments.length > 0) {
+        const baseAmount = (data.totalDays || 0) * (data.ratePerDay || 0);
+        const totalCalculated = baseAmount + (data.taAmount || 0) + (data.otherAmount || 0);
+        await prisma.payment.update({
+          where: { id: payments[0].id },
+          data: {
+            grossAmount: baseAmount,
+            taAmount: data.taAmount,
+            otherAmount: data.otherAmount,
+            totalAmount: totalCalculated,
+          }
+        });
+      }
+    }
+
+    revalidatePath('/smes');
+    revalidatePath(`/smes/${smeId}`);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update SME:", error);
+    return { success: false, error: "Failed to update SME Record." };
   }
 }

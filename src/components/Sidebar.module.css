@@ -1,49 +1,108 @@
 .sidebar {
-  width: 250px;
-  background-color: var(--surface-color);
-  border-right: 1px solid var(--border);
+  width: 260px;
+  background-color: var(--indigo-900);
+  color: white;
   height: 100vh;
   display: flex;
   flex-direction: column;
   position: sticky;
   top: 0;
+  transition: width 0.3s ease;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.sidebar.collapsed {
+  width: 80px;
+}
+
+.logoContainer {
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: rgba(0, 0, 0, 0.15);
 }
 
 .logo {
-  padding: 24px;
-  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar.collapsed .logo {
+  display: none;
 }
 
 .logo h2 {
-  font-size: 18px;
-  color: var(--primary);
+  font-size: 20px;
+  color: white;
   font-weight: 700;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+  letter-spacing: 0.5px;
 }
 
 .logo p {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 11px;
+  color: var(--indigo-200);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 1px;
 }
 
 .nav {
-  padding: 24px 0;
+  padding: 16px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 
 .navLink {
-  padding: 12px 24px;
-  color: var(--text-primary);
+  padding: 12px 16px;
+  color: var(--indigo-100);
   font-size: 14px;
   font-weight: 500;
-  transition: all 0.2s;
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .navLink:hover {
-  background-color: var(--bg-color);
-  color: var(--primary);
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.navLink.active {
+  background-color: var(--primary);
+  color: white;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.iconPlaceholder {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+}
+
+.navLinkText {
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .navLinkText {
+  display: none;
+}
+
+.bottomSection {
+  margin-top: auto;
+  padding: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.sidebar.collapsed .bottomSection {
+  padding: 16px 8px;
 }

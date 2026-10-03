@@ -1,114 +1,155 @@
 .container {
-  padding: 32px;
-  max-width: 1200px;
+  padding: 24px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 16px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary-dark);
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  font-size: 16px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.summaryCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
   margin-bottom: 32px;
 }
 
-.header h1 {
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.errorBanner {
-  background: var(--danger-bg);
-  color: var(--danger);
-  padding: 12px 16px;
+.card {
+  background: white;
+  padding: 16px;
   border-radius: var(--radius-md);
-  margin-bottom: 24px;
-  font-size: 14px;
-  border: 1px solid #fca5a5;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
-.tableWrapper {
+.cardLabel {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.cardValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--slate-800);
+}
+
+.actionsBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.btnPrimary {
+  background: var(--primary);
+  color: white;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+.btnPrimary:hover {
+  background: var(--primary-hover);
+}
+
+.btnSecondary {
+  background: white;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tableContainer {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   overflow-x: auto;
 }
 
-.table {
+.dataTable {
   width: 100%;
-  text-align: left;
+  border-collapse: collapse;
 }
 
-.table th {
-  background: var(--bg-color);
-  padding: 12px 16px;
+.dataTable th {
+  background: var(--slate-50);
+  padding: 12px;
+  text-align: left;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--slate-600);
   border-bottom: 1px solid var(--border);
 }
 
-.table td {
-  padding: 16px;
+.dataTable td {
+  padding: 12px;
   font-size: 14px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
+  border-bottom: 1px solid var(--slate-100);
+  color: var(--slate-800);
 }
 
-.editingRow {
-  background-color: #f1f5f9;
+.dataTable tr:hover {
+  background-color: var(--slate-50);
 }
 
-.input {
-  padding: 8px 12px;
+/* Form Styles */
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+  background: var(--slate-50);
+  padding: 20px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 14px;
-  width: 100%;
-  min-width: 120px;
 }
 
-.actionButtons {
+.formGroup {
   display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
-.btnEdit {
-  color: var(--primary);
-  font-weight: 500;
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
+.formGroup label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--slate-700);
+}
+
+.formGroup input, .formGroup select {
+  padding: 10px;
   border: 1px solid var(--border);
-}
-
-.btnEdit:hover {
-  background: var(--bg-color);
-}
-
-.btnSave {
-  background: var(--success);
-  color: white;
-  font-weight: 500;
-  padding: 6px 12px;
   border-radius: var(--radius-sm);
+  font-size: 14px;
 }
 
-.btnSave:hover {
-  background: #15803d;
-}
-
-.btnCancel {
-  background: var(--bg-color);
-  color: var(--text-secondary);
-  font-weight: 500;
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-}
-
-.btnCancel:hover {
-  background: #e2e8f0;
-}
-
-.emptyState {
-  text-align: center;
-  color: var(--text-secondary);
-  font-style: italic;
-  padding: 32px !important;
+.formActions {
+  display: flex;
+  gap: 12px;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
 }

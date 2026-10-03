@@ -8,6 +8,8 @@ export default function GeneratorClient({ smes, templates, preselectedSmeId, pre
   const [selectedSmeId, setSelectedSmeId] = useState(preselectedSmeId || '');
   const [selectedEntryId, setSelectedEntryId] = useState(preselectedEntryId || '');
   const [docType, setDocType] = useState(preselectedType || 'APPROVAL_LETTER');
+  const [signatory, setSignatory] = useState('Joint Director / HOO');
+  const [extensionReason, setExtensionReason] = useState('');
 
   const selectedSme = smes.find((s: any) => s.id === selectedSmeId);
   const selectedEntry = selectedSme?.workEntries.find((e: any) => e.id === selectedEntryId);
@@ -29,6 +31,7 @@ export default function GeneratorClient({ smes, templates, preselectedSmeId, pre
         days: selectedEntry.days || 0,
         ratePerDay: selectedEntry.ratePerDay || 0,
         totalAmount: payment?.totalAmount || 0,
+        extensionReason: extensionReason,
       });
     } else {
       setPreviewData({});
@@ -49,7 +52,7 @@ export default function GeneratorClient({ smes, templates, preselectedSmeId, pre
 
   const handleGenerate = async () => {
     if (!previewData.smeName || !activeTemplate) return;
-    await generateDocx(previewData, docType, activeTemplate.body, activeTemplate.subject);
+    await generateDocx(previewData, docType, activeTemplate.body, activeTemplate.subject, signatory);
   };
 
   return (
@@ -91,6 +94,31 @@ export default function GeneratorClient({ smes, templates, preselectedSmeId, pre
               </select>
             </div>
 
+            <div className={styles.formGroup}>
+              <label>Signatory Title</label>
+              <select className={styles.select} value={signatory} onChange={e => setSignatory(e.target.value)}>
+                <option value="Joint Director / HOO">Joint Director / HOO</option>
+                <option value="Executive Director">Executive Director</option>
+              </select>
+            </div>
+
+            {docType === 'APPROVAL_LETTER' && (
+              <div className={styles.formGroup}>
+                <label>Extension Reason & Period (Optional)</label>
+                <textarea 
+                  className={styles.textarea} 
+                  placeholder="e.g. due to an unavailability of the SME and continuous Public holidays the deputation period was requested to extended till 26.09.2026 based on the confirmation of the SME"
+                  value={extensionReason}
+                  onChange={(e) => {
+                    setExtensionReason(e.target.value);
+                    setPreviewData((prev: any) => ({ ...prev, extensionReason: e.target.value }));
+                  }}
+                  rows={3}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)' }}
+                />
+              </div>
+            )}
+
             {selectedEntry && (
               <div className={styles.dataPreviewBox}>
                 <div className={styles.dataRow}><span>Days:</span> <strong>{previewData.days}</strong></div>
@@ -119,35 +147,59 @@ export default function GeneratorClient({ smes, templates, preselectedSmeId, pre
               </div>
             ) : (
               <div className={styles.a4Preview}>
-                <h1 style={{ textAlign: 'center', marginBottom: '40px', fontSize: '20px' }}>
-                  {activeTemplate?.name.toUpperCase().replace('TEMPLATE', '').trim()}
-                </h1>
+                {/* Official Header */}
+                <div style={{ position: 'relative', textAlign: 'center', color: '#000080', borderBottom: '2px solid #000080', paddingBottom: '10px', marginBottom: '20px' }}>
+                  <h1 style={{ fontSize: '22px', margin: 0 }}>NATIONAL INSTRUCTIONAL MEDIA INSTITUTE</h1>
+                  <img src="/nimi-logo.png" alt="NIMI Logo" style={{ position: 'absolute', top: 0, right: 0, height: '60px', width: 'auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                  <p style={{ margin: 0, fontSize: '16px' }}>(AN AUTONOMOUS INSTITUTION)</p>
+                  <p style={{ margin: 0, fontSize: '14px' }}>Ministry of Skill Development & Entrepreneurship</p>
+                  <p style={{ margin: 0, fontSize: '14px' }}>Government of India</p>
+                  <p style={{ margin: 0, fontSize: '12px' }}>Post Box No.3142, CTI Campus, Guindy Industrial Estate, Guindy, Chennai - 600 032.</p>
+                  <p style={{ margin: 0, fontSize: '12px' }}>Office : 044-2250 0657, 044-2250 0248 Director 044-2250 0256 E-mail :chennai-nimi@nic.in</p>
+                </div>
                 
-                <p style={{ textAlign: 'right', marginBottom: '40px' }}>Date: {new Date().toLocaleDateString('en-IN')}</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontWeight: 'bold' }}>
+                  <span>NIMI/MS/T-11022/MM/2026</span>
+                  <span>Date: {new Date().toLocaleDateString('en-IN')}</span>
+                </div>
                 
                 <p>To,</p>
-                <p><strong>{previewData.smeName}</strong></p>
-                <p style={{ marginBottom: '40px' }}>{previewData.designation}, {previewData.institute}</p>
+                <p>The Principal,</p>
+                <p>{previewData.institute || 'Institution Name'},</p>
+                <p style={{ marginBottom: '20px' }}>City, State - PIN</p>
                 
-                <p style={{ marginBottom: '40px' }}><strong>Subject:</strong> {activeTemplate ? replaceTags(activeTemplate.subject) : ''}</p>
+                <p style={{ marginBottom: '20px' }}><strong>Sub: {activeTemplate ? replaceTags(activeTemplate.subject) : ''}</strong></p>
                 
-                <p style={{ marginBottom: '20px' }}>Dear {previewData.smeName},</p>
+                <p style={{ textAlign: 'justify', marginBottom: '15px' }}>
+                  The National Instructional Media Institute (NIMI), functioning under the Ministry of Skill Development & Entrepreneurship, Government of India, is the nodal agency engaged in the development of e-Learning content for various trades offered through Industrial Training Institutes (ITIs) and other skill development programmes.
+                </p>
                 
-                {activeTemplate && replaceTags(activeTemplate.body).split('\n\n').map((p, i) => (
-                  <p key={i} style={{ marginBottom: '20px', lineHeight: '1.8' }}>
-                    {p.split('\n').map((line, j) => (
-                      <React.Fragment key={j}>
-                        {line}
-                        {j < p.split('\n').length - 1 && <br />}
-                      </React.Fragment>
-                    ))}
-                  </p>
-                ))}
+                <p style={{ textAlign: 'justify', marginBottom: '15px' }}>
+                  In this connection, approval is hereby accorded for the Visit of <strong>{previewData.smeName}</strong>, <strong>{previewData.designation}</strong>, <strong>{previewData.institute}</strong>, to participate as a <strong>Subject Matter Expert (SME)</strong> for the <strong>PM e-Vidya Classroom Teaching Shoot</strong> for the trade <strong>"{previewData.trade || 'Trade'}"</strong> for <strong>{previewData.days || 14} days</strong> from <strong>{previewData.attendanceFrom}</strong>{previewData.extensionReason ? ` ${previewData.extensionReason}.` : '.'}
+                </p>
+                
+                <p style={{ textAlign: 'justify', marginBottom: '15px' }}>
+                  The Subject Matter Expert shall extend academic and technical support for the classroom teaching session, including content delivery, validation of instructional materials, and other activities required for the successful production of the <strong>PM e-Vidya programme</strong>. He is requested to coordinate closely with the concerned PM e-Vidya and NIMI officials regarding the content, presentation methodology, reporting schedule, and other technical requirements for the classroom teaching shoot.
+                </p>
+                
+                <p style={{ textAlign: 'justify', marginBottom: '15px' }}>
+                  The <strong>remuneration / honorarium</strong> for the assignment, along with reimbursement of <strong>Travelling Allowance (TA)</strong>, shall be paid by NIMI as per the prevailing NIMI norms based on the SME designation and eligibility, subject to submission of original travel tickets, boarding passes, and other supporting documents, wherever applicable <strong>(Balmer Lawrie & Company Limited, Ashok Travels & Tours, Indian Railway Catering and Tourism Corporation Ltd - IRCTC)</strong>.
+                </p>
 
-                <p style={{ marginTop: '60px', marginBottom: '80px' }}>Sincerely,</p>
+                <p style={{ textAlign: 'justify', marginBottom: '40px' }}>
+                  Your kind cooperation and valuable support towards the development of quality e-content for the Skill Development ecosystem will be highly solicited.
+                </p>
+
+                <p style={{ textAlign: 'right', marginBottom: '60px' }}>Regards</p>
                 
-                <p><strong>Authorized Signatory</strong></p>
-                <p>Accounts Department, PM e-Vidya</p>
+                <p style={{ textAlign: 'right' }}><strong>{signatory}</strong></p>
+                
+                {/* Official Footer */}
+                <div style={{ textAlign: 'center', borderTop: '1px dashed #000', paddingTop: '10px', marginTop: '40px', fontSize: '11px' }}>
+                  <p style={{ margin: 0 }}>पो. बा. संख्या 3142, सीटीआई कैम्पस, गिंडी इंडस्ट्रियल एस्टेट, गिंडी, चेन्नई-600032./Post Box No. 3142, CTI Campus,</p>
+                  <p style={{ margin: 0 }}>Guindy Industrial Estate, Guindy, Chennai - 600032. कार्यालय/Office: 044-2250 0657, 044-22500248,</p>
+                  <p style={{ margin: 0 }}>निदेशक /Director- 044-2250 0256. ई-मेल/E-mail : chennai-nmi@nic.in.</p>
+                </div>
               </div>
             )}
           </div>

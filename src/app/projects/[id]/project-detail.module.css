@@ -1,0 +1,130 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.titleArea {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.breadcrumb {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.breadcrumb a {
+  color: var(--primary);
+}
+
+.breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.projectCode {
+  font-family: monospace;
+  font-size: 14px;
+  background: var(--slate-100);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--slate-600);
+  font-weight: 500;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+.tabs {
+  display: flex;
+  gap: 32px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+
+.tab {
+  padding: 12px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  position: relative;
+  transition: color 0.2s;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tab.active {
+  color: var(--primary);
+}
+
+.tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--primary);
+  border-radius: 2px 2px 0 0;
+}
+
+.tabContent {
+  background: var(--surface-color);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.twoColumn {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+@media (min-width: 1024px) {
+  .twoColumn {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.fieldValue {
+  font-size: 15px;
+  color: var(--text-primary);
+}

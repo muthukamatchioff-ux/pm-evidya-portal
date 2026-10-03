@@ -1,0 +1,130 @@
+.container {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.searchGroup {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex: 1;
+  min-width: 300px;
+}
+
+.searchInput {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-color);
+  width: 100%;
+  max-width: 400px;
+  font-size: 14px;
+  outline: none;
+}
+
+.searchInput:focus {
+  border-color: var(--primary);
+}
+
+.filterGroup {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.selectInput {
+  padding: 8px 32px 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-color);
+  font-size: 14px;
+  outline: none;
+}
+
+.card {
+  background-color: var(--surface-color);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.table th {
+  background-color: var(--slate-50);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.table td {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.table tr:hover td {
+  background-color: var(--slate-50);
+}
+
+.videoLink {
+  color: var(--primary);
+  text-decoration: underline;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-block;
+}
+
+.badgePending { background-color: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning); }
+.badgeEditing { background-color: var(--primary-light); color: var(--primary); border: 1px solid var(--primary); }
+.badgeFinalized { background-color: var(--success-bg); color: var(--success); border: 1px solid var(--success); }

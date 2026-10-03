@@ -13,9 +13,9 @@ export interface Template {
 const defaultTemplates: Template[] = [
   {
     id: 'APPROVAL_LETTER',
-    name: 'Approval Letter Template',
-    subject: 'Engagement as Subject Matter Expert for {{trade}} - {{topic}}',
-    body: 'We are pleased to inform you that your engagement as a Subject Matter Expert for the Trade "{{trade}}" covering the topic "{{topic}}" has been approved.\nThe engagement period is from {{attendanceFrom}} to {{attendanceTo}}, for a total of {{days}} days.\n\nThe honorarium is fixed at Rs. {{ratePerDay}}/- per day. The total approved amount including TA/DA (if applicable) is Rs. {{totalAmount}}/-.'
+    name: 'NIMI Official Approval Letter',
+    subject: 'Invitation - as Subject Matter Expert (SME) to take Class room shooting for the PM e vidya channel for the trade {{trade}} - Reg.',
+    body: 'The National Instructional Media Institute (NIMI), functioning under the Ministry of Skill Development & Entrepreneurship, Government of India, is the nodal agency engaged in the development of e-Learning content for various trades offered through Industrial Training Institutes (ITIs) and other skill development programmes.\n\nIn this connection, approval is hereby accorded for the Visit of {{smeName}}, {{designation}}, {{institute}}, to participate as a Subject Matter Expert (SME) for the PM e-Vidya Classroom Teaching Shoot for the trade "{{trade}}" for {{days}} days from {{attendanceFrom}}.\n\nThe Subject Matter Expert shall extend academic and technical support for the classroom teaching session, including content delivery, validation of instructional materials, and other activities required for the successful production of the PM e-Vidya programme. He is requested to coordinate closely with the concerned PM e-Vidya and NIMI officials regarding the content, presentation methodology, reporting schedule, and other technical requirements for the classroom teaching shoot.\n\nThe remuneration / honorarium for the assignment, along with reimbursement of Travelling Allowance (TA), shall be paid by NIMI as per the prevailing NIMI norms based on the SME designation and eligibility, subject to submission of original travel tickets, boarding passes, and other supporting documents, wherever applicable (Balmer Lawrie & Company Limited, Ashok Travels & Tours, Indian Railway Catering and Tourism Corporation Ltd - IRCTC).\n\nYour kind cooperation and valuable support towards the development of quality e-content for the Skill Development ecosystem will be highly solicited.'
   },
   {
     id: 'PAYMENT_APPROVAL',

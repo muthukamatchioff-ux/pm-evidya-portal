@@ -1,0 +1,136 @@
+.header {
+  height: 64px;
+  background-color: var(--surface-color);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.leftSection {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .title {
+    display: block;
+  }
+}
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  background-color: var(--slate-100);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  width: 250px;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.searchBar:focus-within {
+  background-color: var(--surface-color);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+.searchInput {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 14px;
+  width: 100%;
+  margin-left: 8px;
+  color: var(--text-primary);
+}
+
+.rightSection {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.dateDisplay {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .dateDisplay {
+    display: block;
+  }
+}
+
+.iconButton {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+
+.iconButton:hover {
+  background-color: var(--slate-100);
+  color: var(--primary);
+}
+
+.profileButton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s;
+}
+
+.profileButton:hover {
+  background-color: var(--slate-50);
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.userName {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.userRole {
+  font-size: 12px;
+  color: var(--text-secondary);
+}

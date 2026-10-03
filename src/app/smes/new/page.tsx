@@ -55,6 +55,14 @@ export default function NewSMEPage() {
               <label>Institute / Organization</label>
               <input type="text" name="institute" className={styles.input} />
             </div>
+            <div className={styles.formGroup}>
+              <label>Location (City, State)</label>
+              <input type="text" name="location" className={styles.input} />
+            </div>
+            <div className={styles.formGroup}>
+              <label>Full Address</label>
+              <input type="text" name="address" className={styles.input} />
+            </div>
           </div>
         </div>
 
