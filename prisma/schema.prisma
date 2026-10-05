@@ -8,36 +8,32 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
+  id        String     @id @default(cuid())
+  email     String     @unique
   name      String?
-  role      String   @default("VIEWER") // ADMIN, ACCOUNTS, VIEWER
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  role      String     @default("VIEWER")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
   auditLogs AuditLog[]
 }
 
 model SME {
-  id          String   @id @default(cuid())
-  name        String
-  designation String?
-  institute   String?
-  location    String?
-  address     String?
-  status      String   @default("ACTIVE")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  workEntries       SMEWorkEntry[]
+  id                String             @id @default(cuid())
+  name              String
+  designation       String?
+  institute         String?
+  status            String             @default("ACTIVE")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  address           String?
+  location          String?
   deputationLetters DeputationLetter[]
+  workEntries       SMEWorkEntry[]
 }
 
 model SMEWorkEntry {
-  id             String    @id @default(cuid())
-  epicSequence   Int       @default(autoincrement())
+  id             String     @id @default(cuid())
   smeId          String
-  sme            SME       @relation(fields: [smeId], references: [id], onDelete: Cascade)
   trade          String
   topic          String
   attendanceFrom DateTime?
@@ -46,135 +42,119 @@ model SMEWorkEntry {
   ratePerDay     Float?
   taAmount       Float?
   otherAmount    Float?
-  status         String    @default("PENDING")
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  topicId  String?
-  topicRef Topic?  @relation(fields: [topicId], references: [id])
-
-  payments  Payment[]
-  documents Document[]
+  status         String     @default("PENDING")
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  topicId        String?
+  epicSequence   Int        @default(autoincrement())
+  documents      Document[]
+  payments       Payment[]
+  sme            SME        @relation(fields: [smeId], references: [id], onDelete: Cascade)
+  topicRef       Topic?     @relation(fields: [topicId], references: [id])
 }
 
 model Payment {
-  id           String       @id @default(cuid())
+  id           String        @id @default(cuid())
   workEntryId  String
-  workEntry    SMEWorkEntry @relation(fields: [workEntryId], references: [id], onDelete: Cascade)
   grossAmount  Float
   taAmount     Float?
   otherAmount  Float?
   totalAmount  Float
-  status       String       @default("DRAFT") // DRAFT, PENDING_APPROVAL, APPROVED, PROCESSING, PAID, REJECTED
+  status       String        @default("DRAFT")
   utrNumber    String?
   paymentDate  DateTime?
   remarks      String?
-  budgetHeadId String? // Link to specifically classify Video Content vs Capacity Building
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  budgetHeadId String?
   documents    Document[]
   expenditures Expenditure[]
+  workEntry    SMEWorkEntry  @relation(fields: [workEntryId], references: [id], onDelete: Cascade)
 }
 
 model BudgetHead {
-  id             String   @id @default(cuid())
-  name           String   @unique
-  approvedBudget Float    @default(0)
-  utilizedAmount Float    @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  expenditures Expenditure[]
+  id             String        @id @default(cuid())
+  name           String        @unique
+  approvedBudget Float         @default(0)
+  utilizedAmount Float         @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  expenditures   Expenditure[]
 }
 
 model Expenditure {
-  id           String     @id @default(cuid())
-  budgetHeadId String
-  budgetHead   BudgetHead @relation(fields: [budgetHeadId], references: [id])
-
+  id              String     @id @default(cuid())
+  budgetHeadId    String
   amount          Float
   description     String?
-  transactionDate DateTime @default(now())
-  status          String   @default("PENDING") // PENDING, COMPLETED
-
-  paymentId String?
-  payment   Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
-
-  hrSalaryId String?
-  hrSalary   HRSalary? @relation(fields: [hrSalaryId], references: [id], onDelete: SetNull)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  transactionDate DateTime   @default(now())
+  status          String     @default("PENDING")
+  paymentId       String?
+  hrSalaryId      String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  budgetHead      BudgetHead @relation(fields: [budgetHeadId], references: [id])
+  hrSalary        HRSalary?  @relation(fields: [hrSalaryId], references: [id])
+  payment         Payment?   @relation(fields: [paymentId], references: [id])
 }
 
 model HumanResource {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   name        String
   role        String
   joiningDate DateTime
   baseSalary  Float
-  allowances  Float    @default(0)
-  status      String   @default("ACTIVE")
-
-  salaries HRSalary[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  allowances  Float      @default(0)
+  status      String     @default("ACTIVE")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  salaries    HRSalary[]
 }
 
 model HRSalary {
-  id   String        @id @default(cuid())
-  hrId String
-  hr   HumanResource @relation(fields: [hrId], references: [id], onDelete: Cascade)
-
-  month       String
-  year        String
-  totalAmount Float
-  status      String    @default("PENDING")
-  utrNumber   String?
-  paymentDate DateTime?
-
+  id           String        @id @default(cuid())
+  hrId         String
+  month        String
+  year         String
+  totalAmount  Float
+  status       String        @default("PENDING")
+  utrNumber    String?
+  paymentDate  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   expenditures Expenditure[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  hr           HumanResource @relation(fields: [hrId], references: [id], onDelete: Cascade)
 }
 
 model Document {
-  id       String  @id @default(cuid())
-  name     String
-  type     String // APPROVAL_LETTER, ATTENDANCE, PAYMENT_APPROVAL, etc.
-  status   String  @default("UPLOADED") // MISSING, PENDING, GENERATED, UPLOADED, APPROVED, REJECTED
-  filePath String?
-  version  Int     @default(1)
-
+  id          String        @id @default(cuid())
+  name        String
+  type        String
+  status      String        @default("UPLOADED")
+  filePath    String?
+  version     Int           @default(1)
   workEntryId String?
-  workEntry   SMEWorkEntry? @relation(fields: [workEntryId], references: [id], onDelete: Cascade)
   paymentId   String?
-  payment     Payment?      @relation(fields: [paymentId], references: [id], onDelete: SetNull)
-
-  projectId String?
-  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  projectId   String?
+  payment     Payment?      @relation(fields: [paymentId], references: [id])
+  project     Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workEntry   SMEWorkEntry? @relation(fields: [workEntryId], references: [id], onDelete: Cascade)
 }
 
 model AuditLog {
   id           String   @id @default(cuid())
   userId       String?
-  user         User?    @relation(fields: [userId], references: [id])
   action       String
   entity       String
   entityId     String
   previousData String?
   newData      String?
   createdAt    DateTime @default(now())
+  user         User?    @relation(fields: [userId], references: [id])
 }
 
-// New Master Data Models
 model Language {
   id       String    @id @default(cuid())
   name     String    @unique
@@ -183,7 +163,7 @@ model Language {
 
 model Status {
   id       String    @id @default(cuid())
-  name     String    @unique // Draft, In Progress, Under Review, Completed, Archived
+  name     String    @unique
   projects Project[]
 }
 
@@ -193,29 +173,24 @@ model Trade {
   projects Project[]
 }
 
-// Normalized Project Entities
 model Project {
-  id          String @id @default(cuid())
-  projectCode String @unique
-  title       String
-
-  tradeId    String?
-  trade      Trade?    @relation(fields: [tradeId], references: [id])
-  languageId String?
-  language   Language? @relation(fields: [languageId], references: [id])
-  statusId   String?
-  status     Status?   @relation(fields: [statusId], references: [id])
-
-  startDate      DateTime?
-  completionDate DateTime?
-
-  modules           Module[]
-  documents         Document[]
-  production        ProductionRecord[]
+  id                String             @id @default(cuid())
+  projectCode       String             @unique
+  title             String
+  tradeId           String?
+  languageId        String?
+  statusId          String?
+  startDate         DateTime?
+  completionDate    DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
   deputationLetters DeputationLetter[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  documents         Document[]
+  modules           Module[]
+  production        ProductionRecord[]
+  language          Language?          @relation(fields: [languageId], references: [id])
+  status            Status?            @relation(fields: [statusId], references: [id])
+  trade             Trade?             @relation(fields: [tradeId], references: [id])
 }
 
 model Module {
@@ -224,57 +199,47 @@ model Module {
   name         String?
   projectId    String
   project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  topics Topic[]
+  topics       Topic[]
 }
 
 model Topic {
-  id       String @id @default(cuid())
-  name     String
-  moduleId String
-  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-
+  id             String         @id @default(cuid())
+  name           String
+  moduleId       String
   smeWorkEntries SMEWorkEntry[]
+  module         Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 }
 
 model ProductionRecord {
-  id        String  @id @default(cuid())
+  id        String    @id @default(cuid())
   projectId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  videoUrl  String? // External URL, YouTube link, Drive link
+  videoUrl  String?
   shootDate DateTime?
-  status    String    @default("PENDING") // PENDING, EDITING, FINALIZED
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status    String    @default("PENDING")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
-// Legacy Data Import Tracking
 model ImportBatch {
-  id               String   @id @default(cuid())
+  id               String         @id @default(cuid())
   originalFileName String
   sheetName        String?
   importedBy       String
-  importDate       DateTime @default(now())
-
-  legacyRecords LegacyRecord[]
+  importDate       DateTime       @default(now())
+  legacyRecords    LegacyRecord[]
 }
 
 model LegacyRecord {
-  id      String      @id @default(cuid())
-  batchId String
-  batch   ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-
-  originalRow Int
-  rawData     String // Store the original Excel row as JSON string for traceability
-
-  // Link to the normalized entities if created successfully
-  projectId String?
-  smeId     String?
-
-  status       String  @default("SUCCESS") // SUCCESS, ERROR, DUPLICATE
+  id           String      @id @default(cuid())
+  batchId      String
+  originalRow  Int
+  rawData      String
+  projectId    String?
+  smeId        String?
+  status       String      @default("SUCCESS")
   errorMessage String?
+  batch        ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 }
 
 model DeputationLetter {
@@ -283,9 +248,7 @@ model DeputationLetter {
   letterDate      DateTime
   year            String
   smeId           String
-  sme             SME       @relation(fields: [smeId], references: [id], onDelete: Cascade)
   projectId       String?
-  project         Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
   approvalPeriod  String
   extensionDate   DateTime?
   version         Int       @default(1)
@@ -293,31 +256,28 @@ model DeputationLetter {
   createdBy       String
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  project         Project?  @relation(fields: [projectId], references: [id])
+  sme             SME       @relation(fields: [smeId], references: [id], onDelete: Cascade)
 }
 
-// PM e-Vidya Financial Documentation Models
-
 model BudgetComponent {
-  id             String @id @default(cuid())
-  componentNo    Int    @unique
+  id             String        @id @default(cuid())
+  componentNo    Int           @unique
   name           String
   approvedBudget Float
-
-  annexureI   AnnexureI[]
-  annexureII  AnnexureII[]
-  annexureIII AnnexureIII[]
-  annexureIV  AnnexureIV[]
-  annexureV   AnnexureV[]
-  annexureVI  AnnexureVI[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  annexureI      AnnexureI[]
+  annexureII     AnnexureII[]
+  annexureIII    AnnexureIII[]
+  annexureIV     AnnexureIV[]
+  annexureV      AnnexureV[]
+  annexureVI     AnnexureVI[]
 }
 
 model AnnexureI {
   id                 String          @id @default(cuid())
   budgetComponentId  String
-  budgetComponent    BudgetComponent @relation(fields: [budgetComponentId], references: [id], onDelete: Cascade)
   datePeriod         String
   expertName         String
   designation        String
@@ -333,15 +293,14 @@ model AnnexureI {
   remarks            String?
   supportingDoc      String?
   verificationStatus String          @default("DRAFT")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  budgetComponent    BudgetComponent @relation(fields: [budgetComponentId], references: [id], onDelete: Cascade)
 }
 
 model AnnexureII {
   id                 String          @id @default(cuid())
   budgetComponentId  String
-  budgetComponent    BudgetComponent @relation(fields: [budgetComponentId], references: [id], onDelete: Cascade)
   datePeriod         String
   trainingName       String
   trainingType       String
@@ -349,7 +308,6 @@ model AnnexureII {
   venue              String
   noOfParticipants   Int             @default(0)
   trainingDays       Float
-  trainingDates      String?
   trainerFee         Float           @default(0)
   trainingCost       Float           @default(0)
   travelAllowance    Float           @default(0)
@@ -361,15 +319,15 @@ model AnnexureII {
   remarks            String?
   supportingDoc      String?
   verificationStatus String          @default("DRAFT")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  trainingDates      String?
+  budgetComponent    BudgetComponent @relation(fields: [budgetComponentId], references: [id], onDelete: Cascade)
 }
 
 model AnnexureIII {
   id                 String          @id @default(cuid())
   budgetComponentId  String
-  budgetComponent    BudgetComponent @relation(fields: [budgetComponentId], references: [id], onDelete: Cascade)
   datePeriod         String
   personnelName      String
   designation        String
@@ -385,15 +343,14 @@ model AnnexureIII {
   remarks            String?
   supportingDoc      String?
   verificationStatus String          @default("DRAFT")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  budgetComponent    BudgetComponent @relation(fields: [budgetComponentId], references: [id], onDelete: Cascade)
 }
 
 model AnnexureIV {
   id                 String          @id @default(cuid())
   budgetComponentId  String
-  budgetComponent    BudgetComponent @relation(fields: [budgetComponentId], references: [id], onDelete: Cascade)
   datePeriod         String
   service            String
   description        String
@@ -412,15 +369,14 @@ model AnnexureIV {
   remarks            String?
   supportingDoc      String?
   verificationStatus String          @default("DRAFT")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  budgetComponent    BudgetComponent @relation(fields: [budgetComponentId], references: [id], onDelete: Cascade)
 }
 
 model AnnexureV {
   id                 String          @id @default(cuid())
   budgetComponentId  String
-  budgetComponent    BudgetComponent @relation(fields: [budgetComponentId], references: [id], onDelete: Cascade)
   datePeriod         String
   school             String
   activity           String
@@ -437,15 +393,14 @@ model AnnexureV {
   remarks            String?
   supportingDoc      String?
   verificationStatus String          @default("DRAFT")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  budgetComponent    BudgetComponent @relation(fields: [budgetComponentId], references: [id], onDelete: Cascade)
 }
 
 model AnnexureVI {
   id                 String          @id @default(cuid())
   budgetComponentId  String
-  budgetComponent    BudgetComponent @relation(fields: [budgetComponentId], references: [id], onDelete: Cascade)
   platform           String
   campaignDesc       String
   datePeriod         String
@@ -459,18 +414,18 @@ model AnnexureVI {
   remarks            String?
   supportingDoc      String?
   verificationStatus String          @default("DRAFT")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  budgetComponent    BudgetComponent @relation(fields: [budgetComponentId], references: [id], onDelete: Cascade)
 }
 
 model VideoLibrary {
   id        String   @id @default(cuid())
   smeName   String
-  trade     String?
   title     String
   videoLink String
-  duration  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  duration  String?
+  trade     String?
 }

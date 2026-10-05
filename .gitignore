@@ -44,3 +44,9 @@ next-env.d.ts
 prisma/dev.db
 .vercel
 .env*
+
+# Local backup and temporary files
+/prisma/schema.backup.prisma
+/prisma/schema.git-*.prisma
+/scratch/
+/logo_base64.txt
