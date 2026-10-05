@@ -1,6 +1,8 @@
-'use server';
+﻿'use server';
+
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 
 const ADMIN_EMAILS = [
@@ -8,31 +10,69 @@ const ADMIN_EMAILS = [
   'harshitharamannimi@gmail.com'
 ];
 
-export async function login(email: string) {
+function isAdminEmail(email: string) {
+  return ADMIN_EMAILS.includes(email.toLowerCase().trim());
+}
+
+export async function login(email: string, password: string) {
   const normalizedEmail = email.toLowerCase().trim();
-  const role = ADMIN_EMAILS.includes(normalizedEmail) ? 'ADMIN' : 'VISITOR';
-  
-  // Ensure user exists in DB and role is correctly synchronized
+
+  if (!isAdminEmail(normalizedEmail)) {
+    return { success: false, error: 'Invalid admin credentials.' };
+  }
+
+  const passwordHash = process.env.ADMIN_PASSWORD_HASH;
+
+  if (!passwordHash) {
+    console.error('ADMIN_PASSWORD_HASH is not configured.');
+    return { success: false, error: 'Admin authentication is not configured.' };
+  }
+
+  const passwordValid = await bcrypt.compare(password, passwordHash);
+
+  if (!passwordValid) {
+    return { success: false, error: 'Invalid admin credentials.' };
+  }
+
   await prisma.user.upsert({
     where: { email: normalizedEmail },
-    update: { role },
+    update: { role: 'ADMIN' },
     create: {
       email: normalizedEmail,
-      role,
+      role: 'ADMIN',
       name: normalizedEmail.split('@')[0]
     }
   });
 
   const cookieStore = await cookies();
-  cookieStore.set('user_email', normalizedEmail, { path: '/' });
-  cookieStore.set('user_role', role, { path: '/' });
+
+  cookieStore.set('user_email', normalizedEmail, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 8
+  });
+
+  cookieStore.set('user_role', 'ADMIN', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 8
+  });
+
   revalidatePath('/');
+
+  return { success: true };
 }
 
 export async function logout() {
   const cookieStore = await cookies();
+
   cookieStore.delete('user_email');
   cookieStore.delete('user_role');
+
   revalidatePath('/');
 }
 
@@ -44,16 +84,20 @@ export async function getEmail() {
 export async function getRole() {
   const cookieStore = await cookies();
   const email = cookieStore.get('user_email')?.value;
-  if (!email) return 'VISITOR'; // Default role
-  
-  const normalizedEmail = email.toLowerCase().trim();
-  // Server-side source of truth for authorization
-  return ADMIN_EMAILS.includes(normalizedEmail) ? 'ADMIN' : 'VISITOR';
+
+  if (!email) {
+    return 'VISITOR';
+  }
+
+  return isAdminEmail(email) ? 'ADMIN' : 'VISITOR';
 }
 
 export async function requireAuth(allowedRoles: string[]) {
   const role = await getRole();
+
   if (!allowedRoles.includes(role)) {
-    throw new Error(`Unauthorized: Requires one of [${allowedRoles.join(', ')}] but got ${role}`);
+    throw new Error(
+      `Unauthorized: Requires one of [${allowedRoles.join(', ')}] but got ${role}`
+    );
   }
 }

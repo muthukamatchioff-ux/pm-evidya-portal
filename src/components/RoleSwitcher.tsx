@@ -1,36 +1,79 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import { login, logout } from '@/lib/auth';
 
-export default function RoleSwitcher({ currentEmail, currentRole }: { currentEmail: string | null, currentRole: string }) {
+export default function RoleSwitcher({
+  currentEmail,
+  currentRole
+}: {
+  currentEmail: string | null;
+  currentRole: string;
+}) {
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.trim()) {
-      await login(email);
-      setEmail('');
+    setError('');
+
+    if (!email.trim() || !password) {
+      setError('Email and password are required.');
+      return;
     }
+
+    const result = await login(email, password);
+
+    if (!result.success) {
+      setError(result.error || 'Login failed.');
+      return;
+    }
+
+    setEmail('');
+    setPassword('');
+    window.location.reload();
   };
 
   const handleLogout = async () => {
     await logout();
+    window.location.reload();
   };
 
   if (currentEmail) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 600 }}>
+        <div
+          style={{
+            fontSize: '11px',
+            textTransform: 'uppercase',
+            color: 'var(--text-secondary)',
+            fontWeight: 600
+          }}
+        >
           Authenticated As
         </div>
-        <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--primary)' }}>
+
+        <div
+          style={{
+            fontSize: '12px',
+            fontWeight: 'bold',
+            color: 'var(--primary)'
+          }}
+        >
           {currentEmail}
         </div>
-        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+
+        <div
+          style={{
+            fontSize: '11px',
+            color: 'var(--text-secondary)'
+          }}
+        >
           Role: {currentRole}
         </div>
-        <button 
+
+        <button
           onClick={handleLogout}
           style={{
             padding: '4px 8px',
@@ -50,15 +93,31 @@ export default function RoleSwitcher({ currentEmail, currentRole }: { currentEma
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <label style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 600 }}>
-        Login Simulation
+      <label
+        style={{
+          fontSize: '11px',
+          textTransform: 'uppercase',
+          color: 'var(--text-secondary)',
+          fontWeight: 600
+        }}
+      >
+        Admin Login
       </label>
-      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <input 
-          type="email" 
+
+      <form
+        onSubmit={handleLogin}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6px'
+        }}
+      >
+        <input
+          type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="Enter email to login"
+          placeholder="Admin email"
+          autoComplete="username"
           required
           style={{
             padding: '6px',
@@ -69,7 +128,37 @@ export default function RoleSwitcher({ currentEmail, currentRole }: { currentEma
             color: 'var(--text-primary)'
           }}
         />
-        <button 
+
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Password"
+          autoComplete="current-password"
+          required
+          style={{
+            padding: '6px',
+            borderRadius: '4px',
+            border: '1px solid var(--border)',
+            background: 'var(--bg-color)',
+            fontSize: '12px',
+            color: 'var(--text-primary)'
+          }}
+        />
+
+        {error && (
+          <div
+            style={{
+              fontSize: '11px',
+              color: '#ef4444',
+              lineHeight: '1.3'
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        <button
           type="submit"
           style={{
             padding: '6px',
