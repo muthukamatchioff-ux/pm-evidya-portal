@@ -71,7 +71,7 @@ export default function Component1Client({ budgetComponentId, entries }: { budge
             <input type="text" name="datePeriod" value={formData.datePeriod} onChange={handleChange} required />
           </div>
           <div className={styles.formGroup}>
-            <label>Expert / Resource Person</label>
+            <label>Name</label>
             <input type="text" name="expertName" value={formData.expertName} onChange={handleChange} required />
           </div>
           <div className={styles.formGroup}>
@@ -132,20 +132,20 @@ export default function Component1Client({ budgetComponentId, entries }: { budge
             <tr>
               <th>Sl. No.</th>
               <th>Date</th>
-              <th>Expert</th>
+              <th>Name</th>
               <th>Designation</th>
               <th>Days</th>
               <th>Honorarium</th>
               <th>TA</th>
               <th>Total</th>
-              <th>UTR</th>
-              <th>Remarks</th>
+              <th>Voucher No.</th>
+              <th>Remarks/Narration</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {entries.length === 0 ? (
-              <tr><td colSpan={10} style={{textAlign:'center'}}>No records found</td></tr>
+              <tr><td colSpan={11} style={{textAlign:'center'}}>No records found</td></tr>
             ) : (
               entries.map((entry, idx) => (
                 <tr key={entry.id}>
@@ -157,8 +157,12 @@ export default function Component1Client({ budgetComponentId, entries }: { budge
                   <td>₹ {entry.honorarium.toLocaleString('en-IN')}</td>
                   <td>₹ {entry.travelAllowance.toLocaleString('en-IN')}</td>
                   <td style={{fontWeight: 'bold'}}>₹ {entry.totalExpenditure.toLocaleString('en-IN')}</td>
-                  <td>{entry.utrNumber || '-'}</td>
-                  <td>{entry.remarks || '-'}</td>
+                  <td>{entry.voucherNo || entry.utrNumber || '-'}</td>
+                  <td>
+                    <div title={entry.narration || entry.remarks || ''} style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'help' }}>
+                      {entry.narration || entry.remarks || '-'}
+                    </div>
+                  </td>
                   <td><button onClick={() => { setIsAdding(true); setEditingId(entry.id); setFormData({ ...entry, workingDays: entry.workingDays?.toString() || '', honorarium: entry.honorarium?.toString() || '', travelAllowance: entry.travelAllowance?.toString() || '', otherCharges: entry.otherCharges?.toString() || '' }); }} style={{color: 'blue', textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer'}}>Edit</button></td>
                 </tr>
               ))

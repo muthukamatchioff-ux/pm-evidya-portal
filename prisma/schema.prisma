@@ -295,6 +295,15 @@ model AnnexureI {
   verificationStatus String          @default("DRAFT")
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
+  
+  // Excel Import Fields
+  tranType           String?
+  voucherNo          String?
+  transactionDate    DateTime?
+  commitmentNo       String?
+  commitmentDate     DateTime?
+  narration          String?
+  
   budgetComponent    BudgetComponent @relation(fields: [budgetComponentId], references: [id], onDelete: Cascade)
 }
 
@@ -345,6 +354,15 @@ model AnnexureIII {
   verificationStatus String          @default("DRAFT")
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
+  
+  // Excel Import Fields
+  tranType           String?
+  voucherNo          String?
+  transactionDate    DateTime?
+  commitmentNo       String?
+  commitmentDate     DateTime?
+  narration          String?
+  
   budgetComponent    BudgetComponent @relation(fields: [budgetComponentId], references: [id], onDelete: Cascade)
 }
 
