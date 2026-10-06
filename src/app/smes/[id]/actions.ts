@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { storage } from '@/lib/storage';
 import { revalidatePath } from 'next/cache';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
 
 export async function uploadDocument(
   smeId: string, 
@@ -12,7 +12,8 @@ export async function uploadDocument(
   formData: FormData
 ) {
   try {
-    await requireAuth(['ADMIN']);
+    const authCheck = await checkAuth(['ADMIN']);
+  if (!authCheck.success) return authCheck;
     const file = formData.get('file') as File;
     if (!file) throw new Error('No file provided');
 
@@ -64,13 +65,16 @@ export async function uploadDocument(
       });
     }
 
+    const userEmail = await getEmail();
+    
     // Audit log
     await prisma.auditLog.create({
       data: {
         action: existing ? 'REPLACE_DOCUMENT' : 'UPLOAD_DOCUMENT',
         entity: 'Document',
         entityId: savedDoc.id,
-        newData: `Uploaded file: ${file.name}`
+        newData: `Uploaded file: ${file.name}`,
+        userId: userEmail
       }
     });
 
@@ -83,7 +87,8 @@ export async function uploadDocument(
 }
 
 export async function updateSMERecord(smeId: string, entryId: string | undefined, data: any) {
-  await requireAuth(['ADMIN']);
+  const authCheck = await checkAuth(['ADMIN']);
+  if (!authCheck.success) return authCheck;
   
   try {
     // Update SME master data
@@ -128,6 +133,17 @@ export async function updateSMERecord(smeId: string, entryId: string | undefined
         });
       }
     }
+    
+    const userEmail = await getEmail();
+    await prisma.auditLog.create({
+      data: {
+        action: 'UPDATE_SME_RECORD',
+        entity: 'SME',
+        entityId: smeId,
+        newData: `Updated SME ${data.smeName} and Entry ${entryId || 'none'}`,
+        userId: userEmail
+      }
+    });
 
     revalidatePath('/smes');
     revalidatePath(`/smes/${smeId}`);

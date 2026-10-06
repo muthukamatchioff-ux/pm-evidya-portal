@@ -3,11 +3,13 @@
 import { updateTemplate } from '@/lib/templates';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
 
 export async function saveTemplateData(id: string, subject: string, body: string) {
   try {
-    await requireAuth(['ADMIN']);
+    const authCheck = await checkAuth(['ADMIN']);
+  if (!authCheck.success) return authCheck;
+    const userEmail = await getEmail();
     await updateTemplate(id, { subject, body });
     
     await prisma.auditLog.create({
@@ -15,7 +17,8 @@ export async function saveTemplateData(id: string, subject: string, body: string
         action: 'UPDATE_TEMPLATE',
         entity: 'Template',
         entityId: id,
-        newData: `Updated template ${id}`
+        newData: `Updated template ${id}`,
+        userId: userEmail
       }
     });
 

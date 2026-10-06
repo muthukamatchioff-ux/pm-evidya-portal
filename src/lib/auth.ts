@@ -167,12 +167,27 @@ export async function getRole() {
   return 'VISITOR';
 }
 
+import { redirect } from 'next/navigation';
+
+export async function checkAuth(allowedRoles: string[]) {
+  const role = await getRole();
+  if (role === 'VISITOR') {
+    return { success: false, error: 'Authentication required.', status: 401 };
+  }
+  if (!allowedRoles.includes(role)) {
+    return { success: false, error: 'You are not authorized to perform this action.', status: 403 };
+  }
+  return { success: true };
+}
+
 export async function requireAuth(allowedRoles: string[]) {
   const role = await getRole();
 
+  if (role === 'VISITOR') {
+    redirect('/login');
+  }
+
   if (!allowedRoles.includes(role)) {
-    throw new Error(
-      `Unauthorized: Requires one of [${allowedRoles.join(', ')}] but got ${role}`
-    );
+    redirect('/dashboard?error=forbidden');
   }
 }

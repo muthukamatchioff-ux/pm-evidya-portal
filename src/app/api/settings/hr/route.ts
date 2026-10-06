@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getRole } from '@/lib/auth';
+import { getRole, checkAuth } from '@/lib/auth';
 
 export async function POST(req: Request) {
   const role = await getRole();

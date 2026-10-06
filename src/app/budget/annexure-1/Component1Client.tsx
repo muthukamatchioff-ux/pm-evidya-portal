@@ -42,7 +42,9 @@ export default function Component1Client({ role, budgetComponentId, entries }: {
       contentDuration: formData.contentDuration,
       remarks: formData.remarks
     };
-    if (editingId) await updateAnnexureIEntry(editingId, dataToSubmit); else await addAnnexureIEntry(dataToSubmit);
+    let res;
+    if (editingId) res = await updateAnnexureIEntry(editingId, dataToSubmit); else res = await addAnnexureIEntry(dataToSubmit);
+    if (res && !res.success) { alert(res.error); return; }
     setIsAdding(false); setEditingId(null);
     setFormData({
       datePeriod: '', expertName: '', designation: '', activity: '',

@@ -57,6 +57,12 @@ export default function GeneratorClient({ role, smes, templates, preselectedSmeI
 
   const handleGenerate = async () => {
     if (!previewData.smeName || !activeTemplate) return;
+    try {
+      const { logDocumentGeneration } = await import('./actions');
+      await logDocumentGeneration(docType, selectedSmeId, selectedEntryId);
+    } catch (e) {
+      console.error(e);
+    }
     await generateDocx(previewData, docType, activeTemplate.body, activeTemplate.subject, signatory);
   };
 
