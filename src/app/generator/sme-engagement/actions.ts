@@ -2,10 +2,12 @@
 
 import { PrismaClient } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
+import { requireAuth } from '@/lib/auth';
 
 const prisma = new PrismaClient();
 
 export async function saveSMERecord(smeData: any, trades: any[]) {
+  await requireAuth(['ADMIN']);
   try {
     // 1. Create or find SME
     let sme = await prisma.sME.findFirst({

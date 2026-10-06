@@ -45,7 +45,16 @@ export function middleware(request: NextRequest) {
   }
 
   // 4. Admin-only check (if any routes require STRICTLY 'ADMIN' and not just logged in)
-  const strictAdminRoutes = ['/accounts', '/legacy', '/settings'];
+  const strictAdminRoutes = [
+    '/accounts', 
+    '/legacy', 
+    '/settings',
+    '/smes',
+    '/production',
+    '/projects',
+    '/templates',
+    '/generator/deputation'
+  ];
   const isStrictAdminRoute = strictAdminRoutes.some(route => pathname.startsWith(route));
   if (isStrictAdminRoute && role !== 'ADMIN') {
     return NextResponse.redirect(new URL('/dashboard', request.url));

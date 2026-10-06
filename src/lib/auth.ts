@@ -45,17 +45,22 @@ export async function login(email: string, password: string): Promise<{ success:
     where: { email: normalizedEmail }
   });
 
-  if (dbUser && dbUser.role === 'ADMIN') {
+  if (dbUser && (dbUser.role === 'ADMIN' || dbUser.role === 'TEAM_MEMBER')) {
     if (dbUser.status !== 'ACTIVE') {
-      return { success: false, error: 'Admin account is deactivated.' };
+      return { success: false, error: 'Account is deactivated.' };
     }
     // If DB user has a password, verify against it
     if (dbUser.password) {
       const passwordValid = await bcrypt.compare(password, dbUser.password);
       if (passwordValid) {
-        return await createSession(normalizedEmail, 'ADMIN');
+        // Update lastLogin on successful login
+        await prisma.user.update({
+          where: { id: dbUser.id },
+          data: { lastLogin: new Date() }
+        });
+        return await createSession(normalizedEmail, dbUser.role);
       }
-      return { success: false, error: 'Invalid admin credentials.' };
+      return { success: false, error: 'Invalid credentials.' };
     }
   }
 

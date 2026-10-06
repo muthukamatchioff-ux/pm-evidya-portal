@@ -1,8 +1,10 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth';
 
 export async function generateReportData(reportId: string, dateFrom: string, dateTo: string) {
+  await requireAuth(['ADMIN', 'TEAM_MEMBER']);
   let data: any[] = [];
   
   const dateFilter = dateFrom && dateTo ? {
@@ -59,6 +61,7 @@ export async function generateReportData(reportId: string, dateFrom: string, dat
 }
 
 export async function getComprehensiveReportData() {
+  await requireAuth(['ADMIN', 'TEAM_MEMBER']);
   const smes = await prisma.sME.findMany({
     include: {
       workEntries: {
