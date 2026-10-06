@@ -1,8 +1,20 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { verifySession } from '@/lib/auth';
 
-export function middleware(request: NextRequest) {
-  const role = request.cookies.get('user_role')?.value;
+export async function middleware(request: NextRequest) {
+  const token = request.cookies.get('session_token')?.value;
+  const session = await verifySession(token);
+  let role = null;
+  
+  if (session && session.role) {
+    if (session.exp && Date.now() > session.exp) {
+      role = null;
+    } else {
+      role = session.role;
+    }
+  }
+
   const { pathname } = request.nextUrl;
 
   // Protect ALL management routes

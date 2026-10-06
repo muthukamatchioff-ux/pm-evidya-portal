@@ -10,22 +10,63 @@ const ADMIN_EMAILS = [
   'harshitharamannimi@gmail.com'
 ];
 
+const SESSION_SECRET = process.env.ADMIN_PASSWORD_HASH || 'fallback_secret_key_12345';
+const encoder = new TextEncoder();
+
+async function getCryptoKey() {
+  return await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(SESSION_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign', 'verify']
+  );
+}
+
+function bufferToHex(buffer: ArrayBuffer) {
+  return Array.from(new Uint8Array(buffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+export async function signSession(data: string): Promise<string> {
+  const key = await getCryptoKey();
+  const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
+  const signature = bufferToHex(signatureBuffer);
+  return `${data}.${signature}`;
+}
+
+export async function verifySession(token: string | undefined): Promise<any | null> {
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [data, signature] = parts;
+  
+  const key = await getCryptoKey();
+  const expectedSignatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
+  const expectedSignature = bufferToHex(expectedSignatureBuffer);
+  
+  if (signature === expectedSignature) {
+    try {
+      return JSON.parse(atob(data));
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}
+
 function isAdminEmail(email: string) {
   return ADMIN_EMAILS.includes(email.toLowerCase().trim());
 }
 
 async function createSession(email: string, role: string) {
   const cookieStore = await cookies();
+  
+  const payload = btoa(JSON.stringify({ email, role, exp: Date.now() + 60 * 60 * 8 * 1000 }));
+  const signedToken = await signSession(payload);
 
-  cookieStore.set('user_email', email, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 60 * 60 * 8
-  });
-
-  cookieStore.set('user_role', role, {
+  cookieStore.set('session_token', signedToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -99,32 +140,31 @@ export async function login(email: string, password: string): Promise<{ success:
 export async function logout() {
   const cookieStore = await cookies();
 
-  cookieStore.delete('user_email');
-  cookieStore.delete('user_role');
+  cookieStore.delete('session_token');
+  cookieStore.delete('user_email'); // keeping for backward compatibility cleanup if needed
+  cookieStore.delete('user_role'); // keeping for backward compatibility cleanup if needed
 
   revalidatePath('/');
 }
 
 export async function getEmail() {
   const cookieStore = await cookies();
-  return cookieStore.get('user_email')?.value || null;
+  const token = cookieStore.get('session_token')?.value;
+  const session = await verifySession(token);
+  return session ? session.email : null;
 }
 
 export async function getRole() {
   const cookieStore = await cookies();
-  const role = cookieStore.get('user_role')?.value;
+  const token = cookieStore.get('session_token')?.value;
+  const session = await verifySession(token);
   
-  if (role) {
-    return role;
+  if (session && session.role) {
+    if (session.exp && Date.now() > session.exp) return 'VISITOR';
+    return session.role;
   }
 
-  const email = cookieStore.get('user_email')?.value;
-
-  if (!email) {
-    return 'VISITOR';
-  }
-
-  return isAdminEmail(email) ? 'ADMIN' : 'VISITOR';
+  return 'VISITOR';
 }
 
 export async function requireAuth(allowedRoles: string[]) {
