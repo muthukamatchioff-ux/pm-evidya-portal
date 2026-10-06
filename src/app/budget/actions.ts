@@ -117,7 +117,28 @@ export async function getComponent2Data() {
 }
 export async function addAnnexureIIEntry(data: any) {
   const total = (Number(data.trainerFee) || 0) + (Number(data.trainingCost) || 0) + (Number(data.travelAllowance) || 0) + (Number(data.accommodation) || 0) + (Number(data.otherExpenses) || 0);
-  await prisma.annexureII.create({ data: { ...data, totalExpenditure: total } });
+  
+  const createData: any = {
+    budgetComponentId: data.budgetComponentId,
+    datePeriod: data.datePeriod || '',
+    trainingName: data.trainingName || '',
+    trainingType: data.trainingType || '',
+    participant: data.participant || '',
+    venue: data.venue || '',
+    trainingDays: Number(data.trainingDays) || 0,
+    noOfParticipants: Number(data.noOfParticipants) || 0,
+    trainerFee: Number(data.trainerFee) || 0,
+    trainingCost: Number(data.trainingCost) || 0,
+    travelAllowance: Number(data.travelAllowance) || 0,
+    accommodation: Number(data.accommodation) || 0,
+    otherExpenses: Number(data.otherExpenses) || 0,
+    totalExpenditure: total,
+    utrNumber: data.utrNumber || '',
+    remarks: data.remarks || '',
+    trainingDates: data.trainingDates || '',
+  };
+
+  await prisma.annexureII.create({ data: createData });
   revalidatePath('/dashboard'); revalidatePath('/budget/annexure-2');
 }
 
@@ -190,7 +211,30 @@ export async function updateAnnexureIEntry(id: string, data: any) {
 }
 export async function updateAnnexureIIEntry(id: string, data: any) {
   const total = (Number(data.trainerFee) || 0) + (Number(data.trainingCost) || 0) + (Number(data.travelAllowance) || 0) + (Number(data.accommodation) || 0) + (Number(data.otherExpenses) || 0);
-  await prisma.annexureII.update({ where: { id }, data: { ...data, totalExpenditure: total } });
+  
+  const updateData: any = {
+    datePeriod: data.datePeriod,
+    trainingName: data.trainingName,
+    trainingType: data.trainingType,
+    participant: data.participant,
+    venue: data.venue,
+    trainingDays: Number(data.trainingDays) || 0,
+    noOfParticipants: Number(data.noOfParticipants) || 0,
+    trainerFee: Number(data.trainerFee) || 0,
+    trainingCost: Number(data.trainingCost) || 0,
+    travelAllowance: Number(data.travelAllowance) || 0,
+    accommodation: Number(data.accommodation) || 0,
+    otherExpenses: Number(data.otherExpenses) || 0,
+    totalExpenditure: total,
+    utrNumber: data.utrNumber,
+    remarks: data.remarks,
+    trainingDates: data.trainingDates,
+  };
+
+  // Remove undefined fields so they aren't written as null if not sent
+  Object.keys(updateData).forEach(k => updateData[k] === undefined && delete updateData[k]);
+
+  await prisma.annexureII.update({ where: { id }, data: updateData });
   revalidatePath('/dashboard'); revalidatePath('/budget/annexure-2');
 }
 export async function updateAnnexureIIIEntry(id: string, data: any) {

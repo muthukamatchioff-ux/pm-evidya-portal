@@ -17,10 +17,11 @@ export default function Component2Client({ budgetComponentId, entries }: { budge
     e.preventDefault();
     const dataToSubmit: any = { budgetComponentId };
     Object.keys(formData).forEach(k => {
-      const numFields = ['quantity', 'trainerFee', 'trainingCost', 'travelAllowance', 'accommodation', 'otherExpenses'];
+      const numFields = ['quantity', 'trainerFee', 'trainingCost', 'travelAllowance', 'accommodation', 'otherExpenses', 'trainingDays', 'noOfParticipants'];
       dataToSubmit[k] = numFields.includes(k) ? Number((formData as any)[k]) || 0 : (formData as any)[k];
     });
     
+    try {
     if (editingId) {
       await updateAnnexureIIEntry(editingId, dataToSubmit);
     } else {
@@ -30,6 +31,10 @@ export default function Component2Client({ budgetComponentId, entries }: { budge
     setFormData({datePeriod: '', trainingName: '', trainingType: '', participant: '', venue: '', trainingDays: '', trainingDates: '', trainerFee: '', trainingCost: '', travelAllowance: '', accommodation: '', otherExpenses: '', utrNumber: '', remarks: ''});
     alert(editingId ? "Transaction Updated Successfully" : "Transaction Added Successfully");
     setEditingId(null);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save entry. Please check the values and try again.");
+    }
   };
 
   return (
