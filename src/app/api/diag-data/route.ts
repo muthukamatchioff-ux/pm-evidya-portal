@@ -1,39 +1,32 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getBudgetComponents } from '@/app/budget/actions';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const action = searchParams.get('action');
 
   if (action === 'read-only') {
-    // AnnexureII Data
-    const annexureII = await prisma.annexureII.findMany({
-      include: { budgetComponent: true }
-    });
-
-    const annexureIII = await prisma.annexureIII.findMany({
-      include: { budgetComponent: true }
-    });
+    const annexureI = await prisma.annexureI.findMany();
+    const annexureII = await prisma.annexureII.findMany();
+    const annexureIII = await prisma.annexureIII.findMany();
+    const components = await getBudgetComponents();
 
     return NextResponse.json({
       success: true,
-      annexureII: annexureII.map(a => ({
-        id: a.id,
-        trainingName: a.trainingName,
-        travelAllowance: a.travelAllowance,
-        trainerFee: a.trainerFee,
-        trainingCost: a.trainingCost,
-        totalExpenditure: a.totalExpenditure,
-        isProbablyTADA: (a.travelAllowance > 0 && a.trainerFee === 0 && a.trainingCost === 0) || a.trainingName?.toLowerCase().includes('ta')
+      components: components.map((c: any) => ({
+        id: c.id,
+        componentNo: c.componentNo,
+        name: c.name,
+        approvedBudget: c.approvedBudget,
+        expenditureIncurred: c.expenditureIncurred,
+        annexureI_count: c.annexureI?.length,
+        annexureII_count: c.annexureII?.length,
+        annexureIII_count: c.annexureIII?.length,
       })),
-      annexureIII: annexureIII.map(a => ({
-        id: a.id,
-        personnelName: a.personnelName,
-        designation: a.designation,
-        workPeriod: a.workPeriod,
-        remuneration: a.remuneration,
-        totalExpenditure: a.totalExpenditure
-      }))
+      annexureI,
+      annexureII,
+      annexureIII
     });
   }
 
