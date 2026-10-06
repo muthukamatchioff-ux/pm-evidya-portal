@@ -5,21 +5,49 @@ export function middleware(request: NextRequest) {
   const role = request.cookies.get('user_role')?.value;
   const { pathname } = request.nextUrl;
 
-  // Protect Admin-only routes
-  const adminRoutes = ['/accounts', '/legacy', '/settings'];
-  const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
-  
-  if (isAdminRoute && role !== 'ADMIN') {
+  // Protect ALL management routes
+  const protectedPrefixes = [
+    '/dashboard',
+    '/smes',
+    '/production',
+    '/documents',
+    '/content',
+    '/reports',
+    '/budget',
+    '/admin',
+    '/accounts',
+    '/legacy',
+    '/settings',
+    '/generator',
+    '/projects',
+    '/templates'
+  ];
+
+  const isProtectedRoute = protectedPrefixes.some(prefix => pathname.startsWith(prefix));
+
+  // 1. Unauthenticated users trying to access protected routes -> /login
+  if (!role && isProtectedRoute) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Redirect unauthenticated from dashboard to login
-  if (!role && pathname.startsWith('/dashboard')) {
-    return NextResponse.redirect(new URL('/login', request.url));
+  // 2. Root URL '/' -> unauthenticated goes to /login, authenticated goes to /dashboard
+  if (pathname === '/') {
+    if (!role) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    } else {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
   }
 
-  // Redirect authenticated from login to dashboard
+  // 3. Authenticated users trying to access /login -> /dashboard
   if (role && pathname === '/login') {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
+  // 4. Admin-only check (if any routes require STRICTLY 'ADMIN' and not just logged in)
+  const strictAdminRoutes = ['/accounts', '/legacy', '/settings'];
+  const isStrictAdminRoute = strictAdminRoutes.some(route => pathname.startsWith(route));
+  if (isStrictAdminRoute && role !== 'ADMIN') {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
