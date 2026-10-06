@@ -7,7 +7,7 @@
   flex-direction: column;
   position: sticky;
   top: 0;
-  transition: width 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow-y: auto;
   z-index: 50;
 }
@@ -49,11 +49,31 @@
   letter-spacing: 1px;
 }
 
+.desktopToggle {
+  color: white;
+  opacity: 0.7;
+  padding: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: block;
+}
+
+.mobileCloseBtn {
+  display: none;
+  background: none;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+}
+
 .nav {
   padding: 16px 12px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1;
 }
 
 .navLink {
@@ -66,6 +86,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  text-decoration: none;
 }
 
 .navLink:hover {
@@ -105,4 +126,47 @@
 
 .sidebar.collapsed .bottomSection {
   padding: 16px 8px;
+}
+
+.mobileOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 40;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .sidebar {
+    position: fixed;
+    transform: translateX(-100%);
+    width: 280px;
+    z-index: 50;
+  }
+  
+  .sidebar.collapsed {
+    transform: translateX(-100%);
+    width: 280px; /* Disable collapse on mobile */
+  }
+
+  .sidebar.mobileOpen {
+    transform: translateX(0);
+  }
+
+  .desktopToggle {
+    display: none;
+  }
+
+  .mobileCloseBtn {
+    display: block;
+  }
+  
+  .mobileOverlay {
+    display: block;
+  }
+
+  .sidebar.mobileOpen + .mobileOverlay {
+    display: block;
+  }
 }

@@ -12,6 +12,8 @@ model User {
   email     String     @unique
   name      String?
   role      String     @default("VIEWER")
+  password  String?    // Added for secondary admins
+  status    String     @default("ACTIVE") // Added for Active/Inactive admins
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   auditLogs AuditLog[]

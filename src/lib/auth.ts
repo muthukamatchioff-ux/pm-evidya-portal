@@ -1,4 +1,4 @@
-﻿'use server';
+'use server';
 
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
@@ -14,9 +14,52 @@ function isAdminEmail(email: string) {
   return ADMIN_EMAILS.includes(email.toLowerCase().trim());
 }
 
-export async function login(email: string, password: string) {
+async function createSession(email: string, role: string) {
+  const cookieStore = await cookies();
+
+  cookieStore.set('user_email', email, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 8
+  });
+
+  cookieStore.set('user_role', role, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 8
+  });
+
+  revalidatePath('/');
+  return { success: true };
+}
+
+export async function login(email: string, password: string): Promise<{ success: boolean; error?: string }> {
   const normalizedEmail = email.toLowerCase().trim();
 
+  // First, check DB for dynamically created admins
+  const dbUser = await prisma.user.findUnique({
+    where: { email: normalizedEmail }
+  });
+
+  if (dbUser && dbUser.role === 'ADMIN') {
+    if (dbUser.status !== 'ACTIVE') {
+      return { success: false, error: 'Admin account is deactivated.' };
+    }
+    // If DB user has a password, verify against it
+    if (dbUser.password) {
+      const passwordValid = await bcrypt.compare(password, dbUser.password);
+      if (passwordValid) {
+        return await createSession(normalizedEmail, 'ADMIN');
+      }
+      return { success: false, error: 'Invalid admin credentials.' };
+    }
+  }
+
+  // Fallback for legacy hardcoded admins (e.g. from environment variable)
   if (!isAdminEmail(normalizedEmail)) {
     return { success: false, error: 'Invalid admin credentials.' };
   }
@@ -34,6 +77,7 @@ export async function login(email: string, password: string) {
     return { success: false, error: 'Invalid admin credentials.' };
   }
 
+  // Upsert legacy user in DB
   await prisma.user.upsert({
     where: { email: normalizedEmail },
     update: { role: 'ADMIN' },
@@ -44,27 +88,7 @@ export async function login(email: string, password: string) {
     }
   });
 
-  const cookieStore = await cookies();
-
-  cookieStore.set('user_email', normalizedEmail, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 60 * 60 * 8
-  });
-
-  cookieStore.set('user_role', 'ADMIN', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 60 * 60 * 8
-  });
-
-  revalidatePath('/');
-
-  return { success: true };
+  return await createSession(normalizedEmail, 'ADMIN');
 }
 
 export async function logout() {
@@ -83,6 +107,12 @@ export async function getEmail() {
 
 export async function getRole() {
   const cookieStore = await cookies();
+  const role = cookieStore.get('user_role')?.value;
+  
+  if (role) {
+    return role;
+  }
+
   const email = cookieStore.get('user_email')?.value;
 
   if (!email) {

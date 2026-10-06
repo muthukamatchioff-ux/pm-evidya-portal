@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import { getRole } from '@/lib/auth';
+import { headers } from 'next/headers';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -17,6 +18,22 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const role = await getRole();
+  const headersList = await headers();
+  const pathname = headersList.get('x-invoke-path') || '';
+  
+  // Conditionally render sidebar for login page
+  const isLoginPage = pathname === '/login';
+
+  if (isLoginPage) {
+    return (
+      <html lang="en">
+        <body className={inter.className}>
+          {children}
+        </body>
+      </html>
+    );
+  }
+
   return (
     <html lang="en">
       <body className={inter.className}>
