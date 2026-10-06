@@ -39,7 +39,12 @@ export default function NewSMEPage() {
         <Link href="/smes" className="btn-cancel">Cancel</Link>
       </header>
 
-      <form action={createSMEWithEntry} className={styles.form}>
+      <form action={async (formData) => {
+          const res = await createSMEWithEntry(formData);
+          if (res && !res.success) {
+            alert(res.error);
+          }
+        }} className={styles.form}>
         <div className="card">
           <h2>STEP 1: SME Information</h2>
           <div className={styles.grid}>

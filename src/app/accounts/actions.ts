@@ -2,11 +2,12 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, checkAuth } from '@/lib/auth';
 
 export async function updatePaymentStatus(paymentId: string, status: string, utrNumber?: string, remarks?: string) {
   try {
-    await requireAuth(['ADMIN']);
+    const authCheck = await checkAuth(['ADMIN']);
+  if (!authCheck.success) return authCheck;
     const previous = await prisma.payment.findUnique({ where: { id: paymentId } });
     if (!previous) throw new Error('Payment not found');
 

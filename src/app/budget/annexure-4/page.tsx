@@ -4,7 +4,10 @@ import { getComponent4Data } from '../actions';
 import styles from '../budget.module.css';
 import Component4Client from './Component4Client';
 
+import { getRole } from '@/lib/auth';
+
 export default async function Component4Page() {
+  const role = await getRole();
   const compData = await getComponent4Data();
   if (!compData) return <div>Component not found</div>;
 
@@ -47,7 +50,7 @@ export default async function Component4Page() {
         </div>
       </div>
 
-      <Component4Client budgetComponentId={compData.id} entries={compData.annexureIV} />
+      <Component4Client role={role} budgetComponentId={compData.id} entries={compData.annexureIV} />
     </div>
   );
 }

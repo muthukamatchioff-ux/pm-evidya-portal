@@ -1,116 +1,124 @@
 .header {
   height: 64px;
-  background-color: var(--surface-color);
+  background-color: white;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  position: sticky;
-  top: 0;
-  z-index: 40;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .leftSection {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 24px;
+  flex: 1;
+}
+
+.mobileMenuBtn {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
 }
 
 .title {
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
-  display: none;
-}
-
-@media (min-width: 768px) {
-  .title {
-    display: block;
-  }
+  margin: 0;
+  white-space: nowrap;
 }
 
 .searchBar {
   display: flex;
   align-items: center;
-  background-color: var(--slate-100);
+  gap: 8px;
+  background-color: var(--bg-color);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 6px 12px;
-  width: 250px;
-  border: 1px solid transparent;
+  width: 300px;
   transition: all 0.2s ease;
 }
 
 .searchBar:focus-within {
-  background-color: var(--surface-color);
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px var(--primary-light);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
 }
 
 .searchInput {
   border: none;
   background: transparent;
   outline: none;
-  font-size: 14px;
   width: 100%;
-  margin-left: 8px;
+  font-size: 14px;
   color: var(--text-primary);
 }
 
 .rightSection {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
 }
 
 .dateDisplay {
   font-size: 13px;
   color: var(--text-secondary);
   font-weight: 500;
-  display: none;
-}
-
-@media (min-width: 1024px) {
-  .dateDisplay {
-    display: block;
-  }
+  padding-right: 16px;
+  border-right: 1px solid var(--border);
 }
 
 .iconButton {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
+  border: none;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
   color: var(--text-secondary);
-  transition: all 0.2s;
+  font-size: 16px;
 }
 
 .iconButton:hover {
-  background-color: var(--slate-100);
-  color: var(--primary);
+  background-color: var(--bg-color);
+}
+
+.profileDropdown {
+  position: relative;
 }
 
 .profileButton {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 4px;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
   border-radius: var(--radius-md);
-  transition: background-color 0.2s;
+  transition: background-color 0.2s ease;
 }
 
 .profileButton:hover {
-  background-color: var(--slate-50);
+  background-color: var(--bg-color);
 }
 
 .avatar {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
-  background-color: var(--primary-light);
-  color: var(--primary);
+  border-radius: var(--radius-full);
+  background-color: var(--primary);
+  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -122,15 +130,70 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  text-align: left;
 }
 
 .userName {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
 .userRole {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.dropdownMenu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background-color: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  z-index: 50;
+  min-width: 120px;
+}
+
+.profileDropdown:hover .dropdownMenu,
+.profileDropdown:focus-within .dropdownMenu {
+  display: block;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .mobileMenuBtn {
+    display: block;
+  }
+  
+  .title {
+    display: none;
+  }
+  
+  .searchBar {
+    width: 200px;
+  }
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: 0 16px;
+  }
+  
+  .searchBar {
+    display: none;
+  }
+  
+  .dateDisplay {
+    display: none;
+  }
+  
+  .userInfo {
+    display: none;
+  }
 }

@@ -1,4 +1,4 @@
-﻿'use server';
+'use server';
 
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
@@ -10,13 +10,102 @@ const ADMIN_EMAILS = [
   'harshitharamannimi@gmail.com'
 ];
 
+const SESSION_SECRET = process.env.ADMIN_PASSWORD_HASH || 'fallback_secret_key_12345';
+const encoder = new TextEncoder();
+
+async function getCryptoKey() {
+  return await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(SESSION_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign', 'verify']
+  );
+}
+
+function bufferToHex(buffer: ArrayBuffer) {
+  return Array.from(new Uint8Array(buffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+export async function signSession(data: string): Promise<string> {
+  const key = await getCryptoKey();
+  const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
+  const signature = bufferToHex(signatureBuffer);
+  return `${data}.${signature}`;
+}
+
+export async function verifySession(token: string | undefined): Promise<any | null> {
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [data, signature] = parts;
+  
+  const key = await getCryptoKey();
+  const expectedSignatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
+  const expectedSignature = bufferToHex(expectedSignatureBuffer);
+  
+  if (signature === expectedSignature) {
+    try {
+      return JSON.parse(atob(data));
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}
+
 function isAdminEmail(email: string) {
   return ADMIN_EMAILS.includes(email.toLowerCase().trim());
 }
 
-export async function login(email: string, password: string) {
+async function createSession(email: string, role: string) {
+  const cookieStore = await cookies();
+  
+  const payload = btoa(JSON.stringify({ email, role, exp: Date.now() + 60 * 60 * 8 * 1000 }));
+  const signedToken = await signSession(payload);
+
+  cookieStore.set('session_token', signedToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 8
+  });
+
+  revalidatePath('/');
+  return { success: true };
+}
+
+export async function login(email: string, password: string): Promise<{ success: boolean; error?: string }> {
   const normalizedEmail = email.toLowerCase().trim();
 
+  // First, check DB for dynamically created admins
+  const dbUser = await prisma.user.findUnique({
+    where: { email: normalizedEmail }
+  });
+
+  if (dbUser && (dbUser.role === 'ADMIN' || dbUser.role === 'TEAM_MEMBER')) {
+    if (dbUser.status !== 'ACTIVE') {
+      return { success: false, error: 'Account is deactivated.' };
+    }
+    // If DB user has a password, verify against it
+    if (dbUser.password) {
+      const passwordValid = await bcrypt.compare(password, dbUser.password);
+      if (passwordValid) {
+        // Update lastLogin on successful login
+        await prisma.user.update({
+          where: { id: dbUser.id },
+          data: { lastLogin: new Date() }
+        });
+        return await createSession(normalizedEmail, dbUser.role);
+      }
+      return { success: false, error: 'Invalid credentials.' };
+    }
+  }
+
+  // Fallback for legacy hardcoded admins (e.g. from environment variable)
   if (!isAdminEmail(normalizedEmail)) {
     return { success: false, error: 'Invalid admin credentials.' };
   }
@@ -34,6 +123,7 @@ export async function login(email: string, password: string) {
     return { success: false, error: 'Invalid admin credentials.' };
   }
 
+  // Upsert legacy user in DB
   await prisma.user.upsert({
     where: { email: normalizedEmail },
     update: { role: 'ADMIN' },
@@ -44,60 +134,60 @@ export async function login(email: string, password: string) {
     }
   });
 
-  const cookieStore = await cookies();
-
-  cookieStore.set('user_email', normalizedEmail, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 60 * 60 * 8
-  });
-
-  cookieStore.set('user_role', 'ADMIN', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 60 * 60 * 8
-  });
-
-  revalidatePath('/');
-
-  return { success: true };
+  return await createSession(normalizedEmail, 'ADMIN');
 }
 
 export async function logout() {
   const cookieStore = await cookies();
 
-  cookieStore.delete('user_email');
-  cookieStore.delete('user_role');
+  cookieStore.delete('session_token');
+  cookieStore.delete('user_email'); // keeping for backward compatibility cleanup if needed
+  cookieStore.delete('user_role'); // keeping for backward compatibility cleanup if needed
 
   revalidatePath('/');
 }
 
 export async function getEmail() {
   const cookieStore = await cookies();
-  return cookieStore.get('user_email')?.value || null;
+  const token = cookieStore.get('session_token')?.value;
+  const session = await verifySession(token);
+  return session ? session.email : null;
 }
 
 export async function getRole() {
   const cookieStore = await cookies();
-  const email = cookieStore.get('user_email')?.value;
-
-  if (!email) {
-    return 'VISITOR';
+  const token = cookieStore.get('session_token')?.value;
+  const session = await verifySession(token);
+  
+  if (session && session.role) {
+    if (session.exp && Date.now() > session.exp) return 'VISITOR';
+    return session.role;
   }
 
-  return isAdminEmail(email) ? 'ADMIN' : 'VISITOR';
+  return 'VISITOR';
+}
+
+import { redirect } from 'next/navigation';
+
+export async function checkAuth(allowedRoles: string[]) {
+  const role = await getRole();
+  if (role === 'VISITOR') {
+    return { success: false, error: 'Authentication required.', status: 401 };
+  }
+  if (!allowedRoles.includes(role)) {
+    return { success: false, error: 'You are not authorized to perform this action.', status: 403 };
+  }
+  return { success: true };
 }
 
 export async function requireAuth(allowedRoles: string[]) {
   const role = await getRole();
 
+  if (role === 'VISITOR') {
+    redirect('/login');
+  }
+
   if (!allowedRoles.includes(role)) {
-    throw new Error(
-      `Unauthorized: Requires one of [${allowedRoles.join(', ')}] but got ${role}`
-    );
+    redirect('/dashboard?error=forbidden');
   }
 }

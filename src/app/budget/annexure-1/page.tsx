@@ -4,7 +4,10 @@ import { getComponent1Data } from '../actions';
 import styles from '../budget.module.css';
 import Component1Client from './Component1Client';
 
+import { getRole } from '@/lib/auth';
+
 export default async function Component1Page() {
+  const role = await getRole();
   const compData = await getComponent1Data();
 
   if (!compData) {
@@ -50,7 +53,7 @@ export default async function Component1Page() {
         </div>
       </div>
 
-      <Component1Client budgetComponentId={compData.id} entries={compData.annexureI} />
+      <Component1Client role={role} budgetComponentId={compData.id} entries={compData.annexureI} />
     </div>
   );
 }

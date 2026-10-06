@@ -2,11 +2,26 @@
 
 import React, { useState } from 'react';
 
-export default function SettingsClient({ initialHrs, initialBudgetHeads }: { initialHrs: any[], initialBudgetHeads: any[] }) {
+export default function SettingsClient({ 
+  initialHrs, 
+  initialBudgetHeads,
+  initialUsers
+}: { 
+  initialHrs: { id: string; name: string; role: string; baseSalary: number; joiningDate: Date | string }[], 
+  initialBudgetHeads: { id: string; name: string; approvedBudget: number }[],
+  initialUsers: { id: string; email: string; name: string | null; role: string; status: string; designation: string | null; department: string | null; lastLogin: Date | string | null; createdBy: string | null; createdAt: Date | string }[]
+}) {
   const [hrs, setHrs] = useState(initialHrs);
   const [budgetHeads, setBudgetHeads] = useState(initialBudgetHeads);
+  const [users, setUsers] = useState(initialUsers);
+  
   const [showHrModal, setShowHrModal] = useState(false);
   const [hrForm, setHrForm] = useState({ name: '', role: 'Editor', baseSalary: '', joiningDate: '' });
+  
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [adminForm, setAdminForm] = useState({ name: '', email: '', password: '', userRole: 'TEAM_MEMBER', designation: '', department: '' });
+  const [adminError, setAdminError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSaveHr = async () => {
     try {
@@ -31,9 +46,138 @@ export default function SettingsClient({ initialHrs, initialBudgetHeads }: { ini
     }
   };
 
+  const handleSaveAdmin = async () => {
+    setAdminError('');
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/settings/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(adminForm)
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        setAdminError(data.error || 'Failed to create user');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      setUsers([data, ...users]);
+      setShowAdminModal(false);
+      setAdminForm({ name: '', email: '', password: '', userRole: 'TEAM_MEMBER', designation: '', department: '' });
+    } catch (err) {
+      console.error(err);
+      setAdminError('An unexpected error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const toggleAdminStatus = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    try {
+      const res = await fetch(`/api/settings/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Failed to update user status');
+        return;
+      }
+      
+      const updated = await res.json();
+      setUsers(users.map(u => u.id === id ? updated : u));
+    } catch (err) {
+      console.error(err);
+      alert('An unexpected error occurred');
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
       
+      {/* User Management Section */}
+      <div>
+        <h2 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px', paddingBottom: '8px', borderBottom: '1px solid var(--border)', color: 'var(--primary)' }}>User Management</h2>
+        
+        <div style={{ padding: '16px', backgroundColor: 'var(--slate-50)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', alignItems: 'center' }}>
+            <h3 style={{ fontWeight: 600, fontSize: '15px' }}>🛡️ Portal Users</h3>
+            <button className="btn-primary" style={{ padding: '6px 14px', fontSize: '13px' }} onClick={() => setShowAdminModal(true)}>+ Add User</button>
+          </div>
+          
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', fontSize: '14px', borderCollapse: 'collapse', backgroundColor: 'white' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', backgroundColor: 'var(--bg-color)' }}>
+                  <th style={{ padding: '10px 12px', fontWeight: 600 }}>Name</th>
+                  <th style={{ padding: '10px 12px', fontWeight: 600 }}>Email</th>
+                  <th style={{ padding: '10px 12px', fontWeight: 600 }}>Role</th>
+                  <th style={{ padding: '10px 12px', fontWeight: 600 }}>Status</th>
+                  <th style={{ padding: '10px 12px', fontWeight: 600 }}>Designation</th>
+                  <th style={{ padding: '10px 12px', fontWeight: 600 }}>Department</th>
+                  <th style={{ padding: '10px 12px', fontWeight: 600 }}>Created By</th>
+                  <th style={{ padding: '10px 12px', fontWeight: 600 }}>Last Login</th>
+                  <th style={{ padding: '10px 12px', fontWeight: 600, textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map(user => (
+                  <tr key={user.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '12px' }}>{user.name}</td>
+                    <td style={{ padding: '12px' }}>{user.email}</td>
+                    <td style={{ padding: '12px', fontWeight: 'bold' }}>{user.role}</td>
+                    <td style={{ padding: '12px' }}>
+                      <span style={{ 
+                        padding: '4px 8px', 
+                        borderRadius: '12px', 
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        backgroundColor: user.status === 'ACTIVE' ? '#dcfce7' : '#fee2e2',
+                        color: user.status === 'ACTIVE' ? '#166534' : '#991b1b'
+                      }}>
+                        {user.status}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px' }}>{user.designation || '-'}</td>
+                    <td style={{ padding: '12px' }}>{user.department || '-'}</td>
+                    <td style={{ padding: '12px', fontSize: '12px', color: '#64748b' }}>{user.createdBy || '-'}</td>
+                    <td style={{ padding: '12px', fontSize: '12px', color: '#64748b' }}>{user.lastLogin ? new Date(user.lastLogin).toLocaleString('en-IN') : '-'}</td>
+                    <td style={{ padding: '12px', textAlign: 'right' }}>
+                      <button 
+                        onClick={() => toggleAdminStatus(user.id, user.status)}
+                        style={{
+                          background: 'none',
+                          border: '1px solid var(--border)',
+                          borderRadius: '4px',
+                          padding: '4px 8px',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          color: 'var(--text-secondary)'
+                        }}
+                      >
+                        {user.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {users.length === 0 && (
+                  <tr>
+                    <td colSpan={9} style={{ padding: '16px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                      No dynamically created users found. (Legacy admins via environment variable are active).
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       {/* Financial Configurations */}
       <div>
         <h2 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px', paddingBottom: '8px', borderBottom: '1px solid var(--border)', color: 'var(--primary)' }}>Financial System Configurations</h2>
@@ -60,35 +204,38 @@ export default function SettingsClient({ initialHrs, initialBudgetHeads }: { ini
               <h3 style={{ fontWeight: 600 }}>👥 HR Roles & Manpower</h3>
               <button className="btn-primary" style={{ padding: '4px 12px', fontSize: '12px' }} onClick={() => setShowHrModal(true)}>+ Add HR</button>
             </div>
-            <table style={{ width: '100%', fontSize: '14px', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
-                  <th style={{ padding: '8px' }}>Name</th>
-                  <th style={{ padding: '8px' }}>Role</th>
-                  <th style={{ padding: '8px' }}>Base Salary</th>
-                  <th style={{ padding: '8px' }}>Joined</th>
-                </tr>
-              </thead>
-              <tbody>
-                {hrs.map(hr => (
-                  <tr key={hr.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '8px' }}>{hr.name}</td>
-                    <td style={{ padding: '8px' }}>{hr.role}</td>
-                    <td style={{ padding: '8px' }}>₹{hr.baseSalary.toLocaleString('en-IN')}</td>
-                    <td style={{ padding: '8px' }}>{new Date(hr.joiningDate).toLocaleDateString()}</td>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', fontSize: '14px', borderCollapse: 'collapse', backgroundColor: 'white' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', backgroundColor: 'var(--bg-color)' }}>
+                    <th style={{ padding: '10px 12px', fontWeight: 600 }}>Name</th>
+                    <th style={{ padding: '10px 12px', fontWeight: 600 }}>Role</th>
+                    <th style={{ padding: '10px 12px', fontWeight: 600 }}>Base Salary</th>
+                    <th style={{ padding: '10px 12px', fontWeight: 600 }}>Joined</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {hrs.map(hr => (
+                    <tr key={hr.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '12px' }}>{hr.name}</td>
+                      <td style={{ padding: '12px' }}>{hr.role}</td>
+                      <td style={{ padding: '12px' }}>₹{hr.baseSalary.toLocaleString('en-IN')}</td>
+                      <td style={{ padding: '12px' }}>{new Date(hr.joiningDate).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <button className="btn-secondary" style={{ textAlign: 'left', padding: '12px' }}>💳 Expenditure Categories & Permissions</button>
         </div>
       </div>
 
+      {/* HR Modal */}
       {showHrModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: 'var(--radius-lg)', width: '400px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: 'var(--radius-lg)', width: '90%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <h3 style={{ margin: 0, fontSize: '18px' }}>Add Human Resource</h3>
             
             <div>
@@ -121,6 +268,64 @@ export default function SettingsClient({ initialHrs, initialBudgetHeads }: { ini
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
               <button className="btn-secondary" onClick={() => setShowHrModal(false)}>Cancel</button>
               <button className="btn-primary" onClick={handleSaveHr}>Save HR</button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Admin Modal */}
+      {showAdminModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: 'var(--radius-lg)', width: '90%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <h3 style={{ margin: 0, fontSize: '18px' }}>Add User</h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>Create a new user account with specific role access to the portal.</p>
+            
+            {adminError && (
+              <div style={{ backgroundColor: '#fef2f2', color: '#b91c1c', padding: '10px', borderRadius: '6px', fontSize: '13px', border: '1px solid #fecaca' }}>
+                {adminError}
+              </div>
+            )}
+
+            <div>
+              <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', fontWeight: 500 }}>Name (Optional)</label>
+              <input type="text" placeholder="e.g. John Doe" style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px' }} value={adminForm.name} onChange={e => setAdminForm({...adminForm, name: e.target.value})} disabled={isSubmitting} />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', fontWeight: 500 }}>Email Address *</label>
+              <input type="email" placeholder="admin@example.com" style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px' }} value={adminForm.email} onChange={e => setAdminForm({...adminForm, email: e.target.value})} disabled={isSubmitting} required />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', fontWeight: 500 }}>Secure Password *</label>
+              <input type="password" placeholder="••••••••" style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px' }} value={adminForm.password} onChange={e => setAdminForm({...adminForm, password: e.target.value})} disabled={isSubmitting} required minLength={8} />
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>Must be at least 8 characters.</div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', fontWeight: 500 }}>Role *</label>
+              <select style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px' }} value={adminForm.userRole} onChange={e => setAdminForm({...adminForm, userRole: e.target.value})} disabled={isSubmitting}>
+                <option value="TEAM_MEMBER">Team Member (Read-Only)</option>
+                <option value="ADMIN">Administrator (Full Access)</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', fontWeight: 500 }}>Designation</label>
+                <input type="text" placeholder="e.g. Accountant" style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px' }} value={adminForm.designation} onChange={e => setAdminForm({...adminForm, designation: e.target.value})} disabled={isSubmitting} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: '14px', marginBottom: '4px', fontWeight: 500 }}>Department</label>
+                <input type="text" placeholder="e.g. Finance" style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '6px' }} value={adminForm.department} onChange={e => setAdminForm({...adminForm, department: e.target.value})} disabled={isSubmitting} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
+              <button className="btn-secondary" onClick={() => { setShowAdminModal(false); setAdminError(''); }} disabled={isSubmitting}>Cancel</button>
+              <button className="btn-primary" onClick={handleSaveAdmin} disabled={isSubmitting}>
+                {isSubmitting ? 'Creating...' : 'Create User'}
+              </button>
             </div>
           </div>
         </div>

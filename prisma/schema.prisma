@@ -8,13 +8,19 @@ datasource db {
 }
 
 model User {
-  id        String     @id @default(cuid())
-  email     String     @unique
-  name      String?
-  role      String     @default("VIEWER")
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  auditLogs AuditLog[]
+  id          String     @id @default(cuid())
+  email       String     @unique
+  name        String?
+  role        String     @default("VIEWER")
+  password    String?    // Added for secondary admins
+  status      String     @default("ACTIVE") // Added for Active/Inactive admins
+  designation String?
+  department  String?
+  lastLogin   DateTime?
+  createdBy   String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  auditLogs   AuditLog[]
 }
 
 model SME {

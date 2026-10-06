@@ -2,10 +2,11 @@
 
 import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, checkAuth } from '@/lib/auth';
 
 export async function createSMEWithEntry(formData: FormData) {
-  await requireAuth(['ADMIN']);
+  const authCheck = await checkAuth(['ADMIN']);
+  if (!authCheck.success) return authCheck;
   
   // Extract SME details
   const name = formData.get('name') as string;

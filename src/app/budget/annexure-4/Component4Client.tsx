@@ -4,7 +4,7 @@ import { addAnnexureIVEntry, updateAnnexureIVEntry } from '../actions';
 import styles from '../budget.module.css';
 import { downloadTableAsDocx } from '@/lib/tableToDocx';
 
-export default function Component4Client({ budgetComponentId, entries }: { budgetComponentId: string, entries: any[] }) {
+export default function Component4Client({ role, budgetComponentId, entries }: { role?: string, budgetComponentId: string, entries: any[] }) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({datePeriod: '', service: '', description: '', vendor: '', purchaseRef: '', quantity: '', unitCost: '', servicePeriod: '', infrastructureCost: '', bandwidthCost: '', archiveCost: '', otherCharges: '', invoiceNo: '', utrNumber: '', remarks: ''});
@@ -39,9 +39,9 @@ export default function Component4Client({ budgetComponentId, entries }: { budge
                 <button className={styles.btnPrimary} style={{ backgroundColor: '#8b5cf6', color: 'white', marginRight: '12px', fontWeight: 'bold' }} onClick={() => downloadTableAsDocx('dataTable', 'PM e-Vidya - Technology & Infrastructure', 'Annexure-IV', 'Annexure-IV_Report.docx')}>
           Download Docs Pattern
         </button>
-        <button className={styles.btnPrimary} onClick={() => { setIsAdding(!isAdding); if(!isAdding) { setEditingId(null); } }}>
+        {role === 'ADMIN' && <button className={styles.btnPrimary} onClick={() => { setIsAdding(!isAdding); if(!isAdding) { setEditingId(null); } }}>
           {isAdding ? 'Cancel' : '+ Add New Entry'}
-        </button>
+        </button>}
       </div>
 
       {isAdding && (
@@ -123,7 +123,7 @@ export default function Component4Client({ budgetComponentId, entries }: { budge
             <tr>
               <th>Sl. No.</th>
               <th>Date / Period</th><th>Service / Item</th><th>Description</th><th>Vendor / Agency</th><th>Purchase Ref</th><th>Quantity</th><th>Unit Cost</th>
-              <th>Total</th><th>Actions</th>
+              <th>Total</th>{role === 'ADMIN' && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -135,7 +135,7 @@ export default function Component4Client({ budgetComponentId, entries }: { budge
                   <td>{idx + 1}</td>
                   <td>{entry.datePeriod}</td><td>{entry.service}</td><td>{entry.description}</td><td>{entry.vendor}</td><td>{entry.purchaseRef}</td><td>{entry.quantity}</td><td>{entry.unitCost}</td>
                   <td style={{fontWeight: 'bold'}}>₹ {entry.totalExpenditure.toLocaleString('en-IN')}</td>
-                  <td><button onClick={() => { setIsAdding(true); setEditingId(entry.id); Object.keys(entry).forEach(k => { if(entry[k] === null) entry[k] = ''; }); setFormData(entry); }} style={{color: 'blue', textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer'}}>Edit</button></td>
+                  {role === 'ADMIN' && <td><button onClick={() => { setIsAdding(true); setEditingId(entry.id); Object.keys(entry).forEach(k => { if(entry[k] === null) entry[k] = ''; }); setFormData(entry); }} style={{color: 'blue', textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer'}}>Edit</button></td>}
                 </tr>
               ))
             )}

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import styles from './budget.module.css';
 import { updateComponentBudget } from './actions';
 
-export default function BudgetClient({ initialData }: { initialData: any[] }) {
+export default function BudgetClient({ role, initialData }: { role?: string, initialData: any[] }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBudget, setEditBudget] = useState(0);
 
@@ -14,7 +14,8 @@ export default function BudgetClient({ initialData }: { initialData: any[] }) {
   };
 
   const handleSave = async (id: string) => {
-    await updateComponentBudget(id, editBudget);
+    const res = await updateComponentBudget(id, editBudget);
+    if (res && !res.success) { alert(res.error); return; }
     setEditingId(null);
     alert("Approved Budget updated successfully!");
   };
@@ -34,7 +35,7 @@ export default function BudgetClient({ initialData }: { initialData: any[] }) {
             <th>Expenditure (₹)</th>
             <th>Unutilized Balance (₹)</th>
             <th>Utilization %</th>
-            <th>Actions</th>
+            {role === 'ADMIN' && <th>Actions</th>}
           </tr>
         </thead>
         <tbody>
@@ -67,16 +68,18 @@ export default function BudgetClient({ initialData }: { initialData: any[] }) {
                 <td style={{ color: 'var(--error)' }}>₹ {comp.expenditureIncurred.toLocaleString('en-IN')}</td>
                 <td style={{ color: 'var(--success)' }}>₹ {liveBalance.toLocaleString('en-IN')}</td>
                 <td>{liveUtilization}%</td>
-                <td>
-                  {isEditing ? (
-                    <>
-                      <button onClick={() => handleSave(comp.id)} style={{ color: 'green', background: 'none', border: 'none', cursor: 'pointer', marginRight: '8px', fontWeight: 'bold' }}>Save</button>
-                      <button onClick={() => setEditingId(null)} style={{ color: 'red', background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
-                    </>
-                  ) : (
-                    <button onClick={() => handleEdit(comp)} style={{ color: 'blue', textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer' }}>Edit Budget</button>
-                  )}
-                </td>
+                {role === 'ADMIN' && (
+                  <td>
+                    {isEditing ? (
+                      <>
+                        <button onClick={() => handleSave(comp.id)} style={{ color: 'green', background: 'none', border: 'none', cursor: 'pointer', marginRight: '8px', fontWeight: 'bold' }}>Save</button>
+                        <button onClick={() => setEditingId(null)} style={{ color: 'red', background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+                      </>
+                    ) : (
+                      <button onClick={() => handleEdit(comp)} style={{ color: 'blue', textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer' }}>Edit Budget</button>
+                    )}
+                  </td>
+                )}
               </tr>
             );
           })}
@@ -88,7 +91,7 @@ export default function BudgetClient({ initialData }: { initialData: any[] }) {
             <td style={{ color: 'var(--error)' }}>₹ {grandExpenditure.toLocaleString('en-IN')}</td>
             <td style={{ color: 'var(--success)' }}>₹ {(grandBudget - grandExpenditure).toLocaleString('en-IN')}</td>
             <td>{grandBudget > 0 ? ((grandExpenditure / grandBudget) * 100).toFixed(2) : '0.00'}%</td>
-            <td></td>
+            {role === 'ADMIN' && <td></td>}
           </tr>
         </tbody>
       </table>

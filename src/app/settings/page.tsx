@@ -16,6 +16,10 @@ export default async function SettingsPage() {
   const hrs = await prisma.humanResource.findMany({
     orderBy: { createdAt: 'desc' }
   });
+  const users = (await prisma.user.findMany({
+    select: { id: true, email: true, name: true, role: true, status: true, designation: true, department: true, lastLogin: true, createdBy: true, createdAt: true } as any,
+    orderBy: { createdAt: 'desc' }
+  })) as any[];
   return (
     <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
       <header style={{ marginBottom: '24px' }}>
@@ -57,9 +61,8 @@ export default async function SettingsPage() {
         </div>
 
         <div style={{ marginTop: '32px' }}>
-          <SettingsClient initialHrs={hrs} initialBudgetHeads={budgetHeads} />
+          <SettingsClient initialHrs={hrs} initialBudgetHeads={budgetHeads} initialUsers={users} />
         </div>
-
       </div>
     </div>
   );

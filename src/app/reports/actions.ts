@@ -1,8 +1,11 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { requireAuth, checkAuth } from '@/lib/auth';
 
 export async function generateReportData(reportId: string, dateFrom: string, dateTo: string) {
+  const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER']);
+  if (!authCheck.success) return authCheck;
   let data: any[] = [];
   
   const dateFilter = dateFrom && dateTo ? {
@@ -59,6 +62,8 @@ export async function generateReportData(reportId: string, dateFrom: string, dat
 }
 
 export async function getComprehensiveReportData() {
+  const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER']);
+  if (!authCheck.success) return authCheck;
   const smes = await prisma.sME.findMany({
     include: {
       workEntries: {
