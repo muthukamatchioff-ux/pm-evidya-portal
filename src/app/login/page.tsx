@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [language, setLanguage] = useState<'EN' | 'TA'>('EN');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,62 +43,114 @@ export default function LoginPage() {
   };
 
   return (
-    <div className={styles.loginContainer}>
-      <div className={styles.loginCard}>
-        <div className={styles.loginHeader}>
-          <div className={styles.govIndicator}>
-            <span className={styles.shieldIcon}>🛡️</span>
-            <span>Secure Government Portal</span>
+    <div className={styles.splitContainer}>
+      {/* Left Visual Panel */}
+      <div className={styles.leftPanel}>
+        <div className={styles.visualContent}>
+          <img 
+            src="https://play-lh.googleusercontent.com/-UWgsHV6i-Dv2D2X1dFnpf9wSIO-KRkyGqt6yOoUb5OdT-bEqs8JzYOMVnmC7UIvHhytgt295WGP24_oTWJ02o=w240-h480-rw" 
+            alt="PM e-Vidya Logo" 
+            className={styles.logoImageLarge}
+          />
+          <h1 className={styles.visualTitle}>PM e-Vidya</h1>
+          <h2 className={styles.visualSubtitle}>Vocational Education Channels</h2>
+          <p className={styles.visualTagline}>
+            Empowering India's Youth with Skills for a Better Future
+          </p>
+          <div className={styles.rimiBranding}>
+            National Instructional Media Institute (NIMI)
           </div>
-          <h1 className={styles.title}>PM e-Vidya</h1>
-          <p className={styles.subtitle}>National Institute of Media & Information (NIMI)</p>
-          <p className={styles.welcomeText}>Welcome back. Please sign in to access the management portal.</p>
         </div>
+      </div>
 
-        <form onSubmit={handleLogin} className={styles.loginForm}>
-          <div className={styles.formGroup}>
-            <label htmlFor="email">Email Address</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@example.com"
-              autoComplete="username"
-              required
-              className={styles.inputField}
-              disabled={loading}
-            />
+      {/* Right Login Panel */}
+      <div className={styles.rightPanel}>
+        <div className={styles.loginCard}>
+          <div className={styles.languageSelector}>
+            <span 
+              className={`${styles.langOption} ${language === 'EN' ? styles.active : ''}`}
+              onClick={() => setLanguage('EN')}
+            >
+              English
+            </span>
+            <span className={styles.langDivider}>|</span>
+            <span 
+              className={`${styles.langOption} ${language === 'TA' ? styles.active : ''}`}
+              onClick={() => setLanguage('TA')}
+            >
+              தமிழ்
+            </span>
           </div>
 
-          <div className={styles.formGroup}>
-            <label htmlFor="password">Password</label>
-            <div className={styles.passwordWrapper}>
+          <div className={styles.loginHeader}>
+            <img 
+              src="https://play-lh.googleusercontent.com/-UWgsHV6i-Dv2D2X1dFnpf9wSIO-KRkyGqt6yOoUb5OdT-bEqs8JzYOMVnmC7UIvHhytgt295WGP24_oTWJ02o=w240-h480-rw" 
+              alt="PM e-Vidya Logo" 
+              className={styles.logoImageSmall}
+            />
+            <h2 className={styles.welcomeTitle}>Welcome Back</h2>
+            <p className={styles.welcomeSubtitle}>Sign in to your PM e-Vidya<br/>Management Portal</p>
+          </div>
+
+          {error && (
+            <div className={styles.errorToast}>
+              <span className={styles.errorIcon}>⚠</span>
+              <div className={styles.errorContent}>
+                <h4 className={styles.errorTitle}>Unable to sign in</h4>
+                <p className={styles.errorDesc}>
+                  {error === 'An unexpected error occurred. Please try again.' 
+                    ? 'Please check your email and password and try again.' 
+                    : error}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className={styles.loginForm}>
+            <div className={styles.formGroup}>
+              <label htmlFor="email">Email Address</label>
               <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="current-password"
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email address"
+                autoComplete="username"
                 required
                 className={styles.inputField}
                 disabled={loading}
               />
-              <button
-                type="button"
-                className={styles.togglePasswordBtn}
-                onClick={() => setShowPassword(!showPassword)}
-                tabIndex={-1}
-              >
-                {showPassword ? 'Hide' : 'Show'}
-              </button>
             </div>
-          </div>
 
-          {error && <div className={styles.errorMessage}>{error}</div>}
+            <div className={styles.formGroup}>
+              <label htmlFor="password">Password</label>
+              <div className={styles.passwordWrapper}>
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
+                  required
+                  className={styles.inputField}
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  className={styles.togglePasswordBtn}
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
 
-          <div className={styles.formActions}>
+            <div className={styles.forgotPassword}>
+              <a href="#" onClick={(e) => e.preventDefault()}>Forgot Password?</a>
+            </div>
+
             <button
               type="submit"
               className={styles.signInBtn}
@@ -105,11 +158,11 @@ export default function LoginPage() {
             >
               {loading ? 'Authenticating...' : 'Sign In'}
             </button>
+          </form>
+          
+          <div className={styles.bottomBranding}>
+            National Instructional Media Institute (NIMI)
           </div>
-        </form>
-        
-        <div className={styles.footer}>
-          <p>Authorized access only. Activity is logged.</p>
         </div>
       </div>
     </div>
