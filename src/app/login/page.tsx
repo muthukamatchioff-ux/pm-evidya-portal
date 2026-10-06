@@ -48,7 +48,7 @@ export default function LoginPage() {
       <div className={styles.leftPanel}>
         <div className={styles.visualContent}>
           <img 
-            src="https://play-lh.googleusercontent.com/-UWgsHV6i-Dv2D2X1dFnpf9wSIO-KRkyGqt6yOoUb5OdT-bEqs8JzYOMVnmC7UIvHhytgt295WGP24_oTWJ02o=w240-h480-rw" 
+            src="/pm-evidya-logo.png" 
             alt="PM e-Vidya Logo" 
             className={styles.logoImageLarge}
           />
@@ -84,7 +84,7 @@ export default function LoginPage() {
 
           <div className={styles.loginHeader}>
             <img 
-              src="https://play-lh.googleusercontent.com/-UWgsHV6i-Dv2D2X1dFnpf9wSIO-KRkyGqt6yOoUb5OdT-bEqs8JzYOMVnmC7UIvHhytgt295WGP24_oTWJ02o=w240-h480-rw" 
+              src="/pm-evidya-logo.png" 
               alt="PM e-Vidya Logo" 
               className={styles.logoImageSmall}
             />
