@@ -198,4 +198,8 @@ table {
   .card {
     padding: 16px;
   }
+
+  .main-content {
+    padding: 12px !important;
+  }
 }

@@ -10,6 +10,8 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
 .pageTitle {
@@ -21,6 +23,7 @@
 .quickActions {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .btnAction {
@@ -226,7 +229,7 @@
 
 .budgetGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: 20px;
 }
 
@@ -238,6 +241,7 @@
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .budgetTitle {
@@ -248,6 +252,7 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   min-height: 40px;
+  word-wrap: break-word;
 }
 
 .budgetRow {

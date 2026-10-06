@@ -39,9 +39,9 @@ export default async function RootLayout({
       <body className={inter.className}>
         <div style={{ display: 'flex', minHeight: '100vh', overflow: 'hidden' }}>
           <Sidebar />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', minWidth: 0 }}>
             <Header role={role} />
-            <main style={{ flex: 1, backgroundColor: 'var(--bg-color)', overflowY: 'auto', padding: '24px' }}>
+            <main className="main-content" style={{ flex: 1, backgroundColor: 'var(--bg-color)', overflowY: 'auto', padding: '24px' }}>
               {children}
             </main>
           </div>
