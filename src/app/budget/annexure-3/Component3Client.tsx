@@ -17,7 +17,7 @@ export default function Component3Client({ budgetComponentId, entries }: { budge
     e.preventDefault();
     const dataToSubmit: any = { budgetComponentId };
     Object.keys(formData).forEach(k => {
-      const numFields = ['quantity', 'remuneration', 'taDa', 'otherCharges'];
+      const numFields = ['quantity', 'remuneration', 'taDa', 'otherCharges', 'workPeriod'];
       dataToSubmit[k] = numFields.includes(k) ? Number((formData as any)[k]) || 0 : (formData as any)[k];
     });
     
@@ -56,8 +56,15 @@ export default function Component3Client({ budgetComponentId, entries }: { budge
             <input type="text" name="personnelName" value={formData.personnelName} onChange={handleChange}  />
           </div>
           <div className={styles.formGroup}>
-            <label>Designation</label>
-            <input type="text" name="designation" value={formData.designation} onChange={handleChange}  />
+            <label>Role</label>
+            <select name="designation" value={formData.designation} onChange={handleChange as any} required className={styles.inputField} style={{ padding: '8px', width: '100%', border: '1px solid #cbd5e1', borderRadius: '4px' }}>
+              <option value="">Select Role</option>
+              <option value="Editor">Editor</option>
+              <option value="Social Media Person">Social Media Person</option>
+              <option value="Coordinator">Coordinator</option>
+              <option value="Camera Man">Camera Man</option>
+              <option value="Other">Other</option>
+            </select>
           </div>
           <div className={styles.formGroup}>
             <label>Support Type</label>
@@ -68,11 +75,11 @@ export default function Component3Client({ budgetComponentId, entries }: { budge
             <input type="text" name="department" value={formData.department} onChange={handleChange}  />
           </div>
           <div className={styles.formGroup}>
-            <label>Work Period</label>
-            <input type="text" name="workPeriod" value={formData.workPeriod} onChange={handleChange}  />
+            <label>Duration (Months)</label>
+            <input type="number" name="workPeriod" value={formData.workPeriod} onChange={handleChange} required />
           </div>
           <div className={styles.formGroup}>
-            <label>Remuneration</label>
+            <label>Monthly Salary (₹)</label>
             <input type="number" name="remuneration" value={formData.remuneration} onChange={handleChange} required />
           </div>
           <div className={styles.formGroup}>
@@ -93,7 +100,7 @@ export default function Component3Client({ budgetComponentId, entries }: { budge
           </div>
           <div className={styles.formGroup}>
             <label>Total Expenditure (₹)</label>
-            <input type="text" value={(Number(formData.remuneration) || 0) + (Number(formData.taDa) || 0) + (Number(formData.otherCharges) || 0)} disabled style={{ backgroundColor: '#e2e8f0', cursor: 'not-allowed' }} />
+            <input type="text" value={(Number(formData.remuneration) || 0) * (Number(formData.workPeriod) || 1)} disabled style={{ backgroundColor: '#e2e8f0', cursor: 'not-allowed' }} />
           </div>
           <div className={styles.formActions}>
             <button type="submit" className={styles.btnPrimary}>{editingId ? "Update Entry" : "Save Entry"}</button>
@@ -106,7 +113,7 @@ export default function Component3Client({ budgetComponentId, entries }: { budge
           <thead>
             <tr>
               <th>Sl. No.</th>
-              <th>Date / Period</th><th>Name</th><th>Designation</th><th>Support Type</th><th>Department</th><th>Work Period</th><th>Remuneration</th>
+              <th>Date / Period</th><th>Name</th><th>Role</th><th>Support Type</th><th>Department</th><th>Duration (Months)</th><th>Monthly Salary</th>
               <th>Total</th><th>Voucher No.</th><th>Remarks/Narration</th><th>Actions</th>
             </tr>
           </thead>

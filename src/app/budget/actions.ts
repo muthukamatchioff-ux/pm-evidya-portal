@@ -19,12 +19,12 @@ export async function getBudgetComponents() {
   // Calculate dynamic expenditures
   return components.map((comp: any) => {
     let expenditure = 0;
-    comp.annexureI.forEach((a: any) => (expenditure += a.totalExpenditure));
-    comp.annexureII.forEach((a: any) => (expenditure += a.totalExpenditure));
-    comp.annexureIII.forEach((a: any) => (expenditure += a.totalExpenditure));
-    comp.annexureIV.forEach((a: any) => (expenditure += a.totalExpenditure));
-    comp.annexureV.forEach((a: any) => (expenditure += a.totalExpenditure));
-    comp.annexureVI.forEach((a: any) => (expenditure += a.totalExpenditure));
+    if (comp.componentNo === 1) comp.annexureI.forEach((a: any) => (expenditure += a.totalExpenditure));
+    if (comp.componentNo === 2) comp.annexureII.forEach((a: any) => (expenditure += a.totalExpenditure));
+    if (comp.componentNo === 3) comp.annexureIII.forEach((a: any) => (expenditure += a.totalExpenditure));
+    if (comp.componentNo === 4) comp.annexureIV.forEach((a: any) => (expenditure += a.totalExpenditure));
+    if (comp.componentNo === 5) comp.annexureV.forEach((a: any) => (expenditure += a.totalExpenditure));
+    if (comp.componentNo === 6) comp.annexureVI.forEach((a: any) => (expenditure += a.totalExpenditure));
 
     const unutilized = comp.approvedBudget - expenditure;
     const utilization = comp.approvedBudget > 0 ? (expenditure / comp.approvedBudget) * 100 : 0;
@@ -48,13 +48,12 @@ export async function getDashboardKPIs() {
   components.forEach((comp: any) => {
     totalApproved += comp.approvedBudget;
     totalExpenditure += comp.expenditureIncurred;
-    recordsCount += 
-      comp.annexureI.length + 
-      comp.annexureII.length + 
-      comp.annexureIII.length + 
-      comp.annexureIV.length + 
-      comp.annexureV.length + 
-      comp.annexureVI.length;
+    if (comp.componentNo === 1) recordsCount += comp.annexureI.length;
+    if (comp.componentNo === 2) recordsCount += comp.annexureII.length;
+    if (comp.componentNo === 3) recordsCount += comp.annexureIII.length;
+    if (comp.componentNo === 4) recordsCount += comp.annexureIV.length;
+    if (comp.componentNo === 5) recordsCount += comp.annexureV.length;
+    if (comp.componentNo === 6) recordsCount += comp.annexureVI.length;
   });
 
   const totalUnutilized = totalApproved - totalExpenditure;
@@ -132,7 +131,8 @@ export async function getComponent3Data() {
   return { ...comp, expenditureIncurred: expenditure, unutilizedBalance: comp.approvedBudget - expenditure, utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00' };
 }
 export async function addAnnexureIIIEntry(data: any) {
-  const total = (Number(data.remuneration) || 0) + (Number(data.taDa) || 0) + (Number(data.otherCharges) || 0);
+  const months = Number(data.workPeriod) || 1;
+  const total = (Number(data.remuneration) || 0) * months;
   await prisma.annexureIII.create({ data: { ...data, totalExpenditure: total } });
   revalidatePath('/dashboard'); revalidatePath('/budget/annexure-3');
 }
@@ -194,7 +194,8 @@ export async function updateAnnexureIIEntry(id: string, data: any) {
   revalidatePath('/dashboard'); revalidatePath('/budget/annexure-2');
 }
 export async function updateAnnexureIIIEntry(id: string, data: any) {
-  const total = (Number(data.remuneration) || 0) + (Number(data.taDa) || 0) + (Number(data.otherCharges) || 0);
+  const months = Number(data.workPeriod) || 1;
+  const total = (Number(data.remuneration) || 0) * months;
   await prisma.annexureIII.update({ where: { id }, data: { ...data, totalExpenditure: total } });
   revalidatePath('/dashboard'); revalidatePath('/budget/annexure-3');
 }

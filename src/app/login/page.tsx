@@ -58,7 +58,7 @@ export default function LoginPage() {
             Empowering India's Youth with Skills for a Better Future
           </p>
           <div className={styles.rimiBranding}>
-            National Instructional Media Institute (NIMI)
+            PM e-Vidya
           </div>
         </div>
       </div>
@@ -161,7 +161,7 @@ export default function LoginPage() {
           </form>
           
           <div className={styles.bottomBranding}>
-            National Instructional Media Institute (NIMI)
+            PM e-Vidya
           </div>
         </div>
       </div>
