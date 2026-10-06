@@ -5,7 +5,7 @@ import { addAnnexureIEntry, updateAnnexureIEntry } from '../actions';
 import styles from '../budget.module.css';
 import { downloadTableAsDocx } from '@/lib/tableToDocx';
 
-export default function Component1Client({ budgetComponentId, entries }: { budgetComponentId: string, entries: any[] }) {
+export default function Component1Client({ role, budgetComponentId, entries }: { role?: string, budgetComponentId: string, entries: any[] }) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -59,9 +59,9 @@ export default function Component1Client({ budgetComponentId, entries }: { budge
         <button className={styles.btnPrimary} style={{ backgroundColor: '#8b5cf6', color: 'white', marginRight: '12px', fontWeight: 'bold' }} onClick={() => downloadTableAsDocx('dataTable', 'PM e-Vidya - Digital Content Development & Production', 'Annexure-I', 'Annexure-I_Report.docx')}>
           Download Docs Pattern
         </button>
-        <button className={styles.btnPrimary} onClick={() => { setIsAdding(!isAdding); if(!isAdding) { setEditingId(null); } }}>
+        {role === 'ADMIN' && <button className={styles.btnPrimary} onClick={() => { setIsAdding(!isAdding); if(!isAdding) { setEditingId(null); } }}>
           {isAdding ? 'Cancel' : '+ Add New Entry'}
-        </button>
+        </button>}
       </div>
 
       {isAdding && (
@@ -140,7 +140,7 @@ export default function Component1Client({ budgetComponentId, entries }: { budge
               <th>Total</th>
               <th>Voucher No.</th>
               <th>Remarks/Narration</th>
-              <th>Actions</th>
+              {role === 'ADMIN' && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -163,7 +163,7 @@ export default function Component1Client({ budgetComponentId, entries }: { budge
                       {entry.narration || entry.remarks || '-'}
                     </div>
                   </td>
-                  <td><button onClick={() => { setIsAdding(true); setEditingId(entry.id); setFormData({ ...entry, workingDays: entry.workingDays?.toString() || '', honorarium: entry.honorarium?.toString() || '', travelAllowance: entry.travelAllowance?.toString() || '', otherCharges: entry.otherCharges?.toString() || '' }); }} style={{color: 'blue', textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer'}}>Edit</button></td>
+                  {role === 'ADMIN' && <td><button onClick={() => { setIsAdding(true); setEditingId(entry.id); setFormData({ ...entry, workingDays: entry.workingDays?.toString() || '', honorarium: entry.honorarium?.toString() || '', travelAllowance: entry.travelAllowance?.toString() || '', otherCharges: entry.otherCharges?.toString() || '' }); }} style={{color: 'blue', textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer'}}>Edit</button></td>}
                 </tr>
               ))
             )}

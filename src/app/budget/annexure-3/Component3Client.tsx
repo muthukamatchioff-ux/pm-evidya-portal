@@ -4,7 +4,7 @@ import { addAnnexureIIIEntry, updateAnnexureIIIEntry } from '../actions';
 import styles from '../budget.module.css';
 import { downloadTableAsDocx } from '@/lib/tableToDocx';
 
-export default function Component3Client({ budgetComponentId, entries }: { budgetComponentId: string, entries: any[] }) {
+export default function Component3Client({ role, budgetComponentId, entries }: { role?: string, budgetComponentId: string, entries: any[] }) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({datePeriod: '', personnelName: '', designation: '', supportType: '', department: '', workPeriod: '', remuneration: '', taDa: '', otherCharges: '', utrNumber: '', remarks: ''});
@@ -39,9 +39,9 @@ export default function Component3Client({ budgetComponentId, entries }: { budge
                 <button className={styles.btnPrimary} style={{ backgroundColor: '#8b5cf6', color: 'white', marginRight: '12px', fontWeight: 'bold' }} onClick={() => downloadTableAsDocx('dataTable', 'PM e-Vidya - Human Resource Support', 'Annexure-III', 'Annexure-III_Report.docx')}>
           Download Docs Pattern
         </button>
-        <button className={styles.btnPrimary} onClick={() => { setIsAdding(!isAdding); if(!isAdding) { setEditingId(null); } }}>
+        {role === 'ADMIN' && <button className={styles.btnPrimary} onClick={() => { setIsAdding(!isAdding); if(!isAdding) { setEditingId(null); } }}>
           {isAdding ? 'Cancel' : '+ Add New Entry'}
-        </button>
+        </button>}
       </div>
 
       {isAdding && (
@@ -114,7 +114,7 @@ export default function Component3Client({ budgetComponentId, entries }: { budge
             <tr>
               <th>Sl. No.</th>
               <th>Date / Period</th><th>Name</th><th>Role</th><th>Support Type</th><th>Department</th><th>Duration (Months)</th><th>Monthly Salary</th>
-              <th>Total</th><th>Voucher No.</th><th>Remarks/Narration</th><th>Actions</th>
+              <th>Total</th><th>Voucher No.</th><th>Remarks/Narration</th>{role === 'ADMIN' && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -128,7 +128,7 @@ export default function Component3Client({ budgetComponentId, entries }: { budge
                   <td style={{fontWeight: 'bold'}}>₹ {entry.totalExpenditure.toLocaleString('en-IN')}</td>
                   <td>{entry.voucherNo || entry.utrNumber || '-'}</td>
                   <td><div title={entry.narration || entry.remarks || ''} style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'help' }}>{entry.narration || entry.remarks || '-'}</div></td>
-                  <td><button onClick={() => { setIsAdding(true); setEditingId(entry.id); Object.keys(entry).forEach(k => { if(entry[k] === null) entry[k] = ''; }); setFormData(entry); }} style={{color: 'blue', textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer'}}>Edit</button></td>
+                  {role === 'ADMIN' && <td><button onClick={() => { setIsAdding(true); setEditingId(entry.id); Object.keys(entry).forEach(k => { if(entry[k] === null) entry[k] = ''; }); setFormData(entry); }} style={{color: 'blue', textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer'}}>Edit</button></td>}
                 </tr>
               ))
             )}

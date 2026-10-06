@@ -65,7 +65,7 @@ export async function middleware(request: NextRequest) {
     '/production',
     '/projects',
     '/templates',
-    '/generator/deputation'
+    '/generator/sme-engagement'
   ];
   const isStrictAdminRoute = strictAdminRoutes.some(route => pathname.startsWith(route));
   if (isStrictAdminRoute && role !== 'ADMIN') {

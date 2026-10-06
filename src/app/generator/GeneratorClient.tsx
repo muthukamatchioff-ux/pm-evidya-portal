@@ -4,16 +4,21 @@ import React, { useState, useEffect } from 'react';
 import styles from './generator.module.css';
 import { generateDocx } from '@/lib/docxGenerator';
 
-export default function GeneratorClient({ smes, templates, preselectedSmeId, preselectedEntryId, preselectedType }: any) {
+export default function GeneratorClient({ role, smes, templates, preselectedSmeId, preselectedEntryId, preselectedType }: any) {
   const [selectedSmeId, setSelectedSmeId] = useState(preselectedSmeId || '');
   const [selectedEntryId, setSelectedEntryId] = useState(preselectedEntryId || '');
-  const [docType, setDocType] = useState(preselectedType || 'APPROVAL_LETTER');
+  
+  const allowedTemplates = role === 'ADMIN' ? templates : templates.filter((t: any) => 
+    ['APPROVAL_LETTER', 'WORK_COMPLETION', 'SANCTION_NOTE'].includes(t.id)
+  );
+
+  const [docType, setDocType] = useState(preselectedType || (allowedTemplates[0]?.id || 'APPROVAL_LETTER'));
   const [signatory, setSignatory] = useState('Joint Director / HOO');
   const [extensionReason, setExtensionReason] = useState('');
 
   const selectedSme = smes.find((s: any) => s.id === selectedSmeId);
   const selectedEntry = selectedSme?.workEntries.find((e: any) => e.id === selectedEntryId);
-  const activeTemplate = templates.find((t: any) => t.id === docType) || templates[0];
+  const activeTemplate = allowedTemplates.find((t: any) => t.id === docType) || allowedTemplates[0];
   
   const [previewData, setPreviewData] = useState<any>({});
 
@@ -88,7 +93,7 @@ export default function GeneratorClient({ smes, templates, preselectedSmeId, pre
             <div className={styles.formGroup}>
               <label>Document Type</label>
               <select className={styles.select} value={docType} onChange={e => setDocType(e.target.value)}>
-                {templates.map((t: any) => (
+                {allowedTemplates.map((t: any) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>

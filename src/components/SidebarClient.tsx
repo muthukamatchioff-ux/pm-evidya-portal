@@ -10,11 +10,12 @@ const menuItems = [
   { name: 'Dashboard', path: '/dashboard', icon: '📊' },
   
   { isHeader: true, name: 'Core Modules' },
-  { name: 'SME Records', path: '/smes', icon: '👨‍🏫' },
-  { name: 'Production Records', path: '/production', icon: '🎥' },
-  { name: 'Document Management', path: '/accounts', icon: '📄', adminOnly: true },
+  { name: 'SME Records', path: '/smes', icon: '👨‍🏫', adminOnly: true },
+  { name: 'Production Records', path: '/production', icon: '🎥', adminOnly: true },
+  { name: 'Document Management', path: '/accounts', icon: '💰', adminOnly: true },
   { name: 'Document Registry', path: '/documents', icon: '📄' },
   { name: 'Video / Content', path: '/content', icon: '🎬' },
+  { name: 'Approval Letters', path: '/generator/deputation', icon: '✉️' },
   
   { isHeader: true, name: 'System' },
   { name: 'Reports', path: '/reports', icon: '📈' },
