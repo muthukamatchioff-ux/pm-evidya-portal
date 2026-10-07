@@ -81,7 +81,35 @@ async function createSession(email: string, role: string) {
 export async function login(email: string, password: string): Promise<{ success: boolean; error?: string }> {
   const normalizedEmail = email.toLowerCase().trim();
 
-  // First, check DB for dynamically created admins
+  if (isAdminEmail(normalizedEmail)) {
+    const passwordHash = process.env.ADMIN_PASSWORD_HASH;
+
+    if (!passwordHash) {
+      console.error('ADMIN_PASSWORD_HASH is not configured.');
+      return { success: false, error: 'Admin authentication is not configured.' };
+    }
+
+    const passwordValid = await bcrypt.compare(password, passwordHash);
+
+    if (!passwordValid) {
+      return { success: false, error: 'Invalid admin credentials.' };
+    }
+
+    // Upsert legacy user in DB
+    await prisma.user.upsert({
+      where: { email: normalizedEmail },
+      update: { role: 'ADMIN' },
+      create: {
+        email: normalizedEmail,
+        role: 'ADMIN',
+        name: normalizedEmail.split('@')[0]
+      }
+    });
+
+    return await createSession(normalizedEmail, 'ADMIN');
+  }
+
+  // First, check DB for dynamically created users
   const dbUser = await prisma.user.findUnique({
     where: { email: normalizedEmail }
   });
@@ -105,36 +133,7 @@ export async function login(email: string, password: string): Promise<{ success:
     }
   }
 
-  // Fallback for legacy hardcoded admins (e.g. from environment variable)
-  if (!isAdminEmail(normalizedEmail)) {
-    return { success: false, error: 'Invalid admin credentials.' };
-  }
-
-  const passwordHash = process.env.ADMIN_PASSWORD_HASH;
-
-  if (!passwordHash) {
-    console.error('ADMIN_PASSWORD_HASH is not configured.');
-    return { success: false, error: 'Admin authentication is not configured.' };
-  }
-
-  const passwordValid = await bcrypt.compare(password, passwordHash);
-
-  if (!passwordValid) {
-    return { success: false, error: 'Invalid admin credentials.' };
-  }
-
-  // Upsert legacy user in DB
-  await prisma.user.upsert({
-    where: { email: normalizedEmail },
-    update: { role: 'ADMIN' },
-    create: {
-      email: normalizedEmail,
-      role: 'ADMIN',
-      name: normalizedEmail.split('@')[0]
-    }
-  });
-
-  return await createSession(normalizedEmail, 'ADMIN');
+  return { success: false, error: 'Invalid credentials.' };
 }
 
 export async function logout() {
