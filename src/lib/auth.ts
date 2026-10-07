@@ -86,7 +86,7 @@ export async function login(email: string, password: string): Promise<{ success:
     where: { email: normalizedEmail }
   });
 
-  if (dbUser && (dbUser.role === 'ADMIN' || dbUser.role === 'TEAM_MEMBER')) {
+  if (dbUser && (dbUser.role === 'ADMIN' || dbUser.role === 'TEAM_MEMBER' || dbUser.role === 'VIEWER')) {
     if (dbUser.status !== 'ACTIVE') {
       return { success: false, error: 'Account is deactivated.' };
     }

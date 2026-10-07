@@ -33,7 +33,13 @@ export default function Header({ role }: { role: string }) {
         >
           ☰
         </button>
-        <h1 className={styles.title}>Document Management System</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <img src="/nimi-logo.png" alt="NIMI Logo" style={{ height: '32px' }} />
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <h1 className={styles.title} style={{ margin: 0, fontSize: '16px' }}>National Instructional Media Institute</h1>
+            <span style={{ fontSize: '12px', color: '#64748b' }}>PM e-Vidya Portal</span>
+          </div>
+        </div>
         
         <div className={styles.searchBar}>
           <span style={{ opacity: 0.5 }}>🔍</span>

@@ -11,10 +11,9 @@ const menuItems = [
   
   { isHeader: true, name: 'Core Modules' },
   { name: 'SME Records', path: '/smes', icon: '👨‍🏫', adminOnly: true },
-  { name: 'Production Records', path: '/production', icon: '🎥', adminOnly: true },
+  { name: 'Video Production Records', path: '/video-production', icon: '🎬' },
   { name: 'Document Management', path: '/accounts', icon: '💰', adminOnly: true },
   { name: 'Document Registry', path: '/documents', icon: '📄' },
-  { name: 'Video / Content', path: '/content', icon: '🎬' },
   { name: 'Approval Letters', path: '/generator/deputation', icon: '✉️' },
   
   { isHeader: true, name: 'System' },
@@ -46,8 +45,9 @@ export default function SidebarClient({ role, email }: { role: string, email: st
       <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ''} ${mobileOpen ? styles.mobileOpen : ''}`}>
         <div className={styles.logoContainer}>
           <div className={styles.logo}>
-            <h2>PM e-Vidya</h2>
-            <p>Management Portal</p>
+            <img src="/nimi-logo.png" alt="NIMI Logo" style={{ width: '40px', height: '40px', objectFit: 'contain', marginBottom: '8px', display: collapsed ? 'none' : 'block' }} />
+            <h2 style={{ fontSize: '18px' }}>PM e-Vidya</h2>
+            <p style={{ fontSize: '12px' }}>National Instructional Media Institute</p>
           </div>
           <button 
             onClick={() => setCollapsed(!collapsed)}
@@ -109,6 +109,7 @@ export default function SidebarClient({ role, email }: { role: string, email: st
               <div style={{ fontSize: '12px' }}>
                 <div style={{ color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase' }}>Authenticated As</div>
                 <div style={{ fontWeight: 'bold', color: 'white', wordBreak: 'break-all' }}>{email}</div>
+                <div style={{ color: '#60a5fa', fontSize: '11px', fontWeight: 'bold', marginTop: '2px' }}>Role: {role.replace('_', ' ')}</div>
               </div>
               <LogoutButton />
             </div>

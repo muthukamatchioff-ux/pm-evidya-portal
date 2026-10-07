@@ -48,17 +48,17 @@ export default function LoginPage() {
       <div className={styles.leftPanel}>
         <div className={styles.visualContent}>
           <img 
-            src="/pm-evidya-logo.png" 
-            alt="PM e-Vidya Logo" 
+            src="/nimi-logo.png" 
+            alt="NIMI Logo" 
             className={styles.logoImageLarge}
           />
-          <h1 className={styles.visualTitle}>PM e-Vidya</h1>
-          <h2 className={styles.visualSubtitle}>Vocational Education Channels</h2>
+          <h1 className={styles.visualTitle}>PM e-Vidya Portal</h1>
+          <h2 className={styles.visualSubtitle}>National Instructional Media Institute</h2>
           <p className={styles.visualTagline}>
             Empowering India's Youth with Skills for a Better Future
           </p>
           <div className={styles.rimiBranding}>
-            PM e-Vidya
+            NIMI - PM e-Vidya
           </div>
         </div>
       </div>
@@ -84,12 +84,12 @@ export default function LoginPage() {
 
           <div className={styles.loginHeader}>
             <img 
-              src="/pm-evidya-logo.png" 
-              alt="PM e-Vidya Logo" 
+              src="/nimi-logo.png" 
+              alt="NIMI Logo" 
               className={styles.logoImageSmall}
             />
             <h2 className={styles.welcomeTitle}>Welcome Back</h2>
-            <p className={styles.welcomeSubtitle}>Sign in to your PM e-Vidya<br/>Management Portal</p>
+            <p className={styles.welcomeSubtitle}>Sign in to NIMI<br/>PM e-Vidya Portal</p>
           </div>
 
           {error && (
@@ -161,7 +161,7 @@ export default function LoginPage() {
           </form>
           
           <div className={styles.bottomBranding}>
-            PM e-Vidya
+            National Instructional Media Institute (NIMI)
           </div>
         </div>
       </div>

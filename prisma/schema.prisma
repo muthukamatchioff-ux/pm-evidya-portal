@@ -57,6 +57,10 @@ model SMEWorkEntry {
   payments       Payment[]
   sme            SME        @relation(fields: [smeId], references: [id], onDelete: Cascade)
   topicRef       Topic?     @relation(fields: [topicId], references: [id])
+  shootingSchedules   ShootingSchedule[]
+  videoEditorRecords  VideoEditorRecord[]
+  animationRecords    AnimationRecord[]
+  finalVideoRecords   FinalVideoRecord[]
 }
 
 model Payment {
@@ -453,3 +457,73 @@ model VideoLibrary {
   duration  String?
   trade     String?
 }
+
+model ShootingSchedule {
+  id              String   @id @default(cuid())
+  workEntryId     String
+  videoTitle      String?
+  shootDate       DateTime?
+  location        String?
+  shootingType    String?
+  scheduledStart  DateTime?
+  scheduledEnd    DateTime?
+  actualStart     DateTime?
+  actualEnd       DateTime?
+  cameraman       String?
+  status          String   @default("PLANNED")
+  productionNotes String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  workEntry       SMEWorkEntry @relation(fields: [workEntryId], references: [id], onDelete: Cascade)
+}
+
+model VideoEditorRecord {
+  id               String   @id @default(cuid())
+  workEntryId      String
+  editorName       String?
+  assignedVideo    String?
+  editingStartDate DateTime?
+  roughCutLink     String?
+  finalCutLink     String?
+  duration         String?
+  status           String   @default("NOT_STARTED")
+  reviewComments   String?
+  finalVideoFile   String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  workEntry        SMEWorkEntry @relation(fields: [workEntryId], references: [id], onDelete: Cascade)
+}
+
+model AnimationRecord {
+  id                 String   @id @default(cuid())
+  workEntryId        String
+  animatorName       String?
+  assignedVideo      String?
+  animationStartDate DateTime?
+  animationEndDate   DateTime?
+  status             String   @default("NOT_STARTED")
+  finalAnimationFile String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  workEntry          SMEWorkEntry @relation(fields: [workEntryId], references: [id], onDelete: Cascade)
+}
+
+model FinalVideoRecord {
+  id               String   @id @default(cuid())
+  workEntryId      String   @unique
+  finalVideoStatus String   @default("PENDING")
+  finalVideoFile   String?
+  finalDuration    String?
+  finalApproval    String?
+  approvalDate     DateTime?
+  remarks          String?
+  telecastChannel  String?
+  telecastDate     DateTime?
+  telecastEpisode  String?
+  telecastStatus   String   @default("PENDING")
+  telecastRemarks  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  workEntry        SMEWorkEntry @relation(fields: [workEntryId], references: [id], onDelete: Cascade)
+}
+
