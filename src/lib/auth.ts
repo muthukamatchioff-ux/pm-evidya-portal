@@ -136,6 +136,47 @@ export async function login(email: string, password: string): Promise<{ success:
   return { success: false, error: 'Invalid credentials.' };
 }
 
+export async function register(email: string, password: string): Promise<{ success: boolean; error?: string }> {
+  const normalizedEmail = email.toLowerCase().trim();
+
+  if (!normalizedEmail || !password) {
+    return { success: false, error: 'Email and password are required.' };
+  }
+
+  // Prevent registration using admin emails
+  if (isAdminEmail(normalizedEmail)) {
+    return { success: false, error: 'Cannot register with an admin email.' };
+  }
+
+  // Check if user already exists
+  const existingUser = await prisma.user.findUnique({
+    where: { email: normalizedEmail }
+  });
+
+  if (existingUser) {
+    return { success: false, error: 'An account with this email already exists.' };
+  }
+
+  try {
+    const passwordHash = await bcrypt.hash(password, 10);
+    
+    await prisma.user.create({
+      data: {
+        email: normalizedEmail,
+        password: passwordHash,
+        name: normalizedEmail.split('@')[0],
+        role: 'VIEWER',
+        status: 'INACTIVE', // Requires admin approval, safe default
+      }
+    });
+
+    return { success: true };
+  } catch (err) {
+    console.error('Error creating user:', err);
+    return { success: false, error: 'Registration failed due to a server error.' };
+  }
+}
+
 export async function logout() {
   const cookieStore = await cookies();
 

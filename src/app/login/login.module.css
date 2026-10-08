@@ -308,6 +308,73 @@
   opacity: 0.8;
 }
 
+.actionDivider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+  margin: 4px 0;
+}
+
+.actionDivider::before,
+.actionDivider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.actionDivider span {
+  padding: 0 10px;
+}
+
+.viewerLoginBtn {
+  width: 100%;
+  padding: 14px;
+  background-color: white;
+  color: #1e3a8a;
+  border: 1px solid #1e3a8a;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.viewerLoginBtn:hover:not(:disabled) {
+  background-color: #f1f5f9;
+}
+
+.viewerLoginBtn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.viewerLoginBtn:disabled {
+  color: #94a3b8;
+  border-color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.registerPrompt {
+  text-align: center;
+  font-size: 14px;
+  color: #64748b;
+  margin-top: 8px;
+}
+
+.registerPrompt a {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.registerPrompt a:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
 .bottomBranding {
   margin-top: 48px;
   text-align: center;

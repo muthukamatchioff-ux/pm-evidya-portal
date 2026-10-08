@@ -2,40 +2,53 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { login } from '@/lib/auth';
-import styles from './login.module.css';
+import { register } from '@/lib/auth';
+import styles from '../login/login.module.css';
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [language, setLanguage] = useState<'EN' | 'TA'>('EN');
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
-      if (!email.trim() || !password) {
-        setError('Email and password are required.');
+      if (!email.trim() || !password || !confirmPassword) {
+        setError('All fields are required.');
         setLoading(false);
         return;
       }
 
-      const result = await login(email, password);
+      if (password !== confirmPassword) {
+        setError('Passwords do not match.');
+        setLoading(false);
+        return;
+      }
+
+      const result = await register(email, password);
 
       if (!result.success) {
-        setError(result.error || 'Login failed. Please check your credentials.');
+        setError(result.error || 'Registration failed. Please try again.');
         setLoading(false);
         return;
       }
 
-      router.push('/dashboard');
-      router.refresh();
+      setSuccess('Account created successfully. Your account is pending approval.');
+      setEmail('');
+      setPassword('');
+      setConfirmPassword('');
+      setTimeout(() => {
+        router.push('/login');
+      }, 3000);
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
       setLoading(false);
@@ -44,7 +57,6 @@ export default function LoginPage() {
 
   return (
     <div className={styles.splitContainer}>
-      {/* Left Visual Panel */}
       <div className={styles.leftPanel}>
         <div className={styles.visualContent}>
           <img 
@@ -53,60 +65,46 @@ export default function LoginPage() {
             className={styles.logoImageLarge}
           />
           <h1 className={styles.visualTitle}>PM e-Vidya Portal</h1>
-          <h2 className={styles.visualSubtitle}>National Instructional Media Institute</h2>
+          <h2 className={styles.visualSubtitle}>Create Viewer Account</h2>
           <p className={styles.visualTagline}>
-            Empowering India's Youth with Skills for a Better Future
+            Register for viewer access to the PM e-Vidya Portal.
           </p>
-          <div className={styles.rimiBranding}>
-            NIMI - PM e-Vidya
-          </div>
         </div>
       </div>
 
-      {/* Right Login Panel */}
       <div className={styles.rightPanel}>
         <div className={styles.loginCard}>
-          <div className={styles.languageSelector}>
-            <span 
-              className={`${styles.langOption} ${language === 'EN' ? styles.active : ''}`}
-              onClick={() => setLanguage('EN')}
-            >
-              English
-            </span>
-            <span className={styles.langDivider}>|</span>
-            <span 
-              className={`${styles.langOption} ${language === 'TA' ? styles.active : ''}`}
-              onClick={() => setLanguage('TA')}
-            >
-              தமிழ்
-            </span>
-          </div>
-
           <div className={styles.loginHeader}>
             <img 
               src="/nimi-logo.png" 
               alt="NIMI Logo" 
               className={styles.logoImageSmall}
             />
-            <h2 className={styles.welcomeTitle}>Welcome Back</h2>
-            <p className={styles.welcomeSubtitle}>Sign in to NIMI<br/>PM e-Vidya Portal</p>
+            <h2 className={styles.welcomeTitle}>Register</h2>
+            <p className={styles.welcomeSubtitle}>Sign up for a Viewer account</p>
           </div>
 
           {error && (
             <div className={styles.errorToast}>
               <span className={styles.errorIcon}>⚠</span>
               <div className={styles.errorContent}>
-                <h4 className={styles.errorTitle}>Unable to sign in</h4>
-                <p className={styles.errorDesc}>
-                  {error === 'An unexpected error occurred. Please try again.' 
-                    ? 'Please check your email and password and try again.' 
-                    : error}
-                </p>
+                <h4 className={styles.errorTitle}>Unable to register</h4>
+                <p className={styles.errorDesc}>{error}</p>
               </div>
             </div>
           )}
 
-          <form onSubmit={handleLogin} className={styles.loginForm}>
+          {success && (
+            <div style={{ backgroundColor: '#f0fdf4', borderLeft: '4px solid #22c55e', padding: '16px', borderRadius: '6px', marginBottom: '24px', display: 'flex', gap: '12px' }}>
+              <span style={{ color: '#22c55e', fontSize: '18px' }}>✓</span>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#166534', margin: '0 0 4px' }}>Success</h4>
+                <p style={{ fontSize: '13px', color: '#15803d', margin: 0 }}>{success}</p>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleRegister} className={styles.loginForm}>
             <div className={styles.formGroup}>
               <label htmlFor="email">Email Address</label>
               <input
@@ -115,10 +113,9 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email address"
-                autoComplete="username"
                 required
                 className={styles.inputField}
-                disabled={loading}
+                disabled={loading || !!success}
               />
             </div>
 
@@ -130,11 +127,10 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
+                  placeholder="Enter a secure password"
                   required
                   className={styles.inputField}
-                  disabled={loading}
+                  disabled={loading || !!success}
                 />
                 <button
                   type="button"
@@ -147,44 +143,32 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div className={styles.forgotPassword}>
-              <a href="#" onClick={(e) => e.preventDefault()}>Forgot Password?</a>
+            <div className={styles.formGroup}>
+              <label htmlFor="confirmPassword">Confirm Password</label>
+              <input
+                id="confirmPassword"
+                type={showPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm your password"
+                required
+                className={styles.inputField}
+                disabled={loading || !!success}
+              />
             </div>
 
             <button
               type="submit"
               className={styles.signInBtn}
-              disabled={loading}
+              disabled={loading || !!success}
             >
-              {loading ? 'Authenticating...' : 'Sign In'}
-            </button>
-
-            <div className={styles.actionDivider}>
-              <span>or</span>
-            </div>
-
-            <button
-              type="button"
-              className={styles.viewerLoginBtn}
-              onClick={() => {
-                setEmail('viewer@nimi.gov.in');
-                setPassword('');
-                // Focus the password input
-                document.getElementById('password')?.focus();
-              }}
-              disabled={loading}
-            >
-              Login as Viewer
+              {loading ? 'Registering...' : 'Register as Viewer'}
             </button>
 
             <div className={styles.registerPrompt}>
-              Don't have an account? <a href="/register">Register here</a>
+              Already have an account? <a href="/login">Sign in here</a>
             </div>
           </form>
-          
-          <div className={styles.bottomBranding}>
-            National Instructional Media Institute (NIMI)
-          </div>
         </div>
       </div>
     </div>
