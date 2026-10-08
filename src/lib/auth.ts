@@ -89,6 +89,19 @@ export async function login(email: string, password: string): Promise<{ success:
       return { success: false, error: 'Admin authentication is not configured.' };
     }
 
+    // --- TEMPORARY SAFE DIAGNOSTIC ---
+    const hashExists = typeof passwordHash !== 'undefined';
+    const hashType = typeof passwordHash;
+    const hashLength = hashExists && hashType === 'string' ? passwordHash.length : 0;
+    const isBcryptFormat = hashExists && hashType === 'string' && (passwordHash.startsWith('$2a$') || passwordHash.startsWith('$2b$') || passwordHash.startsWith('$2y$'));
+    
+    console.log(`ADMIN_AUTH_DIAGNOSTIC:
+exists=${hashExists}
+type=${hashType}
+length=${hashLength}
+bcrypt_format=${isBcryptFormat}`);
+    // ---------------------------------
+
     const passwordValid = await bcrypt.compare(password, passwordHash);
 
     if (!passwordValid) {
