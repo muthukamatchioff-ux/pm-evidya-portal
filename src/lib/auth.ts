@@ -95,11 +95,19 @@ export async function login(email: string, password: string): Promise<{ success:
     const hashLength = hashExists && hashType === 'string' ? passwordHash.length : 0;
     const isBcryptFormat = hashExists && hashType === 'string' && (passwordHash.startsWith('$2a$') || passwordHash.startsWith('$2b$') || passwordHash.startsWith('$2y$'));
     
+    // Determine evaluation details safely
+    const first3Chars = hashExists && hashType === 'string' ? passwordHash.substring(0, 3) : '';
+    const last3Chars = hashExists && hashType === 'string' ? passwordHash.substring(hashLength - 3) : '';
+    const hasQuotes = hashExists && hashType === 'string' ? (passwordHash.startsWith('"') || passwordHash.startsWith("'")) : false;
+    
     console.log(`ADMIN_AUTH_DIAGNOSTIC:
 exists=${hashExists}
 type=${hashType}
 length=${hashLength}
-bcrypt_format=${isBcryptFormat}`);
+bcrypt_format=${isBcryptFormat}
+prefix=${first3Chars}
+suffix=${last3Chars}
+hasQuotes=${hasQuotes}`);
     // ---------------------------------
 
     const passwordValid = await bcrypt.compare(password, passwordHash);
