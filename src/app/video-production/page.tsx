@@ -13,6 +13,7 @@ export default async function VideoProductionPage() {
   const role = await getRole();
   const result = await getTopicProductionRecords();
   const records = (result.success ? result.data : []) || [];
+  const errorMsg = !result.success ? result.error : null;
 
   return (
     <>
@@ -20,6 +21,11 @@ export default async function VideoProductionPage() {
         <h1 className={styles.pageTitle}>🎬 Video Production Records</h1>
         <p className={styles.subtitle}>Manage complete EPIC ID workflows for SME Document Compliance, Production & Telecast Tracking</p>
       </div>
+      {errorMsg && (
+        <div style={{ padding: '1rem', background: '#fee2e2', color: '#991b1b', borderRadius: '4px', marginBottom: '1rem' }}>
+          <strong>Error Loading Records:</strong> {errorMsg}
+        </div>
+      )}
       <VideoProductionClient initialRecords={records} role={role} />
     </>
   );

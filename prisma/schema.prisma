@@ -61,7 +61,6 @@ model SMEWorkEntry {
   videoEditorRecords  VideoEditorRecord[]
   animationRecords    AnimationRecord[]
   finalVideoRecords   FinalVideoRecord[]
-topicProductionRecords TopicProductionRecord[]
 }
 
 model Payment {
@@ -526,40 +525,5 @@ model FinalVideoRecord {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   workEntry        SMEWorkEntry @relation(fields: [workEntryId], references: [id], onDelete: Cascade)
-}
-
-
-model TopicProductionRecord {
-  id                  String   @id @default(cuid())
-  workEntryId         String   
-  topicNo             Int      
-  topicTitle          String
-  
-  // Stage 1 - Production
-  shootingDate        DateTime?
-  cameraman           String?
-  productionStatus    String   @default("PENDING") 
-  
-  // Stage 2 - Post-Production
-  editorName          String?
-  editingStartDate    DateTime?
-  editingEndDate      DateTime?
-  editingStatus       String   @default("NOT_STARTED") 
-  editingNotes        String?
-  
-  animatorName        String?
-  animationStartDate  DateTime?
-  animationEndDate    DateTime?
-  animationStatus     String   @default("NOT_STARTED") 
-  animationNotes      String?
-  
-  overallStatus       String   @default("PENDING") 
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  
-  workEntry           SMEWorkEntry @relation(fields: [workEntryId], references: [id], onDelete: Restrict)
-  
-  @@unique([workEntryId, topicNo])
 }
 
