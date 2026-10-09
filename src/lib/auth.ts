@@ -118,16 +118,20 @@ export async function login(email: string, password: string): Promise<{ success:
       return { success: false, error: 'Invalid admin credentials.' };
     }
 
-    // Upsert legacy user in DB
-    await prisma.user.upsert({
-      where: { email: normalizedEmail },
-      update: { role: 'ADMIN' },
-      create: {
-        email: normalizedEmail,
-        role: 'ADMIN',
-        name: normalizedEmail.split('@')[0]
-      }
-    });
+    // Upsert legacy user in DB (Non-blocking: do not crash login if DB is unavailable)
+    try {
+      await prisma.user.upsert({
+        where: { email: normalizedEmail },
+        update: { role: 'ADMIN' },
+        create: {
+          email: normalizedEmail,
+          role: 'ADMIN',
+          name: normalizedEmail.split('@')[0]
+        }
+      });
+    } catch (dbError) {
+      console.warn('Non-fatal: Failed to upsert admin user into database during login.', dbError);
+    }
 
     return await createSession(normalizedEmail, 'ADMIN');
   }
