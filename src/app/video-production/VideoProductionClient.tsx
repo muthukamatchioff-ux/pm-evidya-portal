@@ -1,277 +1,406 @@
 'use client';
 
-import React, { useState } from 'react';
-import styles from './video-production.module.css';
+import React, { useState, useEffect } from 'react';
+import styles from '@/app/dashboard/dashboard.module.css';
+import { 
+  getEpicWorkEntries, 
+  getTopicProductionRecords, 
+  createTopicProductionRecord,
+  updateTopicStage1,
+  updateTopicStage2
+} from './actions';
 
-export default function VideoProductionClient({ initialRecords, role }: { initialRecords: any[], role: string }) {
-  const [records, setRecords] = useState(initialRecords);
-  const [selectedEpic, setSelectedEpic] = useState<any | null>(null);
-  const [search, setSearch] = useState('');
+export default function VideoProductionClient({ initialRecords = [], role = 'VIEWER' }: any) {
+  const [activeTab, setActiveTab] = useState<'STAGE_1' | 'STAGE_2' | 'LEGACY'>('STAGE_1');
+  const [epicList, setEpicList] = useState<any[]>([]);
+  const [topics, setTopics] = useState<any[]>(initialRecords);
+  
+  const [selectedEpicId, setSelectedEpicId] = useState('');
+  const [topicTitle, setTopicTitle] = useState('');
+  const [shootingDate, setShootingDate] = useState('');
+  const [cameraman, setCameraman] = useState('');
+  
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  const getEpicId = (epicSequence: number) => `EPIC-2026-PMeVidya ${String(epicSequence).padStart(2, '0')}`;
+  // Fetch epic lists on load
+  useEffect(() => {
+    async function loadEpics() {
+      const res = await getEpicWorkEntries();
+      if (res.success) {
+        setEpicList(res.data || []);
+      }
+    }
+    loadEpics();
+  }, []);
 
-  const filteredRecords = records.filter(r => 
-    getEpicId(r.epicSequence).toLowerCase().includes(search.toLowerCase()) ||
-    r.sme?.name.toLowerCase().includes(search.toLowerCase()) ||
-    r.topic?.toLowerCase().includes(search.toLowerCase())
-  );
+  const selectedEpic = epicList.find(e => e.id === selectedEpicId);
 
-  const getOverallStatus = (r: any) => {
-    if (r.finalVideoRecords?.length > 0 && r.finalVideoRecords[0].finalVideoStatus === 'COMPLETED') return 'Completed';
-    if (r.animationRecords?.length > 0 && r.animationRecords[0].status === 'IN_PROGRESS') return 'Animation in Progress';
-    if (r.videoEditorRecords?.length > 0 && r.videoEditorRecords[0].status === 'IN_PROGRESS') return 'Editing in Progress';
-    if (r.shootingSchedules?.length > 0 && r.shootingSchedules[0].status === 'COMPLETED') return 'Shooting Completed';
-    if (r.documents?.length > 0) return 'Documents Pending';
-    return 'Pending';
+  const handleCreateTopic = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEpicId || !topicTitle) {
+      setError('Epic ID and Topic Title are required.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    const res = await createTopicProductionRecord(selectedEpicId, {
+      topicTitle,
+      shootingDate,
+      cameraman
+    });
+
+    if (res.success) {
+      setSuccess('Topic saved successfully.');
+      setTopics([(res as any).data, ...topics]);
+      setTopicTitle('');
+      setShootingDate('');
+      setCameraman('');
+    } else {
+      setError(res.error || 'Failed to save topic.');
+    }
+    setLoading(false);
   };
 
-  const getBadgeClass = (status: string) => {
-    if (status.includes('Completed')) return styles.badgeCompleted;
-    if (status.includes('Progress')) return styles.badgeProgress;
-    if (status.includes('Pending')) return styles.badgePending;
-    return styles.badgePending;
+  const handleStage2Update = async (id: string, data: any) => {
+    setLoading(true);
+    setError(null);
+    const res = await updateTopicStage2(id, data);
+    if (res.success) {
+      setSuccess('Post-Production updated successfully.');
+      setTopics(topics.map(t => t.id === id ? (res as any).data : t));
+    } else {
+      setError(res.error || 'Failed to update Stage 2.');
+    }
+    setLoading(false);
   };
 
-  // Summary counts
-  const totalEpics = records.length;
-  const shootsCompleted = records.filter(r => r.shootingSchedules?.[0]?.status === 'COMPLETED').length;
-  const editingInProgress = records.filter(r => r.videoEditorRecords?.[0]?.status === 'IN_PROGRESS').length;
-  const finalCompleted = records.filter(r => r.finalVideoRecords?.[0]?.finalVideoStatus === 'COMPLETED').length;
+  // Derived Summary Counts
+  const totalTopics = topics.length;
+  const shootingCompleted = topics.filter(t => t.productionStatus === 'COMPLETED').length;
+  const editingInProgress = topics.filter(t => t.editingStatus === 'IN_PROGRESS').length;
+  const finalCompleted = topics.filter(t => t.overallStatus === 'FINAL_COMPLETED').length;
 
-  if (selectedEpic) {
-    const docCompleted = selectedEpic.documents?.find((d:any) => d.type === 'APPROVAL_LETTER') ? true : false;
-    const shoot = selectedEpic.shootingSchedules?.[0];
-    const editor = selectedEpic.videoEditorRecords?.[0];
-    const anim = selectedEpic.animationRecords?.[0];
-    const final = selectedEpic.finalVideoRecords?.[0];
-
-    return (
-      <div className={styles.workflowContainer}>
-        <div className={styles.workflowHeader}>
-          <button className={styles.backBtn} onClick={() => setSelectedEpic(null)}>←</button>
-          <div>
-            <h2 className={styles.epicTitle}>{getEpicId(selectedEpic.epicSequence)}</h2>
-            <p className={styles.epicSme}>{selectedEpic.sme?.name} - {selectedEpic.topic}</p>
-          </div>
+  return (
+    <div className={styles.container}>
+      {/* Summary Cards */}
+      <div className={styles.statsGrid}>
+        <div className={styles.statCard}>
+          <h3>Total Topics</h3>
+          <p className={styles.statValue}>{totalTopics}</p>
         </div>
-
-        <div className={styles.workflowStages}>
-          {/* 1. SME & Document Compliance */}
-          <div className={`${styles.stageCard} ${docCompleted ? styles.stageCompleted : styles.stageInProgress}`}>
-            <div className={styles.stageIcon}>{docCompleted ? '✓' : '1'}</div>
-            <div className={styles.stageHeader}>
-              <h3 className={styles.stageTitle}>1. SME & Document Compliance</h3>
-              <span className={`${styles.badge} ${docCompleted ? styles.badgeCompleted : styles.badgeProgress}`}>
-                {docCompleted ? 'Completed' : 'Pending'}
-              </span>
-            </div>
-            <div className={styles.stageContent}>
-              <div className={styles.grid2}>
-                <div className={styles.infoGroup}>
-                  <span className={styles.infoLabel}>SME Name</span>
-                  <span className={styles.infoValue}>{selectedEpic.sme?.name}</span>
-                </div>
-                <div className={styles.infoGroup}>
-                  <span className={styles.infoLabel}>Institute</span>
-                  <span className={styles.infoValue}>{selectedEpic.sme?.institute || 'N/A'}</span>
-                </div>
-                <div className={styles.infoGroup}>
-                  <span className={styles.infoLabel}>Documents Uploaded</span>
-                  <span className={styles.infoValue}>{selectedEpic.documents?.length || 0} Docs</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 2. Production - Shooting */}
-          <div className={`${styles.stageCard} ${shoot?.status === 'COMPLETED' ? styles.stageCompleted : (shoot ? styles.stageInProgress : '')}`}>
-            <div className={styles.stageIcon}>{shoot?.status === 'COMPLETED' ? '✓' : '2'}</div>
-            <div className={styles.stageHeader}>
-              <h3 className={styles.stageTitle}>2. Production – Shooting Schedule</h3>
-              <span className={`${styles.badge} ${shoot?.status === 'COMPLETED' ? styles.badgeCompleted : (shoot ? styles.badgeProgress : styles.badgePending)}`}>
-                {shoot?.status || 'Pending'}
-              </span>
-            </div>
-            <div className={styles.stageContent}>
-              {shoot ? (
-                <div className={styles.grid2}>
-                  <div className={styles.infoGroup}>
-                    <span className={styles.infoLabel}>Shoot Date</span>
-                    <span className={styles.infoValue}>{shoot.shootDate ? new Date(shoot.shootDate).toLocaleDateString() : 'N/A'}</span>
-                  </div>
-                  <div className={styles.infoGroup}>
-                    <span className={styles.infoLabel}>Cameraman</span>
-                    <span className={styles.infoValue}>{shoot.cameraman || 'N/A'}</span>
-                  </div>
-                </div>
-              ) : (
-                role !== 'VIEWER' && <button className={styles.btnPrimary}>+ Schedule Shoot</button>
-              )}
-            </div>
-          </div>
-
-          {/* 3. Post Production - Video Editor */}
-          <div className={`${styles.stageCard} ${editor?.status === 'COMPLETED' ? styles.stageCompleted : (editor ? styles.stageInProgress : '')}`}>
-            <div className={styles.stageIcon}>{editor?.status === 'COMPLETED' ? '✓' : '3'}</div>
-            <div className={styles.stageHeader}>
-              <h3 className={styles.stageTitle}>3. Post Production – Video Editor</h3>
-              <span className={`${styles.badge} ${editor?.status === 'COMPLETED' ? styles.badgeCompleted : (editor ? styles.badgeProgress : styles.badgePending)}`}>
-                {editor?.status || 'Pending'}
-              </span>
-            </div>
-            <div className={styles.stageContent}>
-              {editor ? (
-                <div className={styles.grid2}>
-                  <div className={styles.infoGroup}>
-                    <span className={styles.infoLabel}>Editor Name</span>
-                    <span className={styles.infoValue}>{editor.editorName || 'N/A'}</span>
-                  </div>
-                  <div className={styles.infoGroup}>
-                    <span className={styles.infoLabel}>Duration</span>
-                    <span className={styles.infoValue}>{editor.duration || 'N/A'}</span>
-                  </div>
-                </div>
-              ) : (
-                role !== 'VIEWER' && <button className={styles.btnPrimary}>+ Assign Editor</button>
-              )}
-            </div>
-          </div>
-
-          {/* 4. Post Production - 2D Animator */}
-          <div className={`${styles.stageCard} ${anim?.status === 'COMPLETED' ? styles.stageCompleted : (anim ? styles.stageInProgress : '')}`}>
-            <div className={styles.stageIcon}>{anim?.status === 'COMPLETED' ? '✓' : '4'}</div>
-            <div className={styles.stageHeader}>
-              <h3 className={styles.stageTitle}>4. Post Production – 2D Animator</h3>
-              <span className={`${styles.badge} ${anim?.status === 'COMPLETED' ? styles.badgeCompleted : (anim ? styles.badgeProgress : styles.badgePending)}`}>
-                {anim?.status || 'Pending'}
-              </span>
-            </div>
-            <div className={styles.stageContent}>
-              {anim ? (
-                <div className={styles.grid2}>
-                  <div className={styles.infoGroup}>
-                    <span className={styles.infoLabel}>Animator</span>
-                    <span className={styles.infoValue}>{anim.animatorName || 'N/A'}</span>
-                  </div>
-                </div>
-              ) : (
-                role !== 'VIEWER' && <button className={styles.btnPrimary}>+ Assign Animator</button>
-              )}
-            </div>
-          </div>
-
-          {/* 5. Final Video & 6. Telecast */}
-          <div className={`${styles.stageCard} ${final?.finalVideoStatus === 'COMPLETED' ? styles.stageCompleted : (final ? styles.stageInProgress : '')}`}>
-            <div className={styles.stageIcon}>{final?.finalVideoStatus === 'COMPLETED' ? '✓' : '5'}</div>
-            <div className={styles.stageHeader}>
-              <h3 className={styles.stageTitle}>5. Final Video & Telecast</h3>
-              <span className={`${styles.badge} ${final?.finalVideoStatus === 'COMPLETED' ? styles.badgeCompleted : (final ? styles.badgeProgress : styles.badgePending)}`}>
-                {final?.finalVideoStatus || 'Pending'}
-              </span>
-            </div>
-            <div className={styles.stageContent}>
-              {final ? (
-                <div className={styles.grid2}>
-                  <div className={styles.infoGroup}>
-                    <span className={styles.infoLabel}>Final Duration</span>
-                    <span className={styles.infoValue}>{final.finalDuration || 'N/A'}</span>
-                  </div>
-                  <div className={styles.infoGroup}>
-                    <span className={styles.infoLabel}>Telecast Channel</span>
-                    <span className={styles.infoValue}>{final.telecastChannel || 'N/A'}</span>
-                  </div>
-                </div>
-              ) : (
-                role !== 'VIEWER' && <button className={styles.btnPrimary}>+ Add Final Details</button>
-              )}
-            </div>
-          </div>
+        <div className={styles.statCard}>
+          <h3>Shooting Completed</h3>
+          <p className={styles.statValue}>{shootingCompleted}</p>
+        </div>
+        <div className={styles.statCard}>
+          <h3>Editing In Progress</h3>
+          <p className={styles.statValue}>{editingInProgress}</p>
+        </div>
+        <div className={styles.statCard}>
+          <h3>Final Completed</h3>
+          <p className={styles.statValue}>{finalCompleted}</p>
         </div>
       </div>
+
+      {error && <div className={styles.errorAlert}>{error}</div>}
+      {success && <div className={styles.successAlert}>{success}</div>}
+
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '2px solid #eee', paddingBottom: '1rem' }}>
+        <button 
+          onClick={() => setActiveTab('STAGE_1')}
+          style={{ padding: '0.5rem 1rem', background: activeTab === 'STAGE_1' ? '#4f46e5' : '#eee', color: activeTab === 'STAGE_1' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+        >
+          1. Production Stage
+        </button>
+        <button 
+          onClick={() => setActiveTab('STAGE_2')}
+          style={{ padding: '0.5rem 1rem', background: activeTab === 'STAGE_2' ? '#4f46e5' : '#eee', color: activeTab === 'STAGE_2' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+        >
+          2. Post Production Stage
+        </button>
+        <button 
+          onClick={() => setActiveTab('LEGACY')}
+          style={{ padding: '0.5rem 1rem', background: activeTab === 'LEGACY' ? '#4f46e5' : '#eee', color: activeTab === 'LEGACY' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+        >
+          Legacy Records (Read Only)
+        </button>
+      </div>
+
+      {activeTab === 'STAGE_1' && (
+        <div className={styles.tableCard}>
+          <h2>1. Production Stage</h2>
+          
+          {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+            <form onSubmit={handleCreateTopic} style={{ display: 'grid', gap: '1rem', gridTemplateColumns: '1fr 1fr', background: '#f9fafb', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' }}>
+              <div>
+                <label>Epic ID *</label>
+                <select value={selectedEpicId} onChange={e => setSelectedEpicId(e.target.value)} required style={{ width: '100%', padding: '0.5rem' }}>
+                  <option value="">Select Epic ID...</option>
+                  {epicList.map(e => (
+                    <option key={e.id} value={e.id}>EPIC-PMeVidya {e.epicSequence} ({e.sme?.name})</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label>SME Name (Auto)</label>
+                <input type="text" value={selectedEpic?.sme?.name || ''} readOnly disabled style={{ width: '100%', padding: '0.5rem', background: '#e5e7eb' }} />
+              </div>
+
+              <div>
+                <label>Trade (Auto)</label>
+                <input type="text" value={selectedEpic?.trade || ''} readOnly disabled style={{ width: '100%', padding: '0.5rem', background: '#e5e7eb' }} />
+              </div>
+
+              <div>
+                <label>Captured Topic *</label>
+                <input type="text" value={topicTitle} onChange={e => setTopicTitle(e.target.value)} required style={{ width: '100%', padding: '0.5rem' }} />
+              </div>
+
+              <div>
+                <label>Shooting Date</label>
+                <input type="date" value={shootingDate} onChange={e => setShootingDate(e.target.value)} style={{ width: '100%', padding: '0.5rem' }} />
+              </div>
+
+              <div>
+                <label>Cameraman</label>
+                <input type="text" value={cameraman} onChange={e => setCameraman(e.target.value)} style={{ width: '100%', padding: '0.5rem' }} />
+              </div>
+
+              <div style={{ gridColumn: 'span 2' }}>
+                <button type="submit" disabled={loading} style={{ background: '#10b981', color: 'white', padding: '0.5rem 1rem', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                  {loading ? 'Saving...' : 'Save Topic'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Epic ID</th>
+                  <th>SME Name</th>
+                  <th>Trade</th>
+                  <th>Topic No.</th>
+                  <th>Topic Title</th>
+                  <th>Shooting Date</th>
+                  <th>Cameraman</th>
+                  <th>Production Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topics.length === 0 ? (
+                  <tr><td colSpan={8} style={{textAlign: 'center'}}>No topics found.</td></tr>
+                ) : (
+                  topics.map(t => (
+                    <tr key={t.id}>
+                      <td>EPIC-{t.workEntry?.epicSequence}</td>
+                      <td>{t.workEntry?.sme?.name}</td>
+                      <td>{t.workEntry?.trade}</td>
+                      <td>{t.topicNo}</td>
+                      <td>{t.topicTitle}</td>
+                      <td>{t.shootingDate ? new Date(t.shootingDate).toLocaleDateString() : '-'}</td>
+                      <td>{t.cameraman || '-'}</td>
+                      <td>
+                        <span style={{ 
+                          padding: '0.25rem 0.5rem', 
+                          borderRadius: '9999px', 
+                          fontSize: '0.75rem',
+                          background: t.productionStatus === 'COMPLETED' ? '#d1fae5' : '#fef3c7',
+                          color: t.productionStatus === 'COMPLETED' ? '#065f46' : '#92400e'
+                        }}>
+                          {t.productionStatus}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'STAGE_2' && (
+        <div className={styles.tableCard}>
+          <h2>2. Post Production Stage</h2>
+          <p style={{marginBottom: '1rem', color: '#6b7280'}}>Only topics with completed production (Stage 1) are shown here.</p>
+          
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Epic ID</th>
+                  <th>Topic No. & Title</th>
+                  <th>Editor Name</th>
+                  <th>Editing Dates</th>
+                  <th>Animator Name</th>
+                  <th>Animation Dates</th>
+                  <th>Overall Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topics.filter(t => t.productionStatus === 'COMPLETED').length === 0 ? (
+                  <tr><td colSpan={8} style={{textAlign: 'center'}}>No eligible topics for Stage 2.</td></tr>
+                ) : (
+                  topics.filter(t => t.productionStatus === 'COMPLETED').map(t => (
+                    <Stage2Row key={t.id} topic={t} role={role} onUpdate={handleStage2Update} />
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'LEGACY' && (
+        <div className={styles.tableCard}>
+          <h2>Legacy Records</h2>
+          <p style={{marginBottom: '1rem', color: '#6b7280'}}>Read-only view of historical tracker entries created before the two-stage workflow migration.</p>
+          
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Epic ID</th>
+                  <th>SME Name & Topic</th>
+                  <th>Shooting Status</th>
+                  <th>Editing Status</th>
+                  <th>Animation Status</th>
+                  <th>Final Video Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {epicList.filter(e => 
+                  e.shootingSchedules?.length > 0 || 
+                  e.videoEditorRecords?.length > 0 || 
+                  e.animationRecords?.length > 0 || 
+                  e.finalVideoRecords?.length > 0
+                ).length === 0 ? (
+                  <tr><td colSpan={6} style={{textAlign: 'center'}}>No legacy records found.</td></tr>
+                ) : (
+                  epicList.filter(e => 
+                    e.shootingSchedules?.length > 0 || 
+                    e.videoEditorRecords?.length > 0 || 
+                    e.animationRecords?.length > 0 || 
+                    e.finalVideoRecords?.length > 0
+                  ).map(e => (
+                    <tr key={e.id}>
+                      <td>EPIC-{e.epicSequence}</td>
+                      <td>
+                        <strong>{e.sme?.name}</strong><br/>
+                        <small>{e.topic}</small>
+                      </td>
+                      <td>{e.shootingSchedules?.[0]?.status || '-'}</td>
+                      <td>{e.videoEditorRecords?.[0]?.status || '-'}</td>
+                      <td>{e.animationRecords?.[0]?.status || '-'}</td>
+                      <td>{e.finalVideoRecords?.[0]?.finalVideoStatus || '-'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Stage2Row({ topic, role, onUpdate }: { topic: any, role: string, onUpdate: (id: string, data: any) => void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    editorName: topic.editorName || '',
+    editingStartDate: topic.editingStartDate ? topic.editingStartDate.split('T')[0] : '',
+    editingEndDate: topic.editingEndDate ? topic.editingEndDate.split('T')[0] : '',
+    editingStatus: topic.editingStatus || 'NOT_STARTED',
+    
+    animatorName: topic.animatorName || '',
+    animationStartDate: topic.animationStartDate ? topic.animationStartDate.split('T')[0] : '',
+    animationEndDate: topic.animationEndDate ? topic.animationEndDate.split('T')[0] : '',
+    animationStatus: topic.animationStatus || 'NOT_STARTED'
+  });
+
+  const handleSubmit = () => {
+    onUpdate(topic.id, formData);
+    setIsEditing(false);
+  };
+
+  if (!isEditing) {
+    return (
+      <tr>
+        <td>EPIC-{topic.workEntry?.epicSequence}</td>
+        <td><strong>#{topic.topicNo}</strong> - {topic.topicTitle}</td>
+        <td>{topic.editorName || '-'}</td>
+        <td>
+          {topic.editingStartDate ? new Date(topic.editingStartDate).toLocaleDateString() : '-'} to {topic.editingEndDate ? new Date(topic.editingEndDate).toLocaleDateString() : '-'}
+          <br/>
+          <small>{topic.editingStatus}</small>
+        </td>
+        <td>{topic.animatorName || '-'}</td>
+        <td>
+          {topic.animationStartDate ? new Date(topic.animationStartDate).toLocaleDateString() : '-'} to {topic.animationEndDate ? new Date(topic.animationEndDate).toLocaleDateString() : '-'}
+          <br/>
+          <small>{topic.animationStatus}</small>
+        </td>
+        <td>
+           <span style={{ 
+              padding: '0.25rem 0.5rem', 
+              borderRadius: '9999px', 
+              fontSize: '0.75rem',
+              background: topic.overallStatus === 'FINAL_COMPLETED' ? '#d1fae5' : '#e0e7ff',
+              color: topic.overallStatus === 'FINAL_COMPLETED' ? '#065f46' : '#3730a3'
+            }}>
+              {topic.overallStatus}
+            </span>
+        </td>
+        <td>
+          {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+            <button onClick={() => setIsEditing(true)} style={{ padding: '0.25rem 0.5rem', cursor: 'pointer' }}>Edit</button>
+          )}
+        </td>
+      </tr>
     );
   }
 
   return (
-    <div className={styles.container}>
-      <div className={styles.summaryGrid}>
-        <div className={styles.summaryCard}>
-          <div className={styles.summaryNumber}>{totalEpics}</div>
-          <div className={styles.summaryLabel}>Total Epic Videos</div>
-        </div>
-        <div className={styles.summaryCard}>
-          <div className={styles.summaryNumber}>{shootsCompleted}</div>
-          <div className={styles.summaryLabel}>Shooting Completed</div>
-        </div>
-        <div className={styles.summaryCard}>
-          <div className={styles.summaryNumber}>{editingInProgress}</div>
-          <div className={styles.summaryLabel}>Editing In Progress</div>
-        </div>
-        <div className={styles.summaryCard}>
-          <div className={styles.summaryNumber}>{finalCompleted}</div>
-          <div className={styles.summaryLabel}>Final Completed</div>
-        </div>
-      </div>
-
-      <div className={styles.card}>
-        <div className={styles.cardHeader}>
-          <h2 style={{ margin: 0, fontSize: '20px', color: '#0f172a' }}>Video Production Tracker</h2>
-          <input 
-            type="text" 
-            placeholder="Search Epic ID, SME, or Title..." 
-            className={styles.searchBox}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-
-        {/* Desktop Table */}
-        <div className={styles.tableContainer}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Epic ID</th>
-                <th>SME Name</th>
-                <th>Topic / Video Title</th>
-                <th>Current Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRecords.map((r: any) => {
-                const status = getOverallStatus(r);
-                return (
-                  <tr key={r.id} onClick={() => setSelectedEpic(r)}>
-                    <td style={{ fontWeight: 600, color: '#3b82f6' }}>{getEpicId(r.epicSequence)}</td>
-                    <td>{r.sme?.name}</td>
-                    <td>{r.topic}</td>
-                    <td>
-                      <span className={`${styles.badge} ${getBadgeClass(status)}`}>{status}</span>
-                    </td>
-                    <td>
-                      <span style={{ color: '#3b82f6', fontWeight: 600 }}>View Workflow →</span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile Cards */}
-        <div className={styles.mobileCards}>
-          {filteredRecords.map((r: any) => {
-            const status = getOverallStatus(r);
-            return (
-              <div key={r.id} className={styles.mobileCard} onClick={() => setSelectedEpic(r)}>
-                <div style={{ fontWeight: 600, color: '#3b82f6' }}>{getEpicId(r.epicSequence)}</div>
-                <div style={{ fontSize: '14px', color: '#0f172a' }}>{r.sme?.name}</div>
-                <div style={{ fontSize: '12px', color: '#64748b' }}>{r.topic}</div>
-                <div><span className={`${styles.badge} ${getBadgeClass(status)}`}>{status}</span></div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
+    <tr style={{ background: '#f9fafb' }}>
+      <td colSpan={2}>
+        EPIC-{topic.workEntry?.epicSequence} <br/>
+        <strong>#{topic.topicNo}</strong> - {topic.topicTitle}
+      </td>
+      <td colSpan={2}>
+        <input type="text" placeholder="Editor Name" value={formData.editorName} onChange={e => setFormData({...formData, editorName: e.target.value})} style={{display:'block', marginBottom:'4px', width:'100%'}}/>
+        <input type="date" value={formData.editingStartDate} onChange={e => setFormData({...formData, editingStartDate: e.target.value})} style={{width:'48%', marginRight:'4%'}}/>
+        <input type="date" value={formData.editingEndDate} onChange={e => setFormData({...formData, editingEndDate: e.target.value})} style={{width:'48%'}}/>
+        <select value={formData.editingStatus} onChange={e => setFormData({...formData, editingStatus: e.target.value})} style={{display:'block', marginTop:'4px', width:'100%'}}>
+          <option value="NOT_STARTED">Not Started</option>
+          <option value="IN_PROGRESS">In Progress</option>
+          <option value="COMPLETED">Completed</option>
+        </select>
+      </td>
+      <td colSpan={2}>
+        <input type="text" placeholder="Animator Name" value={formData.animatorName} onChange={e => setFormData({...formData, animatorName: e.target.value})} style={{display:'block', marginBottom:'4px', width:'100%'}}/>
+        <input type="date" value={formData.animationStartDate} onChange={e => setFormData({...formData, animationStartDate: e.target.value})} style={{width:'48%', marginRight:'4%'}}/>
+        <input type="date" value={formData.animationEndDate} onChange={e => setFormData({...formData, animationEndDate: e.target.value})} style={{width:'48%'}}/>
+        <select value={formData.animationStatus} onChange={e => setFormData({...formData, animationStatus: e.target.value})} style={{display:'block', marginTop:'4px', width:'100%'}}>
+          <option value="NOT_STARTED">Not Started</option>
+          <option value="IN_PROGRESS">In Progress</option>
+          <option value="COMPLETED">Completed</option>
+        </select>
+      </td>
+      <td>{topic.overallStatus}</td>
+      <td>
+        <button onClick={handleSubmit} style={{ background: '#10b981', color: 'white', padding: '0.25rem 0.5rem', border: 'none', borderRadius: '4px', cursor: 'pointer', marginBottom: '4px', display:'block', width: '100%' }}>Save</button>
+        <button onClick={() => setIsEditing(false)} style={{ background: '#ef4444', color: 'white', padding: '0.25rem 0.5rem', border: 'none', borderRadius: '4px', cursor: 'pointer', display:'block', width: '100%' }}>Cancel</button>
+      </td>
+    </tr>
   );
 }

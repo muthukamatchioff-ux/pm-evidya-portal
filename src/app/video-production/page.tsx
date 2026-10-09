@@ -1,5 +1,5 @@
 import React from 'react';
-import { getVideoProductionRecords } from './actions';
+import { getTopicProductionRecords } from './actions';
 import VideoProductionClient from './VideoProductionClient';
 import styles from '@/app/dashboard/dashboard.module.css';
 import { getRole, requireAuth } from '@/lib/auth';
@@ -11,7 +11,7 @@ export const metadata = {
 export default async function VideoProductionPage() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   const role = await getRole();
-  const result = await getVideoProductionRecords();
+  const result = await getTopicProductionRecords();
   const records = (result.success ? result.data : []) || [];
 
   return (
