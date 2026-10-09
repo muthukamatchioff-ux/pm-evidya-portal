@@ -1,9 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { login } from '@/lib/auth';
 import styles from './login.module.css';
+import dynamic from 'next/dynamic';
+
+const CinematicIntro = dynamic(() => import('./components/CinematicIntro'), { ssr: false });
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,15 +16,23 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  
+  // Start with intro true, dynamic component handles the rest.
   const [showIntro, setShowIntro] = useState(true);
-
-  // Cinematic Intro Integration
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowIntro(false);
-    }, 2800); // 2.8s intro duration
-    return () => clearTimeout(timer);
-  }, []);
+  
+  // Settings for sound and skipping
+  const handleToggleSound = () => {
+    const isMuted = localStorage.getItem('muteIntro') === 'true';
+    localStorage.setItem('muteIntro', (!isMuted).toString());
+    // Force a re-render to update UI if needed (simple hack)
+    setShowIntro(s => s);
+  };
+  
+  const handleToggleSkip = () => {
+    const skip = localStorage.getItem('skipIntro') === 'true';
+    localStorage.setItem('skipIntro', (!skip).toString());
+    setShowIntro(s => s);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,20 +62,10 @@ export default function LoginPage() {
     }
   };
 
-  if (showIntro) {
-    return (
-      <div className={styles.introContainer}>
-        <div className={styles.introAnimation}>
-          <img src="/nimi-logo.png" alt="NIMI" className={styles.introLogo1} />
-          <div className={styles.introArrow}>➜</div>
-          <img src="/pm-evidya-logo.png" alt="PM e-Vidya" className={styles.introLogo2} />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className={styles.pageContainer}>
+      {showIntro && <CinematicIntro onComplete={() => setShowIntro(false)} />}
+      
       {/* Background illustration loaded via CSS */}
       <div className={styles.backgroundIllustration}></div>
 
@@ -76,6 +77,17 @@ export default function LoginPage() {
             Ministry of Skill Development
           </div>
         </div>
+        
+        {/* User Configuration Controls for Intro & Sound */}
+        <div className={styles.settingsControls}>
+          <button type="button" onClick={handleToggleSound} className={styles.settingBtn} title="Toggle Cinematic Intro Sound">
+            {typeof window !== 'undefined' && localStorage.getItem('muteIntro') === 'true' ? '🔇 Muted' : '🔊 Sound On'}
+          </button>
+          <button type="button" onClick={handleToggleSkip} className={styles.settingBtn} title="Skip Cinematic Intro Next Time">
+            {typeof window !== 'undefined' && localStorage.getItem('skipIntro') === 'true' ? '⏩ Intro Disabled' : '🎬 Intro Enabled'}
+          </button>
+        </div>
+
         <div className={styles.skillIndia}>
           <div className={styles.placeholderLogoText} style={{fontWeight: 'bold', color: '#1e3a8a'}}>
             Skill India
@@ -88,10 +100,10 @@ export default function LoginPage() {
         <div className={styles.loginCard}>
           <div className={styles.cardHeader}>
             <img 
-              src="/pm-evidya-logo.png" 
+              src="/evidya-official.png" 
               alt="eVidya Logo" 
               className={styles.evidyaLogo}
-              onError={(e) => { e.currentTarget.src = '/nimi-logo.png'; }} // Fallback if missing
+              onError={(e) => { e.currentTarget.src = '/pm-evidya-logo.png'; }} // Fallback
             />
             <h2 className={styles.instituteName}>National Instructional Media Institute</h2>
             <p className={styles.hindiName}>राष्ट्रीय अनुदेशात्मक मीडिया संस्थान</p>

@@ -97,9 +97,39 @@
   width: 100%;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 24px 48px;
   z-index: 10;
-  pointer-events: none; /* Let clicks pass through if needed */
+  pointer-events: none; /* Let clicks pass through to background */
+}
+
+.govEmblem, .skillIndia {
+  pointer-events: auto;
+}
+
+.settingsControls {
+  display: flex;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.settingBtn {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(4px);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  border: 1px solid rgba(255,255,255,0.4);
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.settingBtn:hover {
+  background: rgba(255, 255, 255, 1);
+  color: #0f172a;
 }
 
 .placeholderLogoText {
