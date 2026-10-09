@@ -1,9 +1,7 @@
 'use server';
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { checkAuth } from '@/lib/auth';
-
-const prisma = new PrismaClient();
 
 export async function getVideoProductionRecords() {
   try {
