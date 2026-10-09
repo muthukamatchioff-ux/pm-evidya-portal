@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { login } from '@/lib/auth';
 import styles from './login.module.css';
@@ -12,7 +12,16 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [language, setLanguage] = useState<'EN' | 'TA'>('EN');
+  const [rememberMe, setRememberMe] = useState(false);
+  const [showIntro, setShowIntro] = useState(true);
+
+  // Cinematic Intro Integration
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowIntro(false);
+    }, 2800); // 2.8s intro duration
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,66 +51,59 @@ export default function LoginPage() {
     }
   };
 
+  if (showIntro) {
+    return (
+      <div className={styles.introContainer}>
+        <div className={styles.introAnimation}>
+          <img src="/nimi-logo.png" alt="NIMI" className={styles.introLogo1} />
+          <div className={styles.introArrow}>➜</div>
+          <img src="/pm-evidya-logo.png" alt="PM e-Vidya" className={styles.introLogo2} />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={styles.splitContainer}>
-      {/* Left Visual Panel */}
-      <div className={styles.leftPanel}>
-        <div className={styles.visualContent}>
-          <img 
-            src="/nimi-logo.png" 
-            alt="NIMI Logo" 
-            className={styles.logoImageLarge}
-          />
-          <h1 className={styles.visualTitle}>PM e-Vidya Portal</h1>
-          <h2 className={styles.visualSubtitle}>National Instructional Media Institute</h2>
-          <p className={styles.visualTagline}>
-            Empowering India's Youth with Skills for a Better Future
-          </p>
-          <div className={styles.rimiBranding}>
-            NIMI - PM e-Vidya
+    <div className={styles.pageContainer}>
+      {/* Background illustration loaded via CSS */}
+      <div className={styles.backgroundIllustration}></div>
+
+      {/* Top Branding Bar */}
+      <div className={styles.topBrandingBar}>
+        <div className={styles.govEmblem}>
+          <div className={styles.placeholderLogoText}>
+            <span style={{fontWeight: 'bold'}}>GOVERNMENT OF INDIA</span><br/>
+            Ministry of Skill Development
+          </div>
+        </div>
+        <div className={styles.skillIndia}>
+          <div className={styles.placeholderLogoText} style={{fontWeight: 'bold', color: '#1e3a8a'}}>
+            Skill India
           </div>
         </div>
       </div>
 
-      {/* Right Login Panel */}
-      <div className={styles.rightPanel}>
+      {/* Login Card */}
+      <div className={styles.loginCardWrapper}>
         <div className={styles.loginCard}>
-          <div className={styles.languageSelector}>
-            <span 
-              className={`${styles.langOption} ${language === 'EN' ? styles.active : ''}`}
-              onClick={() => setLanguage('EN')}
-            >
-              English
-            </span>
-            <span className={styles.langDivider}>|</span>
-            <span 
-              className={`${styles.langOption} ${language === 'TA' ? styles.active : ''}`}
-              onClick={() => setLanguage('TA')}
-            >
-              தமிழ்
-            </span>
+          <div className={styles.cardHeader}>
+            <img 
+              src="/pm-evidya-logo.png" 
+              alt="eVidya Logo" 
+              className={styles.evidyaLogo}
+              onError={(e) => { e.currentTarget.src = '/nimi-logo.png'; }} // Fallback if missing
+            />
+            <h2 className={styles.instituteName}>National Instructional Media Institute</h2>
+            <p className={styles.hindiName}>राष्ट्रीय अनुदेशात्मक मीडिया संस्थान</p>
           </div>
 
-          <div className={styles.loginHeader}>
-            <img 
-              src="/nimi-logo.png" 
-              alt="NIMI Logo" 
-              className={styles.logoImageSmall}
-            />
-            <h2 className={styles.welcomeTitle}>Welcome Back</h2>
-            <p className={styles.welcomeSubtitle}>Sign in to NIMI<br/>PM e-Vidya Portal</p>
-          </div>
+          <h3 className={styles.signInHeading}>Sign In to Your Account</h3>
 
           {error && (
             <div className={styles.errorToast}>
               <span className={styles.errorIcon}>⚠</span>
               <div className={styles.errorContent}>
-                <h4 className={styles.errorTitle}>Unable to sign in</h4>
-                <p className={styles.errorDesc}>
-                  {error === 'An unexpected error occurred. Please try again.' 
-                    ? 'Please check your email and password and try again.' 
-                    : error}
-                </p>
+                <p className={styles.errorDesc}>{error}</p>
               </div>
             </div>
           )}
@@ -147,8 +149,20 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div className={styles.forgotPassword}>
-              <a href="#" onClick={(e) => e.preventDefault()}>Forgot Password?</a>
+            <div className={styles.formOptionsRow}>
+              <label className={styles.rememberMe}>
+                <input 
+                  type="checkbox" 
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  disabled={loading}
+                />
+                <span>Remember me</span>
+              </label>
+              
+              <div className={styles.forgotPassword}>
+                <a href="#" onClick={(e) => e.preventDefault()}>Forgot password?</a>
+              </div>
             </div>
 
             <button
@@ -158,7 +172,7 @@ export default function LoginPage() {
             >
               {loading ? 'Authenticating...' : 'Sign In'}
             </button>
-
+            
             <div className={styles.actionDivider}>
               <span>or</span>
             </div>
@@ -169,22 +183,13 @@ export default function LoginPage() {
               onClick={() => {
                 setEmail('viewer@nimi.gov.in');
                 setPassword('');
-                // Focus the password input
                 document.getElementById('password')?.focus();
               }}
               disabled={loading}
             >
               Login as Viewer
             </button>
-
-            <div className={styles.registerPrompt}>
-              Don't have an account? <a href="/register">Register here</a>
-            </div>
           </form>
-          
-          <div className={styles.bottomBranding}>
-            National Instructional Media Institute (NIMI)
-          </div>
         </div>
       </div>
     </div>
