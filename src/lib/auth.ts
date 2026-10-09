@@ -89,9 +89,30 @@ export async function login(email: string, password: string): Promise<{ success:
       return { success: false, error: 'Admin authentication is not configured.' };
     }
 
+    let finalHash = passwordHash;
 
+    // Explicit documented encoding mode to bypass Vercel parsing mutations
+    if (passwordHash.startsWith('b64:')) {
+      const b64Payload = passwordHash.slice(4);
+      // Strict Base64 structure validation
+      if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64Payload)) {
+        return { success: false, error: 'Invalid admin hash format configuration.' };
+      }
+      finalHash = Buffer.from(b64Payload, 'base64').toString('utf-8');
 
-    const passwordValid = await bcrypt.compare(password, passwordHash);
+      // Canonical Base64 check: re-encode and ensure strict match
+      if (Buffer.from(finalHash, 'utf-8').toString('base64') !== b64Payload) {
+        return { success: false, error: 'Invalid admin hash format configuration.' };
+      }
+    }
+
+    // Validate decoded or raw result as a strict bcrypt hash before comparison
+    const isValidBcryptFormat = /^\$2[aby]\$[0-9]{2}\$[A-Za-z0-9./]{53}$/.test(finalHash);
+    if (!isValidBcryptFormat) {
+      return { success: false, error: 'Invalid admin hash format configuration.' };
+    }
+
+    const passwordValid = await bcrypt.compare(password, finalHash);
 
     if (!passwordValid) {
       return { success: false, error: 'Invalid admin credentials.' };
