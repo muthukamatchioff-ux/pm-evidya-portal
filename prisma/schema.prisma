@@ -529,6 +529,3 @@ model FinalVideoRecord {
   updatedAt        DateTime @updatedAt
   workEntry        SMEWorkEntry @relation(fields: [workEntryId], references: [id], onDelete: Cascade)
 }
-
- 
- 
