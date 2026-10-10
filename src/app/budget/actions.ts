@@ -6,38 +6,43 @@ import { requireAuth, checkAuth } from '@/lib/auth';
 
 export async function getBudgetComponents() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER']);
-  const components = await prisma.budgetComponent.findMany({
-    include: {
-      annexureI: { orderBy: { createdAt: 'desc' } },
-      annexureII: { orderBy: { createdAt: 'desc' } },
-      annexureIII: { orderBy: { createdAt: 'desc' } },
-      annexureIV: { orderBy: { createdAt: 'desc' } },
-      annexureV: { orderBy: { createdAt: 'desc' } },
-      annexureVI: { orderBy: { createdAt: 'desc' } },
-    },
-    orderBy: { componentNo: 'asc' },
-  });
+  try {
+    const components = await prisma.budgetComponent.findMany({
+      include: {
+        annexureI: { orderBy: { createdAt: 'desc' } },
+        annexureII: { orderBy: { createdAt: 'desc' } },
+        annexureIII: { orderBy: { createdAt: 'desc' } },
+        annexureIV: { orderBy: { createdAt: 'desc' } },
+        annexureV: { orderBy: { createdAt: 'desc' } },
+        annexureVI: { orderBy: { createdAt: 'desc' } },
+      },
+      orderBy: { componentNo: 'asc' },
+    });
 
-  // Calculate dynamic expenditures
-  return components.map((comp: any) => {
-    let expenditure = 0;
-    if (comp.componentNo === 1) comp.annexureI.forEach((a: any) => (expenditure += a.totalExpenditure));
-    if (comp.componentNo === 2) comp.annexureII.forEach((a: any) => (expenditure += a.totalExpenditure));
-    if (comp.componentNo === 3) comp.annexureIII.forEach((a: any) => (expenditure += a.totalExpenditure));
-    if (comp.componentNo === 4) comp.annexureIV.forEach((a: any) => (expenditure += a.totalExpenditure));
-    if (comp.componentNo === 5) comp.annexureV.forEach((a: any) => (expenditure += a.totalExpenditure));
-    if (comp.componentNo === 6) comp.annexureVI.forEach((a: any) => (expenditure += a.totalExpenditure));
+    // Calculate dynamic expenditures
+    return components.map((comp: any) => {
+      let expenditure = 0;
+      if (comp.componentNo === 1) comp.annexureI.forEach((a: any) => (expenditure += a.totalExpenditure));
+      if (comp.componentNo === 2) comp.annexureII.forEach((a: any) => (expenditure += a.totalExpenditure));
+      if (comp.componentNo === 3) comp.annexureIII.forEach((a: any) => (expenditure += a.totalExpenditure));
+      if (comp.componentNo === 4) comp.annexureIV.forEach((a: any) => (expenditure += a.totalExpenditure));
+      if (comp.componentNo === 5) comp.annexureV.forEach((a: any) => (expenditure += a.totalExpenditure));
+      if (comp.componentNo === 6) comp.annexureVI.forEach((a: any) => (expenditure += a.totalExpenditure));
 
-    const unutilized = comp.approvedBudget - expenditure;
-    const utilization = comp.approvedBudget > 0 ? (expenditure / comp.approvedBudget) * 100 : 0;
+      const unutilized = comp.approvedBudget - expenditure;
+      const utilization = comp.approvedBudget > 0 ? (expenditure / comp.approvedBudget) * 100 : 0;
 
-    return {
-      ...comp,
-      expenditureIncurred: expenditure,
-      unutilizedBalance: unutilized,
-      utilizationPercent: utilization.toFixed(2),
-    };
-  });
+      return {
+        ...comp,
+        expenditureIncurred: expenditure,
+        unutilizedBalance: unutilized,
+        utilizationPercent: utilization.toFixed(2),
+      };
+    });
+  } catch (error) {
+    console.error('Failed to fetch budget components due to database connection error', error);
+    return []; // Return empty array on DB failure to prevent Dashboard crash
+  }
 }
 
 export async function getDashboardKPIs() {
