@@ -43,6 +43,32 @@ async function fetchGoogleDriveDuration(url: string): Promise<{ duration: string
   }
 }
 
+async function fetchYoutubeDuration(url: string): Promise<string | null> {
+  try {
+    if (!url.includes('youtube.com') && !url.includes('youtu.be')) return null;
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const html = await res.text();
+    const match = html.match(/meta itemprop="duration" content="(PT.*?)"/);
+    if (!match) return null;
+    
+    const durationStr = match[1];
+    let hours = 0, minutes = 0, seconds = 0;
+    const hMatch = durationStr.match(/(\d+)H/);
+    const mMatch = durationStr.match(/(\d+)M/);
+    const sMatch = durationStr.match(/(\d+)S/);
+    if (hMatch) hours = parseInt(hMatch[1], 10);
+    if (mMatch) minutes = parseInt(mMatch[1], 10);
+    if (sMatch) seconds = parseInt(sMatch[1], 10);
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  } catch (e) {
+    return null;
+  }
+}
+
 export async function addVideo(data: { smeName: string; trade: string; title: string; videoLink: string; epicId?: string; duration?: string }) {
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
@@ -50,11 +76,17 @@ export async function addVideo(data: { smeName: string; trade: string; title: st
   let realDuration = data.duration;
   let warning = null;
   if (!realDuration && data.videoLink) {
-    const { duration, error } = await fetchGoogleDriveDuration(data.videoLink);
-    if (duration) {
-      realDuration = duration;
-    } else if (error) {
-      warning = error;
+    const { duration: gDriveDuration, error } = await fetchGoogleDriveDuration(data.videoLink);
+    const ytDuration = await fetchYoutubeDuration(data.videoLink);
+    
+    if (gDriveDuration) {
+      realDuration = gDriveDuration;
+    } else if (ytDuration) {
+      realDuration = ytDuration;
+    } else {
+      warning = error || 'Could not fetch duration automatically.';
+      // Fallback to random mock duration as requested
+      realDuration = Math.floor(Math.random() * 2) + ":" + Math.floor(Math.random() * 59).toString().padStart(2, '0') + ":" + Math.floor(Math.random() * 59).toString().padStart(2, '0');
     }
   }
   
@@ -65,7 +97,7 @@ export async function addVideo(data: { smeName: string; trade: string; title: st
       title: data.title,
       videoLink: data.videoLink,
       epicId: data.epicId || null,
-      duration: realDuration || null
+      duration: realDuration || '0:00:00'
     }
   });
   revalidatePath('/content');
@@ -80,11 +112,16 @@ export async function updateVideo(id: string, data: { smeName: string; trade: st
   let newDuration = data.duration;
   let warning = null;
   if (!newDuration && data.videoLink) {
-    const { duration, error } = await fetchGoogleDriveDuration(data.videoLink);
-    if (duration) {
-      newDuration = duration;
-    } else if (error) {
+    const { duration: gDriveDuration, error } = await fetchGoogleDriveDuration(data.videoLink);
+    const ytDuration = await fetchYoutubeDuration(data.videoLink);
+    
+    if (gDriveDuration) {
+      newDuration = gDriveDuration;
+    } else if (ytDuration) {
+      newDuration = ytDuration;
+    } else {
       warning = error;
+      newDuration = Math.floor(Math.random() * 2) + ":" + Math.floor(Math.random() * 59).toString().padStart(2, '0') + ":" + Math.floor(Math.random() * 59).toString().padStart(2, '0');
     }
   }
 
@@ -92,7 +129,7 @@ export async function updateVideo(id: string, data: { smeName: string; trade: st
     where: { id },
     data: {
       ...data,
-      duration: newDuration || null,
+      duration: newDuration || '0:00:00',
       epicId: data.epicId || null
     }
   });
