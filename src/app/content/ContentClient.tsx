@@ -58,11 +58,17 @@ export default function ContentClient({ initialData, epics = [] }: { initialData
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    let res;
     if (editingId) {
-      await updateVideo(editingId, formData);
+      res = await updateVideo(editingId, formData);
     } else {
-      await addVideo(formData);
+      res = await addVideo(formData);
     }
+    
+    if (res && 'warning' in res && res.warning) {
+      alert(res.warning);
+    }
+    
     setIsAdding(false);
     setEditingId(null);
     setFormData({ smeName: '', trade: '', title: '', videoLink: '', epicId: '', duration: '' });

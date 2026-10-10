@@ -4,31 +4,42 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { requireAuth, checkAuth } from '@/lib/auth';
 
-async function fetchYoutubeDuration(url: string): Promise<string | null> {
+async function fetchGoogleDriveDuration(url: string): Promise<{ duration: string | null, error: string | null }> {
   try {
-    if (!url.includes('youtube.com') && !url.includes('youtu.be')) return null;
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    const html = await res.text();
-    const match = html.match(/meta itemprop="duration" content="(PT.*?)"/);
-    if (!match) return null;
+    if (!url.includes('drive.google.com')) return { duration: null, error: null };
     
-    // Parse ISO 8601 duration (e.g., PT1H2M10S or PT3M34S)
-    const durationStr = match[1];
-    let hours = 0, minutes = 0, seconds = 0;
-    const hMatch = durationStr.match(/(\d+)H/);
-    const mMatch = durationStr.match(/(\d+)M/);
-    const sMatch = durationStr.match(/(\d+)S/);
-    if (hMatch) hours = parseInt(hMatch[1]);
-    if (mMatch) minutes = parseInt(mMatch[1]);
-    if (sMatch) seconds = parseInt(sMatch[1]);
+    const fileIdMatch = url.match(/[-\w]{25,}/);
+    if (!fileIdMatch) return { duration: null, error: 'Invalid Google Drive link format.' };
     
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    const fileId = fileIdMatch[0];
+    const apiKey = process.env.GOOGLE_DRIVE_API_KEY;
+    
+    if (!apiKey) {
+      return { duration: null, error: 'Google Drive API key is not configured. Manual entry is required.' };
     }
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=videoMediaMetadata&key=${apiKey}`);
+    const data = await res.json();
+    
+    if (data.error) {
+      return { duration: null, error: 'Cannot access Google Drive file metadata. It may be private or permissions are insufficient. Manual entry is required.' };
+    }
+    
+    if (data.videoMediaMetadata && data.videoMediaMetadata.durationMillis) {
+      const totalSeconds = Math.floor(parseInt(data.videoMediaMetadata.durationMillis) / 1000);
+      const h = Math.floor(totalSeconds / 3600);
+      const m = Math.floor((totalSeconds % 3600) / 60);
+      const s = totalSeconds % 60;
+      
+      if (h > 0) {
+        return { duration: `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`, error: null };
+      }
+      return { duration: `${m}:${s.toString().padStart(2, '0')}`, error: null };
+    }
+    
+    return { duration: null, error: 'No video metadata found for this Google Drive file. Manual entry is required.' };
   } catch (e) {
-    console.error('Failed to fetch duration', e);
-    return null;
+    return { duration: null, error: 'Failed to fetch Google Drive duration. Manual entry is required.' };
   }
 }
 
@@ -37,9 +48,14 @@ export async function addVideo(data: { smeName: string; trade: string; title: st
   if (!authCheck.success) return authCheck;
   
   let realDuration = data.duration;
+  let warning = null;
   if (!realDuration && data.videoLink) {
-    const fetched = await fetchYoutubeDuration(data.videoLink);
-    if (fetched) realDuration = fetched;
+    const { duration, error } = await fetchGoogleDriveDuration(data.videoLink);
+    if (duration) {
+      realDuration = duration;
+    } else if (error) {
+      warning = error;
+    }
   }
   
   await prisma.videoLibrary.create({
@@ -49,10 +65,12 @@ export async function addVideo(data: { smeName: string; trade: string; title: st
       title: data.title,
       videoLink: data.videoLink,
       epicId: data.epicId || null,
-      duration: realDuration || '0:00:00'
+      duration: realDuration || null
     }
   });
   revalidatePath('/content');
+  if (warning) return { success: true, warning };
+  return { success: true };
 }
 
 export async function updateVideo(id: string, data: { smeName: string; trade: string; title: string; videoLink: string; duration?: string; epicId?: string }) {
@@ -60,20 +78,27 @@ export async function updateVideo(id: string, data: { smeName: string; trade: st
   if (!authCheck.success) return authCheck;
   
   let newDuration = data.duration;
+  let warning = null;
   if (!newDuration && data.videoLink) {
-    const fetched = await fetchYoutubeDuration(data.videoLink);
-    if (fetched) newDuration = fetched;
+    const { duration, error } = await fetchGoogleDriveDuration(data.videoLink);
+    if (duration) {
+      newDuration = duration;
+    } else if (error) {
+      warning = error;
+    }
   }
 
   await prisma.videoLibrary.update({
     where: { id },
     data: {
       ...data,
-      duration: newDuration,
+      duration: newDuration || null,
       epicId: data.epicId || null
     }
   });
   revalidatePath('/content');
+  if (warning) return { success: true, warning };
+  return { success: true };
 }
 
 export async function getVideos() {
