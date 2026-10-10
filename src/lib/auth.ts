@@ -37,58 +37,7 @@ async function createSession(email: string, role: string) {
 export async function login(email: string, password: string): Promise<{ success: boolean; error?: string }> {
   const normalizedEmail = email.toLowerCase().trim();
 
-  if (isAdminEmail(normalizedEmail)) {
-    const passwordHash = process.env.ADMIN_PASSWORD_HASH;
-
-    if (!passwordHash) {
-      console.error('ADMIN_PASSWORD_HASH is not configured.');
-      return { success: false, error: 'Admin authentication is not configured.' };
-    }
-    // Strip leading and trailing quotes if the user accidentally included them in Vercel dashboard
-    let finalHash = passwordHash.replace(/^["']|["']$/g, '');
-
-    // Explicit documented encoding mode to bypass Vercel parsing mutations
-    if (passwordHash.startsWith('b64:')) {
-      const b64Payload = passwordHash.slice(4);
-      // Strict Base64 structure validation
-      if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64Payload)) {
-        return { success: false, error: 'Invalid admin hash format configuration.' };
-      }
-      finalHash = Buffer.from(b64Payload, 'base64').toString('utf-8');
-
-      // Canonical Base64 check: re-encode and ensure strict match
-      if (Buffer.from(finalHash, 'utf-8').toString('base64') !== b64Payload) {
-        return { success: false, error: 'Invalid admin hash format configuration.' };
-      }
-    }
-
-
-
-    const passwordValid = await bcrypt.compare(password, finalHash);
-
-    if (!passwordValid) {
-      return { success: false, error: 'Invalid admin credentials.' };
-    }
-
-    // Upsert legacy user in DB
-    try {
-      await prisma.user.upsert({
-        where: { email: normalizedEmail },
-        update: { role: 'ADMIN' },
-        create: {
-          email: normalizedEmail,
-          role: 'ADMIN',
-          name: normalizedEmail.split('@')[0]
-        }
-      });
-    } catch (e) {
-      console.warn('DB upsert failed, continuing admin login', e);
-    }
-
-    return await createSession(normalizedEmail, 'ADMIN');
-  }
-
-  // First, check DB for dynamically created users
+  // First, always check DB for users (including admins)
   try {
     const dbUser = await prisma.user.findUnique({
       where: { email: normalizedEmail }
@@ -113,12 +62,65 @@ export async function login(email: string, password: string): Promise<{ success:
           }
           return await createSession(normalizedEmail, dbUser.role);
         }
-        return { success: false, error: 'Invalid credentials.' };
+        // If DB password check fails, and it's NOT an admin email, return immediately.
+        // If it IS an admin email, we let it fall through to check the .env fallback.
+        if (!isAdminEmail(normalizedEmail)) {
+          return { success: false, error: 'Invalid credentials.' };
+        }
       }
     }
   } catch (error) {
-    console.error('Database query failed during login', error);
-    return { success: false, error: 'Database connection error. Please try again later.' };
+    console.warn('Database query failed during login, falling back to ENV if admin', error);
+  }
+
+  // Fallback: If DB check failed or password was wrong, and this is an Admin Email, check the .env hash
+  if (isAdminEmail(normalizedEmail)) {
+    const passwordHash = process.env.ADMIN_PASSWORD_HASH;
+
+    if (!passwordHash) {
+      console.error('ADMIN_PASSWORD_HASH is not configured.');
+      return { success: false, error: 'Invalid admin credentials.' };
+    }
+    // Strip leading and trailing quotes if the user accidentally included them in Vercel dashboard
+    let finalHash = passwordHash.replace(/^["']|["']$/g, '');
+
+    // Explicit documented encoding mode to bypass Vercel parsing mutations
+    if (passwordHash.startsWith('b64:')) {
+      const b64Payload = passwordHash.slice(4);
+      // Strict Base64 structure validation
+      if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64Payload)) {
+        return { success: false, error: 'Invalid admin hash format configuration.' };
+      }
+      finalHash = Buffer.from(b64Payload, 'base64').toString('utf-8');
+
+      // Canonical Base64 check: re-encode and ensure strict match
+      if (Buffer.from(finalHash, 'utf-8').toString('base64') !== b64Payload) {
+        return { success: false, error: 'Invalid admin hash format configuration.' };
+      }
+    }
+
+    const passwordValid = await bcrypt.compare(password, finalHash);
+
+    if (!passwordValid) {
+      return { success: false, error: 'Invalid admin credentials.' };
+    }
+
+    // Upsert legacy user in DB
+    try {
+      await prisma.user.upsert({
+        where: { email: normalizedEmail },
+        update: { role: 'ADMIN' },
+        create: {
+          email: normalizedEmail,
+          role: 'ADMIN',
+          name: normalizedEmail.split('@')[0]
+        }
+      });
+    } catch (e) {
+      console.warn('DB upsert failed, continuing admin login', e);
+    }
+
+    return await createSession(normalizedEmail, 'ADMIN');
   }
 
   return { success: false, error: 'Invalid credentials.' };
