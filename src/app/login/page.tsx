@@ -48,6 +48,14 @@ export default function LoginPage() {
       {!introComplete && <CinematicIntro onComplete={() => setIntroComplete(true)} />}
       
       <div className={styles.loginPage}>
+        {/* Animated Background Layers */}
+        <div className={styles.animatedBackground}>
+          <div className={styles.bgImage}></div>
+          <div className={styles.gradientOverlay}></div>
+          <div className={styles.smartboardGlow}></div>
+          <div className={styles.particles}></div>
+        </div>
+
         {/* Branding top left */}
         <div className={styles.brandingTopLeft}>
           <img src="/msde-logo.png" alt="MSDE Logo" className={styles.msdeLogo} />
