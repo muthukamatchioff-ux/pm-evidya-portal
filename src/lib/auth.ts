@@ -45,8 +45,7 @@ export async function login(email: string, password: string): Promise<{ success:
       return { success: false, error: 'Admin authentication is not configured.' };
     }
     // Strip leading and trailing quotes if the user accidentally included them in Vercel dashboard
-    passwordHash = passwordHash.replace(/^["']|["']$/g, '');
-    let finalHash = passwordHash;
+    let finalHash = passwordHash.replace(/^["']|["']$/g, '');
 
     // Explicit documented encoding mode to bypass Vercel parsing mutations
     if (passwordHash.startsWith('b64:')) {
