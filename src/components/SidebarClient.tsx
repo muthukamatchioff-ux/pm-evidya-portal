@@ -12,8 +12,11 @@ const menuItems = [
   { isHeader: true, name: 'Core Modules' },
   { name: 'SME Records', path: '/smes', icon: '👨‍🏫', adminOnly: true },
   { name: 'Video Production Tracker', path: '/video-production', icon: '🎬' },
+  { name: 'Video Content Library', path: '/content', icon: '📼' },
   { name: 'Document Management', path: '/accounts', icon: '💰', adminOnly: true },
   { name: 'Document Registry', path: '/documents', icon: '📄' },
+  
+  { isHeader: true, name: 'Communications' },
   { name: 'Approval Letters', path: '/generator/deputation', icon: '✉️' },
   
   { isHeader: true, name: 'System' },
