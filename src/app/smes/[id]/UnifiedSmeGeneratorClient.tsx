@@ -412,7 +412,6 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
           </div>
           <div style={{ background: '#f8fafc', padding: '20px', display: 'flex', justifyContent: 'center' }}>
             <div ref={sanctionRef} style={{ width: '210mm', minHeight: '297mm', background: 'white', padding: '20mm', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
-              {renderHeader()}
               <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: '18px', margin: '30px 0' }}>SME REMUNERATION / SANCTION NOTE</h2>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontWeight: 'bold' }}>
                 <div>Submitted</div>
@@ -473,15 +472,6 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
                 If approved, payment of <strong>Rs. {grandTotalAmount}/- (Rupees {amountInWords})</strong> may be released to the above Subject Matter Expert from the PM e-Vidya Funds as per the prevailing NCERT norms. The SME engagement approval letter, Work Completion Certificate, and other supporting documents are enclosed separately for kind perusal.
                 <br /><br />
                 Submitted for kind approval, please.
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '80px', fontSize: '14px' }}>
-                <div style={{ textAlign: 'center' }}>
-                  <p>Prepared By / Verified By</p>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <p><strong>Joint Director / HOO</strong></p>
-                  <p>Head of Office</p>
-                </div>
               </div>
             </div>
           </div>
