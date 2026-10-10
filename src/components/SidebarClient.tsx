@@ -48,7 +48,7 @@ export default function SidebarClient({ role, email }: { role: string, email: st
       <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ''} ${mobileOpen ? styles.mobileOpen : ''}`}>
         <div className={styles.logoContainer}>
           <div className={styles.logo}>
-            <img src="/nimi-logo.png" alt="NIMI Logo" style={{ width: '40px', height: '40px', objectFit: 'contain', marginBottom: '8px', display: collapsed ? 'none' : 'block' }} />
+            <img src="/pm-evidya-logo.png" alt="PM e-Vidya Logo" style={{ width: '40px', height: '40px', objectFit: 'contain', marginBottom: '8px', display: collapsed ? 'none' : 'block' }} />
             <h2 style={{ fontSize: '18px' }}>PM e-Vidya</h2>
             <p style={{ fontSize: '12px' }}>National Instructional Media Institute</p>
           </div>
