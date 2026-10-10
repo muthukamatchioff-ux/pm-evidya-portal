@@ -44,7 +44,8 @@ export async function login(email: string, password: string): Promise<{ success:
       console.error('ADMIN_PASSWORD_HASH is not configured.');
       return { success: false, error: 'Admin authentication is not configured.' };
     }
-
+    // Strip leading and trailing quotes if the user accidentally included them in Vercel dashboard
+    passwordHash = passwordHash.replace(/^["']|["']$/g, '');
     let finalHash = passwordHash;
 
     // Explicit documented encoding mode to bypass Vercel parsing mutations
