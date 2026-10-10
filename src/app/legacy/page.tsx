@@ -76,10 +76,10 @@ export default async function LegacyDataPage() {
                   </td>
                 </tr>
               ) : (
-                legacyRecords.map(record => (
+                legacyRecords.map((record: any) => (
                   <tr key={record.id}>
-                    <td><strong>{record.batch.originalFileName}</strong></td>
-                    <td>{record.batch.sheetName || 'Sheet1'}</td>
+                    <td><strong>{record.batch?.originalFileName}</strong></td>
+                    <td>{record.batch?.sheetName || 'Sheet1'}</td>
                     <td>Row {record.originalRow}</td>
                     <td>{new Date(record.batch.importDate).toLocaleDateString('en-IN')}</td>
                     <td>{record.batch.importedBy}</td>

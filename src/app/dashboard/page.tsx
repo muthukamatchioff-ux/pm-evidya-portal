@@ -54,7 +54,7 @@ export default async function Dashboard() {
       <div className={styles.financialSection}>
         <h2 className={styles.sectionHeading}>Component-wise Financial Status</h2>
         <div className={styles.budgetGrid}>
-          {components.map((comp) => {
+          {components.map((comp: any) => {
             const romanNumeral = ['I', 'II', 'III', 'IV', 'V', 'VI'][comp.componentNo - 1];
             return (
               <div key={comp.id} className={styles.budgetCard}>
@@ -109,7 +109,7 @@ export default async function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {components.map((comp) => {
+              {components.map((comp: any) => {
                 const romanNumeral = ['I', 'II', 'III', 'IV', 'V', 'VI'][comp.componentNo - 1];
                 let records = [];
                 if (comp.componentNo === 1) records = comp.annexureI || [];

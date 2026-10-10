@@ -31,9 +31,9 @@ export default async function SMEProfilePage(props: { params: Promise<{ id: stri
   let totalAmount = 0;
   let totalPaid = 0;
 
-  sme.workEntries.forEach(entry => {
+  sme.workEntries?.forEach((entry: any) => {
     totalDays += entry.days || 0;
-    const payment = entry.payments[0];
+    const payment = entry.payments?.[0];
     const amt = payment?.totalAmount || (entry.days! * entry.ratePerDay!) || 0;
     totalAmount += amt;
     if (payment?.status === 'PAID') {
