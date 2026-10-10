@@ -32,12 +32,15 @@ async function fetchYoutubeDuration(url: string): Promise<string | null> {
   }
 }
 
-export async function addVideo(data: { smeName: string; trade: string; title: string; videoLink: string; epicId?: string }) {
+export async function addVideo(data: { smeName: string; trade: string; title: string; videoLink: string; epicId?: string; duration?: string }) {
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
   
-  const realDuration = await fetchYoutubeDuration(data.videoLink);
-  const fallbackDuration = Math.floor(Math.random() * 2) + ":" + Math.floor(Math.random() * 59).toString().padStart(2, '0') + ":" + Math.floor(Math.random() * 59).toString().padStart(2, '0');
+  let realDuration = data.duration;
+  if (!realDuration && data.videoLink) {
+    const fetched = await fetchYoutubeDuration(data.videoLink);
+    if (fetched) realDuration = fetched;
+  }
   
   await prisma.videoLibrary.create({
     data: {
@@ -46,7 +49,7 @@ export async function addVideo(data: { smeName: string; trade: string; title: st
       title: data.title,
       videoLink: data.videoLink,
       epicId: data.epicId || null,
-      duration: realDuration || fallbackDuration
+      duration: realDuration || '0:00:00'
     }
   });
   revalidatePath('/content');

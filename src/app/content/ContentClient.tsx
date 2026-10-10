@@ -7,7 +7,7 @@ import styles from '../budget/budget.module.css'; // Reuse table styles
 export default function ContentClient({ initialData, epics = [] }: { initialData: any[], epics?: any[] }) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ smeName: '', trade: '', title: '', videoLink: '', epicId: '' });
+  const [formData, setFormData] = useState({ smeName: '', trade: '', title: '', videoLink: '', epicId: '', duration: '' });
   
   const [filterSME, setFilterSME] = useState('All');
   const [filterTrade, setFilterTrade] = useState('All');
@@ -65,7 +65,7 @@ export default function ContentClient({ initialData, epics = [] }: { initialData
     }
     setIsAdding(false);
     setEditingId(null);
-    setFormData({ smeName: '', trade: '', title: '', videoLink: '', epicId: '' });
+    setFormData({ smeName: '', trade: '', title: '', videoLink: '', epicId: '', duration: '' });
   };
 
   const handleEdit = (video: any) => {
@@ -74,7 +74,8 @@ export default function ContentClient({ initialData, epics = [] }: { initialData
       trade: video.trade || '',
       title: video.title,
       videoLink: video.videoLink,
-      epicId: video.epicId || ''
+      epicId: video.epicId || '',
+      duration: video.duration === '0:00:00' ? '' : (video.duration || '')
     });
     setEditingId(video.id);
     setIsAdding(true);
@@ -148,6 +149,10 @@ export default function ContentClient({ initialData, epics = [] }: { initialData
               <label>Video Link</label>
               <input type="url" name="videoLink" value={formData.videoLink} onChange={handleChange} required className={styles.input} placeholder="https://..." />
             </div>
+            <div className={styles.formGroup}>
+              <label>Duration</label>
+              <input type="text" name="duration" value={formData.duration} onChange={handleChange} className={styles.input} placeholder="Auto-fetch or enter HH:MM:SS" />
+            </div>
             <div className={styles.formActions} style={{ gridColumn: '1 / -1' }}>
               <button type="submit" className="btn-primary">{editingId ? "Update Video" : "Save Video"}</button>
             </div>
@@ -163,7 +168,7 @@ export default function ContentClient({ initialData, epics = [] }: { initialData
                 <th>SME Name</th>
                 <th>Trade</th>
                 <th>Title</th>
-                <th>Duration (Auto)</th>
+                <th>Duration</th>
                 <th>Video Link</th>
                 <th>Actions</th>
               </tr>
