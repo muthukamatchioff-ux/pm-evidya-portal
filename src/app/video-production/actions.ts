@@ -54,8 +54,8 @@ export async function getTopicProductionRecords() {
       }
     });
     return { success: true, data: records };
-  } catch (error: any) {
-    if (error.message.includes('ShootingSchedule does not exist')) {
+    } catch (error: any) {
+    if (error.message.includes('ShootingSchedule') || error.message.includes('does not exist')) {
       const dbCheck: any = await prisma.$queryRaw`SELECT current_database() as db`;
       if (dbCheck[0]?.db === 'pm_evidya_prod') {
         const queries = [
