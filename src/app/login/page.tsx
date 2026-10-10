@@ -50,7 +50,7 @@ export default function LoginPage() {
       <div className={styles.loginPage}>
         {/* Branding top left */}
         <div className={styles.brandingTopLeft}>
-          <img src="/msde-logo.svg" alt="MSDE Logo" className={styles.msdeLogo} />
+          <img src="/msde-logo.png" alt="MSDE Logo" className={styles.msdeLogo} />
         </div>
         
         {/* Branding top right */}
@@ -145,6 +145,27 @@ export default function LoginPage() {
                 >
                   {loading ? 'Signing in...' : 'Sign In'}
                 </button>
+
+                <div className={styles.actionDivider}>
+                  <span>or</span>
+                </div>
+
+                <button
+                  type="button"
+                  className={styles.viewerLoginBtn}
+                  onClick={() => {
+                    setEmail('viewer@nimi.gov.in');
+                    setPassword('');
+                    document.getElementById('password')?.focus();
+                  }}
+                  disabled={loading}
+                >
+                  Login as Viewer
+                </button>
+
+                <div className={styles.registerPrompt}>
+                  Don't have an account? <a href="/register">Register here</a>
+                </div>
               </form>
             </div>
           </div>

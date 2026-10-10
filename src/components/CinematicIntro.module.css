@@ -23,9 +23,6 @@
   width: 120px;
   height: auto;
   filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.4));
-  background: white;
-  padding: 8px;
-  border-radius: 12px;
 }
 
 .instituteName {
