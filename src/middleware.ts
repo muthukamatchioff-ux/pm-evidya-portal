@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { verifySession } from '@/lib/auth';
+import { verifySession } from '@/lib/session';
 
 export async function middleware(request: NextRequest) {
   const token = request.cookies.get('session_token')?.value;
