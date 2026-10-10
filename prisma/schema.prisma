@@ -61,6 +61,7 @@ model SMEWorkEntry {
   videoEditorRecords  VideoEditorRecord[]
   animationRecords    AnimationRecord[]
   finalVideoRecords   FinalVideoRecord[]
+  videoLibraries      VideoLibrary[]
 }
 
 model Payment {
@@ -456,6 +457,8 @@ model VideoLibrary {
   updatedAt DateTime @updatedAt
   duration  String?
   trade     String?
+  epicId    String?
+  epic      SMEWorkEntry? @relation(fields: [epicId], references: [id], onDelete: SetNull)
 }
 
 model ShootingSchedule {
@@ -527,3 +530,5 @@ model FinalVideoRecord {
   workEntry        SMEWorkEntry @relation(fields: [workEntryId], references: [id], onDelete: Cascade)
 }
 
+ 
+ 

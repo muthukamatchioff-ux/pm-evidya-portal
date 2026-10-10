@@ -4,10 +4,10 @@ import React, { useState } from 'react';
 import { addVideo, updateVideo } from './actions';
 import styles from '../budget/budget.module.css'; // Reuse table styles
 
-export default function ContentClient({ initialData }: { initialData: any[] }) {
+export default function ContentClient({ initialData, epics = [] }: { initialData: any[], epics?: any[] }) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ smeName: '', trade: '', title: '', videoLink: '' });
+  const [formData, setFormData] = useState({ smeName: '', trade: '', title: '', videoLink: '', epicId: '' });
   
   const [filterSME, setFilterSME] = useState('All');
   const [filterTrade, setFilterTrade] = useState('All');
@@ -36,7 +36,23 @@ export default function ContentClient({ initialData }: { initialData: any[] }) {
   const s = totalSeconds % 60;
   const totalDurationStr = `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEpicChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const epicId = e.target.value;
+    const selected = epics.find(ep => ep.id === epicId);
+    if (selected) {
+      setFormData({
+        ...formData,
+        epicId,
+        smeName: selected.sme?.name || '',
+        trade: selected.trade || '',
+        title: selected.topic || ''
+      });
+    } else {
+      setFormData({ ...formData, epicId });
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -49,7 +65,7 @@ export default function ContentClient({ initialData }: { initialData: any[] }) {
     }
     setIsAdding(false);
     setEditingId(null);
-    setFormData({ smeName: '', trade: '', title: '', videoLink: '' });
+    setFormData({ smeName: '', trade: '', title: '', videoLink: '', epicId: '' });
   };
 
   const handleEdit = (video: any) => {
@@ -57,7 +73,8 @@ export default function ContentClient({ initialData }: { initialData: any[] }) {
       smeName: video.smeName,
       trade: video.trade || '',
       title: video.title,
-      videoLink: video.videoLink
+      videoLink: video.videoLink,
+      epicId: video.epicId || ''
     });
     setEditingId(video.id);
     setIsAdding(true);
@@ -109,6 +126,13 @@ export default function ContentClient({ initialData }: { initialData: any[] }) {
         {isAdding && (
           <form className={styles.formGrid} onSubmit={handleSubmit} style={{ padding: '16px', borderBottom: '1px solid var(--border)' }}>
             <div className={styles.formGroup}>
+              <label>Link Epic ID</label>
+              <select name="epicId" value={formData.epicId} onChange={handleEpicChange} className={styles.input}>
+                <option value="">-- No Epic (Manual Entry) --</option>
+                {epics.map(e => <option key={e.id} value={e.id}>EPIC-{e.epicSequence} ({e.sme?.name})</option>)}
+              </select>
+            </div>
+            <div className={styles.formGroup}>
               <label>SME Name</label>
               <input type="text" name="smeName" value={formData.smeName} onChange={handleChange} required className={styles.input} />
             </div>
@@ -135,6 +159,7 @@ export default function ContentClient({ initialData }: { initialData: any[] }) {
             <thead>
               <tr>
                 <th>S.no.</th>
+                <th>Epic ID</th>
                 <th>SME Name</th>
                 <th>Trade</th>
                 <th>Title</th>
@@ -146,12 +171,13 @@ export default function ContentClient({ initialData }: { initialData: any[] }) {
             <tbody>
               {filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '24px' }}>No video records found</td>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '24px' }}>No video records found</td>
                 </tr>
               ) : (
                 filteredData.map((v, idx) => (
                   <tr key={v.id}>
                     <td>{idx + 1}</td>
+                    <td>{v.epic ? `EPIC-${v.epic.epicSequence}` : '-'}</td>
                     <td>{v.smeName}</td>
                     <td>{v.trade || '-'}</td>
                     <td>{v.title}</td>
