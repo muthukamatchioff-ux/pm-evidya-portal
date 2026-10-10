@@ -119,41 +119,54 @@ export async function login(email: string, password: string): Promise<{ success:
     }
 
     // Upsert legacy user in DB
-    await prisma.user.upsert({
-      where: { email: normalizedEmail },
-      update: { role: 'ADMIN' },
-      create: {
-        email: normalizedEmail,
-        role: 'ADMIN',
-        name: normalizedEmail.split('@')[0]
-      }
-    });
+    try {
+      await prisma.user.upsert({
+        where: { email: normalizedEmail },
+        update: { role: 'ADMIN' },
+        create: {
+          email: normalizedEmail,
+          role: 'ADMIN',
+          name: normalizedEmail.split('@')[0]
+        }
+      });
+    } catch (e) {
+      console.warn('DB upsert failed, continuing admin login', e);
+    }
 
     return await createSession(normalizedEmail, 'ADMIN');
   }
 
   // First, check DB for dynamically created users
-  const dbUser = await prisma.user.findUnique({
-    where: { email: normalizedEmail }
-  });
+  try {
+    const dbUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail }
+    });
 
-  if (dbUser && (dbUser.role === 'ADMIN' || dbUser.role === 'TEAM_MEMBER' || dbUser.role === 'VIEWER')) {
-    if (dbUser.status !== 'ACTIVE') {
-      return { success: false, error: 'Account is deactivated.' };
-    }
-    // If DB user has a password, verify against it
-    if (dbUser.password) {
-      const passwordValid = await bcrypt.compare(password, dbUser.password);
-      if (passwordValid) {
-        // Update lastLogin on successful login
-        await prisma.user.update({
-          where: { id: dbUser.id },
-          data: { lastLogin: new Date() }
-        });
-        return await createSession(normalizedEmail, dbUser.role);
+    if (dbUser && (dbUser.role === 'ADMIN' || dbUser.role === 'TEAM_MEMBER' || dbUser.role === 'VIEWER')) {
+      if (dbUser.status !== 'ACTIVE') {
+        return { success: false, error: 'Account is deactivated.' };
       }
-      return { success: false, error: 'Invalid credentials.' };
+      // If DB user has a password, verify against it
+      if (dbUser.password) {
+        const passwordValid = await bcrypt.compare(password, dbUser.password);
+        if (passwordValid) {
+          // Update lastLogin on successful login
+          try {
+            await prisma.user.update({
+              where: { id: dbUser.id },
+              data: { lastLogin: new Date() }
+            });
+          } catch(e) {
+            console.warn('Could not update last login', e);
+          }
+          return await createSession(normalizedEmail, dbUser.role);
+        }
+        return { success: false, error: 'Invalid credentials.' };
+      }
     }
+  } catch (error) {
+    console.error('Database query failed during login', error);
+    return { success: false, error: 'Database connection error. Please try again later.' };
   }
 
   return { success: false, error: 'Invalid credentials.' };
