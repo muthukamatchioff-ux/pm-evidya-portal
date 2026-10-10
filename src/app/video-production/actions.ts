@@ -4,6 +4,21 @@ import { prisma } from '@/lib/prisma';
 import { checkAuth } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 
+export async function getDiagnosticInfo() {
+  try {
+    const db: any = await prisma.$queryRaw`SELECT current_database() as db, current_schema() as schema`;
+    const tables: any = await prisma.$queryRaw`
+      SELECT tablename 
+      FROM pg_tables 
+      WHERE schemaname = 'public' 
+      AND tablename IN ('SMEWorkEntry', 'ShootingSchedule', 'VideoEditorRecord', 'AnimationRecord', 'FinalVideoRecord')
+    `;
+    return { success: true, database: db[0]?.db, schema: db[0]?.schema, tables: tables.map((t: any) => t.tablename) };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
 export async function getEpicWorkEntries() {
   try {
     const workEntries = await prisma.sMEWorkEntry.findMany({
