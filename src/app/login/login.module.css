@@ -5,17 +5,97 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f8fafc;
   font-family: 'Inter', sans-serif;
   overflow: hidden;
+  background-color: #0f172a;
 }
 
-.loginPage::before {
-  content: '';
+/* Animated Background Layers */
+.animatedBackground {
+  position: absolute;
+  inset: -5%; /* Slightly larger for parallax/zoom */
+  width: 110%;
+  height: 110%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.bgImage {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at center, rgba(255,255,255,0.1) 0%, rgba(0,0,0,0.2) 100%);
-  pointer-events: none;
+  background-image: url('/digital_classroom_bg.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  animation: slowZoom 30s ease-in-out infinite alternate;
+  filter: saturate(1.1) contrast(1.05);
+}
+
+.gradientOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    45deg,
+    rgba(14, 165, 233, 0.15) 0%,
+    rgba(56, 189, 248, 0.05) 50%,
+    rgba(224, 242, 254, 0.2) 100%
+  );
+  animation: gradientShift 15s ease-in-out infinite alternate;
+  mix-blend-mode: overlay;
+}
+
+.smartboardGlow {
+  position: absolute;
+  top: 30%;
+  left: 30%;
+  width: 40%;
+  height: 40%;
+  background: radial-gradient(circle, rgba(186, 230, 253, 0.4) 0%, transparent 60%);
+  animation: pulseGlow 6s ease-in-out infinite alternate;
+  mix-blend-mode: screen;
+}
+
+/* Particles Layer using multiple radial gradients */
+.particles {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    radial-gradient(circle at 20% 30%, rgba(255,255,255,0.8) 1px, transparent 2px),
+    radial-gradient(circle at 70% 60%, rgba(255,255,255,0.6) 2px, transparent 3px),
+    radial-gradient(circle at 40% 80%, rgba(255,255,255,0.4) 1px, transparent 2px),
+    radial-gradient(circle at 80% 20%, rgba(255,255,255,0.7) 1.5px, transparent 2.5px),
+    radial-gradient(circle at 10% 90%, rgba(255,255,255,0.5) 1px, transparent 2px);
+  background-size: 200% 200%;
+  animation: floatParticles 40s linear infinite;
+  opacity: 0.6;
+}
+
+@keyframes slowZoom {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.05); }
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; opacity: 0.6; }
+  100% { background-position: 100% 50%; opacity: 1; }
+}
+
+@keyframes pulseGlow {
+  0% { opacity: 0.3; transform: scale(0.9); }
+  100% { opacity: 0.7; transform: scale(1.1); }
+}
+
+@keyframes floatParticles {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}
+
+/* Reduced Motion Fallback */
+@media (prefers-reduced-motion: reduce) {
+  .bgImage { animation: none; transform: scale(1); }
+  .gradientOverlay { animation: none; }
+  .smartboardGlow { animation: none; }
+  .particles { animation: none; }
 }
 
 .brandingTopLeft {
@@ -28,7 +108,7 @@
 .msdeLogo {
   height: 60px;
   width: auto;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+  filter: drop-shadow(0 2px 4px rgba(255,255,255,0.8));
 }
 
 .brandingTopRight {
@@ -41,7 +121,7 @@
 .skillIndiaLogo {
   height: 60px;
   width: auto;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+  filter: drop-shadow(0 2px 4px rgba(255,255,255,0.8));
 }
 
 .loginCardWrapper {
@@ -65,11 +145,12 @@
 }
 
 .loginCard {
-  background: white;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
   border-radius: 16px;
   padding: 40px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.05);
-  border: 1px solid #e2e8f0;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255,255,255,0.3) inset;
+  border: 1px solid rgba(255, 255, 255, 0.5);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -257,7 +338,7 @@
 .actionDivider::after {
   content: '';
   flex: 1;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #cbd5e1;
 }
 
 .actionDivider span {
@@ -291,11 +372,11 @@
   margin-top: 24px;
   text-align: center;
   font-size: 14px;
-  color: #64748b;
+  color: #475569;
 }
 
 .registerPrompt a {
-  color: #3b82f6;
+  color: #2563eb;
   text-decoration: none;
   font-weight: 600;
 }
