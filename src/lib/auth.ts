@@ -62,11 +62,7 @@ export async function login(email: string, password: string): Promise<{ success:
       }
     }
 
-    // Validate decoded or raw result as a strict bcrypt hash before comparison
-    const isValidBcryptFormat = /^\$2[aby]\$[0-9]{2}\$[A-Za-z0-9./]{53}$/.test(finalHash);
-    if (!isValidBcryptFormat) {
-      return { success: false, error: 'Invalid admin hash format configuration.' };
-    }
+
 
     const passwordValid = await bcrypt.compare(password, finalHash);
 
