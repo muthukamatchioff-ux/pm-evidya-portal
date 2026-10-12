@@ -76,6 +76,24 @@ export async function createShootingSchedule(workEntryId: string, data: any) {
       }
     });
 
+    // Automatically ensure this video title flows into Stage 2 (Post-Production)
+    const existingEditorRecord = await prisma.videoEditorRecord.findFirst({
+      where: {
+        workEntryId,
+        assignedVideo: data.videoTitle
+      }
+    });
+
+    if (!existingEditorRecord) {
+      await prisma.videoEditorRecord.create({
+        data: {
+          workEntryId,
+          assignedVideo: data.videoTitle,
+          status: 'NOT_STARTED'
+        }
+      });
+    }
+
     revalidatePath('/video-production');
     return { success: true, data: newRecord };
   } catch (error: any) {
@@ -92,22 +110,42 @@ export async function updateShootingSchedule(id: string, data: any) {
       return { success: false, error: 'Production End Date cannot be earlier than Production Start Date.' };
     }
 
+    const prev = await prisma.shootingSchedule.findUnique({ where: { id } });
+    if (!prev) {
+      return { success: false, error: 'Production record not found.' };
+    }
+
+    const trimmedTitle = data.videoTitle ? data.videoTitle.trim() : prev.videoTitle;
+
     const record = await prisma.shootingSchedule.update({
       where: { id },
       data: {
-        videoTitle: data.videoTitle || undefined,
-        shootDate: data.shootDate ? new Date(data.shootDate) : null,
-        location: data.location || null,
-        shootingType: data.shootingType || null,
-        scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : null,
-        scheduledEnd: data.scheduledEnd ? new Date(data.scheduledEnd) : null,
-        actualStart: data.actualStart ? new Date(data.actualStart) : null,
-        actualEnd: data.actualEnd ? new Date(data.actualEnd) : null,
-        cameraman: data.cameraman || null,
-        status: data.status || 'PLANNED',
-        productionNotes: data.productionNotes || null
+        videoTitle: trimmedTitle,
+        shootDate: data.scheduledStart ? new Date(data.scheduledStart) : (data.shootDate ? new Date(data.shootDate) : prev.shootDate),
+        location: data.location !== undefined ? data.location : prev.location,
+        shootingType: data.shootingType !== undefined ? data.shootingType : prev.shootingType,
+        scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : (data.scheduledStart === '' ? null : prev.scheduledStart),
+        scheduledEnd: data.scheduledEnd ? new Date(data.scheduledEnd) : (data.scheduledEnd === '' ? null : prev.scheduledEnd),
+        actualStart: data.actualStart ? new Date(data.actualStart) : (data.actualStart === '' ? null : prev.actualStart),
+        actualEnd: data.actualEnd ? new Date(data.actualEnd) : (data.actualEnd === '' ? null : prev.actualEnd),
+        cameraman: data.cameraman !== undefined ? data.cameraman : prev.cameraman,
+        status: data.status || prev.status,
+        productionNotes: data.productionNotes !== undefined ? data.productionNotes : prev.productionNotes
       }
     });
+
+    // If video title changed, sync assignedVideo in VideoEditorRecord
+    if (prev.videoTitle && trimmedTitle && prev.videoTitle !== trimmedTitle) {
+      await prisma.videoEditorRecord.updateMany({
+        where: {
+          workEntryId: prev.workEntryId,
+          assignedVideo: prev.videoTitle
+        },
+        data: {
+          assignedVideo: trimmedTitle
+        }
+      });
+    }
 
     revalidatePath('/video-production');
     return { success: true, data: record };
@@ -151,6 +189,24 @@ export async function updateVideoEditorRecord(id: string, data: any, workEntryId
         finalVideoFile: data.finalVideoFile || null
       }
     });
+
+    // Once post-production is marked COMPLETED, automatically advance/ensure FinalVideoRecord exists
+    if (data.status === 'COMPLETED') {
+      await prisma.finalVideoRecord.upsert({
+        where: { workEntryId },
+        update: {
+          finalVideoStatus: 'APPROVED',
+          finalVideoFile: data.finalVideoFile || data.finalCutLink || undefined,
+          finalDuration: data.duration || undefined
+        },
+        create: {
+          workEntryId,
+          finalVideoStatus: 'APPROVED',
+          finalVideoFile: data.finalVideoFile || data.finalCutLink || null,
+          finalDuration: data.duration || null
+        }
+      });
+    }
 
     revalidatePath('/video-production');
     return { success: true, data: record };

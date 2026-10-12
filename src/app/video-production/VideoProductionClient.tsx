@@ -15,12 +15,59 @@ import {
   deleteFinalVideoRecord
 } from './actions';
 
+// Safe date helpers
+function formatDateForInput(dateVal: any): string {
+  if (!dateVal) return '';
+  if (typeof dateVal === 'string') {
+    if (dateVal.includes('T')) return dateVal.split('T')[0];
+    return dateVal;
+  }
+  if (dateVal instanceof Date) {
+    try {
+      return dateVal.toISOString().split('T')[0];
+    } catch {
+      return '';
+    }
+  }
+  try {
+    const d = new Date(dateVal);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split('T')[0];
+    }
+  } catch {
+    return '';
+  }
+  return '';
+}
+
+function formatDateDisplay(dateVal: any): string {
+  if (!dateVal) return 'TBD';
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return String(dateVal);
+    return d.toLocaleDateString('en-IN');
+  } catch {
+    return String(dateVal);
+  }
+}
+
+function extractEndDate(reviewComments: string | null | undefined): string {
+  if (!reviewComments) return '';
+  const match = reviewComments.match(/\[END:([^\]]+)\]/);
+  return match ? match[1] : '';
+}
+
+function cleanReviewComments(reviewComments: string | null | undefined): string {
+  if (!reviewComments) return '';
+  return reviewComments.replace(/\[END:[^\]]+\]/, '').trim();
+}
+
 export default function VideoProductionClient({ initialRecords = [], role = 'VIEWER' }: any) {
   const [activeStage, setActiveStage] = useState<'STAGE_1' | 'STAGE_2' | 'STAGE_3'>('STAGE_1');
   const [workEntries, setWorkEntries] = useState<any[]>(initialRecords);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Create Shooting Schedule Form state
+  // Stage 1 Create Form state
   const [selectedEpicId, setSelectedEpicId] = useState('');
   const [videoTitle, setVideoTitle] = useState('');
   const [shootStartDate, setShootStartDate] = useState('');
@@ -29,6 +76,14 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const [cameraman, setCameraman] = useState('');
   const [productionNotes, setProductionNotes] = useState('');
   
+  // Stage 2 Filter state
+  const [stage2EpicFilter, setStage2EpicFilter] = useState('');
+
+  // Modals state
+  const [editingStage1, setEditingStage1] = useState<any | null>(null);
+  const [editingStage2, setEditingStage2] = useState<any | null>(null);
+  const [editingStage3, setEditingStage3] = useState<any | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -48,38 +103,47 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   // 1. Calculate 4 Summary Cards
   const totalEpicCount = workEntries.length;
   
-  // Production In Progress: has shooting schedule that is PLANNED, IN_PROGRESS, or RESHOOT
-  const prodInProgressCount = workEntries.filter(entry => 
-    entry.shootingSchedules?.some((s: any) => s.status === 'IN_PROGRESS' || s.status === 'PLANNED' || s.status === 'RESHOOT')
-  ).length;
+  const prodInProgressCount = workEntries.reduce((acc, entry) => {
+    const active = entry.shootingSchedules?.filter((s: any) => 
+      s.status === 'IN_PROGRESS' || s.status === 'PLANNED' || s.status === 'RESHOOT'
+    ).length || 0;
+    return acc + active;
+  }, 0);
 
-  // Post-Production In Progress: has editing or animation record IN_PROGRESS
-  const postProdInProgressCount = workEntries.filter(entry => 
-    entry.videoEditorRecords?.some((e: any) => e.status === 'IN_PROGRESS' || e.status === 'NOT_STARTED') ||
-    entry.animationRecords?.some((a: any) => a.status === 'IN_PROGRESS')
-  ).length;
+  const postProdInProgressCount = workEntries.reduce((acc, entry) => {
+    const active = entry.videoEditorRecords?.filter((e: any) => 
+      e.status === 'IN_PROGRESS' || e.status === 'NOT_STARTED'
+    ).length || 0;
+    return acc + active;
+  }, 0);
 
-  // Final Videos Delivered: has linked VideoLibrary record OR FinalVideoRecord COMPLETED / TELECASTED
-  const finalDeliveredCount = workEntries.filter(entry => 
-    (entry.videoLibraries && entry.videoLibraries.length > 0) ||
-    entry.finalVideoRecords?.some((f: any) => f.finalVideoStatus === 'COMPLETED' || f.telecastStatus === 'TELECASTED')
-  ).length;
+  const finalDeliveredCount = workEntries.reduce((acc, entry) => {
+    const libs = entry.videoLibraries?.length || 0;
+    const finalRecs = entry.finalVideoRecords?.filter((f: any) => 
+      f.finalVideoStatus === 'APPROVED' || f.finalVideoStatus === 'COMPLETED' || f.telecastStatus === 'TELECASTED'
+    ).length || 0;
+    return acc + Math.max(libs, finalRecs);
+  }, 0);
 
-  // Filtered entries for search
+  // Filtered entries for general search
   const filteredEntries = workEntries.filter(entry => {
     const q = searchTerm.toLowerCase();
     const epicCode = `epic-${entry.epicSequence}`.toLowerCase();
     const smeName = (entry.sme?.name || '').toLowerCase();
     const trade = (entry.trade || '').toLowerCase();
     const topic = (entry.topic || '').toLowerCase();
-    return epicCode.includes(q) || smeName.includes(q) || trade.includes(q) || topic.includes(q);
+    const hasMatchingSchedule = entry.shootingSchedules?.some((s: any) => (s.videoTitle || '').toLowerCase().includes(q));
+    const hasMatchingEditor = entry.videoEditorRecords?.some((e: any) => 
+      (e.assignedVideo || '').toLowerCase().includes(q) || (e.editorName || '').toLowerCase().includes(q)
+    );
+    return epicCode.includes(q) || smeName.includes(q) || trade.includes(q) || topic.includes(q) || hasMatchingSchedule || hasMatchingEditor;
   });
 
   // Stage 1 Create Handler
   const handleCreateStage1 = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedEpicId || !videoTitle) {
-      setError('Epic ID and Video Title are required.');
+    if (!selectedEpicId || !videoTitle.trim()) {
+      setError('Please select an Epic ID and enter a Video Title / Topic.');
       return;
     }
 
@@ -93,7 +157,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setSuccess(null);
 
     const res = await createShootingSchedule(selectedEpicId, { 
-      videoTitle,
+      videoTitle: videoTitle.trim(),
       scheduledStart: shootStartDate || null,
       scheduledEnd: shootEndDate || null,
       location: shootLocation || null,
@@ -103,9 +167,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     });
 
     if (res.success) {
-      setSuccess('Production Record created successfully with Epic ID.');
+      setSuccess(`✅ Video "${videoTitle.trim()}" added to EPIC-${selectedEpic?.epicSequence}! It is automatically ready in Stage 2 (Post-Production). You can now enter the next video topic.`);
       const updatedList = await getTopicProductionRecords();
       if (updatedList.success) setWorkEntries(updatedList.data || []);
+      // Clear inputs but KEEP selectedEpicId so user can easily add 4-5 topics one by one
       setVideoTitle('');
       setShootStartDate('');
       setShootEndDate('');
@@ -118,62 +183,23 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setLoading(false);
   };
 
-  const handleStage1Update = async (id: string, data: any) => {
+  // Stage 1 Update Save
+  const handleSaveStage1Edit = async (id: string, data: any) => {
     setLoading(true);
     setError(null);
     const res = await updateShootingSchedule(id, data);
     if (res.success) {
-      setSuccess('Production Stage updated successfully.');
+      setSuccess('✅ Production record updated successfully.');
       const updatedList = await getTopicProductionRecords();
       if (updatedList.success) setWorkEntries(updatedList.data || []);
+      setEditingStage1(null);
     } else {
-      setError(res.error || 'Failed to update Production Stage.');
+      setError(res.error || 'Failed to update Production record.');
     }
     setLoading(false);
   };
 
-  const handleEditorUpdate = async (id: string, data: any, workEntryId: string) => {
-    setLoading(true);
-    setError(null);
-    const res = await updateVideoEditorRecord(id, data, workEntryId);
-    if (res.success) {
-      setSuccess('Post-Production record updated successfully.');
-      const updatedList = await getTopicProductionRecords();
-      if (updatedList.success) setWorkEntries(updatedList.data || []);
-    } else {
-      setError(res.error || 'Failed to update Post-Production record.');
-    }
-    setLoading(false);
-  };
-
-  const handleAnimationUpdate = async (id: string, data: any, workEntryId: string) => {
-    setLoading(true);
-    setError(null);
-    const res = await updateAnimationRecord(id, data, workEntryId);
-    if (res.success) {
-      setSuccess('Animation record updated successfully.');
-      const updatedList = await getTopicProductionRecords();
-      if (updatedList.success) setWorkEntries(updatedList.data || []);
-    } else {
-      setError(res.error || 'Failed to update Animation record.');
-    }
-    setLoading(false);
-  };
-
-  const handleFinalUpdate = async (id: string, data: any, workEntryId: string) => {
-    setLoading(true);
-    setError(null);
-    const res = await updateFinalVideoRecord(id, data, workEntryId);
-    if (res.success) {
-      setSuccess('Final deliverable status updated successfully.');
-      const updatedList = await getTopicProductionRecords();
-      if (updatedList.success) setWorkEntries(updatedList.data || []);
-    } else {
-      setError(res.error || 'Failed to update deliverable status.');
-    }
-    setLoading(false);
-  };
-
+  // Stage 1 Delete
   const handleDeleteStage1 = async (id: string) => {
     if (!confirm('Are you sure you want to delete this Production Shoot record? This action cannot be undone.')) return;
     setLoading(true);
@@ -189,8 +215,28 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setLoading(false);
   };
 
+  // Stage 2 Editor Update Save
+  const handleSaveStage2Edit = async (id: string, data: any, workEntryId: string) => {
+    setLoading(true);
+    setError(null);
+    const res = await updateVideoEditorRecord(id, data, workEntryId);
+    if (res.success) {
+      setSuccess(data.status === 'COMPLETED' 
+        ? '🎉 Post-Production marked COMPLETED! Video has automatically advanced to Stage 3 (Final Video Deliverable).'
+        : '✅ Post-Production details saved successfully.'
+      );
+      const updatedList = await getTopicProductionRecords();
+      if (updatedList.success) setWorkEntries(updatedList.data || []);
+      setEditingStage2(null);
+    } else {
+      setError(res.error || 'Failed to update Post-Production record.');
+    }
+    setLoading(false);
+  };
+
+  // Stage 2 Delete Editor
   const handleDeleteEditor = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this Post-Production record? This action cannot be undone.')) return;
+    if (!confirm('Are you sure you want to delete this Post-Production record?')) return;
     setLoading(true);
     setError(null);
     const res = await deleteVideoEditorRecord(id);
@@ -204,6 +250,23 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setLoading(false);
   };
 
+  // Stage 3 Save Final Record
+  const handleSaveStage3Edit = async (id: string, data: any, workEntryId: string) => {
+    setLoading(true);
+    setError(null);
+    const res = await updateFinalVideoRecord(id, data, workEntryId);
+    if (res.success) {
+      setSuccess('✅ Final Video Deliverable details saved successfully.');
+      const updatedList = await getTopicProductionRecords();
+      if (updatedList.success) setWorkEntries(updatedList.data || []);
+      setEditingStage3(null);
+    } else {
+      setError(res.error || 'Failed to update Final Video record.');
+    }
+    setLoading(false);
+  };
+
+  // Stage 3 Delete Final
   const handleDeleteFinal = async (id: string) => {
     if (!confirm('Are you sure you want to delete this Final Deliverable record?')) return;
     setLoading(true);
@@ -219,74 +282,112 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setLoading(false);
   };
 
+  // Status badge styling helper
+  const getBadgeClass = (status: string) => {
+    switch ((status || '').toUpperCase()) {
+      case 'COMPLETED':
+      case 'APPROVED':
+      case 'TELECASTED':
+        return styles.badgeCompleted;
+      case 'IN_PROGRESS':
+        return styles.badgeProgress;
+      case 'RESHOOT':
+      case 'REVISION_REQUIRED':
+        return styles.badgeReshoot;
+      default:
+        return styles.badgePending;
+    }
+  };
+
   return (
     <div className={styles.container}>
-      {/* 2. FOUR SUMMARY CARDS */}
+      {/* 1. FOUR SUMMARY CARDS */}
       <div className={styles.summaryGrid}>
         <div className={styles.summaryCard}>
-          <div className={styles.summaryIcon} style={{ background: '#e0f2fe', color: '#0369a1' }}>📋</div>
-          <div className={styles.summaryContent}>
-            <div className={styles.summaryNumber}>{totalEpicCount}</div>
-            <div className={styles.summaryLabel}>Total Epic IDs</div>
+          <div className={styles.summaryIcon}>📋</div>
+          <div>
+            <div className={styles.summaryValue}>{totalEpicCount}</div>
+            <div className={styles.summaryLabel}>TOTAL EPIC IDS</div>
           </div>
         </div>
 
         <div className={styles.summaryCard}>
-          <div className={styles.summaryIcon} style={{ background: '#fef3c7', color: '#b45309' }}>🎥</div>
-          <div className={styles.summaryContent}>
-            <div className={styles.summaryNumber}>{prodInProgressCount}</div>
-            <div className={styles.summaryLabel}>Production In Progress</div>
+          <div className={styles.summaryIcon} style={{ background: '#fef3c7' }}>🎥</div>
+          <div>
+            <div className={styles.summaryValue}>{prodInProgressCount}</div>
+            <div className={styles.summaryLabel}>PRODUCTION IN PROGRESS</div>
           </div>
         </div>
 
         <div className={styles.summaryCard}>
-          <div className={styles.summaryIcon} style={{ background: '#ede9fe', color: '#6d28d9' }}>✂️</div>
-          <div className={styles.summaryContent}>
-            <div className={styles.summaryNumber}>{postProdInProgressCount}</div>
-            <div className={styles.summaryLabel}>Post-Production In Progress</div>
+          <div className={styles.summaryIcon} style={{ background: '#f3e8ff' }}>✂️</div>
+          <div>
+            <div className={styles.summaryValue}>{postProdInProgressCount}</div>
+            <div className={styles.summaryLabel}>POST-PRODUCTION IN PROGRESS</div>
           </div>
         </div>
 
         <div className={styles.summaryCard}>
-          <div className={styles.summaryIcon} style={{ background: '#dcfce7', color: '#15803d' }}>✅</div>
-          <div className={styles.summaryContent}>
-            <div className={styles.summaryNumber}>{finalDeliveredCount}</div>
-            <div className={styles.summaryLabel}>Final Videos Delivered</div>
+          <div className={styles.summaryIcon} style={{ background: '#dcfce7' }}>✅</div>
+          <div>
+            <div className={styles.summaryValue}>{finalDeliveredCount}</div>
+            <div className={styles.summaryLabel}>FINAL VIDEOS DELIVERED</div>
           </div>
         </div>
       </div>
 
-      {error && <div className={styles.errorAlert}>⚠️ {error}</div>}
-      {success && <div className={styles.successAlert}>✅ {success}</div>}
+      {/* Global Alerts */}
+      {error && (
+        <div className={styles.errorAlert} style={{ marginBottom: '16px' }}>
+          <span>⚠️</span>
+          <span>{error}</span>
+          <button onClick={() => setError(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+        </div>
+      )}
 
-      {/* 3. THREE-STAGE WORKFLOW INDICATOR */}
+      {success && (
+        <div className={styles.successAlert} style={{ marginBottom: '16px' }}>
+          <span>{success}</span>
+          <button onClick={() => setSuccess(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', color: '#166534' }}>✕</button>
+        </div>
+      )}
+
+      {/* 2. THREE-STAGE WORKFLOW NAVIGATION TABS */}
       <div className={styles.workflowTabs}>
         <button 
-          className={`${styles.workflowTabBtn} ${activeStage === 'STAGE_1' ? styles.workflowTabBtnActive : ''}`}
+          className={`${styles.tabBtn} ${activeStage === 'STAGE_1' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveStage('STAGE_1')}
         >
-          <span>🎬 Stage 1: Production (Shooting)</span>
-          <span className={styles.workflowTabBadge}>{workEntries.reduce((acc, e) => acc + (e.shootingSchedules?.length || 0), 0)}</span>
+          🎬 Stage 1: Production (Shooting)
+          <span className={styles.tabBadge}>
+            {workEntries.reduce((acc, e) => acc + (e.shootingSchedules?.length || 0), 0)}
+          </span>
         </button>
 
         <button 
-          className={`${styles.workflowTabBtn} ${activeStage === 'STAGE_2' ? styles.workflowTabBtnActive : ''}`}
+          className={`${styles.tabBtn} ${activeStage === 'STAGE_2' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveStage('STAGE_2')}
         >
-          <span>✂️ Stage 2: Post-Production (Editing & Animation)</span>
-          <span className={styles.workflowTabBadge}>{workEntries.reduce((acc, e) => acc + (e.videoEditorRecords?.length || 0), 0)}</span>
+          ✂️ Stage 2: Post-Production (Editing & Animation)
+          <span className={styles.tabBadge}>
+            {workEntries.reduce((acc, e) => acc + (e.videoEditorRecords?.length || 0), 0)}
+          </span>
         </button>
 
         <button 
-          className={`${styles.workflowTabBtn} ${activeStage === 'STAGE_3' ? styles.workflowTabBtnActive : ''}`}
+          className={`${styles.tabBtn} ${activeStage === 'STAGE_3' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveStage('STAGE_3')}
         >
-          <span>📦 Stage 3: Final Video Deliverable (Library)</span>
-          <span className={styles.workflowTabBadge}>{finalDeliveredCount}</span>
+          📦 Stage 3: Final Video Deliverable (Library)
+          <span className={styles.tabBadge}>
+            {workEntries.reduce((acc, e) => acc + (e.finalVideoRecords?.length || e.videoLibraries?.length || 0), 0)}
+          </span>
         </button>
       </div>
 
-      {/* STAGE 1: PRODUCTION STAGE */}
+      {/* ========================================================
+          STAGE 1: PRODUCTION (SHOOTING)
+         ======================================================== */}
       {activeStage === 'STAGE_1' && (
         <div className={styles.card}>
           <div className={styles.cardHeader}>
@@ -300,20 +401,21 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
             />
           </div>
 
+          {/* Form to Add Video Topic by Epic ID */}
           {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
             <form onSubmit={handleCreateStage1} className={styles.createForm}>
               <div className={styles.formField}>
                 <label className={styles.formLabel}>Epic ID *</label>
                 <select 
-                  className={styles.formSelect}
+                  className={styles.formSelect} 
                   value={selectedEpicId} 
-                  onChange={e => setSelectedEpicId(e.target.value)} 
+                  onChange={e => setSelectedEpicId(e.target.value)}
                   required
                 >
                   <option value="">Select Recorded Epic ID...</option>
-                  {workEntries.map(e => (
-                    <option key={e.id} value={e.id}>
-                      EPIC-{e.epicSequence} — {e.sme?.name || 'SME'} ({e.trade || 'General'})
+                  {workEntries.map(entry => (
+                    <option key={entry.id} value={entry.id}>
+                      EPIC-{entry.epicSequence} — {entry.sme?.name || 'SME'} ({entry.trade || 'General'})
                     </option>
                   ))}
                 </select>
@@ -324,32 +426,51 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                 <input 
                   type="text" 
                   className={`${styles.formInput} ${styles.formInputReadOnly}`}
-                  value={selectedEpic?.sme?.name ? `${selectedEpic.sme.name} (${selectedEpic.sme.institute || 'NIMI'})` : ''} 
+                  value={selectedEpic?.sme?.name ? `${selectedEpic.sme.name} (${selectedEpic.trade || 'General'})` : 'Auto-populated from Epic ID'}
                   readOnly 
-                  disabled 
-                  placeholder="Auto populated from Epic ID"
                 />
               </div>
 
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Video Title / Topic *</label>
+              <div className={styles.formField} style={{ gridColumn: 'span 2' }}>
+                <label className={styles.formLabel}>
+                  Video Title / Topic * <span style={{ fontWeight: 'normal', color: '#64748b' }}>(Add one-by-one under selected Epic ID)</span>
+                </label>
                 <input 
                   type="text" 
-                  className={styles.formInput}
-                  value={videoTitle} 
-                  onChange={e => setVideoTitle(e.target.value)} 
-                  placeholder={selectedEpic?.topic || 'Enter Video Title'}
-                  required 
+                  className={styles.formInput} 
+                  placeholder="e.g. Topic 1: Safety & Personal Protective Equipment" 
+                  value={videoTitle}
+                  onChange={e => setVideoTitle(e.target.value)}
+                  required
                 />
+                {/* Show already added video topics under this selected Epic ID */}
+                {selectedEpic && (
+                  <div style={{ marginTop: '6px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#0369a1' }}>
+                      📋 Videos recorded under EPIC-{selectedEpic.epicSequence} ({selectedEpic.shootingSchedules?.length || 0}):
+                    </div>
+                    {selectedEpic.shootingSchedules && selectedEpic.shootingSchedules.length > 0 ? (
+                      <div className={styles.topicChipsContainer}>
+                        {selectedEpic.shootingSchedules.map((s: any, idx: number) => (
+                          <span key={s.id || idx} className={styles.topicChip}>
+                            #{idx + 1} {s.videoTitle || 'Untitled Topic'}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '12px', color: '#94a3b8' }}>No videos recorded for this Epic ID yet. Enter the first topic above.</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className={styles.formField}>
                 <label className={styles.formLabel}>Production Start Date</label>
                 <input 
                   type="date" 
-                  className={styles.formInput}
-                  value={shootStartDate} 
-                  onChange={e => setShootStartDate(e.target.value)} 
+                  className={styles.formInput} 
+                  value={shootStartDate}
+                  onChange={e => setShootStartDate(e.target.value)}
                 />
               </div>
 
@@ -357,9 +478,9 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                 <label className={styles.formLabel}>Production End Date</label>
                 <input 
                   type="date" 
-                  className={styles.formInput}
-                  value={shootEndDate} 
-                  onChange={e => setShootEndDate(e.target.value)} 
+                  className={styles.formInput} 
+                  value={shootEndDate}
+                  onChange={e => setShootEndDate(e.target.value)}
                 />
               </div>
 
@@ -367,10 +488,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                 <label className={styles.formLabel}>Shoot Location</label>
                 <input 
                   type="text" 
-                  className={styles.formInput}
-                  value={shootLocation} 
-                  onChange={e => setShootLocation(e.target.value)} 
-                  placeholder="Studio A / On-site"
+                  className={styles.formInput} 
+                  placeholder="Studio A / On-site" 
+                  value={shootLocation}
+                  onChange={e => setShootLocation(e.target.value)}
                 />
               </div>
 
@@ -378,32 +499,33 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                 <label className={styles.formLabel}>Cameraman</label>
                 <input 
                   type="text" 
-                  className={styles.formInput}
-                  value={cameraman} 
-                  onChange={e => setCameraman(e.target.value)} 
-                  placeholder="Camera operator name"
+                  className={styles.formInput} 
+                  placeholder="Camera operator name" 
+                  value={cameraman}
+                  onChange={e => setCameraman(e.target.value)}
                 />
               </div>
 
-              <div className={styles.formField}>
+              <div className={styles.formField} style={{ gridColumn: 'span 2' }}>
                 <label className={styles.formLabel}>Production Notes</label>
                 <input 
                   type="text" 
-                  className={styles.formInput}
-                  value={productionNotes} 
-                  onChange={e => setProductionNotes(e.target.value)} 
-                  placeholder="Shooting guidelines or equipment"
+                  className={styles.formInput} 
+                  placeholder="Shooting guidelines, equipment, or remarks" 
+                  value={productionNotes}
+                  onChange={e => setProductionNotes(e.target.value)}
                 />
               </div>
 
               <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
-                <button type="submit" disabled={loading} className={styles.btnPrimary}>
-                  {loading ? 'Creating...' : '+ Create Production Record'}
+                <button type="submit" className={styles.btnPrimary} disabled={loading}>
+                  {loading ? 'Adding...' : '+ Add Video Record to Epic ID'}
                 </button>
               </div>
             </form>
           )}
 
+          {/* Stage 1 Table */}
           <div className={styles.tableContainer}>
             <table className={styles.table}>
               <thead>
@@ -420,14 +542,60 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
               </thead>
               <tbody>
                 {filteredEntries.flatMap(entry => entry.shootingSchedules?.map((schedule: any) => (
-                  <Stage1Row 
-                    key={schedule.id} 
-                    schedule={schedule} 
-                    entry={entry} 
-                    role={role} 
-                    onUpdate={handleStage1Update}
-                    onDelete={handleDeleteStage1}
-                  />
+                  <tr key={schedule.id}>
+                    <td>
+                      <strong style={{ color: '#0369a1' }}>EPIC-{entry.epicSequence}</strong>
+                      <br/>
+                      <span style={{ fontSize: '12px', color: '#475569' }}>{entry.sme?.name || 'SME'}</span>
+                    </td>
+                    <td>
+                      <strong>{schedule.videoTitle || entry.topic}</strong>
+                      <br/>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>Trade: {entry.trade || 'General'}</span>
+                    </td>
+                    <td>
+                      <div style={{ fontSize: '12px' }}>
+                        <span><strong>Start:</strong> {formatDateDisplay(schedule.scheduledStart || schedule.shootDate)}</span>
+                        <br/>
+                        <span><strong>End:</strong> {formatDateDisplay(schedule.scheduledEnd)}</span>
+                      </div>
+                    </td>
+                    <td>{schedule.location || '-'}</td>
+                    <td>{schedule.cameraman || '-'}</td>
+                    <td>
+                      <span className={`${styles.badge} ${getBadgeClass(schedule.status)}`}>
+                        {schedule.status || 'PLANNED'}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: '12px', color: '#64748b', maxWidth: '200px' }}>
+                      {schedule.productionNotes || '-'}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+                          <button 
+                            className={styles.btnEdit} 
+                            onClick={() => setEditingStage1({
+                              ...schedule,
+                              epicSequence: entry.epicSequence,
+                              smeName: entry.sme?.name,
+                              trade: entry.trade
+                            })}
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {role === 'ADMIN' && (
+                          <button 
+                            className={styles.btnDanger} 
+                            onClick={() => handleDeleteStage1(schedule.id)}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
                 )))}
                 {filteredEntries.filter(e => e.shootingSchedules && e.shootingSchedules.length > 0).length === 0 && (
                   <tr>
@@ -442,62 +610,195 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         </div>
       )}
 
-      {/* STAGE 2: POST-PRODUCTION STAGE */}
+      {/* ========================================================
+          STAGE 2: POST-PRODUCTION (EDITING & ANIMATION)
+         ======================================================== */}
       {activeStage === 'STAGE_2' && (
         <div className={styles.card}>
           <div className={styles.cardHeader}>
             <h2 className={styles.cardTitle}>✂️ Stage 2: Post-Production Stage (Editing & Animation)</h2>
-            <input 
-              type="text" 
-              className={styles.searchBox} 
-              placeholder="Search by Epic ID, Editor, SME, or Video..." 
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-            />
           </div>
 
           <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>
-            Post-Production start and end dates are tracked independently from the shooting schedule. Editing records map directly to the same Epic ID.
+            Choose an Epic ID below to view and update post-production details for all its video topics. Once Post-Production is marked <strong>COMPLETED</strong>, the video automatically flows to <strong>Stage 3 (Final Video Deliverable)</strong>.
           </p>
 
+          {/* Stage 2 Epic ID Filter Bar */}
+          <div className={styles.stage2FilterBar}>
+            <div style={{ flex: '1 1 320px' }}>
+              <label className={styles.formLabel}>🎯 Choose Epic ID to Manage Post-Production:</label>
+              <select 
+                className={styles.formSelect} 
+                value={stage2EpicFilter} 
+                onChange={e => setStage2EpicFilter(e.target.value)}
+              >
+                <option value="">-- All Epic IDs ({workEntries.length} Total) --</option>
+                {workEntries.map(entry => {
+                  const videoCount = (entry.shootingSchedules?.length || 0);
+                  return (
+                    <option key={entry.id} value={entry.id}>
+                      EPIC-{entry.epicSequence} — {entry.sme?.name || 'SME'} ({videoCount} {videoCount === 1 ? 'Topic' : 'Topics'})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div style={{ flex: '1 1 260px' }}>
+              <label className={styles.formLabel}>🔍 Search by Video Title / Editor:</label>
+              <input 
+                type="text" 
+                className={styles.searchBox} 
+                style={{ maxWidth: '100%' }}
+                placeholder="Search within Post-Production..." 
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Stage 2 Table: Shows every video under the Epic ID */}
           <div className={styles.tableContainer}>
             <table className={styles.table}>
               <thead>
                 <tr>
                   <th>Epic ID & SME</th>
-                  <th>Video Title</th>
+                  <th>Video Title / Topic</th>
+                  <th>Shoot Status</th>
                   <th>Video Editor & Dates</th>
                   <th>Editing Status</th>
                   <th>Rough / Final Cut</th>
-                  <th>2D Animator & Dates</th>
-                  <th>Animation Status</th>
+                  <th>Final Video File</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredEntries.flatMap(entry => {
-                  const schedule = entry.shootingSchedules?.[0];
-                  const editorRec = entry.videoEditorRecords?.[0] || {};
-                  const animatorRec = entry.animationRecords?.[0] || {};
+                {filteredEntries
+                  .filter(entry => !stage2EpicFilter || entry.id === stage2EpicFilter)
+                  .flatMap(entry => {
+                    // Collect all videos for this Epic ID from shooting schedules or editor records
+                    const videoMap = new Map<string, { schedule?: any, editorRec?: any }>();
 
-                  return (
-                    <Stage2Row 
-                      key={entry.id} 
-                      entry={entry} 
-                      schedule={schedule}
-                      editorRec={editorRec}
-                      animatorRec={animatorRec}
-                      role={role} 
-                      onUpdateEditor={handleEditorUpdate} 
-                      onUpdateAnimator={handleAnimationUpdate}
-                      onDeleteEditor={handleDeleteEditor}
-                    />
-                  );
-                })}
+                    // Add from shootingSchedules
+                    (entry.shootingSchedules || []).forEach((s: any) => {
+                      const titleKey = (s.videoTitle || entry.topic || 'Untitled').trim();
+                      videoMap.set(titleKey, { schedule: s });
+                    });
+
+                    // Match or add from videoEditorRecords
+                    (entry.videoEditorRecords || []).forEach((e: any) => {
+                      const titleKey = (e.assignedVideo || entry.topic || 'Untitled').trim();
+                      if (videoMap.has(titleKey)) {
+                        videoMap.get(titleKey)!.editorRec = e;
+                      } else {
+                        videoMap.set(titleKey, { editorRec: e });
+                      }
+                    });
+
+                    // If completely empty, at least show the base topic
+                    if (videoMap.size === 0) {
+                      videoMap.set(entry.topic || 'Topic', {
+                        editorRec: entry.videoEditorRecords?.[0] || {}
+                      });
+                    }
+
+                    return Array.from(videoMap.entries()).map(([videoTitle, data], idx) => {
+                      const schedule = data.schedule;
+                      const editorRec = data.editorRec || {};
+                      const editingEndDate = extractEndDate(editorRec.reviewComments);
+
+                      return (
+                        <tr key={`${entry.id}-${idx}`}>
+                          <td>
+                            <strong style={{ color: '#0369a1' }}>EPIC-{entry.epicSequence}</strong>
+                            <br/>
+                            <span style={{ fontSize: '12px', color: '#475569' }}>{entry.sme?.name || 'SME'}</span>
+                          </td>
+                          <td>
+                            <strong>{videoTitle}</strong>
+                            <br/>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>Trade: {entry.trade || 'General'}</span>
+                          </td>
+                          <td>
+                            <span className={`${styles.badge} ${getBadgeClass(schedule?.status || 'PLANNED')}`}>
+                              {schedule?.status || 'PLANNED'}
+                            </span>
+                          </td>
+                          <td>
+                            <strong>{editorRec.editorName || 'Not Assigned'}</strong>
+                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                              <span>Start: {formatDateDisplay(editorRec.editingStartDate)}</span>
+                              <br/>
+                              <span>End: {formatDateDisplay(editingEndDate)}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`${styles.badge} ${getBadgeClass(editorRec.status || 'NOT_STARTED')}`}>
+                              {editorRec.status || 'NOT_STARTED'}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              {editorRec.roughCutLink ? (
+                                <a href={editorRec.roughCutLink} target="_blank" rel="noreferrer" style={{ color: '#0284c7' }}>
+                                  🔗 Rough Cut
+                                </a>
+                              ) : <span style={{ color: '#94a3b8' }}>Rough: -</span>}
+                              {editorRec.finalCutLink ? (
+                                <a href={editorRec.finalCutLink} target="_blank" rel="noreferrer" style={{ color: '#16a34a', fontWeight: 'bold' }}>
+                                  🎬 Final Cut
+                                </a>
+                              ) : <span style={{ color: '#94a3b8' }}>Final: -</span>}
+                            </div>
+                          </td>
+                          <td>
+                            {editorRec.finalVideoFile ? (
+                              <a href={editorRec.finalVideoFile} target="_blank" rel="noreferrer" style={{ color: '#0369a1', fontSize: '12px', fontWeight: 'bold' }}>
+                                📁 Storage File
+                              </a>
+                            ) : (
+                              <span style={{ fontSize: '12px', color: '#94a3b8' }}>-</span>
+                            )}
+                            {editorRec.duration && (
+                              <div style={{ fontSize: '11px', color: '#64748b' }}>Dur: {editorRec.duration}</div>
+                            )}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+                                <button 
+                                  className={styles.btnEdit} 
+                                  onClick={() => setEditingStage2({
+                                    ...editorRec,
+                                    workEntryId: entry.id,
+                                    assignedVideo: videoTitle,
+                                    epicSequence: entry.epicSequence,
+                                    smeName: entry.sme?.name,
+                                    editingEndDate: editingEndDate,
+                                    cleanComments: cleanReviewComments(editorRec.reviewComments)
+                                  })}
+                                >
+                                  Edit Details
+                                </button>
+                              )}
+                              {role === 'ADMIN' && editorRec.id && (
+                                <button 
+                                  className={styles.btnDanger} 
+                                  onClick={() => handleDeleteEditor(editorRec.id)}
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })}
                 {filteredEntries.length === 0 && (
                   <tr>
                     <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
-                      No Epic records found matching search criteria.
+                      No Post-Production records found matching search criteria.
                     </td>
                   </tr>
                 )}
@@ -507,11 +808,13 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         </div>
       )}
 
-      {/* STAGE 3: FINAL VIDEO DELIVERABLE — VIDEO CONTENT LIBRARY INTEGRATION */}
+      {/* ========================================================
+          STAGE 3: FINAL VIDEO DELIVERABLE & LIBRARY INTEGRATION
+         ======================================================== */}
       {activeStage === 'STAGE_3' && (
         <div className={styles.card}>
           <div className={styles.cardHeader}>
-            <h2 className={styles.cardTitle}>📦 Stage 3: Final Video Deliverable (Video Content Library Integration)</h2>
+            <h2 className={styles.cardTitle}>📦 Stage 3: Final Video Deliverable (Library & Telecast)</h2>
             <input 
               type="text" 
               className={styles.searchBox} 
@@ -521,8 +824,8 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
             />
           </div>
 
-          <p style={{ fontSize: '13px', color: '#475569', marginBottom: '20px' }}>
-            Final video links are retrieved authoritatively from the existing <strong>Video Content Library</strong> and matched by Epic ID relationship. No duplicate records are created.
+          <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>
+            Final approved videos automatically integrated with the Video Content Library. Track channel telecast status, broadcast episodes, and approvals.
           </p>
 
           <div className={styles.tableContainer}>
@@ -530,36 +833,96 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
               <thead>
                 <tr>
                   <th>Epic ID & SME</th>
-                  <th>Video Title / Topic</th>
-                  <th>Library Video Link</th>
+                  <th>Video Title / Trade</th>
+                  <th>Final Video Link / File</th>
                   <th>Duration</th>
-                  <th>Delivery Date</th>
-                  <th>Delivery Status</th>
-                  <th>Actions</th>
+                  <th>Approval Status</th>
+                  <th>Telecast Details</th>
+                  <th>Telecast Status</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredEntries.map(entry => {
-                  const libraryVideos: any[] = entry.videoLibraries || [];
-                  const primaryLibrary = libraryVideos[0] || null;
+                {filteredEntries.flatMap(entry => {
                   const finalRec = entry.finalVideoRecords?.[0] || {};
+                  const libraryVideos = entry.videoLibraries || [];
+                  const primaryLib = libraryVideos[0];
+
+                  const videoFileLink = finalRec.finalVideoFile || primaryLib?.videoLink;
+                  const finalStatus = finalRec.finalVideoStatus || (primaryLib ? 'APPROVED' : 'PENDING');
+                  const duration = finalRec.finalDuration || primaryLib?.duration || '-';
 
                   return (
-                    <Stage3Row 
-                      key={entry.id}
-                      entry={entry}
-                      libraryVideo={primaryLibrary}
-                      finalRec={finalRec}
-                      role={role}
-                      onUpdateFinal={handleFinalUpdate}
-                      onDeleteFinal={handleDeleteFinal}
-                    />
+                    <tr key={entry.id}>
+                      <td>
+                        <strong style={{ color: '#0369a1' }}>EPIC-{entry.epicSequence}</strong>
+                        <br/>
+                        <span style={{ fontSize: '12px', color: '#475569' }}>{entry.sme?.name || 'SME'}</span>
+                      </td>
+                      <td>
+                        <strong>{primaryLib?.title || entry.shootingSchedules?.[0]?.videoTitle || entry.topic}</strong>
+                        <br/>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>Trade: {entry.trade || 'General'}</span>
+                      </td>
+                      <td>
+                        {videoFileLink ? (
+                          <a href={videoFileLink} target="_blank" rel="noreferrer" style={{ color: '#0284c7', fontWeight: 'bold' }}>
+                            🎬 View Final Video
+                          </a>
+                        ) : (
+                          <span style={{ color: '#94a3b8' }}>Awaiting File Link</span>
+                        )}
+                      </td>
+                      <td>{duration}</td>
+                      <td>
+                        <span className={`${styles.badge} ${getBadgeClass(finalStatus)}`}>
+                          {finalStatus}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: '12px' }}>
+                        <div><strong>Channel:</strong> {finalRec.telecastChannel || 'TBD'}</div>
+                        <div><strong>Date:</strong> {formatDateDisplay(finalRec.telecastDate)}</div>
+                        <div><strong>Episode:</strong> {finalRec.telecastEpisode || 'TBD'}</div>
+                      </td>
+                      <td>
+                        <span className={`${styles.badge} ${getBadgeClass(finalRec.telecastStatus || 'PENDING')}`}>
+                          {finalRec.telecastStatus || 'PENDING'}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+                            <button 
+                              className={styles.btnEdit} 
+                              onClick={() => setEditingStage3({
+                                ...finalRec,
+                                workEntryId: entry.id,
+                                epicSequence: entry.epicSequence,
+                                smeName: entry.sme?.name,
+                                title: primaryLib?.title || entry.topic,
+                                finalVideoFile: videoFileLink
+                              })}
+                            >
+                              Edit Details
+                            </button>
+                          )}
+                          {role === 'ADMIN' && finalRec.id && (
+                            <button 
+                              className={styles.btnDanger} 
+                              onClick={() => handleDeleteFinal(finalRec.id)}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })}
                 {filteredEntries.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
-                      No Epic deliverables found.
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                      No final deliverables found matching search criteria.
                     </td>
                   </tr>
                 )}
@@ -568,584 +931,486 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
           </div>
         </div>
       )}
+
+      {/* ========================================================
+          EDIT MODAL: STAGE 1 (SHOOTING SCHEDULE)
+         ======================================================== */}
+      {editingStage1 && (
+        <Stage1EditModal 
+          record={editingStage1}
+          loading={loading}
+          onClose={() => setEditingStage1(null)}
+          onSave={handleSaveStage1Edit}
+        />
+      )}
+
+      {/* ========================================================
+          EDIT MODAL: STAGE 2 (POST-PRODUCTION)
+         ======================================================== */}
+      {editingStage2 && (
+        <Stage2EditModal 
+          record={editingStage2}
+          loading={loading}
+          onClose={() => setEditingStage2(null)}
+          onSave={handleSaveStage2Edit}
+        />
+      )}
+
+      {/* ========================================================
+          EDIT MODAL: STAGE 3 (FINAL DELIVERABLE)
+         ======================================================== */}
+      {editingStage3 && (
+        <Stage3EditModal 
+          record={editingStage3}
+          loading={loading}
+          onClose={() => setEditingStage3(null)}
+          onSave={handleSaveStage3Edit}
+        />
+      )}
     </div>
   );
 }
 
-/* STAGE 1: EDIT / DISPLAY ROW */
-function Stage1Row({ schedule, entry, role, onUpdate, onDelete }: any) {
-  const [isEditing, setIsEditing] = useState(false);
+/* =========================================================================
+   STAGE 1 EDIT MODAL COMPONENT
+   ========================================================================= */
+function Stage1EditModal({ record, loading, onClose, onSave }: any) {
   const [formData, setFormData] = useState({
-    videoTitle: '',
-    scheduledStart: '', 
-    scheduledEnd: '',
-    location: '', 
-    cameraman: '', 
-    status: '', 
-    productionNotes: ''
+    videoTitle: record.videoTitle || '',
+    scheduledStart: formatDateForInput(record.scheduledStart || record.shootDate),
+    scheduledEnd: formatDateForInput(record.scheduledEnd),
+    location: record.location || '',
+    cameraman: record.cameraman || '',
+    status: record.status || 'PLANNED',
+    productionNotes: record.productionNotes || ''
   });
 
-  const handleEditClick = () => {
-    setFormData({
-      videoTitle: schedule.videoTitle || '',
-      scheduledStart: schedule.scheduledStart ? schedule.scheduledStart.split('T')[0] : (schedule.shootDate ? schedule.shootDate.split('T')[0] : ''),
-      scheduledEnd: schedule.scheduledEnd ? schedule.scheduledEnd.split('T')[0] : '',
-      location: schedule.location || '',
-      cameraman: schedule.cameraman || '',
-      status: schedule.status || 'PLANNED',
-      productionNotes: schedule.productionNotes || ''
-    });
-    setIsEditing(true);
-  };
-
-  const handleSubmit = () => {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     if (formData.scheduledStart && formData.scheduledEnd && new Date(formData.scheduledEnd) < new Date(formData.scheduledStart)) {
       alert('Production End Date cannot be earlier than Production Start Date.');
       return;
     }
-    onUpdate(schedule.id, formData);
-    setIsEditing(false);
+    onSave(record.id, formData);
   };
-
-  const getStatusBadgeClass = (status: string) => {
-    switch ((status || '').toUpperCase()) {
-      case 'COMPLETED': return styles.badgeCompleted;
-      case 'IN_PROGRESS': return styles.badgeProgress;
-      case 'RESHOOT': return styles.badgeReshoot;
-      default: return styles.badgePending;
-    }
-  };
-
-  if (!isEditing) {
-    return (
-      <tr>
-        <td>
-          <strong style={{ color: '#0369a1' }}>EPIC-{entry.epicSequence}</strong>
-          <br/>
-          <span style={{ fontSize: '12px', color: '#475569' }}>{entry.sme?.name || 'SME'}</span>
-        </td>
-        <td>
-          <strong>{schedule.videoTitle || entry.topic}</strong>
-          <br/>
-          <span style={{ fontSize: '11px', color: '#64748b' }}>Trade: {entry.trade || 'General'}</span>
-        </td>
-        <td>
-          <div style={{ fontSize: '12px' }}>
-            <span><strong>Start:</strong> {schedule.scheduledStart ? new Date(schedule.scheduledStart).toLocaleDateString('en-IN') : (schedule.shootDate ? new Date(schedule.shootDate).toLocaleDateString('en-IN') : 'TBD')}</span>
-            <br/>
-            <span><strong>End:</strong> {schedule.scheduledEnd ? new Date(schedule.scheduledEnd).toLocaleDateString('en-IN') : 'TBD'}</span>
-          </div>
-        </td>
-        <td>{schedule.location || '-'}</td>
-        <td>{schedule.cameraman || '-'}</td>
-        <td>
-          <span className={`${styles.badge} ${getStatusBadgeClass(schedule.status)}`}>
-            {schedule.status || 'PLANNED'}
-          </span>
-        </td>
-        <td style={{ fontSize: '12px', color: '#64748b', maxWidth: '200px' }}>
-          {schedule.productionNotes || '-'}
-        </td>
-        <td>
-          <div style={{ display: 'flex', gap: '6px' }}>
-            {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
-              <button className={styles.btnEdit} onClick={handleEditClick}>Edit</button>
-            )}
-            {role === 'ADMIN' && (
-              <button className={styles.btnDanger} onClick={() => onDelete(schedule.id)}>Delete</button>
-            )}
-          </div>
-        </td>
-      </tr>
-    );
-  }
 
   return (
-    <tr style={{ background: '#f0f9ff' }}>
-      <td>
-        <strong>EPIC-{entry.epicSequence}</strong>
-        <br/>
-        <small>{entry.sme?.name}</small>
-      </td>
-      <td>
-        <input 
-          type="text" 
-          className={styles.formInput} 
-          value={formData.videoTitle} 
-          onChange={e => setFormData({ ...formData, videoTitle: e.target.value })}
-        />
-      </td>
-      <td>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <input 
-            type="date" 
-            className={styles.formInput}
-            title="Production Start Date"
-            value={formData.scheduledStart} 
-            onChange={e => setFormData({ ...formData, scheduledStart: e.target.value })}
-          />
-          <input 
-            type="date" 
-            className={styles.formInput}
-            title="Production End Date"
-            value={formData.scheduledEnd} 
-            onChange={e => setFormData({ ...formData, scheduledEnd: e.target.value })}
-          />
+    <div className={styles.modalOverlay}>
+      <div className={styles.modalContent}>
+        <div className={styles.modalHeader}>
+          <h3 className={styles.modalTitle}>
+            🎬 Edit Production Shoot: EPIC-{record.epicSequence} ({record.smeName || 'SME'})
+          </h3>
+          <button className={styles.modalCloseBtn} onClick={onClose}>✕</button>
         </div>
-      </td>
-      <td>
-        <input 
-          type="text" 
-          className={styles.formInput} 
-          value={formData.location} 
-          onChange={e => setFormData({ ...formData, location: e.target.value })}
-        />
-      </td>
-      <td>
-        <input 
-          type="text" 
-          className={styles.formInput} 
-          value={formData.cameraman} 
-          onChange={e => setFormData({ ...formData, cameraman: e.target.value })}
-        />
-      </td>
-      <td>
-        <select 
-          className={styles.formSelect} 
-          value={formData.status} 
-          onChange={e => setFormData({ ...formData, status: e.target.value })}
-        >
-          <option value="PLANNED">Planned</option>
-          <option value="IN_PROGRESS">In Progress</option>
-          <option value="COMPLETED">Completed</option>
-          <option value="RESHOOT">Reshoot</option>
-        </select>
-      </td>
-      <td>
-        <input 
-          type="text" 
-          className={styles.formInput} 
-          value={formData.productionNotes} 
-          onChange={e => setFormData({ ...formData, productionNotes: e.target.value })}
-        />
-      </td>
-      <td>
-        <div style={{ display: 'flex', gap: '4px' }}>
-          <button className={styles.btnSuccess} onClick={handleSubmit}>Save</button>
-          <button className={styles.btnDanger} onClick={() => setIsEditing(false)}>Cancel</button>
-        </div>
-      </td>
-    </tr>
+
+        <form onSubmit={handleSubmit}>
+          <div className={styles.modalBody}>
+            <div className={styles.formField}>
+              <label className={styles.formLabel}>Video Title / Topic *</label>
+              <input 
+                type="text" 
+                className={styles.formInput} 
+                value={formData.videoTitle} 
+                onChange={e => setFormData({ ...formData, videoTitle: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className={styles.modalGrid}>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Production Start Date</label>
+                <input 
+                  type="date" 
+                  className={styles.formInput} 
+                  value={formData.scheduledStart} 
+                  onChange={e => setFormData({ ...formData, scheduledStart: e.target.value })}
+                />
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Production End Date</label>
+                <input 
+                  type="date" 
+                  className={styles.formInput} 
+                  value={formData.scheduledEnd} 
+                  onChange={e => setFormData({ ...formData, scheduledEnd: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className={styles.modalGrid}>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Shoot Location</label>
+                <input 
+                  type="text" 
+                  className={styles.formInput} 
+                  value={formData.location} 
+                  onChange={e => setFormData({ ...formData, location: e.target.value })}
+                />
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Cameraman</label>
+                <input 
+                  type="text" 
+                  className={styles.formInput} 
+                  value={formData.cameraman} 
+                  onChange={e => setFormData({ ...formData, cameraman: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className={styles.formField}>
+              <label className={styles.formLabel}>Production Status</label>
+              <select 
+                className={styles.formSelect} 
+                value={formData.status} 
+                onChange={e => setFormData({ ...formData, status: e.target.value })}
+              >
+                <option value="PLANNED">Planned</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="RESHOOT">Reshoot Required</option>
+              </select>
+            </div>
+
+            <div className={styles.formField}>
+              <label className={styles.formLabel}>Production Notes</label>
+              <textarea 
+                className={styles.formInput} 
+                rows={3}
+                value={formData.productionNotes} 
+                onChange={e => setFormData({ ...formData, productionNotes: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className={styles.modalFooter}>
+            <button type="button" className={styles.btnCancel} onClick={onClose}>Cancel</button>
+            <button type="submit" className={styles.btnSave} disabled={loading}>
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
-/* STAGE 2: EDIT / DISPLAY ROW */
-function Stage2Row({ entry, schedule, editorRec, animatorRec, role, onUpdateEditor, onUpdateAnimator, onDeleteEditor }: any) {
-  const [isEditing, setIsEditing] = useState(false);
-  
-  const [editorData, setEditorData] = useState({
-    editorName: '', 
-    assignedVideo: '', 
-    editingStartDate: '', 
-    editingEndDate: '',
-    roughCutLink: '',
-    finalCutLink: '',
-    duration: '',
-    status: '', 
-    reviewComments: ''
-  });
-  
-  const [animatorData, setAnimatorData] = useState({
-    animatorName: '', 
-    animationStartDate: '', 
-    animationEndDate: '', 
-    status: ''
+/* =========================================================================
+   STAGE 2 EDIT MODAL COMPONENT (POST-PRODUCTION)
+   ========================================================================= */
+function Stage2EditModal({ record, loading, onClose, onSave }: any) {
+  const [formData, setFormData] = useState({
+    editorName: record.editorName || '',
+    assignedVideo: record.assignedVideo || '',
+    editingStartDate: formatDateForInput(record.editingStartDate),
+    editingEndDate: formatDateForInput(record.editingEndDate),
+    status: record.status || 'NOT_STARTED',
+    roughCutLink: record.roughCutLink || '',
+    finalCutLink: record.finalCutLink || '',
+    duration: record.duration || '',
+    finalVideoFile: record.finalVideoFile || '',
+    reviewComments: record.cleanComments || ''
   });
 
-  const getEndDateFromReviewComments = (rec: any) => {
-    if (rec.editingEndDate) return rec.editingEndDate;
-    if (rec.reviewComments && rec.reviewComments.startsWith('[END:')) {
-      const match = rec.reviewComments.match(/^\[END:([^\]]+)\]/);
-      if (match) return match[1];
-    }
-    return '';
-  };
-
-  const cleanReviewComments = (comments?: string) => {
-    if (!comments) return '';
-    return comments.replace(/^\[END:[^\]]+\]\s*/, '');
-  };
-
-  const handleEditClick = () => {
-    setEditorData({
-      editorName: editorRec.editorName || '',
-      assignedVideo: editorRec.assignedVideo || schedule?.videoTitle || entry.topic || '',
-      editingStartDate: editorRec.editingStartDate ? editorRec.editingStartDate.split('T')[0] : '',
-      editingEndDate: getEndDateFromReviewComments(editorRec),
-      roughCutLink: editorRec.roughCutLink || '',
-      finalCutLink: editorRec.finalCutLink || '',
-      duration: editorRec.duration || '',
-      status: editorRec.status || 'NOT_STARTED',
-      reviewComments: cleanReviewComments(editorRec.reviewComments)
-    });
-    setAnimatorData({
-      animatorName: animatorRec.animatorName || '',
-      animationStartDate: animatorRec.animationStartDate ? animatorRec.animationStartDate.split('T')[0] : '',
-      animationEndDate: animatorRec.animationEndDate ? animatorRec.animationEndDate.split('T')[0] : '',
-      status: animatorRec.status || 'NOT_STARTED'
-    });
-    setIsEditing(true);
-  };
-
-  const handleSubmit = () => {
-    if (editorData.editingStartDate && editorData.editingEndDate && new Date(editorData.editingEndDate) < new Date(editorData.editingStartDate)) {
-      alert('Post-Production End Date cannot be earlier than Post-Production Start Date.');
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (formData.editingStartDate && formData.editingEndDate && new Date(formData.editingEndDate) < new Date(formData.editingStartDate)) {
+      alert('Post-Production End Date cannot be earlier than Start Date.');
       return;
     }
-    onUpdateEditor(editorRec.id, editorData, entry.id);
-    onUpdateAnimator(animatorRec.id, animatorData, entry.id);
-    setIsEditing(false);
+    onSave(record.id, formData, record.workEntryId);
   };
-
-  const getStatusBadgeClass = (status: string) => {
-    switch ((status || '').toUpperCase()) {
-      case 'COMPLETED': return styles.badgeCompleted;
-      case 'IN_PROGRESS': return styles.badgeProgress;
-      default: return styles.badgePending;
-    }
-  };
-
-  const editorEndDateFormatted = getEndDateFromReviewComments(editorRec);
-
-  if (!isEditing) {
-    return (
-      <tr>
-        <td>
-          <strong style={{ color: '#0369a1' }}>EPIC-{entry.epicSequence}</strong>
-          <br/>
-          <span style={{ fontSize: '12px', color: '#475569' }}>{entry.sme?.name || 'SME'}</span>
-        </td>
-        <td>
-          <strong>{editorRec.assignedVideo || schedule?.videoTitle || entry.topic}</strong>
-        </td>
-        <td>
-          <div>
-            <strong>{editorRec.editorName || '-'}</strong>
-            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-              <span>Start: {editorRec.editingStartDate ? new Date(editorRec.editingStartDate).toLocaleDateString('en-IN') : 'TBD'}</span>
-              <br/>
-              <span>End: {editorEndDateFormatted ? new Date(editorEndDateFormatted).toLocaleDateString('en-IN') : 'TBD'}</span>
-            </div>
-          </div>
-        </td>
-        <td>
-          <span className={`${styles.badge} ${getStatusBadgeClass(editorRec.status)}`}>
-            {editorRec.status || 'NOT_STARTED'}
-          </span>
-        </td>
-        <td>
-          <div style={{ fontSize: '12px' }}>
-            {editorRec.roughCutLink ? (
-              <a href={editorRec.roughCutLink} target="_blank" rel="noreferrer" style={{ color: '#0284c7', textDecoration: 'underline' }}>
-                Rough Cut
-              </a>
-            ) : <span style={{ color: '#94a3b8' }}>Rough: -</span>}
-            <br/>
-            {editorRec.finalCutLink ? (
-              <a href={editorRec.finalCutLink} target="_blank" rel="noreferrer" style={{ color: '#059669', textDecoration: 'underline', fontWeight: 700 }}>
-                Final Cut
-              </a>
-            ) : <span style={{ color: '#94a3b8' }}>Final: -</span>}
-          </div>
-        </td>
-        <td>
-          <div>
-            <strong>{animatorRec.animatorName || '-'}</strong>
-            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-              <span>Start: {animatorRec.animationStartDate ? new Date(animatorRec.animationStartDate).toLocaleDateString('en-IN') : 'TBD'}</span>
-              <br/>
-              <span>End: {animatorRec.animationEndDate ? new Date(animatorRec.animationEndDate).toLocaleDateString('en-IN') : 'TBD'}</span>
-            </div>
-          </div>
-        </td>
-        <td>
-          <span className={`${styles.badge} ${getStatusBadgeClass(animatorRec.status)}`}>
-            {animatorRec.status || 'NOT_STARTED'}
-          </span>
-        </td>
-        <td>
-          <div style={{ display: 'flex', gap: '6px' }}>
-            {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
-              <button className={styles.btnEdit} onClick={handleEditClick}>Edit</button>
-            )}
-            {role === 'ADMIN' && editorRec.id && (
-              <button className={styles.btnDanger} onClick={() => onDeleteEditor(editorRec.id)}>Delete</button>
-            )}
-          </div>
-        </td>
-      </tr>
-    );
-  }
 
   return (
-    <tr style={{ background: '#f5f3ff' }}>
-      <td>
-        <strong>EPIC-{entry.epicSequence}</strong>
-        <br/>
-        <small>{entry.sme?.name}</small>
-      </td>
-      <td>
-        <input 
-          type="text" 
-          className={styles.formInput} 
-          value={editorData.assignedVideo} 
-          onChange={e => setEditorData({ ...editorData, assignedVideo: e.target.value })}
-        />
-      </td>
-      <td>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <input 
-            type="text" 
-            placeholder="Editor Name" 
-            className={styles.formInput} 
-            value={editorData.editorName} 
-            onChange={e => setEditorData({ ...editorData, editorName: e.target.value })}
-          />
-          <input 
-            type="date" 
-            title="Post-Production Start Date" 
-            className={styles.formInput} 
-            value={editorData.editingStartDate} 
-            onChange={e => setEditorData({ ...editorData, editingStartDate: e.target.value })}
-          />
-          <input 
-            type="date" 
-            title="Post-Production End Date" 
-            className={styles.formInput} 
-            value={editorData.editingEndDate} 
-            onChange={e => setEditorData({ ...editorData, editingEndDate: e.target.value })}
-          />
+    <div className={styles.modalOverlay}>
+      <div className={styles.modalContent}>
+        <div className={styles.modalHeader}>
+          <h3 className={styles.modalTitle}>
+            ✂️ Post-Production Details: EPIC-{record.epicSequence} ({record.assignedVideo})
+          </h3>
+          <button className={styles.modalCloseBtn} onClick={onClose}>✕</button>
         </div>
-      </td>
-      <td>
-        <select 
-          className={styles.formSelect} 
-          value={editorData.status} 
-          onChange={e => setEditorData({ ...editorData, status: e.target.value })}
-        >
-          <option value="NOT_STARTED">Not Started</option>
-          <option value="IN_PROGRESS">In Progress</option>
-          <option value="COMPLETED">Completed</option>
-        </select>
-      </td>
-      <td>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <input 
-            type="url" 
-            placeholder="Rough Cut Link" 
-            className={styles.formInput} 
-            value={editorData.roughCutLink} 
-            onChange={e => setEditorData({ ...editorData, roughCutLink: e.target.value })}
-          />
-          <input 
-            type="url" 
-            placeholder="Final Cut Link" 
-            className={styles.formInput} 
-            value={editorData.finalCutLink} 
-            onChange={e => setEditorData({ ...editorData, finalCutLink: e.target.value })}
-          />
-        </div>
-      </td>
-      <td>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <input 
-            type="text" 
-            placeholder="Animator Name" 
-            className={styles.formInput} 
-            value={animatorData.animatorName} 
-            onChange={e => setAnimatorData({ ...animatorData, animatorName: e.target.value })}
-          />
-          <input 
-            type="date" 
-            title="Animation Start Date" 
-            className={styles.formInput} 
-            value={animatorData.animationStartDate} 
-            onChange={e => setAnimatorData({ ...animatorData, animationStartDate: e.target.value })}
-          />
-          <input 
-            type="date" 
-            title="Animation End Date" 
-            className={styles.formInput} 
-            value={animatorData.animationEndDate} 
-            onChange={e => setAnimatorData({ ...animatorData, animationEndDate: e.target.value })}
-          />
-        </div>
-      </td>
-      <td>
-        <select 
-          className={styles.formSelect} 
-          value={animatorData.status} 
-          onChange={e => setAnimatorData({ ...animatorData, status: e.target.value })}
-        >
-          <option value="NOT_STARTED">Not Started</option>
-          <option value="IN_PROGRESS">In Progress</option>
-          <option value="COMPLETED">Completed</option>
-        </select>
-      </td>
-      <td>
-        <div style={{ display: 'flex', gap: '4px' }}>
-          <button className={styles.btnSuccess} onClick={handleSubmit}>Save</button>
-          <button className={styles.btnDanger} onClick={() => setIsEditing(false)}>Cancel</button>
-        </div>
-      </td>
-    </tr>
+
+        <form onSubmit={handleSubmit}>
+          <div className={styles.modalBody}>
+            {formData.status === 'COMPLETED' && (
+              <div style={{ padding: '10px 14px', background: '#dcfce7', border: '1px solid #86efac', borderRadius: '8px', color: '#166534', fontSize: '13px', fontWeight: 600 }}>
+                🚀 Setting status to COMPLETED will automatically advance this video to Stage 3 (Final Video Deliverable / Library)!
+              </div>
+            )}
+
+            <div className={styles.formField}>
+              <label className={styles.formLabel}>Video Title / Topic</label>
+              <input 
+                type="text" 
+                className={`${styles.formInput} ${styles.formInputReadOnly}`}
+                value={formData.assignedVideo} 
+                readOnly
+              />
+            </div>
+
+            <div className={styles.modalGrid}>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Video Editor Name</label>
+                <input 
+                  type="text" 
+                  className={styles.formInput} 
+                  placeholder="Assigned editor name"
+                  value={formData.editorName} 
+                  onChange={e => setFormData({ ...formData, editorName: e.target.value })}
+                />
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Post-Production Status</label>
+                <select 
+                  className={styles.formSelect} 
+                  value={formData.status} 
+                  onChange={e => setFormData({ ...formData, status: e.target.value })}
+                >
+                  <option value="NOT_STARTED">Not Started</option>
+                  <option value="IN_PROGRESS">In Progress</option>
+                  <option value="COMPLETED">Completed (Advance to Stage 3)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className={styles.modalGrid}>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Editing Start Date</label>
+                <input 
+                  type="date" 
+                  className={styles.formInput} 
+                  value={formData.editingStartDate} 
+                  onChange={e => setFormData({ ...formData, editingStartDate: e.target.value })}
+                />
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Editing End Date</label>
+                <input 
+                  type="date" 
+                  className={styles.formInput} 
+                  value={formData.editingEndDate} 
+                  onChange={e => setFormData({ ...formData, editingEndDate: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className={styles.modalGrid}>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Rough Cut Link</label>
+                <input 
+                  type="url" 
+                  className={styles.formInput} 
+                  placeholder="https://..."
+                  value={formData.roughCutLink} 
+                  onChange={e => setFormData({ ...formData, roughCutLink: e.target.value })}
+                />
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Final Cut Link</label>
+                <input 
+                  type="url" 
+                  className={styles.formInput} 
+                  placeholder="https://..."
+                  value={formData.finalCutLink} 
+                  onChange={e => setFormData({ ...formData, finalCutLink: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className={styles.modalGrid}>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Final Video Storage File / URL</label>
+                <input 
+                  type="url" 
+                  className={styles.formInput} 
+                  placeholder="Google Drive / Cloud storage link"
+                  value={formData.finalVideoFile} 
+                  onChange={e => setFormData({ ...formData, finalVideoFile: e.target.value })}
+                />
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Video Duration</label>
+                <input 
+                  type="text" 
+                  className={styles.formInput} 
+                  placeholder="e.g. 14:35"
+                  value={formData.duration} 
+                  onChange={e => setFormData({ ...formData, duration: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className={styles.formField}>
+              <label className={styles.formLabel}>Review Comments & Notes</label>
+              <textarea 
+                className={styles.formInput} 
+                rows={3}
+                placeholder="Editorial feedback or corrections..."
+                value={formData.reviewComments} 
+                onChange={e => setFormData({ ...formData, reviewComments: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className={styles.modalFooter}>
+            <button type="button" className={styles.btnCancel} onClick={onClose}>Cancel</button>
+            <button type="submit" className={styles.btnSave} disabled={loading}>
+              {loading ? 'Saving...' : 'Save Post-Production'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
-/* STAGE 3: FINAL VIDEO DELIVERABLE ROW */
-function Stage3Row({ entry, libraryVideo, finalRec, role, onUpdateFinal, onDeleteFinal }: any) {
-  const [isEditing, setIsEditing] = useState(false);
+/* =========================================================================
+   STAGE 3 EDIT MODAL COMPONENT (FINAL DELIVERABLE)
+   ========================================================================= */
+function Stage3EditModal({ record, loading, onClose, onSave }: any) {
   const [formData, setFormData] = useState({
-    finalVideoStatus: '',
-    approvalDate: '',
-    telecastDate: '',
-    telecastChannel: '',
-    telecastStatus: '',
-    remarks: ''
+    finalVideoStatus: record.finalVideoStatus || 'APPROVED',
+    finalVideoFile: record.finalVideoFile || '',
+    finalDuration: record.finalDuration || '',
+    finalApproval: record.finalApproval || '',
+    approvalDate: formatDateForInput(record.approvalDate),
+    remarks: record.remarks || '',
+    telecastChannel: record.telecastChannel || '',
+    telecastDate: formatDateForInput(record.telecastDate),
+    telecastEpisode: record.telecastEpisode || '',
+    telecastStatus: record.telecastStatus || 'PENDING',
+    telecastRemarks: record.telecastRemarks || ''
   });
 
-  const handleEditClick = () => {
-    setFormData({
-      finalVideoStatus: finalRec.finalVideoStatus || 'PENDING',
-      approvalDate: finalRec.approvalDate ? finalRec.approvalDate.split('T')[0] : '',
-      telecastDate: finalRec.telecastDate ? finalRec.telecastDate.split('T')[0] : '',
-      telecastChannel: finalRec.telecastChannel || '',
-      telecastStatus: finalRec.telecastStatus || 'PENDING',
-      remarks: finalRec.remarks || ''
-    });
-    setIsEditing(true);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(record.id, formData, record.workEntryId);
   };
-
-  const handleSubmit = () => {
-    onUpdateFinal(finalRec.id, formData, entry.id);
-    setIsEditing(false);
-  };
-
-  const deliveryDateFormatted = libraryVideo?.createdAt 
-    ? new Date(libraryVideo.createdAt).toLocaleDateString('en-IN')
-    : (finalRec.approvalDate ? new Date(finalRec.approvalDate).toLocaleDateString('en-IN') : 'Pending');
-
-  const deliveryStatusText = libraryVideo 
-    ? 'DELIVERED & CATALOGUED'
-    : (finalRec.finalVideoStatus === 'COMPLETED' || finalRec.finalVideoStatus === 'APPROVED' ? 'APPROVED' : 'PENDING DELIVERY');
-
-  const isDelivered = !!libraryVideo;
-
-  if (!isEditing) {
-    return (
-      <tr>
-        <td>
-          <strong style={{ color: '#0369a1' }}>EPIC-{entry.epicSequence}</strong>
-          <br/>
-          <span style={{ fontSize: '12px', color: '#475569' }}>{entry.sme?.name || 'SME'}</span>
-        </td>
-        <td>
-          <strong>{libraryVideo?.title || entry.topic}</strong>
-          <br/>
-          <span style={{ fontSize: '11px', color: '#64748b' }}>Trade: {entry.trade || 'General'}</span>
-        </td>
-        <td>
-          {libraryVideo?.videoLink ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <a 
-                href={libraryVideo.videoLink} 
-                target="_blank" 
-                rel="noreferrer" 
-                style={{ color: '#0284c7', textDecoration: 'underline', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-              >
-                <span>🔗</span> View Final Video
-              </a>
-              <Link 
-                href="/content" 
-                style={{ fontSize: '11px', color: '#059669', textDecoration: 'none', fontWeight: 600 }}
-              >
-                📂 Open in Video Library →
-              </Link>
-            </div>
-          ) : (
-            <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Pending Delivery in Library</span>
-          )}
-        </td>
-        <td>
-          <strong style={{ color: '#0f2942' }}>
-            {libraryVideo?.duration || finalRec.finalDuration || '-'}
-          </strong>
-        </td>
-        <td>
-          <span style={{ fontSize: '12px', color: '#334155' }}>{deliveryDateFormatted}</span>
-        </td>
-        <td>
-          <span className={`${styles.badge} ${isDelivered ? styles.badgeCompleted : styles.badgePending}`}>
-            {deliveryStatusText}
-          </span>
-        </td>
-        <td>
-          <div style={{ display: 'flex', gap: '6px' }}>
-            {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
-              <button className={styles.btnEdit} onClick={handleEditClick}>Edit</button>
-            )}
-            {role === 'ADMIN' && finalRec.id && (
-              <button className={styles.btnDanger} onClick={() => onDeleteFinal(finalRec.id)}>Delete</button>
-            )}
-          </div>
-        </td>
-      </tr>
-    );
-  }
 
   return (
-    <tr style={{ background: '#f0fdf4' }}>
-      <td>
-        <strong>EPIC-{entry.epicSequence}</strong>
-        <br/>
-        <small>{entry.sme?.name}</small>
-      </td>
-      <td>{libraryVideo?.title || entry.topic}</td>
-      <td>
-        {libraryVideo?.videoLink ? (
-          <a href={libraryVideo.videoLink} target="_blank" rel="noreferrer" style={{ color: '#0284c7' }}>
-            {libraryVideo.videoLink}
-          </a>
-        ) : 'Pending'}
-      </td>
-      <td>{libraryVideo?.duration || finalRec.finalDuration || '-'}</td>
-      <td>
-        <input 
-          type="date" 
-          title="Approval / Delivery Date"
-          className={styles.formInput} 
-          value={formData.approvalDate} 
-          onChange={e => setFormData({ ...formData, approvalDate: e.target.value })}
-        />
-      </td>
-      <td>
-        <select 
-          className={styles.formSelect} 
-          value={formData.finalVideoStatus} 
-          onChange={e => setFormData({ ...formData, finalVideoStatus: e.target.value })}
-        >
-          <option value="PENDING">Pending Delivery</option>
-          <option value="IN_REVIEW">In Review</option>
-          <option value="APPROVED">Approved</option>
-          <option value="COMPLETED">Completed</option>
-        </select>
-      </td>
-      <td>
-        <div style={{ display: 'flex', gap: '4px' }}>
-          <button className={styles.btnSuccess} onClick={handleSubmit}>Save</button>
-          <button className={styles.btnDanger} onClick={() => setIsEditing(false)}>Cancel</button>
+    <div className={styles.modalOverlay}>
+      <div className={styles.modalContent}>
+        <div className={styles.modalHeader}>
+          <h3 className={styles.modalTitle}>
+            📦 Final Deliverable & Telecast: EPIC-{record.epicSequence} ({record.title})
+          </h3>
+          <button className={styles.modalCloseBtn} onClick={onClose}>✕</button>
         </div>
-      </td>
-    </tr>
+
+        <form onSubmit={handleSubmit}>
+          <div className={styles.modalBody}>
+            <div className={styles.modalGrid}>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Final Approval Status</label>
+                <select 
+                  className={styles.formSelect} 
+                  value={formData.finalVideoStatus} 
+                  onChange={e => setFormData({ ...formData, finalVideoStatus: e.target.value })}
+                >
+                  <option value="APPROVED">Approved</option>
+                  <option value="PENDING">Pending Approval</option>
+                  <option value="REVISION_REQUIRED">Revision Required</option>
+                  <option value="COMPLETED">Completed</option>
+                </select>
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Final Duration</label>
+                <input 
+                  type="text" 
+                  className={styles.formInput} 
+                  placeholder="e.g. 15:00"
+                  value={formData.finalDuration} 
+                  onChange={e => setFormData({ ...formData, finalDuration: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className={styles.formField}>
+              <label className={styles.formLabel}>Final Video File / Storage Link</label>
+              <input 
+                type="url" 
+                className={styles.formInput} 
+                value={formData.finalVideoFile} 
+                onChange={e => setFormData({ ...formData, finalVideoFile: e.target.value })}
+              />
+            </div>
+
+            <div className={styles.modalGrid}>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Telecast Channel</label>
+                <input 
+                  type="text" 
+                  className={styles.formInput} 
+                  placeholder="e.g. PM e-Vidya Channel 1 - DTH"
+                  value={formData.telecastChannel} 
+                  onChange={e => setFormData({ ...formData, telecastChannel: e.target.value })}
+                />
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Telecast Broadcast Date</label>
+                <input 
+                  type="date" 
+                  className={styles.formInput} 
+                  value={formData.telecastDate} 
+                  onChange={e => setFormData({ ...formData, telecastDate: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className={styles.modalGrid}>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Telecast Episode #</label>
+                <input 
+                  type="text" 
+                  className={styles.formInput} 
+                  placeholder="e.g. EP-104"
+                  value={formData.telecastEpisode} 
+                  onChange={e => setFormData({ ...formData, telecastEpisode: e.target.value })}
+                />
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Telecast Status</label>
+                <select 
+                  className={styles.formSelect} 
+                  value={formData.telecastStatus} 
+                  onChange={e => setFormData({ ...formData, telecastStatus: e.target.value })}
+                >
+                  <option value="PENDING">Pending Broadcast</option>
+                  <option value="TELECASTED">Telecasted / Aired</option>
+                </select>
+              </div>
+            </div>
+
+            <div className={styles.formField}>
+              <label className={styles.formLabel}>Remarks / Broadcast Log</label>
+              <textarea 
+                className={styles.formInput} 
+                rows={2}
+                value={formData.remarks} 
+                onChange={e => setFormData({ ...formData, remarks: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className={styles.modalFooter}>
+            <button type="button" className={styles.btnCancel} onClick={onClose}>Cancel</button>
+            <button type="submit" className={styles.btnSave} disabled={loading}>
+              {loading ? 'Saving...' : 'Save Deliverable'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
