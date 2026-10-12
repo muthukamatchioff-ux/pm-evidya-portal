@@ -3,12 +3,15 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import styles from './smes.module.css';
+import { deleteSMEWorkEntry, updateSmePaymentInline } from './[id]/actions';
 
 export default function SmeListClient({ initialWorkEntries, role }: { initialWorkEntries: any[], role: string }) {
   const [entries, setEntries] = useState(initialWorkEntries);
   const [searchTerm, setSearchTerm] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  
+  const [savingPaymentId, setSavingPaymentId] = useState<string | null>(null);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
+
   const getEpicId = (epicSequence: number) => `EPIC-2026-PMeVidya ${String(epicSequence).padStart(2, '0')}`;
 
   const handleDelete = async (entryId: string, smeName: string, trade: string) => {
@@ -18,10 +21,11 @@ export default function SmeListClient({ initialWorkEntries, role }: { initialWor
 
     setDeletingId(entryId);
     try {
-      const { deleteSMEWorkEntry } = await import('./[id]/actions');
       const res = await deleteSMEWorkEntry(entryId);
       if (res.success) {
         setEntries(prev => prev.filter(e => e.id !== entryId));
+        setSuccessToast('SME Work Entry deleted successfully.');
+        setTimeout(() => setSuccessToast(null), 3000);
       } else {
         alert('Error deleting entry: ' + (res.error || 'Failed to delete'));
       }
@@ -30,6 +34,39 @@ export default function SmeListClient({ initialWorkEntries, role }: { initialWor
       alert('Error deleting SME entry');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleUpdatePayment = async (entryId: string, newAmount: number, newStatus: string) => {
+    setSavingPaymentId(entryId);
+    try {
+      const res = await updateSmePaymentInline(entryId, newAmount, newStatus);
+      if (res.success) {
+        setEntries(prev => prev.map(entry => {
+          if (entry.id === entryId) {
+            const currentPayments = entry.payments && entry.payments.length > 0 ? entry.payments : [{}];
+            const updatedPayments = currentPayments.map((p: any, idx: number) => idx === 0 ? {
+              ...p,
+              totalAmount: newAmount,
+              status: newStatus
+            } : p);
+            return {
+              ...entry,
+              payments: updatedPayments
+            };
+          }
+          return entry;
+        }));
+        setSuccessToast('Payment updated successfully.');
+        setTimeout(() => setSuccessToast(null), 3000);
+      } else {
+        alert('Failed to update payment: ' + (res.error || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error saving payment');
+    } finally {
+      setSavingPaymentId(null);
     }
   };
 
@@ -45,14 +82,19 @@ export default function SmeListClient({ initialWorkEntries, role }: { initialWor
 
   return (
     <>
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '15px' }}>
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '15px', alignItems: 'center', justifyContent: 'space-between' }}>
         <input
           type="text"
           placeholder="Filter by SME Name, Trade, Designation..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          style={{ padding: '10px', width: '100%', maxWidth: '400px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+          style={{ padding: '10px 14px', width: '100%', maxWidth: '420px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px' }}
         />
+        {successToast && (
+          <div style={{ background: '#dcfce7', color: '#166534', padding: '8px 16px', borderRadius: '6px', border: '1px solid #bbf7d0', fontSize: '13px', fontWeight: 600 }}>
+            ✅ {successToast}
+          </div>
+        )}
       </div>
 
       <div className="card">
@@ -65,8 +107,6 @@ export default function SmeListClient({ initialWorkEntries, role }: { initialWor
                 <th>SME Name</th>
                 <th>Designation</th>
                 <th>Trade</th>
-                <th>Topic</th>
-                <th>Attendance</th>
                 <th>Total Amt</th>
                 <th>Payment Status</th>
                 <th>Actions</th>
@@ -75,41 +115,110 @@ export default function SmeListClient({ initialWorkEntries, role }: { initialWor
             <tbody>
               {filteredEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className={styles.emptyState}>No SME Work Entries match your filter.</td>
+                  <td colSpan={8} className={styles.emptyState}>No SME Work Entries match your filter.</td>
                 </tr>
               ) : (
                 filteredEntries.map((entry, index) => {
-                  const payment = entry.payments[0]; // Assuming 1 payment per work entry for now
-                  const total = payment?.totalAmount || entry.days! * entry.ratePerDay! || 0;
-                  const paymentStatus = payment?.status || 'PENDING';
-                  const hasDocuments = entry.documents && entry.documents.length > 0;
+                  const payment = entry.payments && entry.payments.length > 0 ? entry.payments[0] : null;
+                  const total = payment?.totalAmount !== undefined && payment?.totalAmount !== null 
+                    ? payment.totalAmount 
+                    : ((entry.days || 0) * (entry.ratePerDay || 0));
+                  const paymentStatus = (payment?.status || 'INITIATED').toUpperCase();
+                  const isSaving = savingPaymentId === entry.id;
+
+                  // Normalize paymentStatus to one of INITIATED, ON_PROCESS, COMPLETED
+                  let normalizedStatus = 'INITIATED';
+                  if (paymentStatus === 'ON_PROCESS' || paymentStatus === 'IN_PROGRESS' || paymentStatus === 'PENDING') {
+                    normalizedStatus = 'ON_PROCESS';
+                  } else if (paymentStatus === 'COMPLETED' || paymentStatus === 'PAID' || paymentStatus === 'APPROVED') {
+                    normalizedStatus = 'COMPLETED';
+                  } else {
+                    normalizedStatus = 'INITIATED';
+                  }
+
+                  const getSelectClass = (st: string) => {
+                    switch (st) {
+                      case 'COMPLETED': return styles.statusSelectCompleted;
+                      case 'ON_PROCESS': return styles.statusSelectOnProcess;
+                      default: return styles.statusSelectInitiated;
+                    }
+                  };
 
                   return (
                     <tr key={entry.id}>
                       <td>{index + 1}</td>
-                      <td style={{ fontWeight: 'bold', color: '#3b82f6', fontSize: '13px' }}>{getEpicId(entry.epicSequence || index + 1)}</td>
+                      <td style={{ fontWeight: 'bold', color: '#0284c7', fontSize: '13px' }}>
+                        {getEpicId(entry.epicSequence || index + 1)}
+                      </td>
                       <td>
                         <Link href={`/smes/${entry.smeId}`} className={styles.smeLink}>
                           {entry.sme.name}
                         </Link>
                       </td>
-                      <td>{entry.sme.designation}</td>
+                      <td>{entry.sme.designation || '-'}</td>
                       <td>{entry.trade}</td>
+                      
+                      {/* Total Amt - Editable input option for Admin */}
                       <td>
-                        {entry.topic}
-                        {hasDocuments && (
-                          <span style={{ marginLeft: '6px', fontSize: '10px', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>
-                            📄 {entry.documents.length} Docs
+                        {role === 'ADMIN' ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ fontWeight: 600, color: '#64748b', fontSize: '14px' }}>₹</span>
+                            <input
+                              type="number"
+                              className={styles.amountInput}
+                              defaultValue={total}
+                              key={`${entry.id}-${total}`}
+                              onBlur={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                if (val !== total) {
+                                  handleUpdatePayment(entry.id, val, normalizedStatus);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const val = parseFloat((e.target as HTMLInputElement).value) || 0;
+                                  if (val !== total) {
+                                    handleUpdatePayment(entry.id, val, normalizedStatus);
+                                  }
+                                }
+                              }}
+                              disabled={isSaving}
+                              title="Enter Total Amount and press Enter or click outside to save"
+                            />
+                          </div>
+                        ) : (
+                          <span style={{ fontWeight: 600 }}>₹ {total.toLocaleString('en-IN')}</span>
+                        )}
+                      </td>
+
+                      {/* Payment Status - Dropdown pattern with initiated / on process / completed */}
+                      <td>
+                        {role === 'ADMIN' ? (
+                          <select
+                            className={`${styles.statusSelect} ${getSelectClass(normalizedStatus)}`}
+                            value={normalizedStatus}
+                            disabled={isSaving}
+                            onChange={(e) => {
+                              const newStatus = e.target.value;
+                              handleUpdatePayment(entry.id, total, newStatus);
+                            }}
+                          >
+                            <option value="INITIATED">Initiated</option>
+                            <option value="ON_PROCESS">On Process</option>
+                            <option value="COMPLETED">Completed</option>
+                          </select>
+                        ) : (
+                          <span className={`${styles.badge} ${
+                            normalizedStatus === 'COMPLETED' ? styles['badge-completed'] :
+                            normalizedStatus === 'ON_PROCESS' ? styles['badge-on_process'] :
+                            styles['badge-initiated']
+                          }`}>
+                            {normalizedStatus === 'ON_PROCESS' ? 'On Process' : normalizedStatus === 'COMPLETED' ? 'Completed' : 'Initiated'}
                           </span>
                         )}
                       </td>
-                      <td>
-                        {entry.attendanceFrom && entry.attendanceTo
-                          ? `${new Date(entry.attendanceFrom).toLocaleDateString('en-IN')} - ${new Date(entry.attendanceTo).toLocaleDateString('en-IN')}`
-                          : 'Pending'}
-                      </td>
-                      <td>₹ {total.toLocaleString('en-IN')}</td>
-                      <td><span className={`${styles.badge} ${styles['badge-' + paymentStatus.toLowerCase()]}`}>{paymentStatus}</span></td>
+
+                      {/* Actions */}
                       <td>
                         <div className={styles.actions} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                           {role === 'ADMIN' ? (
@@ -118,7 +227,7 @@ export default function SmeListClient({ initialWorkEntries, role }: { initialWor
                                 href={`/smes/${entry.smeId}`} 
                                 className={styles.btnAction} 
                                 style={{ 
-                                  background: '#2563eb', 
+                                  background: '#0284c7', 
                                   color: 'white', 
                                   padding: '6px 12px', 
                                   borderRadius: '6px', 

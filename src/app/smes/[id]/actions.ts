@@ -208,3 +208,53 @@ export async function deleteSMEWorkEntry(entryId: string) {
   }
 }
 
+export async function updateSmePaymentInline(workEntryId: string, totalAmount: number, status: string) {
+  const authCheck = await checkAuth(['ADMIN']);
+  if (!authCheck.success) return authCheck;
+
+  try {
+    const existing = await prisma.payment.findFirst({
+      where: { workEntryId }
+    });
+
+    if (existing) {
+      await prisma.payment.update({
+        where: { id: existing.id },
+        data: {
+          grossAmount: totalAmount,
+          totalAmount: totalAmount,
+          status: status,
+          ...(status === 'COMPLETED' || status === 'PAID' ? { paymentDate: new Date() } : {})
+        }
+      });
+    } else {
+      await prisma.payment.create({
+        data: {
+          workEntryId,
+          grossAmount: totalAmount,
+          totalAmount: totalAmount,
+          status: status,
+          ...(status === 'COMPLETED' || status === 'PAID' ? { paymentDate: new Date() } : {})
+        }
+      });
+    }
+
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'UPDATE_PAYMENT_INLINE',
+      entity: 'Payment',
+      entityId: workEntryId,
+      newData: `Updated Total Amount: ₹${totalAmount}, Status: ${status}`,
+      userEmail
+    });
+
+    revalidatePath('/smes');
+    revalidatePath('/accounts');
+    revalidatePath('/dashboard');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Failed to update SME payment inline:', error);
+    return { success: false, error: error.message || 'Failed to update payment' };
+  }
+}
+
