@@ -84,6 +84,9 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const [editingStage2, setEditingStage2] = useState<any | null>(null);
   const [editingStage3, setEditingStage3] = useState<any | null>(null);
 
+  // Interactive Topic Chip selection & highlight state
+  const [highlightedScheduleId, setHighlightedScheduleId] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -355,31 +358,31 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       {/* 2. THREE-STAGE WORKFLOW NAVIGATION TABS */}
       <div className={styles.workflowTabs}>
         <button 
-          className={`${styles.tabBtn} ${activeStage === 'STAGE_1' ? styles.tabBtnActive : ''}`}
+          className={`${styles.workflowTabBtn} ${activeStage === 'STAGE_1' ? styles.workflowTabBtnActive : ''}`}
           onClick={() => setActiveStage('STAGE_1')}
         >
-          🎬 Stage 1: Production (Shooting)
-          <span className={styles.tabBadge}>
+          <span>🎬 Stage 1: Production (Shooting)</span>
+          <span className={styles.workflowTabBadge}>
             {workEntries.reduce((acc, e) => acc + (e.shootingSchedules?.length || 0), 0)}
           </span>
         </button>
 
         <button 
-          className={`${styles.tabBtn} ${activeStage === 'STAGE_2' ? styles.tabBtnActive : ''}`}
+          className={`${styles.workflowTabBtn} ${activeStage === 'STAGE_2' ? styles.workflowTabBtnActive : ''}`}
           onClick={() => setActiveStage('STAGE_2')}
         >
-          ✂️ Stage 2: Post-Production (Editing & Animation)
-          <span className={styles.tabBadge}>
+          <span>✂️ Stage 2: Post-Production (Editing & Animation)</span>
+          <span className={styles.workflowTabBadge}>
             {workEntries.reduce((acc, e) => acc + (e.videoEditorRecords?.length || 0), 0)}
           </span>
         </button>
 
         <button 
-          className={`${styles.tabBtn} ${activeStage === 'STAGE_3' ? styles.tabBtnActive : ''}`}
+          className={`${styles.workflowTabBtn} ${activeStage === 'STAGE_3' ? styles.workflowTabBtnActive : ''}`}
           onClick={() => setActiveStage('STAGE_3')}
         >
-          📦 Stage 3: Final Video Deliverable (Library)
-          <span className={styles.tabBadge}>
+          <span>📦 Stage 3: Final Video Deliverable (Library)</span>
+          <span className={styles.workflowTabBadge}>
             {workEntries.reduce((acc, e) => acc + (e.finalVideoRecords?.length || e.videoLibraries?.length || 0), 0)}
           </span>
         </button>
@@ -409,7 +412,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                 <select 
                   className={styles.formSelect} 
                   value={selectedEpicId} 
-                  onChange={e => setSelectedEpicId(e.target.value)}
+                  onChange={e => {
+                    setSelectedEpicId(e.target.value);
+                    setHighlightedScheduleId(null);
+                  }}
                   required
                 >
                   <option value="">Select Recorded Epic ID...</option>
@@ -436,6 +442,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                   Video Title / Topic * <span style={{ fontWeight: 'normal', color: '#64748b' }}>(Add one-by-one under selected Epic ID)</span>
                 </label>
                 <input 
+                  id="video-title-input"
                   type="text" 
                   className={styles.formInput} 
                   placeholder="e.g. Topic 1: Safety & Personal Protective Equipment" 
@@ -443,22 +450,70 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                   onChange={e => setVideoTitle(e.target.value)}
                   required
                 />
-                {/* Show already added video topics under this selected Epic ID */}
+                {/* Show already added video topics under this selected Epic ID with Senior Fullstack interactive pattern */}
                 {selectedEpic && (
-                  <div style={{ marginTop: '6px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#0369a1' }}>
-                      📋 Videos recorded under EPIC-{selectedEpic.epicSequence} ({selectedEpic.shootingSchedules?.length || 0}):
+                  <div style={{ marginTop: '10px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#0369a1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>📋 Recorded Video Topics under EPIC-{selectedEpic.epicSequence}</span>
+                      <span style={{ background: '#e0f2fe', color: '#0284c7', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 800 }}>
+                        {selectedEpic.shootingSchedules?.length || 0}
+                      </span>
+                      <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#64748b', marginLeft: 'auto' }}>
+                        (Click any topic to highlight & edit)
+                      </span>
                     </div>
                     {selectedEpic.shootingSchedules && selectedEpic.shootingSchedules.length > 0 ? (
                       <div className={styles.topicChipsContainer}>
-                        {selectedEpic.shootingSchedules.map((s: any, idx: number) => (
-                          <span key={s.id || idx} className={styles.topicChip}>
-                            #{idx + 1} {s.videoTitle || 'Untitled Topic'}
-                          </span>
-                        ))}
+                        {selectedEpic.shootingSchedules.map((s: any, idx: number) => {
+                          const isHighlighted = highlightedScheduleId === s.id;
+                          return (
+                            <button
+                              key={s.id || idx}
+                              type="button"
+                              className={`${styles.topicChip} ${isHighlighted ? styles.topicChipActive : ''}`}
+                              onClick={() => {
+                                setHighlightedScheduleId(s.id);
+                                const rowEl = document.getElementById(`schedule-row-${s.id}`);
+                                if (rowEl) {
+                                  rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }
+                                setEditingStage1({
+                                  ...s,
+                                  epicSequence: selectedEpic.epicSequence,
+                                  smeName: selectedEpic.sme?.name,
+                                  trade: selectedEpic.trade
+                                });
+                              }}
+                              title={`Click to edit: ${s.videoTitle || 'Untitled Topic'}`}
+                            >
+                              <span className={`${styles.topicChipDot} ${
+                                s.status === 'COMPLETED' ? styles.dotCompleted :
+                                s.status === 'IN_PROGRESS' ? styles.dotProgress :
+                                s.status === 'RESHOOT' ? styles.dotReshoot : styles.dotPlanned
+                              }`} />
+                              <span>#{idx + 1} {s.videoTitle || 'Untitled Topic'}</span>
+                              <span className={styles.topicChipEditIcon}>✏️</span>
+                            </button>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          className={styles.topicChipAdd}
+                          onClick={() => {
+                            setVideoTitle('');
+                            setHighlightedScheduleId(null);
+                            const inputEl = document.getElementById('video-title-input');
+                            if (inputEl) inputEl.focus();
+                          }}
+                          title="Click to add another topic"
+                        >
+                          + Add Topic
+                        </button>
                       </div>
                     ) : (
-                      <span style={{ fontSize: '12px', color: '#94a3b8' }}>No videos recorded for this Epic ID yet. Enter the first topic above.</span>
+                      <span style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginTop: '4px' }}>
+                        No videos recorded for this Epic ID yet. Enter the first topic above.
+                      </span>
                     )}
                   </div>
                 )}
@@ -542,7 +597,11 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
               </thead>
               <tbody>
                 {filteredEntries.flatMap(entry => entry.shootingSchedules?.map((schedule: any) => (
-                  <tr key={schedule.id}>
+                  <tr 
+                    key={schedule.id}
+                    id={`schedule-row-${schedule.id}`}
+                    className={highlightedScheduleId === schedule.id ? styles.highlightedRow : ''}
+                  >
                     <td>
                       <strong style={{ color: '#0369a1' }}>EPIC-{entry.epicSequence}</strong>
                       <br/>
