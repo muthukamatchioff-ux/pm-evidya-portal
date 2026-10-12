@@ -11,6 +11,7 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
 
   const [isPrinting, setIsPrinting] = useState(false);
   const [isPrintingAnnexure, setIsPrintingAnnexure] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const getEpicId = (epicSequence: number) => `EPIC-2026-PMeVidya ${String(epicSequence).padStart(2, '0')}`;
 
   const triggerPrint = () => {
@@ -201,11 +202,14 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
         <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
           View a print-ready dashboard report or generate the complete consolidated workbook containing the Executive Summary.
         </p>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button className={styles.btnAction} style={{ flex: 1, justifyContent: 'center', backgroundColor: '#f59e0b', color: 'white' }} onClick={triggerPrint}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <button className={styles.btnAction} style={{ flex: 1, minWidth: '160px', justifyContent: 'center', backgroundColor: '#0284c7', color: 'white' }} onClick={() => setIsPreviewOpen(true)}>
+            👁️ Preview Infographic
+          </button>
+          <button className={styles.btnAction} style={{ flex: 1, minWidth: '160px', justifyContent: 'center', backgroundColor: '#f59e0b', color: 'white' }} onClick={triggerPrint}>
             🖨️ Print Dashboard View
           </button>
-          <button className={styles.btnAction} style={{ flex: 1, justifyContent: 'center', backgroundColor: 'var(--primary)', color: 'white' }} onClick={generateOverallReport}>
+          <button className={styles.btnAction} style={{ flex: 1, minWidth: '140px', justifyContent: 'center', backgroundColor: 'var(--primary)', color: 'white' }} onClick={generateOverallReport}>
             Download Excel
           </button>
         </div>
@@ -344,92 +348,517 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
         </button>
       </div>
 
-      {/* Print View Overlay (Only visible when printing) */}
+      {/* Print View & Infographic Styling */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
-          body * { visibility: hidden; }
-          #printable-dashboard, #printable-dashboard * { visibility: visible; }
-          #printable-annexures, #printable-annexures * { visibility: visible; }
-          #printable-dashboard, #printable-annexures { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; }
-          @page { size: landscape; margin: 10mm; }
+          body * { visibility: hidden !important; }
+          #printable-dashboard, #printable-dashboard * { visibility: visible !important; }
+          #printable-annexures, #printable-annexures * { visibility: visible !important; }
+          #printable-dashboard, #printable-annexures { 
+            position: absolute !important; 
+            left: 0 !important; 
+            top: 0 !important; 
+            width: 100% !important; 
+            padding: 0 !important; 
+            margin: 0 !important;
+            background: white !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          @page { size: landscape; margin: 8mm; }
         }
       `}} />
 
-      <div id="printable-dashboard" style={{ display: isPrinting ? 'block' : 'none', background: 'white' }}>
-        <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #e2e8f0', paddingBottom: '20px' }}>
-          <h1 style={{ fontSize: '28px', color: '#0f172a', margin: '0 0 10px 0' }}>PM e-Vidya Financial Dashboard</h1>
-          <p style={{ fontSize: '16px', color: '#64748b', margin: 0 }}>Approved Budget vs Expenditure — Component-wise Status Report</p>
-          <p style={{ fontSize: '12px', color: '#94a3b8', margin: '5px 0 0 0' }}>Generated on: {new Date().toLocaleString('en-IN')}</p>
-        </div>
+      {/* Reusable Power BI Financial Infographic Report Generator */}
+      {(() => {
+        let totalBudget = 0;
+        let totalExp = 0;
+        components.forEach(c => {
+          totalBudget += Number(c.approvedBudget) || 0;
+          totalExp += Number(c.expenditureIncurred) || 0;
+        });
+        const unutilized = totalBudget - totalExp;
+        const utilPercent = totalBudget ? ((totalExp / totalBudget) * 100).toFixed(2) : '0';
+        const generatedDate = new Date().toLocaleString('en-IN', { 
+          dateStyle: 'medium', 
+          timeStyle: 'short' 
+        });
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '40px' }}>
-          {(() => {
-            let totalBudget = 0;
-            let totalExp = 0;
-            components.forEach(c => {
-              totalBudget += c.approvedBudget;
-              totalExp += c.expenditureIncurred;
-            });
-            const unutilized = totalBudget - totalExp;
-            const utilPercent = totalBudget ? ((totalExp/totalBudget)*100).toFixed(2) : '0';
-
-            return (
-              <>
-                <div style={{ padding: '20px', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#f8fafc' }}>
-                  <div style={{ color: '#64748b', fontSize: '14px', fontWeight: 'bold' }}>Total Approved Budget</div>
-                  <div style={{ color: '#0f172a', fontSize: '28px', fontWeight: 'bold', marginTop: '10px' }}>₹ {totalBudget.toLocaleString('en-IN')}</div>
-                </div>
-                <div style={{ padding: '20px', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#f8fafc' }}>
-                  <div style={{ color: '#64748b', fontSize: '14px', fontWeight: 'bold' }}>Total Expenditure</div>
-                  <div style={{ color: '#ef4444', fontSize: '28px', fontWeight: 'bold', marginTop: '10px' }}>₹ {totalExp.toLocaleString('en-IN')}</div>
-                </div>
-                <div style={{ padding: '20px', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#f8fafc' }}>
-                  <div style={{ color: '#64748b', fontSize: '14px', fontWeight: 'bold' }}>Overall Utilization</div>
-                  <div style={{ color: '#10b981', fontSize: '28px', fontWeight: 'bold', marginTop: '10px' }}>{utilPercent}%</div>
-                </div>
-              </>
-            );
-          })()}
-        </div>
-
-        <h3 style={{ fontSize: '20px', color: '#0f172a', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>Component-wise Breakdown</h3>
-        
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
-          <thead>
-            <tr style={{ background: '#f1f5f9' }}>
-              <th style={{ padding: '12px', border: '1px solid #cbd5e1' }}>Component</th>
-              <th style={{ padding: '12px', border: '1px solid #cbd5e1', textAlign: 'right' }}>Approved Budget (₹)</th>
-              <th style={{ padding: '12px', border: '1px solid #cbd5e1', textAlign: 'right' }}>Expenditure (₹)</th>
-              <th style={{ padding: '12px', border: '1px solid #cbd5e1', textAlign: 'right' }}>Unutilized Balance (₹)</th>
-              <th style={{ padding: '12px', border: '1px solid #cbd5e1', textAlign: 'center' }}>Utilization %</th>
-            </tr>
-          </thead>
-          <tbody>
-            {components.map(comp => (
-              <tr key={comp.id}>
-                <td style={{ padding: '12px', border: '1px solid #e2e8f0', fontWeight: 'bold', color: '#334155' }}>
-                  {comp.name}
-                </td>
-                <td style={{ padding: '12px', border: '1px solid #e2e8f0', textAlign: 'right', color: '#0f172a' }}>
-                  {comp.approvedBudget.toLocaleString('en-IN')}
-                </td>
-                <td style={{ padding: '12px', border: '1px solid #e2e8f0', textAlign: 'right', color: '#ef4444' }}>
-                  {comp.expenditureIncurred.toLocaleString('en-IN')}
-                </td>
-                <td style={{ padding: '12px', border: '1px solid #e2e8f0', textAlign: 'right', color: '#10b981' }}>
-                  {comp.unutilizedBalance.toLocaleString('en-IN')}
-                </td>
-                <td style={{ padding: '12px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                  <div style={{ background: '#e2e8f0', borderRadius: '4px', width: '100px', height: '8px', margin: '0 auto', overflow: 'hidden' }}>
-                    <div style={{ background: '#3b82f6', height: '100%', width: `${Math.min(comp.utilizationPercent, 100)}%` }} />
+        const reportContent = (
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            border: '1px solid #cbd5e1',
+            boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.08)',
+            fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            overflow: 'hidden',
+            color: '#0f172a'
+          }}>
+            {/* A. Report Header: NIMI & PM e-Vidya branding, dynamic timestamp, light-blue dashboard theme */}
+            <div style={{
+              background: 'linear-gradient(135deg, #f0f9ff 0%, #ffffff 50%, #f0fdf4 100%)',
+              borderTop: '5px solid #0284c7',
+              borderBottom: '2px solid #bae6fd',
+              padding: '24px 32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '24px'
+            }}>
+              {/* Left Branding: NIMI Logo & Govt details */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: '1 1 0' }}>
+                <img 
+                  src="/nimi-logo.png" 
+                  alt="NIMI Logo" 
+                  style={{ height: '62px', width: 'auto', objectFit: 'contain' }} 
+                />
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                    National Instructional Media Institute
                   </div>
-                  <div style={{ fontSize: '12px', marginTop: '4px', color: '#64748b' }}>{comp.utilizationPercent}%</div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
+                    Ministry of Skill Development & Entrepreneurship, Govt. of India
+                  </div>
+                </div>
+              </div>
+
+              {/* Center Title & Metadata */}
+              <div style={{ textAlign: 'center', flex: '2 1 0' }}>
+                <h1 style={{ 
+                  fontSize: '26px', 
+                  fontWeight: 800, 
+                  color: '#0f2942', 
+                  margin: '0 0 6px 0', 
+                  letterSpacing: '-0.3px',
+                  lineHeight: 1.2
+                }}>
+                  PM e-Vidya Financial Dashboard
+                </h1>
+                <p style={{ 
+                  fontSize: '14px', 
+                  fontWeight: 600, 
+                  color: '#334155', 
+                  margin: '0 0 8px 0' 
+                }}>
+                  Approved Budget vs Expenditure — Component-wise Status Report
+                </p>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: '#e0f2fe',
+                  color: '#0369a1',
+                  padding: '4px 14px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  border: '1px solid #bae6fd'
+                }}>
+                  <span>📅</span> Generated on: {generatedDate}
+                </div>
+              </div>
+
+              {/* Right Branding: PM e-Vidya Logo */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '16px', flex: '1 1 0' }}>
+                <img 
+                  src="/evidya-logo-exact.png" 
+                  alt="PM e-Vidya Logo" 
+                  style={{ height: '58px', width: 'auto', objectFit: 'contain' }} 
+                />
+              </div>
+            </div>
+
+            {/* B. Three KPI Cards: Power BI Infographic Style */}
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(3, 1fr)', 
+              gap: '20px', 
+              padding: '24px 32px 16px 32px' 
+            }}>
+              {/* KPI Card 1: Total Approved Budget (Blue Accent) */}
+              <div style={{ 
+                padding: '20px 24px', 
+                border: '1.5px solid #bfdbfe', 
+                borderLeft: '5px solid #2563eb', 
+                borderRadius: '14px', 
+                background: 'linear-gradient(135deg, #ffffff 0%, #eff6ff 100%)',
+                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.06)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                    Total Approved Budget
+                  </span>
+                  <div style={{ 
+                    width: '38px', 
+                    height: '38px', 
+                    borderRadius: '10px', 
+                    background: '#dbeafe', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    fontSize: '18px'
+                  }}>
+                    🏛️
+                  </div>
+                </div>
+                <div style={{ color: '#1e3a8a', fontSize: '30px', fontWeight: 800, marginTop: '12px', letterSpacing: '-0.5px' }}>
+                  ₹ {totalBudget.toLocaleString('en-IN')}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#2563eb', fontWeight: 600, marginTop: '8px' }}>
+                  <span>✓</span> 100% Total Sanctioned Allocation (6 Heads)
+                </div>
+              </div>
+
+              {/* KPI Card 2: Total Expenditure (Purple Accent) */}
+              <div style={{ 
+                padding: '20px 24px', 
+                border: '1.5px solid #e9d5ff', 
+                borderLeft: '5px solid #7c3aed', 
+                borderRadius: '14px', 
+                background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 100%)',
+                boxShadow: '0 4px 12px rgba(124, 58, 237, 0.06)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                    Total Expenditure
+                  </span>
+                  <div style={{ 
+                    width: '38px', 
+                    height: '38px', 
+                    borderRadius: '10px', 
+                    background: '#f3e8ff', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    fontSize: '18px'
+                  }}>
+                    💳
+                  </div>
+                </div>
+                <div style={{ color: '#581c87', fontSize: '30px', fontWeight: 800, marginTop: '12px', letterSpacing: '-0.5px' }}>
+                  ₹ {totalExp.toLocaleString('en-IN')}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#7e22ce', fontWeight: 600, marginTop: '8px' }}>
+                  <span>💼</span> Unutilized Balance: ₹ {unutilized.toLocaleString('en-IN')}
+                </div>
+              </div>
+
+              {/* KPI Card 3: Overall Utilization (Green Accent) */}
+              <div style={{ 
+                padding: '20px 24px', 
+                border: '1.5px solid #a7f3d0', 
+                borderLeft: '5px solid #059669', 
+                borderRadius: '14px', 
+                background: 'linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%)',
+                boxShadow: '0 4px 12px rgba(5, 150, 105, 0.06)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                    Overall Utilization
+                  </span>
+                  <div style={{ 
+                    width: '38px', 
+                    height: '38px', 
+                    borderRadius: '10px', 
+                    background: '#d1fae5', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    fontSize: '18px'
+                  }}>
+                    🎯
+                  </div>
+                </div>
+                <div style={{ color: '#064e3b', fontSize: '30px', fontWeight: 800, marginTop: '12px', letterSpacing: '-0.5px' }}>
+                  {utilPercent}%
+                </div>
+                {/* Visual Progress Meter */}
+                <div style={{ width: '100%', height: '6px', background: '#d1fae5', borderRadius: '99px', marginTop: '8px', overflow: 'hidden' }}>
+                  <div style={{ 
+                    width: `${Math.min(Number(utilPercent), 100)}%`, 
+                    height: '100%', 
+                    background: 'linear-gradient(90deg, #10b981, #059669)',
+                    borderRadius: '99px'
+                  }} />
+                </div>
+                <div style={{ fontSize: '12px', color: '#047857', fontWeight: 600, marginTop: '6px' }}>
+                  Target Absorption Performance
+                </div>
+              </div>
+            </div>
+
+            {/* C. Component-wise Breakdown Table */}
+            <div style={{ padding: '8px 32px 32px 32px' }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                marginBottom: '16px', 
+                borderBottom: '2px solid #e2e8f0', 
+                paddingBottom: '10px' 
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '18px' }}>📊</span>
+                  <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f2942', margin: 0 }}>
+                    Component-wise Financial Breakdown
+                  </h3>
+                </div>
+                <span style={{ 
+                  fontSize: '12px', 
+                  fontWeight: 600, 
+                  background: '#f1f5f9', 
+                  color: '#475569', 
+                  padding: '4px 12px', 
+                  borderRadius: '12px',
+                  border: '1px solid #e2e8f0'
+                }}>
+                  {components.length} Approved Heads
+                </span>
+              </div>
+              
+              <table style={{ 
+                width: '100%', 
+                borderCollapse: 'separate', 
+                borderSpacing: 0, 
+                textAlign: 'left', 
+                fontSize: '13px',
+                border: '1px solid #cbd5e1',
+                borderRadius: '10px',
+                overflow: 'hidden'
+              }}>
+                <thead>
+                  <tr style={{ background: '#0f2942', color: '#ffffff' }}>
+                    <th style={{ padding: '14px 16px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', width: '38%' }}>
+                      Component
+                    </th>
+                    <th style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', width: '16%' }}>
+                      Approved Budget (₹)
+                    </th>
+                    <th style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', width: '16%' }}>
+                      Expenditure (₹)
+                    </th>
+                    <th style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', width: '16%' }}>
+                      Unutilized Balance (₹)
+                    </th>
+                    <th style={{ padding: '14px 16px', textAlign: 'center', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', width: '14%' }}>
+                      Utilization %
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {components.map((comp, idx) => {
+                    const roman = ['I', 'II', 'III', 'IV', 'V', 'VI'][comp.componentNo - 1] || comp.componentNo;
+                    return (
+                      <tr key={comp.id} style={{ 
+                        background: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
+                        borderBottom: '1px solid #e2e8f0'
+                      }}>
+                        <td style={{ padding: '14px 16px', borderBottom: '1px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center',
+                              minWidth: '26px', 
+                              padding: '2px 6px', 
+                              borderRadius: '6px', 
+                              background: '#e0f2fe', 
+                              color: '#0369a1', 
+                              fontWeight: 800, 
+                              fontSize: '11px',
+                              border: '1px solid #bae6fd'
+                            }}>
+                              {roman}
+                            </span>
+                            <span style={{ fontWeight: 600, color: '#1e293b' }}>
+                              {comp.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #e2e8f0' }}>
+                          {comp.approvedBudget.toLocaleString('en-IN')}
+                        </td>
+                        <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 700, color: '#7c3aed', borderBottom: '1px solid #e2e8f0' }}>
+                          {comp.expenditureIncurred.toLocaleString('en-IN')}
+                        </td>
+                        <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 700, color: '#059669', borderBottom: '1px solid #e2e8f0' }}>
+                          {comp.unutilizedBalance.toLocaleString('en-IN')}
+                        </td>
+                        <td style={{ padding: '14px 16px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                            <div style={{ background: '#e2e8f0', borderRadius: '99px', width: '110px', height: '8px', overflow: 'hidden' }}>
+                              <div style={{ 
+                                background: comp.utilizationPercent > 50 ? 'linear-gradient(90deg, #10b981, #059669)' : 'linear-gradient(90deg, #3b82f6, #7c3aed)', 
+                                height: '100%', 
+                                width: `${Math.min(comp.utilizationPercent, 100)}%`,
+                                borderRadius: '99px'
+                              }} />
+                            </div>
+                            <span style={{ 
+                              fontSize: '12px', 
+                              fontWeight: 700, 
+                              color: '#334155',
+                              background: '#f1f5f9',
+                              padding: '1px 8px',
+                              borderRadius: '10px',
+                              border: '1px solid #e2e8f0'
+                            }}>
+                              {comp.utilizationPercent}%
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: '#0f2942', color: '#ffffff' }}>
+                    <td style={{ padding: '16px 16px', fontWeight: 800, fontSize: '13px', letterSpacing: '0.8px' }}>
+                      GRAND TOTAL
+                    </td>
+                    <td style={{ padding: '16px 16px', textAlign: 'right', fontWeight: 800, fontSize: '14px' }}>
+                      ₹ {totalBudget.toLocaleString('en-IN')}
+                    </td>
+                    <td style={{ padding: '16px 16px', textAlign: 'right', fontWeight: 800, fontSize: '14px', color: '#c084fc' }}>
+                      ₹ {totalExp.toLocaleString('en-IN')}
+                    </td>
+                    <td style={{ padding: '16px 16px', textAlign: 'right', fontWeight: 800, fontSize: '14px', color: '#6ee7b7' }}>
+                      ₹ {unutilized.toLocaleString('en-IN')}
+                    </td>
+                    <td style={{ padding: '16px 16px', textAlign: 'center' }}>
+                      <span style={{ 
+                        background: '#10b981', 
+                        color: '#ffffff', 
+                        padding: '4px 12px', 
+                        borderRadius: '20px', 
+                        fontWeight: 800, 
+                        fontSize: '13px' 
+                      }}>
+                        {utilPercent}%
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+
+              {/* Official Sign-off & Audit Stamp */}
+              <div style={{ 
+                marginTop: '20px', 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                fontSize: '11px', 
+                color: '#64748b',
+                borderTop: '1px solid #e2e8f0',
+                paddingTop: '12px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>🛡️</span>
+                  <span>Official PM e-Vidya Financial Record • National Instructional Media Institute (NIMI) • MSDE, Government of India</span>
+                </div>
+                <div style={{ fontWeight: 600, color: '#0369a1' }}>
+                  Verified System-Generated Report
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+        return (
+          <>
+            {/* Modal Preview of Report on Screen */}
+            {isPreviewOpen && (
+              <div style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 9999,
+                background: 'rgba(15, 23, 42, 0.75)',
+                backdropFilter: 'blur(4px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '24px',
+                overflowY: 'auto'
+              }} onClick={() => setIsPreviewOpen(false)}>
+                <div 
+                  style={{ 
+                    maxWidth: '1150px', 
+                    width: '100%', 
+                    maxHeight: '92vh', 
+                    overflowY: 'auto',
+                    background: '#ffffff', 
+                    borderRadius: '18px', 
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                    padding: '8px'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Modal Action Bar */}
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    padding: '12px 20px',
+                    borderBottom: '1px solid #e2e8f0',
+                    background: '#f8fafc',
+                    borderRadius: '12px 12px 0 0'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '20px' }}>📊</span>
+                      <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '15px' }}>
+                        PM e-Vidya Financial Dashboard — Infographic Report Preview
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <button 
+                        onClick={triggerPrint} 
+                        style={{ 
+                          padding: '8px 16px', 
+                          background: '#f59e0b', 
+                          color: '#ffffff', 
+                          border: 'none', 
+                          borderRadius: '8px', 
+                          fontWeight: 700, 
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        🖨️ Print / Save as PDF
+                      </button>
+                      <button 
+                        onClick={() => setIsPreviewOpen(false)} 
+                        style={{ 
+                          padding: '8px 16px', 
+                          background: '#64748b', 
+                          color: '#ffffff', 
+                          border: 'none', 
+                          borderRadius: '8px', 
+                          fontWeight: 700, 
+                          cursor: 'pointer' 
+                        }}
+                      >
+                        ✕ Close
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Embed the exact Report */}
+                  <div style={{ padding: '16px' }}>
+                    {reportContent}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Printable View Container (Targeted by @media print) */}
+            <div id="printable-dashboard" style={{ display: isPrinting ? 'block' : 'none', background: 'white' }}>
+              {reportContent}
+            </div>
+          </>
+        );
+      })()}
 
       <div id="printable-annexures" style={{ display: isPrintingAnnexure ? 'block' : 'none', background: 'white' }}>
         {components.filter(c => selectedComponents.includes(c.id)).map((comp) => {
