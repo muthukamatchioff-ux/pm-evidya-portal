@@ -13,6 +13,7 @@ export async function getEpicWorkEntries() {
         videoEditorRecords: true,
         animationRecords: true,
         finalVideoRecords: true,
+        videoLibraries: true,
       },
       orderBy: {
         epicSequence: 'desc'
@@ -33,6 +34,7 @@ export async function getTopicProductionRecords() {
         videoEditorRecords: true,
         animationRecords: true,
         finalVideoRecords: true,
+        videoLibraries: true,
       },
       orderBy: {
         epicSequence: 'desc'
@@ -51,6 +53,10 @@ export async function createShootingSchedule(workEntryId: string, data: any) {
   try {
     if (!data.videoTitle) {
       return { success: false, error: 'Video Title is required.' };
+    }
+
+    if (data.scheduledStart && data.scheduledEnd && new Date(data.scheduledEnd) < new Date(data.scheduledStart)) {
+      return { success: false, error: 'Production End Date cannot be earlier than Production Start Date.' };
     }
 
     const newRecord = await prisma.shootingSchedule.create({
@@ -82,6 +88,10 @@ export async function updateShootingSchedule(id: string, data: any) {
   if (!auth.success) return auth;
 
   try {
+    if (data.scheduledStart && data.scheduledEnd && new Date(data.scheduledEnd) < new Date(data.scheduledStart)) {
+      return { success: false, error: 'Production End Date cannot be earlier than Production Start Date.' };
+    }
+
     const record = await prisma.shootingSchedule.update({
       where: { id },
       data: {
@@ -111,12 +121,17 @@ export async function updateVideoEditorRecord(id: string, data: any, workEntryId
   if (!auth.success) return auth;
 
   try {
+    if (data.editingStartDate && data.editingEndDate && new Date(data.editingEndDate) < new Date(data.editingStartDate)) {
+      return { success: false, error: 'Post-Production End Date cannot be earlier than Start Date.' };
+    }
+
     const record = await prisma.videoEditorRecord.upsert({
       where: { id: id || 'new' }, 
       update: {
         editorName: data.editorName || null,
         assignedVideo: data.assignedVideo || null,
         editingStartDate: data.editingStartDate ? new Date(data.editingStartDate) : null,
+        editingEndDate: data.editingEndDate ? new Date(data.editingEndDate) : null,
         roughCutLink: data.roughCutLink || null,
         finalCutLink: data.finalCutLink || null,
         duration: data.duration || null,
@@ -129,6 +144,7 @@ export async function updateVideoEditorRecord(id: string, data: any, workEntryId
         editorName: data.editorName || null,
         assignedVideo: data.assignedVideo || null,
         editingStartDate: data.editingStartDate ? new Date(data.editingStartDate) : null,
+        editingEndDate: data.editingEndDate ? new Date(data.editingEndDate) : null,
         roughCutLink: data.roughCutLink || null,
         finalCutLink: data.finalCutLink || null,
         duration: data.duration || null,

@@ -486,6 +486,7 @@ model VideoEditorRecord {
   editorName       String?
   assignedVideo    String?
   editingStartDate DateTime?
+  editingEndDate   DateTime?
   roughCutLink     String?
   finalCutLink     String?
   duration         String?

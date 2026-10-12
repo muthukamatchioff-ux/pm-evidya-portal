@@ -223,7 +223,48 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
   };
 
   const generateProductionReport = () => {
-    const data = production.map((prod: any) => ({
+    // Check if we have epicWorkEntries with production data, or fall back to legacy production records
+    const epicData = allEpicEntries.map((entry: any) => {
+      const schedule = entry.shootingSchedules?.[0];
+      const editorRec = entry.videoEditorRecords?.[0];
+      const libraryVideo = entry.videoLibraries?.[0];
+      const finalRec = entry.finalVideoRecords?.[0];
+
+      const prodStart = schedule?.scheduledStart ? new Date(schedule.scheduledStart).toLocaleDateString('en-IN') : (schedule?.shootDate ? new Date(schedule.shootDate).toLocaleDateString('en-IN') : 'TBD');
+      const prodEnd = schedule?.scheduledEnd ? new Date(schedule.scheduledEnd).toLocaleDateString('en-IN') : 'TBD';
+
+      const postProdStart = editorRec?.editingStartDate ? new Date(editorRec.editingStartDate).toLocaleDateString('en-IN') : 'TBD';
+      const postProdEnd = editorRec?.editingEndDate ? new Date(editorRec.editingEndDate).toLocaleDateString('en-IN') : 'TBD';
+
+      const videoLink = libraryVideo?.videoLink || finalRec?.finalVideoFile || 'Pending Delivery';
+      const deliveryDate = libraryVideo?.createdAt 
+        ? new Date(libraryVideo.createdAt).toLocaleDateString('en-IN')
+        : (finalRec?.approvalDate ? new Date(finalRec.approvalDate).toLocaleDateString('en-IN') : 'Pending');
+
+      const deliveryStatus = libraryVideo 
+        ? 'DELIVERED & CATALOGUED'
+        : (finalRec?.finalVideoStatus === 'APPROVED' || finalRec?.finalVideoStatus === 'COMPLETED' ? 'APPROVED' : 'PENDING DELIVERY');
+
+      return {
+        "EPIC ID": getEpicId(entry.epicSequence || 1),
+        "SME Name": entry.sme?.name || 'Unassigned',
+        "Video Title / Topic": libraryVideo?.title || schedule?.videoTitle || entry.topic || 'PM e-Vidya Video',
+        "Trade": entry.trade || 'General',
+        "Production Start Date": prodStart,
+        "Production End Date": prodEnd,
+        "Production Status": schedule?.status || 'PLANNED',
+        "Post-Production Start Date": postProdStart,
+        "Post-Production End Date": postProdEnd,
+        "Post-Production Status": editorRec?.status || 'NOT_STARTED',
+        "Video Editor": editorRec?.editorName || '-',
+        "Final Video Link (Library)": videoLink,
+        "Delivery Date": deliveryDate,
+        "Delivery Status": deliveryStatus,
+        "Duration": libraryVideo?.duration || editorRec?.duration || '-'
+      };
+    });
+
+    const data = epicData.length > 0 ? epicData : production.map((prod: any) => ({
       "Project Code": prod.project?.projectCode || 'N/A',
       "Project Title": prod.project?.title || 'N/A',
       "Video URL": prod.videoUrl || 'Pending',
@@ -231,11 +272,12 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
       "Status": prod.status,
       "Last Updated": new Date(prod.updatedAt).toLocaleDateString('en-IN')
     }));
+
     if (data.length === 0) return alert("No Production records found");
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Production Tracker");
-    XLSX.writeFile(wb, `PM_eVidya_Production_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(wb, `PM_eVidya_Production_Tracker_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const generateAuditReport = () => {

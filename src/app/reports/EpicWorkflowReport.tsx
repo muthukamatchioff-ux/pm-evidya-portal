@@ -32,7 +32,9 @@ export default function EpicWorkflowReport({
   const videoEditorRecords: any[] = entry.videoEditorRecords || [];
   const animationRecords: any[] = entry.animationRecords || [];
   const finalVideoRecords: any[] = entry.finalVideoRecords || [];
+  const libraryVideos: any[] = entry.videoLibraries || [];
   const primaryFinalVideo = finalVideoRecords[0] || null;
+  const primaryLibraryVideo = libraryVideos[0] || null;
 
   // Timeline stage computations (Strictly matching actual record data)
   // Stage 1: Shooting
@@ -53,12 +55,14 @@ export default function EpicWorkflowReport({
     ? (animationRecord.status === 'COMPLETED' ? 'Completed' : (animationRecord.status || 'Not Started'))
     : 'No Record';
 
-  // Stage 4: Final Video / Telecast
-  const finalStageStatus = primaryFinalVideo
-    ? (primaryFinalVideo.telecastStatus === 'TELECASTED'
-        ? 'Telecasted'
-        : (primaryFinalVideo.finalVideoStatus === 'APPROVED' ? 'Approved' : (primaryFinalVideo.finalVideoStatus || 'Pending')))
-    : 'No Record';
+  // Stage 4: Final Video / Telecast / Deliverable
+  const finalStageStatus = primaryLibraryVideo
+    ? 'Delivered (Catalogued)'
+    : (primaryFinalVideo
+        ? (primaryFinalVideo.telecastStatus === 'TELECASTED'
+            ? 'Telecasted'
+            : (primaryFinalVideo.finalVideoStatus === 'APPROVED' ? 'Approved' : (primaryFinalVideo.finalVideoStatus || 'Pending Delivery')))
+        : 'Pending Delivery');
 
   const getStatusBadgeStyle = (status: string) => {
     const s = (status || '').toUpperCase();
@@ -368,9 +372,9 @@ export default function EpicWorkflowReport({
                 <tr style={{ background: '#0f2942', color: '#ffffff' }}>
                   <th style={{ padding: '10px 12px', textAlign: 'left' }}>Sl.</th>
                   <th style={{ padding: '10px 12px', textAlign: 'left' }}>Video Title</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Shoot Date</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Prod Start Date</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Prod End Date</th>
                   <th style={{ padding: '10px 12px', textAlign: 'left' }}>Location</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Type</th>
                   <th style={{ padding: '10px 12px', textAlign: 'left' }}>Cameraman</th>
                   <th style={{ padding: '10px 12px', textAlign: 'center' }}>Status</th>
                   <th style={{ padding: '10px 12px', textAlign: 'left' }}>Production Notes</th>
@@ -381,9 +385,9 @@ export default function EpicWorkflowReport({
                   <tr key={s.id} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{idx + 1}</td>
                     <td style={{ padding: '10px 12px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }}>{s.videoTitle}</td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{s.shootDate ? new Date(s.shootDate).toLocaleDateString('en-IN') : '-'}</td>
+                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{s.scheduledStart ? new Date(s.scheduledStart).toLocaleDateString('en-IN') : (s.shootDate ? new Date(s.shootDate).toLocaleDateString('en-IN') : '-')}</td>
+                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{s.scheduledEnd ? new Date(s.scheduledEnd).toLocaleDateString('en-IN') : '-'}</td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{s.location || '-'}</td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{s.shootingType || '-'}</td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{s.cameraman || '-'}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
                       <span style={{ padding: '2px 8px', borderRadius: '8px', fontWeight: 700, fontSize: '11px', ...getStatusBadgeStyle(s.status) }}>
@@ -419,7 +423,8 @@ export default function EpicWorkflowReport({
                   <th style={{ padding: '10px 12px', textAlign: 'left' }}>Sl.</th>
                   <th style={{ padding: '10px 12px', textAlign: 'left' }}>Editor Name</th>
                   <th style={{ padding: '10px 12px', textAlign: 'left' }}>Assigned Video</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Start Date</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Post-Prod Start Date</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Post-Prod End Date</th>
                   <th style={{ padding: '10px 12px', textAlign: 'left' }}>Duration</th>
                   <th style={{ padding: '10px 12px', textAlign: 'center' }}>Status</th>
                   <th style={{ padding: '10px 12px', textAlign: 'left' }}>Rough Cut</th>
@@ -434,6 +439,7 @@ export default function EpicWorkflowReport({
                     <td style={{ padding: '10px 12px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }}>{e.editorName || '-'}</td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{e.assignedVideo || '-'}</td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{e.editingStartDate ? new Date(e.editingStartDate).toLocaleDateString('en-IN') : '-'}</td>
+                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{e.editingEndDate ? new Date(e.editingEndDate).toLocaleDateString('en-IN') : '-'}</td>
                     <td style={{ padding: '10px 12px', fontWeight: 700, borderBottom: '1px solid #e2e8f0' }}>{e.duration || '-'}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
                       <span style={{ padding: '2px 8px', borderRadius: '8px', fontWeight: 700, fontSize: '11px', ...getStatusBadgeStyle(e.status) }}>
@@ -503,60 +509,93 @@ export default function EpicWorkflowReport({
         )}
       </div>
 
-      {/* SECTION 7: FINAL VIDEO & TELECAST DETAILS */}
+      {/* SECTION 7: FINAL VIDEO DELIVERABLE & TELECAST DETAILS */}
       <div style={{ padding: '0 32px 24px 32px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
           <span style={{ fontSize: '16px' }}>📺</span>
           <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
-            Final Video & Telecast Details
+            Final Video Deliverable & Video Content Library Link
           </h3>
         </div>
-        {!primaryFinalVideo ? (
-          <div style={{ padding: '16px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '8px', color: '#64748b', fontSize: '13px' }}>
-            No final video or telecast records created for this Epic ID yet.
-          </div>
-        ) : (
-          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '18px 20px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-              <div>
-                <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Final Video File</span>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{primaryFinalVideo.finalVideoFile || 'Pending Render'}</div>
+
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '18px 20px', marginBottom: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+            {/* Library Link */}
+            <div>
+              <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Authoritative Library Video</span>
+              <div style={{ marginTop: '4px' }}>
+                {primaryLibraryVideo?.videoLink ? (
+                  <a 
+                    href={primaryLibraryVideo.videoLink} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    style={{ fontSize: '13px', fontWeight: 700, color: '#0284c7', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <span>🔗</span> Watch Final Video
+                  </a>
+                ) : (
+                  <span style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic' }}>Pending Delivery in Library</span>
+                )}
               </div>
-              <div>
-                <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Duration</span>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: '#0284c7', marginTop: '2px' }}>{primaryFinalVideo.finalDuration || '-'}</div>
+              <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
+                Title: {primaryLibraryVideo?.title || entry.topic || 'PM e-Vidya Video'}
               </div>
-              <div>
-                <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Final Approval</span>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#059669', marginTop: '2px' }}>{primaryFinalVideo.finalApproval || 'Pending Approval'}</div>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>
-                  {primaryFinalVideo.approvalDate ? new Date(primaryFinalVideo.approvalDate).toLocaleDateString('en-IN') : ''}
-                </div>
+            </div>
+
+            {/* Duration */}
+            <div>
+              <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Final Duration</span>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: '#0284c7', marginTop: '4px' }}>
+                {primaryLibraryVideo?.duration || primaryFinalVideo?.finalDuration || '-'}
               </div>
-              <div>
-                <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Telecast Status</span>
-                <div style={{ marginTop: '3px' }}>
-                  <span style={{ padding: '2px 8px', borderRadius: '8px', fontWeight: 700, fontSize: '11px', ...getStatusBadgeStyle(primaryFinalVideo.telecastStatus) }}>
-                    {primaryFinalVideo.telecastStatus || 'PENDING'}
-                  </span>
-                </div>
+            </div>
+
+            {/* Delivery Date */}
+            <div>
+              <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Delivery Date</span>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a', marginTop: '4px' }}>
+                {primaryLibraryVideo?.createdAt 
+                  ? new Date(primaryLibraryVideo.createdAt).toLocaleDateString('en-IN')
+                  : (primaryFinalVideo?.approvalDate ? new Date(primaryFinalVideo.approvalDate).toLocaleDateString('en-IN') : 'Pending')}
               </div>
-              <div>
-                <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Telecast Channel & Episode</span>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>
-                  {primaryFinalVideo.telecastChannel || 'Not Broadcast Yet'} {primaryFinalVideo.telecastEpisode ? `(Ep: ${primaryFinalVideo.telecastEpisode})` : ''}
-                </div>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>
-                  {primaryFinalVideo.telecastDate ? new Date(primaryFinalVideo.telecastDate).toLocaleDateString('en-IN') : ''}
-                </div>
+            </div>
+
+            {/* Delivery Status */}
+            <div>
+              <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Delivery Status</span>
+              <div style={{ marginTop: '4px' }}>
+                <span style={{
+                  padding: '3px 10px',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '11px',
+                  ...getStatusBadgeStyle(primaryLibraryVideo ? 'COMPLETED' : (primaryFinalVideo?.finalVideoStatus || 'PENDING'))
+                }}>
+                  {primaryLibraryVideo ? 'DELIVERED & CATALOGUED' : (primaryFinalVideo?.finalVideoStatus || 'PENDING DELIVERY')}
+                </span>
               </div>
-              <div>
-                <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Review Remarks</span>
-                <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>{primaryFinalVideo.remarks || primaryFinalVideo.telecastRemarks || '-'}</div>
+            </div>
+
+            {/* Telecast Details */}
+            <div>
+              <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Telecast Channel & Episode</span>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', marginTop: '4px' }}>
+                {primaryFinalVideo?.telecastChannel || 'Not Broadcast Yet'} {primaryFinalVideo?.telecastEpisode ? `(Ep: ${primaryFinalVideo.telecastEpisode})` : ''}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                {primaryFinalVideo?.telecastDate ? new Date(primaryFinalVideo.telecastDate).toLocaleDateString('en-IN') : ''}
+              </div>
+            </div>
+
+            {/* Remarks */}
+            <div>
+              <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Remarks</span>
+              <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px' }}>
+                {primaryFinalVideo?.remarks || primaryFinalVideo?.telecastRemarks || '-'}
               </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* SECTION 8: DOCUMENTS & SUPPORTING FILES TABLE */}

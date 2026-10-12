@@ -5,54 +5,119 @@
   width: 100%;
 }
 
-/* Summary Cards */
+/* 4 Summary KPI Cards */
 .summaryGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 8px;
 }
 
 .summaryCard {
-  background: white;
+  background: #ffffff;
   border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
   border: 1px solid #e2e8f0;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  text-align: center;
+  gap: 16px;
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .summaryCard:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+}
+
+.summaryIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.summaryContent {
+  display: flex;
+  flex-direction: column;
 }
 
 .summaryNumber {
-  font-size: 32px;
+  font-size: 26px;
   font-weight: 800;
   color: #0f172a;
-  margin-bottom: 8px;
+  line-height: 1.2;
 }
 
 .summaryLabel {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #64748b;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
 }
 
-/* Master List */
+/* Workflow Stage Indicator Tabs */
+.workflowTabs {
+  display: flex;
+  gap: 12px;
+  background: #f1f5f9;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  overflow-x: auto;
+}
+
+.workflowTabBtn {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: transparent;
+  color: #475569;
+}
+
+.workflowTabBtnActive {
+  background: #ffffff;
+  color: #0284c7;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+  border: 1px solid #bae6fd;
+}
+
+.workflowTabBadge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 800;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.workflowTabBtnActive .workflowTabBadge {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+/* Content Cards & Forms */
 .card {
-  background: white;
+  background: #ffffff;
   border-radius: 12px;
   padding: 24px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   border: 1px solid #e2e8f0;
 }
 
@@ -65,349 +130,272 @@
   gap: 16px;
 }
 
+.cardTitle {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f2942;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .searchBox {
   padding: 10px 16px;
   border-radius: 8px;
   border: 1px solid #cbd5e1;
   font-size: 14px;
-  min-width: 300px;
+  min-width: 280px;
   flex: 1;
+  max-width: 400px;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .searchBox:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
 }
 
+.createForm {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  background: #f8fafc;
+  padding: 20px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 24px;
+}
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.formLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.formInput, .formSelect {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-size: 14px;
+  background: #ffffff;
+  color: #0f172a;
+  transition: border-color 0.2s;
+}
+
+.formInput:focus, .formSelect:focus {
+  outline: none;
+  border-color: #0284c7;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+}
+
+.formInputReadOnly {
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+/* Tables */
 .tableContainer {
   overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
 }
 
 .table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
+  border-collapse: collapse;
+  font-size: 13px;
 }
 
 .table th {
-  background: #f8fafc;
-  padding: 16px;
+  background: #0f2942;
+  color: #ffffff;
+  padding: 12px 16px;
   text-align: left;
-  font-size: 13px;
-  font-weight: 600;
-  color: #475569;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 2px solid #e2e8f0;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .table td {
-  padding: 16px;
-  font-size: 14px;
-  color: #334155;
+  padding: 14px 16px;
+  color: #1e293b;
   border-bottom: 1px solid #e2e8f0;
   vertical-align: middle;
 }
 
-.table tr {
-  transition: background-color 0.2s;
-  cursor: pointer;
+.table tbody tr:nth-child(even) {
+  background-color: #f8fafc;
 }
 
-.table tr:hover {
-  background-color: #f1f5f9;
+.table tbody tr:hover {
+  background-color: #f0f9ff;
 }
 
+/* Badges */
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 4px 12px;
-  border-radius: 9999px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.badgeCompleted { background: #dcfce7; color: #166534; }
-.badgeProgress { background: #fef9c3; color: #854d0e; }
-.badgePending { background: #f1f5f9; color: #475569; }
-.badgeReview { background: #dbeafe; color: #1e40af; }
-.badgeReshoot { background: #fee2e2; color: #991b1b; }
-
-/* Workflow Detail */
-.workflowContainer {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.workflowHeader {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.backBtn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: #64748b;
-  transition: color 0.2s;
-}
-
-.backBtn:hover {
-  color: #0f172a;
-}
-
-.epicTitle {
-  font-size: 24px;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0;
-}
-
-.epicSme {
-  font-size: 16px;
-  color: #64748b;
-  margin: 0;
-}
-
-.workflowStages {
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  gap: 24px;
-  padding-left: 20px;
-}
-
-.workflowStages::before {
-  content: '';
-  position: absolute;
-  left: 28px;
-  top: 10px;
-  bottom: 10px;
-  width: 2px;
-  background: #e2e8f0;
-  z-index: 1;
-}
-
-.stageCard {
-  position: relative;
-  background: white;
+  padding: 4px 10px;
   border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  border: 1px solid #e2e8f0;
-  margin-left: 32px;
-  z-index: 2;
-}
-
-.stageIcon {
-  position: absolute;
-  left: -48px;
-  top: 24px;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: white;
-  border: 2px solid #cbd5e1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  z-index: 3;
-}
-
-.stageCompleted .stageIcon {
-  border-color: #10b981;
-  background: #10b981;
-  color: white;
-}
-
-.stageInProgress .stageIcon {
-  border-color: #f59e0b;
-  background: #f59e0b;
-  color: white;
-}
-
-.stageHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  border-bottom: 1px solid #f1f5f9;
-  padding-bottom: 12px;
-}
-
-.stageTitle {
-  font-size: 18px;
+  font-size: 11px;
   font-weight: 700;
-  color: #1e293b;
-  margin: 0;
-}
-
-.stageContent {
-  font-size: 14px;
-  color: #475569;
-}
-
-.grid2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.infoGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.infoLabel {
-  font-size: 12px;
   text-transform: uppercase;
-  color: #94a3b8;
-  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
-.infoValue {
-  font-size: 14px;
-  color: #0f172a;
-  font-weight: 500;
-}
+.badgeCompleted { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+.badgeProgress { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+.badgePending { background: #fefce8; color: #854d0e; border: 1px solid #fef08a; }
+.badgeReview { background: #ede9fe; color: #5b21b6; border: 1px solid #ddd6fe; }
+.badgeReshoot { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 
+/* Buttons */
 .btnPrimary {
-  background: #3b82f6;
+  background: #0284c7;
   color: white;
   border: none;
-  padding: 8px 16px;
+  padding: 9px 18px;
   border-radius: 6px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
   transition: background 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .btnPrimary:hover {
-  background: #2563eb;
+  background: #0369a1;
 }
 
-.modalOverlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal {
-  background: white;
-  border-radius: 12px;
-  padding: 32px;
-  width: 100%;
-  max-width: 600px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.formGroup {
-  margin-bottom: 16px;
-}
-
-.formGroup label {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
-  color: #334155;
-  margin-bottom: 8px;
-}
-
-.formGroup input, .formGroup select, .formGroup textarea {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-.modalActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
-}
-
-.btnCancel {
+.btnSecondary {
   background: #f1f5f9;
-  color: #475569;
-  border: none;
-  padding: 10px 20px;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  padding: 8px 16px;
   border-radius: 6px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s;
 }
 
-.btnSave {
+.btnSecondary:hover {
+  background: #e2e8f0;
+}
+
+.btnEdit {
+  background: #f8fafc;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnEdit:hover {
+  background: #e0f2fe;
+}
+
+.btnSuccess {
   background: #10b981;
   color: white;
   border: none;
-  padding: 10px 20px;
+  padding: 6px 12px;
   border-radius: 6px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
 }
 
-.mobileCards {
-  display: none;
+.btnDanger {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
+/* Alerts */
+.errorAlert {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.successAlert {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Library Deliverable Card */
+.deliverableCard {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+  transition: all 0.2s;
+}
+
+.deliverableCard:hover {
+  border-color: #0284c7;
+  box-shadow: 0 4px 10px rgba(2, 132, 199, 0.08);
+}
+
+.deliverableGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* Responsive */
 @media (max-width: 768px) {
-  .tableContainer {
-    display: none;
+  .summaryGrid {
+    grid-template-columns: 1fr 1fr;
   }
-  
-  .mobileCards {
-    display: flex;
+  .workflowTabs {
     flex-direction: column;
-    gap: 16px;
   }
-  
-  .mobileCard {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  .createForm {
+    grid-template-columns: 1fr;
   }
-  
-  .workflowStages::before {
-    left: 16px;
-  }
-  
-  .stageCard {
-    margin-left: 20px;
-    padding: 16px;
-  }
-  
-  .stageIcon {
-    left: -36px;
-    width: 24px;
-    height: 24px;
-    font-size: 12px;
-  }
-  
-  .grid2 {
+}
+
+@media (max-width: 480px) {
+  .summaryGrid {
     grid-template-columns: 1fr;
   }
 }
