@@ -234,3 +234,49 @@ export async function updateFinalVideoRecord(id: string, data: any, workEntryId:
     return { success: false, error: error.message };
   }
 }
+
+export async function deleteShootingSchedule(id: string) {
+  const auth = await checkAuth(['ADMIN']);
+  if (!auth.success) return auth;
+
+  try {
+    await prisma.shootingSchedule.delete({
+      where: { id }
+    });
+    revalidatePath('/video-production');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function deleteVideoEditorRecord(id: string) {
+  const auth = await checkAuth(['ADMIN']);
+  if (!auth.success) return auth;
+
+  try {
+    await prisma.videoEditorRecord.delete({
+      where: { id }
+    });
+    revalidatePath('/video-production');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function deleteFinalVideoRecord(id: string) {
+  const auth = await checkAuth(['ADMIN']);
+  if (!auth.success) return auth;
+
+  try {
+    await prisma.finalVideoRecord.delete({
+      where: { id }
+    });
+    revalidatePath('/video-production');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+

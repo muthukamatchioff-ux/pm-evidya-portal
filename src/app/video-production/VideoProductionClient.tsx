@@ -7,9 +7,12 @@ import {
   getTopicProductionRecords, 
   createShootingSchedule,
   updateShootingSchedule,
+  deleteShootingSchedule,
   updateVideoEditorRecord,
+  deleteVideoEditorRecord,
   updateAnimationRecord,
-  updateFinalVideoRecord
+  updateFinalVideoRecord,
+  deleteFinalVideoRecord
 } from './actions';
 
 export default function VideoProductionClient({ initialRecords = [], role = 'VIEWER' }: any) {
@@ -167,6 +170,51 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       if (updatedList.success) setWorkEntries(updatedList.data || []);
     } else {
       setError(res.error || 'Failed to update deliverable status.');
+    }
+    setLoading(false);
+  };
+
+  const handleDeleteStage1 = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this Production Shoot record? This action cannot be undone.')) return;
+    setLoading(true);
+    setError(null);
+    const res = await deleteShootingSchedule(id);
+    if (res.success) {
+      setSuccess('Production Shoot record deleted successfully.');
+      const updatedList = await getTopicProductionRecords();
+      if (updatedList.success) setWorkEntries(updatedList.data || []);
+    } else {
+      setError(res.error || 'Failed to delete production record.');
+    }
+    setLoading(false);
+  };
+
+  const handleDeleteEditor = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this Post-Production record? This action cannot be undone.')) return;
+    setLoading(true);
+    setError(null);
+    const res = await deleteVideoEditorRecord(id);
+    if (res.success) {
+      setSuccess('Post-Production record deleted successfully.');
+      const updatedList = await getTopicProductionRecords();
+      if (updatedList.success) setWorkEntries(updatedList.data || []);
+    } else {
+      setError(res.error || 'Failed to delete editor record.');
+    }
+    setLoading(false);
+  };
+
+  const handleDeleteFinal = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this Final Deliverable record?')) return;
+    setLoading(true);
+    setError(null);
+    const res = await deleteFinalVideoRecord(id);
+    if (res.success) {
+      setSuccess('Final deliverable record deleted successfully.');
+      const updatedList = await getTopicProductionRecords();
+      if (updatedList.success) setWorkEntries(updatedList.data || []);
+    } else {
+      setError(res.error || 'Failed to delete deliverable record.');
     }
     setLoading(false);
   };
@@ -377,7 +425,8 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                     schedule={schedule} 
                     entry={entry} 
                     role={role} 
-                    onUpdate={handleStage1Update} 
+                    onUpdate={handleStage1Update}
+                    onDelete={handleDeleteStage1}
                   />
                 )))}
                 {filteredEntries.filter(e => e.shootingSchedules && e.shootingSchedules.length > 0).length === 0 && (
@@ -441,6 +490,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                       role={role} 
                       onUpdateEditor={handleEditorUpdate} 
                       onUpdateAnimator={handleAnimationUpdate}
+                      onDeleteEditor={handleDeleteEditor}
                     />
                   );
                 })}
@@ -502,6 +552,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                       finalRec={finalRec}
                       role={role}
                       onUpdateFinal={handleFinalUpdate}
+                      onDeleteFinal={handleDeleteFinal}
                     />
                   );
                 })}
@@ -522,7 +573,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
 }
 
 /* STAGE 1: EDIT / DISPLAY ROW */
-function Stage1Row({ schedule, entry, role, onUpdate }: any) {
+function Stage1Row({ schedule, entry, role, onUpdate, onDelete }: any) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     videoTitle: '',
@@ -596,9 +647,14 @@ function Stage1Row({ schedule, entry, role, onUpdate }: any) {
           {schedule.productionNotes || '-'}
         </td>
         <td>
-          {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
-            <button className={styles.btnEdit} onClick={handleEditClick}>Edit</button>
-          )}
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+              <button className={styles.btnEdit} onClick={handleEditClick}>Edit</button>
+            )}
+            {role === 'ADMIN' && (
+              <button className={styles.btnDanger} onClick={() => onDelete(schedule.id)}>Delete</button>
+            )}
+          </div>
         </td>
       </tr>
     );
@@ -684,7 +740,7 @@ function Stage1Row({ schedule, entry, role, onUpdate }: any) {
 }
 
 /* STAGE 2: EDIT / DISPLAY ROW */
-function Stage2Row({ entry, schedule, editorRec, animatorRec, role, onUpdateEditor, onUpdateAnimator }: any) {
+function Stage2Row({ entry, schedule, editorRec, animatorRec, role, onUpdateEditor, onUpdateAnimator, onDeleteEditor }: any) {
   const [isEditing, setIsEditing] = useState(false);
   
   const [editorData, setEditorData] = useState({
@@ -818,9 +874,14 @@ function Stage2Row({ entry, schedule, editorRec, animatorRec, role, onUpdateEdit
           </span>
         </td>
         <td>
-          {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
-            <button className={styles.btnEdit} onClick={handleEditClick}>Edit</button>
-          )}
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+              <button className={styles.btnEdit} onClick={handleEditClick}>Edit</button>
+            )}
+            {role === 'ADMIN' && editorRec.id && (
+              <button className={styles.btnDanger} onClick={() => onDeleteEditor(editorRec.id)}>Delete</button>
+            )}
+          </div>
         </td>
       </tr>
     );
@@ -942,7 +1003,7 @@ function Stage2Row({ entry, schedule, editorRec, animatorRec, role, onUpdateEdit
 }
 
 /* STAGE 3: FINAL VIDEO DELIVERABLE ROW */
-function Stage3Row({ entry, libraryVideo, finalRec, role, onUpdateFinal }: any) {
+function Stage3Row({ entry, libraryVideo, finalRec, role, onUpdateFinal, onDeleteFinal }: any) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     finalVideoStatus: '',
@@ -1029,9 +1090,14 @@ function Stage3Row({ entry, libraryVideo, finalRec, role, onUpdateFinal }: any) 
           </span>
         </td>
         <td>
-          {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
-            <button className={styles.btnEdit} onClick={handleEditClick}>Update</button>
-          )}
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+              <button className={styles.btnEdit} onClick={handleEditClick}>Edit</button>
+            )}
+            {role === 'ADMIN' && finalRec.id && (
+              <button className={styles.btnDanger} onClick={() => onDeleteFinal(finalRec.id)}>Delete</button>
+            )}
+          </div>
         </td>
       </tr>
     );
