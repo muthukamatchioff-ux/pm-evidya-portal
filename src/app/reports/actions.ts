@@ -86,5 +86,61 @@ export async function getComprehensiveReportData() {
     take: 1000
   });
 
-  return JSON.parse(JSON.stringify({ smes, production, auditLogs }));
+  const epicWorkEntries = await prisma.sMEWorkEntry.findMany({
+    include: {
+      sme: true,
+      documents: true,
+      payments: true,
+      shootingSchedules: true,
+      videoEditorRecords: true,
+      animationRecords: true,
+      finalVideoRecords: true,
+      videoLibraries: true,
+    },
+    orderBy: { epicSequence: 'asc' }
+  });
+
+  return JSON.parse(JSON.stringify({ smes, production, auditLogs, epicWorkEntries }));
 }
+
+export async function getEpicCompleteHistory(workEntryId: string) {
+  const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER']);
+  if (!authCheck.success) return { success: false, error: authCheck.error };
+  
+  try {
+    const workEntry = await prisma.sMEWorkEntry.findUnique({
+      where: { id: workEntryId },
+      include: {
+        sme: true,
+        documents: { orderBy: { createdAt: 'desc' } },
+        payments: { orderBy: { createdAt: 'desc' } },
+        shootingSchedules: { orderBy: { createdAt: 'asc' } },
+        videoEditorRecords: { orderBy: { createdAt: 'asc' } },
+        animationRecords: { orderBy: { createdAt: 'asc' } },
+        finalVideoRecords: { orderBy: { createdAt: 'asc' } },
+        videoLibraries: { orderBy: { createdAt: 'desc' } },
+      }
+    });
+
+    if (!workEntry) return { success: false, error: 'Epic record not found.' };
+
+    const auditLogs = await prisma.auditLog.findMany({
+      where: {
+        OR: [
+          { entityId: workEntry.id },
+          ...(workEntry.smeId ? [{ entityId: workEntry.smeId }] : [])
+        ]
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify({ workEntry, auditLogs }))
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to fetch Epic complete history.' };
+  }
+}
+

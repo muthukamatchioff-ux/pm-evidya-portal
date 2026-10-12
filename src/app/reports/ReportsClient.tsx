@@ -3,16 +3,77 @@
 import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { generateDocxReport } from './docxHelper';
+import { getEpicCompleteHistory } from './actions';
+import EpicWorkflowReport from './EpicWorkflowReport';
 import styles from '@/app/dashboard/dashboard.module.css';
 
 export default function ReportsClient({ components, comprehensiveData }: { components: any[], comprehensiveData?: any }) {
   const [selectedComponents, setSelectedComponents] = useState<string[]>([]);
-  const { smes = [], production = [], auditLogs = [] } = comprehensiveData || {};
+  const { smes = [], production = [], auditLogs = [], epicWorkEntries = [] } = comprehensiveData || {};
 
   const [isPrinting, setIsPrinting] = useState(false);
   const [isPrintingAnnexure, setIsPrintingAnnexure] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  // SME Epic Workflow Report States
+  const [selectedEpicId, setSelectedEpicId] = useState<string>('');
+  const [epicHistoryData, setEpicHistoryData] = useState<{ workEntry: any, auditLogs: any[] } | null>(null);
+  const [isEpicModalOpen, setIsEpicModalOpen] = useState(false);
+  const [isPrintingEpic, setIsPrintingEpic] = useState(false);
+  const [isLoadingEpic, setIsLoadingEpic] = useState(false);
+
   const getEpicId = (epicSequence: number) => `EPIC-2026-PMeVidya ${String(epicSequence).padStart(2, '0')}`;
+
+  // Genuine recorded Epic entries from database
+  const allEpicEntries: any[] = React.useMemo(() => {
+    if (epicWorkEntries && epicWorkEntries.length > 0) return epicWorkEntries;
+    return smes.flatMap((s: any) => (s.workEntries || []).map((w: any) => ({ ...w, sme: s })));
+  }, [epicWorkEntries, smes]);
+
+  const handleViewEpicReport = async (workEntryId: string) => {
+    if (!workEntryId) return alert('Please select an Epic ID first.');
+    setIsLoadingEpic(true);
+    try {
+      const cached = allEpicEntries.find(e => e.id === workEntryId);
+      const res = await getEpicCompleteHistory(workEntryId);
+      if (res && res.success && res.data) {
+        setEpicHistoryData(res.data);
+      } else if (cached) {
+        setEpicHistoryData({ workEntry: cached, auditLogs: [] });
+      } else {
+        alert(res?.error || 'Could not load Epic record.');
+        return;
+      }
+      setIsEpicModalOpen(true);
+    } catch (err: any) {
+      alert('Error loading Epic records: ' + (err.message || ''));
+    } finally {
+      setIsLoadingEpic(false);
+    }
+  };
+
+  const triggerPrintEpic = async (workEntryId: string) => {
+    if (!workEntryId) return alert('Please select an Epic ID first.');
+    setIsLoadingEpic(true);
+    try {
+      const cached = allEpicEntries.find(e => e.id === workEntryId);
+      const res = await getEpicCompleteHistory(workEntryId);
+      if (res && res.success && res.data) {
+        setEpicHistoryData(res.data);
+      } else if (cached) {
+        setEpicHistoryData({ workEntry: cached, auditLogs: [] });
+      }
+      setIsPrintingEpic(true);
+      setTimeout(() => {
+        window.print();
+        setIsPrintingEpic(false);
+      }, 500);
+    } catch (err: any) {
+      alert('Error preparing print view: ' + (err.message || ''));
+    } finally {
+      setIsLoadingEpic(false);
+    }
+  };
 
   const triggerPrint = () => {
     setIsPrinting(true);
@@ -194,6 +255,120 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
       
+      {/* SECTION 1: SME Epic Workflow Complete History Report Card (Prominent Top Banner) */}
+      <div className={styles.sectionCard} style={{ gridColumn: '1 / -1', border: '2px solid #0284c7', background: 'linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%)', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.08)' }}>
+        <div className={styles.sectionTitle} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '24px' }}>📑</span>
+            <span style={{ fontSize: '18px', fontWeight: 800, color: '#0f2942' }}>PM e-Vidya — SME Epic Complete History Report</span>
+          </div>
+          <span style={{ fontSize: '12px', fontWeight: 700, background: '#e0f2fe', color: '#0369a1', padding: '4px 12px', borderRadius: '12px', border: '1px solid #bae6fd' }}>
+            {allEpicEntries.length} Recorded Epic IDs
+          </span>
+        </div>
+        <p style={{ color: '#475569', marginBottom: '20px', fontSize: '14px' }}>
+          Select any existing Epic ID recorded in the system to generate a consolidated Power BI-style report with shooting schedules, editing stages, animation, telecast metrics, and verified documents.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+          {/* Epic ID Dropdown */}
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>
+              Select Recorded Epic ID:
+            </label>
+            <select
+              value={selectedEpicId}
+              onChange={(e) => setSelectedEpicId(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                border: '1.5px solid #0284c7',
+                fontSize: '14px',
+                background: '#ffffff',
+                color: '#0f172a',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              <option value="">-- Choose Recorded Epic ID ({allEpicEntries.length} Available) --</option>
+              {allEpicEntries.map(e => (
+                <option key={e.id} value={e.id}>
+                  {getEpicId(e.epicSequence)} — {e.sme?.name || 'SME'} — {e.trade || 'General'} ({e.status || 'PENDING'})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Quick Details of Selected Epic ID */}
+          {selectedEpicId && (() => {
+            const selectedEntry = allEpicEntries.find(e => e.id === selectedEpicId);
+            if (!selectedEntry) return null;
+            return (
+              <div style={{
+                background: '#ffffff',
+                border: '1px solid #bae6fd',
+                borderRadius: '8px',
+                padding: '10px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                gap: '4px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontWeight: 800, color: '#0369a1', fontSize: '13px' }}>
+                    {getEpicId(selectedEntry.epicSequence)}
+                  </span>
+                  <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '10px', background: '#ecfdf5', color: '#065f46' }}>
+                    {selectedEntry.status || 'PENDING'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '12px', color: '#1e293b', fontWeight: 600 }}>
+                  {selectedEntry.sme?.name} • {selectedEntry.sme?.institute || 'NIMI'}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  Topic: {selectedEntry.topic || '-'}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <button
+            className={styles.btnAction}
+            style={{
+              flex: 1,
+              minWidth: '200px',
+              justifyContent: 'center',
+              backgroundColor: selectedEpicId ? '#0284c7' : '#94a3b8',
+              color: 'white',
+              cursor: selectedEpicId ? 'pointer' : 'not-allowed'
+            }}
+            onClick={() => handleViewEpicReport(selectedEpicId)}
+            disabled={!selectedEpicId || isLoadingEpic}
+          >
+            <span>👁️</span> {isLoadingEpic ? 'Loading Records...' : 'Generate & View Epic Report'}
+          </button>
+          <button
+            className={styles.btnAction}
+            style={{
+              flex: 1,
+              minWidth: '200px',
+              justifyContent: 'center',
+              backgroundColor: selectedEpicId ? '#f59e0b' : '#cbd5e1',
+              color: 'white',
+              cursor: selectedEpicId ? 'pointer' : 'not-allowed'
+            }}
+            onClick={() => triggerPrintEpic(selectedEpicId)}
+            disabled={!selectedEpicId || isLoadingEpic}
+          >
+            <span>🖨️</span> Print Epic Report (PDF)
+          </button>
+        </div>
+      </div>
+
       {/* Overall Report Card */}
       <div className={styles.sectionCard}>
         <div className={styles.sectionTitle}>
@@ -354,7 +529,8 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
           body * { visibility: hidden !important; }
           #printable-dashboard, #printable-dashboard * { visibility: visible !important; }
           #printable-annexures, #printable-annexures * { visibility: visible !important; }
-          #printable-dashboard, #printable-annexures { 
+          #printable-epic-report, #printable-epic-report * { visibility: visible !important; }
+          #printable-dashboard, #printable-annexures, #printable-epic-report { 
             position: absolute !important; 
             left: 0 !important; 
             top: 0 !important; 
@@ -923,6 +1099,105 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
             </div>
           );
         })}
+      </div>
+
+      {/* Modal Preview of Epic Workflow Report */}
+      {isEpicModalOpen && epicHistoryData?.workEntry && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9999,
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          overflowY: 'auto'
+        }} onClick={() => setIsEpicModalOpen(false)}>
+          <div 
+            style={{ 
+              maxWidth: '1200px', 
+              width: '100%', 
+              maxHeight: '92vh', 
+              overflowY: 'auto',
+              background: '#ffffff', 
+              borderRadius: '18px', 
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              padding: '8px'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Action Bar */}
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              padding: '12px 20px',
+              borderBottom: '1px solid #e2e8f0',
+              background: '#f8fafc',
+              borderRadius: '12px 12px 0 0'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '20px' }}>📑</span>
+                <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>
+                  PM e-Vidya — SME Epic Workflow Report ({getEpicId(epicHistoryData.workEntry.epicSequence)})
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button 
+                  onClick={() => triggerPrintEpic(epicHistoryData.workEntry.id)} 
+                  style={{ 
+                    padding: '8px 16px', 
+                    background: '#f59e0b', 
+                    color: '#ffffff', 
+                    border: 'none', 
+                    borderRadius: '8px', 
+                    fontWeight: 700, 
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  🖨️ Print / Save as PDF
+                </button>
+                <button 
+                  onClick={() => setIsEpicModalOpen(false)} 
+                  style={{ 
+                    padding: '8px 16px', 
+                    background: '#64748b', 
+                    color: '#ffffff', 
+                    border: 'none', 
+                    borderRadius: '8px', 
+                    fontWeight: 700, 
+                    cursor: 'pointer' 
+                  }}
+                >
+                  ✕ Close
+                </button>
+              </div>
+            </div>
+            
+            <div style={{ padding: '16px' }}>
+              <EpicWorkflowReport 
+                entry={epicHistoryData.workEntry} 
+                auditLogs={epicHistoryData.auditLogs} 
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Printable Epic Report Container (Targeted by @media print) */}
+      <div id="printable-epic-report" style={{ display: isPrintingEpic ? 'block' : 'none', background: 'white' }}>
+        {epicHistoryData?.workEntry && (
+          <EpicWorkflowReport 
+            entry={epicHistoryData.workEntry} 
+            auditLogs={epicHistoryData.auditLogs} 
+            isPrintOnly={true}
+          />
+        )}
       </div>
     </div>
   );
