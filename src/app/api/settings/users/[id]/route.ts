@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getRole, checkAuth, getEmail } from '@/lib/auth';
+import { logAudit } from '@/lib/audit';
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -48,14 +49,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     });
     
     const actorEmail = await getEmail();
-    await prisma.auditLog.create({
-      data: {
-        action: 'UPDATE_USER_STATUS',
-        entity: 'User',
-        entityId: id,
-        newData: `Changed status to ${status}`,
-        userId: actorEmail
-      }
+    await logAudit({
+      action: 'UPDATE_USER_STATUS',
+      entity: 'User',
+      entityId: id,
+      newData: `Changed status to ${status}`,
+      userEmail: actorEmail
     });
 
     return NextResponse.json(updatedUser);

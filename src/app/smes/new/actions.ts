@@ -2,7 +2,8 @@
 
 import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
-import { requireAuth, checkAuth } from '@/lib/auth';
+import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
+import { logAudit } from '@/lib/audit';
 
 export async function createSMEWithEntry(formData: FormData) {
   const authCheck = await checkAuth(['ADMIN']);
@@ -63,13 +64,13 @@ export async function createSMEWithEntry(formData: FormData) {
       } as any
     });
 
-    await prisma.auditLog.create({
-      data: {
-        action: 'CREATE',
-        entity: 'SME',
-        entityId: newSme.id,
-        newData: `Created SME ${name} with initial Work Entry`,
-      }
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'CREATE',
+      entity: 'SME',
+      entityId: newSme.id,
+      newData: `Created SME ${name} with initial Work Entry`,
+      userEmail
     });
 
   } catch (error) {

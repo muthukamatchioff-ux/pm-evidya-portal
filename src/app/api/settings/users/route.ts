@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { getRole, checkAuth, getEmail } from '@/lib/auth';
+import { logAudit } from '@/lib/audit';
 
 export async function GET() {
   try {
@@ -88,14 +89,12 @@ export async function POST(request: Request) {
       }
     });
     
-    await prisma.auditLog.create({
-      data: {
-        action: 'CREATE_USER',
-        entity: 'User',
-        entityId: newUser.id,
-        newData: `Created user ${newUser.email} with role ${newUser.role}`,
-        userId: creatorEmail
-      }
+    await logAudit({
+      action: 'CREATE_USER',
+      entity: 'User',
+      entityId: newUser.id,
+      newData: `Created user ${newUser.email} with role ${newUser.role}`,
+      userEmail: creatorEmail
     });
 
     return NextResponse.json(newUser, { status: 201 });

@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 
 const ADMIN_EMAILS = [
   'muthukamatchi.off@gmail.com',
+  'harshitharaman.nimi@gmail.com',
   'harshitharamannimi@gmail.com'
 ];
 
@@ -44,23 +45,26 @@ export async function login(email: string, password: string): Promise<{ success:
     });
 
     if (dbUser && (dbUser.role === 'ADMIN' || dbUser.role === 'TEAM_MEMBER' || dbUser.role === 'VIEWER')) {
-      if (dbUser.status !== 'ACTIVE') {
+      if (dbUser.status !== 'ACTIVE' && !isAdminEmail(normalizedEmail)) {
         return { success: false, error: 'Account is deactivated.' };
       }
       // If DB user has a password, verify against it
       if (dbUser.password) {
         const passwordValid = await bcrypt.compare(password, dbUser.password);
         if (passwordValid) {
-          // Update lastLogin on successful login
+          // Update lastLogin and ensure ACTIVE on successful login
           try {
             await prisma.user.update({
               where: { id: dbUser.id },
-              data: { lastLogin: new Date() }
+              data: { 
+                lastLogin: new Date(),
+                ...(isAdminEmail(normalizedEmail) ? { status: 'ACTIVE', role: 'ADMIN' } : {})
+              }
             });
           } catch(e) {
             console.warn('Could not update last login', e);
           }
-          return await createSession(normalizedEmail, dbUser.role);
+          return await createSession(normalizedEmail, isAdminEmail(normalizedEmail) ? 'ADMIN' : dbUser.role);
         }
         // If DB password check fails, and it's NOT an admin email, return immediately.
         // If it IS an admin email, we let it fall through to check the .env fallback.
@@ -109,11 +113,14 @@ export async function login(email: string, password: string): Promise<{ success:
     try {
       await prisma.user.upsert({
         where: { email: normalizedEmail },
-        update: { role: 'ADMIN' },
+        update: { role: 'ADMIN', status: 'ACTIVE', lastLogin: new Date(), password: finalHash },
         create: {
           email: normalizedEmail,
           role: 'ADMIN',
-          name: normalizedEmail.split('@')[0]
+          status: 'ACTIVE',
+          name: normalizedEmail.split('@')[0],
+          password: finalHash,
+          lastLogin: new Date()
         }
       });
     } catch (e) {

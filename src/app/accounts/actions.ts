@@ -2,7 +2,8 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { requireAuth, checkAuth } from '@/lib/auth';
+import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
+import { logAudit } from '@/lib/audit';
 
 export async function updatePaymentStatus(paymentId: string, status: string, utrNumber?: string, remarks?: string) {
   try {
@@ -23,14 +24,14 @@ export async function updatePaymentStatus(paymentId: string, status: string, utr
       data: updateData
     });
 
-    await prisma.auditLog.create({
-      data: {
-        action: 'UPDATE',
-        entity: 'Payment',
-        entityId: paymentId,
-        previousData: JSON.stringify(previous),
-        newData: JSON.stringify(updateData),
-      }
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'UPDATE',
+      entity: 'Payment',
+      entityId: paymentId,
+      previousData: JSON.stringify(previous),
+      newData: JSON.stringify(updateData),
+      userEmail
     });
 
     revalidatePath('/accounts');

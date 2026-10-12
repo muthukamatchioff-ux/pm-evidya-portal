@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { storage } from '@/lib/storage';
 import { revalidatePath } from 'next/cache';
 import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
+import { logAudit } from '@/lib/audit';
 
 export async function uploadDocument(
   smeId: string, 
@@ -68,14 +69,12 @@ export async function uploadDocument(
     const userEmail = await getEmail();
     
     // Audit log
-    await prisma.auditLog.create({
-      data: {
-        action: existing ? 'REPLACE_DOCUMENT' : 'UPLOAD_DOCUMENT',
-        entity: 'Document',
-        entityId: savedDoc.id,
-        newData: `Uploaded file: ${file.name}`,
-        userId: userEmail
-      }
+    await logAudit({
+      action: existing ? 'REPLACE_DOCUMENT' : 'UPLOAD_DOCUMENT',
+      entity: 'Document',
+      entityId: savedDoc.id,
+      newData: `Uploaded file: ${file.name}`,
+      userEmail
     });
 
     revalidatePath(`/smes/${smeId}`);
@@ -135,14 +134,12 @@ export async function updateSMERecord(smeId: string, entryId: string | undefined
     }
     
     const userEmail = await getEmail();
-    await prisma.auditLog.create({
-      data: {
-        action: 'UPDATE_SME_RECORD',
-        entity: 'SME',
-        entityId: smeId,
-        newData: `Updated SME ${data.smeName} and Entry ${entryId || 'none'}`,
-        userId: userEmail
-      }
+    await logAudit({
+      action: 'UPDATE_SME_RECORD',
+      entity: 'SME',
+      entityId: smeId,
+      newData: `Updated SME ${data.smeName} and Entry ${entryId || 'none'}`,
+      userEmail
     });
 
     revalidatePath('/smes');
