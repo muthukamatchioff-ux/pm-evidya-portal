@@ -150,3 +150,61 @@ export async function updateSMERecord(smeId: string, entryId: string | undefined
     return { success: false, error: "Failed to update SME Record." };
   }
 }
+
+export async function deleteSMEWorkEntry(entryId: string) {
+  const authCheck = await checkAuth(['ADMIN']);
+  if (!authCheck.success) return authCheck;
+
+  try {
+    const entry = await prisma.sMEWorkEntry.findUnique({
+      where: { id: entryId },
+      include: { sme: true }
+    });
+
+    if (!entry) {
+      return { success: false, error: 'SME Work Entry not found' };
+    }
+
+    const smeId = entry.smeId;
+    const smeName = entry.sme?.name || 'Unknown SME';
+    const trade = entry.trade || 'Unknown Trade';
+
+    // Delete the work entry (cascades payments, documents, schedules, editor/animation records)
+    await prisma.sMEWorkEntry.delete({
+      where: { id: entryId }
+    });
+
+    // Check if parent SME has any remaining work entries
+    const remainingCount = await prisma.sMEWorkEntry.count({
+      where: { smeId }
+    });
+
+    if (remainingCount === 0) {
+      try {
+        await prisma.sME.delete({
+          where: { id: smeId }
+        });
+      } catch (e) {
+        console.warn('Could not delete parent SME record:', e);
+      }
+    }
+
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'DELETE_SME_WORK_ENTRY',
+      entity: 'SMEWorkEntry',
+      entityId: entryId,
+      newData: `Deleted SME Entry for ${smeName} (${trade})`,
+      userEmail
+    });
+
+    revalidatePath('/smes');
+    revalidatePath('/dashboard');
+    revalidatePath('/reports');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Failed to delete SME entry:', error);
+    return { success: false, error: error.message || 'Failed to delete SME entry' };
+  }
+}
+

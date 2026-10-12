@@ -116,6 +116,32 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
     setTrades(trades.map(t => t.id === id ? { ...t, [field]: value } : t));
   };
   
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!entry.id) return;
+    if (!window.confirm(`Are you sure you want to delete this SME Work Entry for "${smeName}"?\n\nThis will permanently delete this work entry, payments, and any generated documents.`)) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const { deleteSMEWorkEntry } = await import('./actions');
+      const res = await deleteSMEWorkEntry(entry.id);
+      if (res.success) {
+        alert("SME Entry deleted successfully.");
+        window.location.href = '/smes';
+      } else {
+        alert("Error deleting entry: " + (res.error || 'Failed to delete'));
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error deleting SME entry");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleSave = async () => {
     setIsGenerating(true);
     try {
@@ -189,9 +215,16 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
                 <h2 style={{ margin: 0 }}>Master SME & Document Details</h2>
                 {entry.id && <div style={{ fontSize: '13px', color: '#64748b', marginTop: '5px' }}>EPIC ID: <strong style={{ color: '#3b82f6' }}>{getEpicId(entry.epicSequence || 1)}</strong></div>}
               </div>
-              <button onClick={handleSave} disabled={isGenerating} style={{ background: '#3b82f6', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', display: role === 'VISITOR' ? 'none' : 'block' }}>
-                {isGenerating ? 'Saving...' : '💾 Save Changes'}
-              </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {role === 'ADMIN' && entry.id && (
+                  <button onClick={handleDelete} disabled={isDeleting || isGenerating} style={{ background: '#dc2626', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: (isDeleting || isGenerating) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                    {isDeleting ? 'Deleting...' : '🗑️ Delete Entry'}
+                  </button>
+                )}
+                <button onClick={handleSave} disabled={isGenerating || isDeleting} style={{ background: '#3b82f6', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', fontWeight: 'bold', display: role === 'VISITOR' ? 'none' : 'block' }}>
+                  {isGenerating ? 'Saving...' : '💾 Save Changes'}
+                </button>
+              </div>
             </div>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>

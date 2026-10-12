@@ -2,7 +2,8 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { requireAuth, checkAuth } from '@/lib/auth';
+import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
+import { logAudit } from '@/lib/audit';
 
 export async function getBudgetComponents() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER']);
@@ -167,12 +168,51 @@ export async function getComponent3Data() {
   return { ...comp, expenditureIncurred: expenditure, unutilizedBalance: comp.approvedBudget - expenditure, utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00' };
 }
 export async function addAnnexureIIIEntry(data: any) {
-  const authCheck = await checkAuth(['ADMIN']);
-  if (!authCheck.success) return authCheck;
-  const months = Number(data.workPeriod) || 1;
-  const total = (Number(data.remuneration) || 0) * months;
-  await prisma.annexureIII.create({ data: { ...data, totalExpenditure: total } });
-  revalidatePath('/dashboard'); revalidatePath('/budget/annexure-3');
+  try {
+    const authCheck = await checkAuth(['ADMIN']);
+    if (!authCheck.success) return authCheck;
+
+    const months = Number(data.workPeriod) || 1;
+    const remuneration = Number(data.remuneration) || 0;
+    const taDa = Number(data.taDa) || 0;
+    const otherCharges = Number(data.otherCharges) || 0;
+    const total = (remuneration * months) + taDa + otherCharges;
+
+    const createData = {
+      budgetComponentId: data.budgetComponentId,
+      datePeriod: String(data.datePeriod || ''),
+      personnelName: String(data.personnelName || ''),
+      designation: String(data.designation || ''),
+      supportType: String(data.supportType || ''),
+      department: String(data.department || ''),
+      workPeriod: String(data.workPeriod || '1'),
+      remuneration,
+      taDa,
+      otherCharges,
+      totalExpenditure: total,
+      utrNumber: data.utrNumber ? String(data.utrNumber) : null,
+      remarks: data.remarks ? String(data.remarks) : null,
+      verificationStatus: 'DRAFT',
+    };
+
+    const entry = await prisma.annexureIII.create({ data: createData });
+
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'ADD_ANNEXURE_III_ENTRY',
+      entity: 'AnnexureIII',
+      entityId: entry.id,
+      newData: `Added HR Support Entry for ${createData.personnelName} (${createData.designation}) - ₹${total}`,
+      userEmail
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/budget/annexure-3');
+    return { success: true, data: entry };
+  } catch (error: any) {
+    console.error('Failed to add Annexure-III entry:', error);
+    return { success: false, error: error.message || 'Failed to save entry' };
+  }
 }
 
 // --- Component 4 ---
@@ -268,12 +308,79 @@ export async function updateAnnexureIIEntry(id: string, data: any) {
   revalidatePath('/dashboard'); revalidatePath('/budget/annexure-2');
 }
 export async function updateAnnexureIIIEntry(id: string, data: any) {
-  const authCheck = await checkAuth(['ADMIN']);
-  if (!authCheck.success) return authCheck;
-  const months = Number(data.workPeriod) || 1;
-  const total = (Number(data.remuneration) || 0) * months;
-  await prisma.annexureIII.update({ where: { id }, data: { ...data, totalExpenditure: total } });
-  revalidatePath('/dashboard'); revalidatePath('/budget/annexure-3');
+  try {
+    const authCheck = await checkAuth(['ADMIN']);
+    if (!authCheck.success) return authCheck;
+
+    const months = Number(data.workPeriod) || 1;
+    const remuneration = Number(data.remuneration) || 0;
+    const taDa = Number(data.taDa) || 0;
+    const otherCharges = Number(data.otherCharges) || 0;
+    const total = (remuneration * months) + taDa + otherCharges;
+
+    const updateData: any = {
+      datePeriod: String(data.datePeriod || ''),
+      personnelName: String(data.personnelName || ''),
+      designation: String(data.designation || ''),
+      supportType: String(data.supportType || ''),
+      department: String(data.department || ''),
+      workPeriod: String(data.workPeriod || '1'),
+      remuneration,
+      taDa,
+      otherCharges,
+      totalExpenditure: total,
+      utrNumber: data.utrNumber ? String(data.utrNumber) : null,
+      remarks: data.remarks ? String(data.remarks) : null,
+    };
+
+    const entry = await prisma.annexureIII.update({ where: { id }, data: updateData });
+
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'UPDATE_ANNEXURE_III_ENTRY',
+      entity: 'AnnexureIII',
+      entityId: id,
+      newData: `Updated HR Support Entry for ${updateData.personnelName} (${updateData.designation}) - ₹${total}`,
+      userEmail
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/budget/annexure-3');
+    return { success: true, data: entry };
+  } catch (error: any) {
+    console.error('Failed to update Annexure-III entry:', error);
+    return { success: false, error: error.message || 'Failed to update entry' };
+  }
+}
+
+export async function deleteAnnexureIIIEntry(id: string) {
+  try {
+    const authCheck = await checkAuth(['ADMIN']);
+    if (!authCheck.success) return authCheck;
+
+    const existing = await prisma.annexureIII.findUnique({ where: { id } });
+    if (!existing) {
+      return { success: false, error: 'Entry not found' };
+    }
+
+    await prisma.annexureIII.delete({ where: { id } });
+
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'DELETE_ANNEXURE_III_ENTRY',
+      entity: 'AnnexureIII',
+      entityId: id,
+      newData: `Deleted HR Support Entry for ${existing.personnelName} (${existing.designation})`,
+      userEmail
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/budget/annexure-3');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Failed to delete Annexure-III entry:', error);
+    return { success: false, error: error.message || 'Failed to delete entry' };
+  }
 }
 export async function updateAnnexureIVEntry(id: string, data: any) {
   const authCheck = await checkAuth(['ADMIN']);
