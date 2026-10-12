@@ -142,7 +142,8 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (options?: { silent?: boolean } | React.MouseEvent) => {
+    const isSilent = options && 'silent' in options ? !!options.silent : false;
     setIsGenerating(true);
     try {
       const { updateSMERecord } = await import('./actions');
@@ -152,14 +153,24 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
         taAmount, otherAmount
       });
       if (res.success) {
-        alert("SME Record saved successfully!");
+        if (!isSilent) alert("SME Record saved successfully!");
+        return true;
       } else {
         alert("Error saving: " + res.error);
+        return false;
       }
     } catch (e) {
       alert("Error saving SME record");
+      return false;
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleSaveAndNext = async (nextTab: 'approval' | 'completion' | 'sanction') => {
+    const success = await handleSave({ silent: true });
+    if (success) {
+      setActiveTab(nextTab);
     }
   };
 
@@ -199,11 +210,43 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
 
   return (
     <div style={{ display: 'flex', gap: '20px', height: '100%', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', gap: '10px', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-        <button onClick={() => setActiveTab('entry')} style={{ padding: '8px 16px', background: activeTab === 'entry' ? '#1d4ed8' : '#e2e8f0', color: activeTab === 'entry' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>1. Enter All Details</button>
-        <button onClick={() => setActiveTab('approval')} style={{ padding: '8px 16px', background: activeTab === 'approval' ? '#10b981' : '#e2e8f0', color: activeTab === 'approval' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>2. Preview Approval Letter</button>
-        <button onClick={() => setActiveTab('completion')} style={{ padding: '8px 16px', background: activeTab === 'completion' ? '#8b5cf6' : '#e2e8f0', color: activeTab === 'completion' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>3. Preview Work Completion</button>
-        <button onClick={() => setActiveTab('sanction')} style={{ padding: '8px 16px', background: activeTab === 'sanction' ? '#f59e0b' : '#e2e8f0', color: activeTab === 'sanction' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>4. Preview Payment Note</button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button onClick={() => setActiveTab('entry')} style={{ padding: '8px 16px', background: activeTab === 'entry' ? '#1d4ed8' : '#e2e8f0', color: activeTab === 'entry' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>1. Enter All Details</button>
+          <button onClick={() => setActiveTab('approval')} style={{ padding: '8px 16px', background: activeTab === 'approval' ? '#10b981' : '#e2e8f0', color: activeTab === 'approval' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>2. Preview Approval Letter</button>
+          <button onClick={() => setActiveTab('completion')} style={{ padding: '8px 16px', background: activeTab === 'completion' ? '#8b5cf6' : '#e2e8f0', color: activeTab === 'completion' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>3. Preview Work Completion</button>
+          <button onClick={() => setActiveTab('sanction')} style={{ padding: '8px 16px', background: activeTab === 'sanction' ? '#f59e0b' : '#e2e8f0', color: activeTab === 'sanction' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>4. Preview Payment Note</button>
+        </div>
+
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {activeTab === 'entry' && (
+            <button 
+              onClick={() => handleSaveAndNext('approval')} 
+              disabled={isGenerating || isDeleting}
+              style={{ background: '#0284c7', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '13px', display: role === 'VISITOR' ? 'none' : 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              {isGenerating ? 'Saving...' : '💾 Save & Next Stage →'}
+            </button>
+          )}
+          {activeTab === 'approval' && (
+            <button 
+              onClick={() => handleSaveAndNext('completion')} 
+              disabled={isGenerating || isDeleting}
+              style={{ background: '#8b5cf6', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '13px', display: role === 'VISITOR' ? 'none' : 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              {isGenerating ? 'Saving...' : '💾 Save & Next Stage →'}
+            </button>
+          )}
+          {activeTab === 'completion' && (
+            <button 
+              onClick={() => handleSaveAndNext('sanction')} 
+              disabled={isGenerating || isDeleting}
+              style={{ background: '#f59e0b', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '13px', display: role === 'VISITOR' ? 'none' : 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              {isGenerating ? 'Saving...' : '💾 Save & Next Stage →'}
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ flex: 1, background: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflowY: 'auto' }}>
@@ -215,7 +258,26 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
                 <h2 style={{ margin: 0 }}>Master SME & Document Details</h2>
                 {entry.id && <div style={{ fontSize: '13px', color: '#64748b', marginTop: '5px' }}>EPIC ID: <strong style={{ color: '#3b82f6' }}>{getEpicId(entry.epicSequence || 1)}</strong></div>}
               </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <a 
+                  href="/smes" 
+                  style={{ 
+                    background: '#ffffff', 
+                    color: '#475569', 
+                    border: '1.5px solid #cbd5e1', 
+                    padding: '8px 16px', 
+                    borderRadius: '4px', 
+                    textDecoration: 'none', 
+                    fontSize: '13px', 
+                    fontWeight: 'bold', 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: '4px',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  ← Back
+                </a>
                 {role === 'ADMIN' && entry.id && (
                   <button onClick={handleDelete} disabled={isDeleting || isGenerating} style={{ background: '#dc2626', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: (isDeleting || isGenerating) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
                     {isDeleting ? 'Deleting...' : '🗑️ Delete Entry'}
@@ -313,14 +375,77 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
               </div>
               <div style={{ marginTop: '5px', fontStyle: 'italic', color: '#475569', fontSize: '13px' }}>({amountInWords})</div>
             </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
+              <a 
+                href="/smes" 
+                style={{ 
+                  background: '#ffffff', 
+                  color: '#475569', 
+                  border: '1.5px solid #cbd5e1', 
+                  padding: '10px 20px', 
+                  borderRadius: '6px', 
+                  textDecoration: 'none', 
+                  fontSize: '13px', 
+                  fontWeight: 'bold', 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '4px'
+                }}
+              >
+                ← Back
+              </a>
+              <button 
+                onClick={handleSave} 
+                disabled={isGenerating || isDeleting} 
+                style={{ 
+                  background: '#16a34a', 
+                  color: 'white', 
+                  padding: '10px 24px', 
+                  border: 'none', 
+                  borderRadius: '6px', 
+                  cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', 
+                  fontWeight: 'bold', 
+                  fontSize: '14px',
+                  display: role === 'VISITOR' ? 'none' : 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)'
+                }}
+              >
+                {isGenerating ? 'Saving...' : '💾 Save Changes'}
+              </button>
+            </div>
           </div>
         )}
 
         {/* Previews */}
         <div style={{ display: activeTab === 'approval' ? 'block' : 'none' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h2>Approval Letter Preview</h2>
-            <button onClick={() => generatePDF(approvalRef, 'Approval_Letter')} style={{ background: '#10b981', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>{isGenerating ? 'Generating...' : 'Download PDF'}</button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                onClick={handleSave} 
+                disabled={isGenerating || isDeleting} 
+                style={{ 
+                  background: '#3b82f6', 
+                  color: 'white', 
+                  padding: '10px 18px', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', 
+                  fontWeight: 'bold',
+                  display: role === 'VISITOR' ? 'none' : 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                {isGenerating ? 'Saving...' : '💾 Save Changes'}
+              </button>
+              <button onClick={() => generatePDF(approvalRef, 'Approval_Letter')} style={{ background: '#10b981', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                {isGenerating ? 'Generating...' : '📥 Download PDF'}
+              </button>
+            </div>
           </div>
           <div style={{ background: '#f8fafc', padding: '20px', display: 'flex', justifyContent: 'center' }}>
             <div ref={approvalRef} style={{ width: '210mm', minHeight: '297mm', background: 'white', padding: '20mm', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
@@ -361,9 +486,31 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
         </div>
 
         <div style={{ display: activeTab === 'completion' ? 'block' : 'none' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h2>Work Completion Preview</h2>
-            <button onClick={() => generatePDF(completionRef, 'Work_Completion')} style={{ background: '#8b5cf6', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>{isGenerating ? 'Generating...' : 'Download PDF'}</button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                onClick={handleSave} 
+                disabled={isGenerating || isDeleting} 
+                style={{ 
+                  background: '#8b5cf6', 
+                  color: 'white', 
+                  padding: '10px 18px', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', 
+                  fontWeight: 'bold',
+                  display: role === 'VISITOR' ? 'none' : 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                {isGenerating ? 'Saving...' : '💾 Save Changes'}
+              </button>
+              <button onClick={() => generatePDF(completionRef, 'Work_Completion')} style={{ background: '#7c3aed', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                {isGenerating ? 'Generating...' : '📥 Download PDF'}
+              </button>
+            </div>
           </div>
           <div style={{ background: '#f8fafc', padding: '20px', display: 'flex', justifyContent: 'center' }}>
             <div ref={completionRef} style={{ width: '210mm', minHeight: '297mm', background: 'white', padding: '20mm', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
@@ -439,9 +586,31 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
         </div>
 
         <div style={{ display: activeTab === 'sanction' ? 'block' : 'none' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h2>Payment Note Preview</h2>
-            <button onClick={() => generatePDF(sanctionRef, 'Payment_Note')} style={{ background: '#f59e0b', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>{isGenerating ? 'Generating...' : 'Download PDF'}</button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                onClick={handleSave} 
+                disabled={isGenerating || isDeleting} 
+                style={{ 
+                  background: '#f59e0b', 
+                  color: 'white', 
+                  padding: '10px 18px', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', 
+                  fontWeight: 'bold',
+                  display: role === 'VISITOR' ? 'none' : 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                {isGenerating ? 'Saving...' : '💾 Save Changes'}
+              </button>
+              <button onClick={() => generatePDF(sanctionRef, 'Payment_Note')} style={{ background: '#d97706', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                {isGenerating ? 'Generating...' : '📥 Download PDF'}
+              </button>
+            </div>
           </div>
           <div style={{ background: '#f8fafc', padding: '20px', display: 'flex', justifyContent: 'center' }}>
             <div ref={sanctionRef} style={{ width: '210mm', minHeight: '297mm', background: 'white', padding: '20mm', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>

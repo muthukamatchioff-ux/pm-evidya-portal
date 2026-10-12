@@ -43,6 +43,29 @@ export default async function SMEProfilePage(props: { params: Promise<{ id: stri
 
   return (
     <div className={styles.container}>
+      <div style={{ marginBottom: '16px' }}>
+        <Link 
+          href="/smes" 
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: '#ffffff',
+            color: '#0369a1',
+            border: '1.5px solid #cbd5e1',
+            padding: '8px 16px',
+            borderRadius: '8px',
+            textDecoration: 'none',
+            fontSize: '13px',
+            fontWeight: 700,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          ← Back to SME Records
+        </Link>
+      </div>
+
       <header className={styles.header}>
         <div>
           <h1>{sme.name}</h1>
