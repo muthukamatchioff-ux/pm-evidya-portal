@@ -433,28 +433,33 @@ export default function EpicWorkflowReport({
                 </tr>
               </thead>
               <tbody>
-                {videoEditorRecords.map((e, idx) => (
-                  <tr key={e.id} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{idx + 1}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }}>{e.editorName || '-'}</td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{e.assignedVideo || '-'}</td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{e.editingStartDate ? new Date(e.editingStartDate).toLocaleDateString('en-IN') : '-'}</td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{e.editingEndDate ? new Date(e.editingEndDate).toLocaleDateString('en-IN') : '-'}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: 700, borderBottom: '1px solid #e2e8f0' }}>{e.duration || '-'}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
-                      <span style={{ padding: '2px 8px', borderRadius: '8px', fontWeight: 700, fontSize: '11px', ...getStatusBadgeStyle(e.status) }}>
-                        {e.status || 'NOT_STARTED'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>
-                      {e.roughCutLink ? <a href={e.roughCutLink} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>View Link</a> : '-'}
-                    </td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>
-                      {e.finalCutLink ? <a href={e.finalCutLink} target="_blank" rel="noreferrer" style={{ color: '#059669', textDecoration: 'underline' }}>View Link</a> : '-'}
-                    </td>
-                    <td style={{ padding: '10px 12px', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>{e.reviewComments || '-'}</td>
-                  </tr>
-                ))}
+                {videoEditorRecords.map((e, idx) => {
+                  const endDate = e.editingEndDate || (e.reviewComments && e.reviewComments.startsWith('[END:') ? e.reviewComments.match(/^\[END:([^\]]+)\]/)?.[1] : null);
+                  const cleanComments = e.reviewComments ? e.reviewComments.replace(/^\[END:[^\]]+\]\s*/, '') : '-';
+
+                  return (
+                    <tr key={e.id} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{idx + 1}</td>
+                      <td style={{ padding: '10px 12px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }}>{e.editorName || '-'}</td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{e.assignedVideo || '-'}</td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{e.editingStartDate ? new Date(e.editingStartDate).toLocaleDateString('en-IN') : '-'}</td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{endDate ? new Date(endDate).toLocaleDateString('en-IN') : '-'}</td>
+                      <td style={{ padding: '10px 12px', fontWeight: 700, borderBottom: '1px solid #e2e8f0' }}>{e.duration || '-'}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                        <span style={{ padding: '2px 8px', borderRadius: '8px', fontWeight: 700, fontSize: '11px', ...getStatusBadgeStyle(e.status) }}>
+                          {e.status || 'NOT_STARTED'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>
+                        {e.roughCutLink ? <a href={e.roughCutLink} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>View Link</a> : '-'}
+                      </td>
+                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>
+                        {e.finalCutLink ? <a href={e.finalCutLink} target="_blank" rel="noreferrer" style={{ color: '#059669', textDecoration: 'underline' }}>View Link</a> : '-'}
+                      </td>
+                      <td style={{ padding: '10px 12px', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>{cleanComments}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

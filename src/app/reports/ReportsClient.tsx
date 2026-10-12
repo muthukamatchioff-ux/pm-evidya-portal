@@ -234,7 +234,8 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
       const prodEnd = schedule?.scheduledEnd ? new Date(schedule.scheduledEnd).toLocaleDateString('en-IN') : 'TBD';
 
       const postProdStart = editorRec?.editingStartDate ? new Date(editorRec.editingStartDate).toLocaleDateString('en-IN') : 'TBD';
-      const postProdEnd = editorRec?.editingEndDate ? new Date(editorRec.editingEndDate).toLocaleDateString('en-IN') : 'TBD';
+      const postProdEndRaw = editorRec?.editingEndDate || (editorRec?.reviewComments && editorRec.reviewComments.startsWith('[END:') ? editorRec.reviewComments.match(/^\[END:([^\]]+)\]/)?.[1] : null);
+      const postProdEnd = postProdEndRaw ? new Date(postProdEndRaw).toLocaleDateString('en-IN') : 'TBD';
 
       const videoLink = libraryVideo?.videoLink || finalRec?.finalVideoFile || 'Pending Delivery';
       const deliveryDate = libraryVideo?.createdAt 

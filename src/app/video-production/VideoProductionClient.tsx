@@ -706,17 +706,31 @@ function Stage2Row({ entry, schedule, editorRec, animatorRec, role, onUpdateEdit
     status: ''
   });
 
+  const getEndDateFromReviewComments = (rec: any) => {
+    if (rec.editingEndDate) return rec.editingEndDate;
+    if (rec.reviewComments && rec.reviewComments.startsWith('[END:')) {
+      const match = rec.reviewComments.match(/^\[END:([^\]]+)\]/);
+      if (match) return match[1];
+    }
+    return '';
+  };
+
+  const cleanReviewComments = (comments?: string) => {
+    if (!comments) return '';
+    return comments.replace(/^\[END:[^\]]+\]\s*/, '');
+  };
+
   const handleEditClick = () => {
     setEditorData({
       editorName: editorRec.editorName || '',
       assignedVideo: editorRec.assignedVideo || schedule?.videoTitle || entry.topic || '',
       editingStartDate: editorRec.editingStartDate ? editorRec.editingStartDate.split('T')[0] : '',
-      editingEndDate: editorRec.editingEndDate ? editorRec.editingEndDate.split('T')[0] : '',
+      editingEndDate: getEndDateFromReviewComments(editorRec),
       roughCutLink: editorRec.roughCutLink || '',
       finalCutLink: editorRec.finalCutLink || '',
       duration: editorRec.duration || '',
       status: editorRec.status || 'NOT_STARTED',
-      reviewComments: editorRec.reviewComments || ''
+      reviewComments: cleanReviewComments(editorRec.reviewComments)
     });
     setAnimatorData({
       animatorName: animatorRec.animatorName || '',
@@ -745,6 +759,8 @@ function Stage2Row({ entry, schedule, editorRec, animatorRec, role, onUpdateEdit
     }
   };
 
+  const editorEndDateFormatted = getEndDateFromReviewComments(editorRec);
+
   if (!isEditing) {
     return (
       <tr>
@@ -762,7 +778,7 @@ function Stage2Row({ entry, schedule, editorRec, animatorRec, role, onUpdateEdit
             <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
               <span>Start: {editorRec.editingStartDate ? new Date(editorRec.editingStartDate).toLocaleDateString('en-IN') : 'TBD'}</span>
               <br/>
-              <span>End: {editorRec.editingEndDate ? new Date(editorRec.editingEndDate).toLocaleDateString('en-IN') : 'TBD'}</span>
+              <span>End: {editorEndDateFormatted ? new Date(editorEndDateFormatted).toLocaleDateString('en-IN') : 'TBD'}</span>
             </div>
           </div>
         </td>

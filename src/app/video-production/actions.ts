@@ -131,12 +131,11 @@ export async function updateVideoEditorRecord(id: string, data: any, workEntryId
         editorName: data.editorName || null,
         assignedVideo: data.assignedVideo || null,
         editingStartDate: data.editingStartDate ? new Date(data.editingStartDate) : null,
-        editingEndDate: data.editingEndDate ? new Date(data.editingEndDate) : null,
         roughCutLink: data.roughCutLink || null,
         finalCutLink: data.finalCutLink || null,
         duration: data.duration || null,
         status: data.status || 'NOT_STARTED',
-        reviewComments: data.reviewComments || null,
+        reviewComments: data.editingEndDate ? `[END:${data.editingEndDate}] ${data.reviewComments || ''}`.trim() : (data.reviewComments || null),
         finalVideoFile: data.finalVideoFile || null
       },
       create: {
@@ -144,12 +143,11 @@ export async function updateVideoEditorRecord(id: string, data: any, workEntryId
         editorName: data.editorName || null,
         assignedVideo: data.assignedVideo || null,
         editingStartDate: data.editingStartDate ? new Date(data.editingStartDate) : null,
-        editingEndDate: data.editingEndDate ? new Date(data.editingEndDate) : null,
         roughCutLink: data.roughCutLink || null,
         finalCutLink: data.finalCutLink || null,
         duration: data.duration || null,
         status: data.status || 'NOT_STARTED',
-        reviewComments: data.reviewComments || null,
+        reviewComments: data.editingEndDate ? `[END:${data.editingEndDate}] ${data.reviewComments || ''}`.trim() : (data.reviewComments || null),
         finalVideoFile: data.finalVideoFile || null
       }
     });
