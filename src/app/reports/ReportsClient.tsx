@@ -406,17 +406,17 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
               gap: '24px'
             }}>
               {/* Left Branding: NIMI Logo & Govt details */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: '1 1 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flex: '1 1 0' }}>
                 <img 
                   src="/nimi-logo.png" 
                   alt="NIMI Logo" 
-                  style={{ height: '62px', width: 'auto', objectFit: 'contain' }} 
+                  style={{ height: '82px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.06))' }} 
                 />
                 <div>
-                  <div style={{ fontSize: '12px', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
                     National Instructional Media Institute
                   </div>
-                  <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
+                  <div style={{ fontSize: '11px', color: '#475569', marginTop: '3px', fontWeight: 500 }}>
                     Ministry of Skill Development & Entrepreneurship, Govt. of India
                   </div>
                 </div>
@@ -425,7 +425,7 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
               {/* Center Title & Metadata */}
               <div style={{ textAlign: 'center', flex: '2 1 0' }}>
                 <h1 style={{ 
-                  fontSize: '26px', 
+                  fontSize: '28px', 
                   fontWeight: 800, 
                   color: '#0f2942', 
                   margin: '0 0 6px 0', 
@@ -435,10 +435,10 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
                   PM e-Vidya Financial Dashboard
                 </h1>
                 <p style={{ 
-                  fontSize: '14px', 
+                  fontSize: '15px', 
                   fontWeight: 600, 
                   color: '#334155', 
-                  margin: '0 0 8px 0' 
+                  margin: '0 0 10px 0' 
                 }}>
                   Approved Budget vs Expenditure — Component-wise Status Report
                 </p>
@@ -448,7 +448,7 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
                   gap: '6px',
                   background: '#e0f2fe',
                   color: '#0369a1',
-                  padding: '4px 14px',
+                  padding: '5px 16px',
                   borderRadius: '20px',
                   fontSize: '12px',
                   fontWeight: 600,
@@ -463,7 +463,7 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
                 <img 
                   src="/evidya-logo-exact.png" 
                   alt="PM e-Vidya Logo" 
-                  style={{ height: '58px', width: 'auto', objectFit: 'contain' }} 
+                  style={{ height: '84px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.06))' }} 
                 />
               </div>
             </div>
