@@ -39,7 +39,7 @@ export default async function SMEsPage() {
         <div className={styles.headerLeft}>
           <h1>SME Management</h1>
           <div className={styles.headerSubtitle}>
-            Directory of Subject Matter Experts, work assignments, and payment status tracking
+            Directory of Subject Matter Experts and work assignments
           </div>
         </div>
         {role === 'ADMIN' && (

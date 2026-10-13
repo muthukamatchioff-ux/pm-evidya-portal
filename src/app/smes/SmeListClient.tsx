@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import styles from './smes.module.css';
-import { deleteSMEWorkEntry, updateSmePaymentInline } from './[id]/actions';
+import { deleteSMEWorkEntry } from './[id]/actions';
 
 interface SmeListClientProps {
   initialWorkEntries: any[];
@@ -13,10 +13,8 @@ interface SmeListClientProps {
 export default function SmeListClient({ initialWorkEntries, role }: SmeListClientProps) {
   const [entries, setEntries] = useState(initialWorkEntries);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
   const [tradeFilter, setTradeFilter] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [savingPaymentId, setSavingPaymentId] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   const getEpicId = (epicSequence: number) =>
@@ -83,71 +81,9 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
     }
   };
 
-  const handleUpdatePayment = async (entryId: string, newAmount: number, newStatus: string) => {
-    setSavingPaymentId(entryId);
-    try {
-      const res = await updateSmePaymentInline(entryId, newAmount, newStatus);
-      if (res.success) {
-        setEntries(prev =>
-          prev.map(entry => {
-            if (entry.id === entryId) {
-              const currentPayments =
-                entry.payments && entry.payments.length > 0 ? entry.payments : [{}];
-              const updatedPayments = currentPayments.map((p: any, idx: number) =>
-                idx === 0
-                  ? {
-                      ...p,
-                      totalAmount: newAmount,
-                      status: newStatus
-                    }
-                  : p
-              );
-              return {
-                ...entry,
-                payments: updatedPayments
-              };
-            }
-            return entry;
-          })
-        );
-        showToast('Payment record updated successfully.');
-      } else {
-        alert('Failed to update payment: ' + (res.error || 'Unknown error'));
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Error saving payment');
-    } finally {
-      setSavingPaymentId(null);
-    }
-  };
-
-  // Filtered entries based on Search, Status, and Trade
+  // Filtered entries based on Search and Trade
   const filteredEntries = useMemo(() => {
     return entries.filter(entry => {
-      const payment = entry.payments && entry.payments.length > 0 ? entry.payments[0] : null;
-      const paymentStatus = (payment?.status || 'INITIATED').toUpperCase();
-
-      let normalizedStatus = 'INITIATED';
-      if (
-        paymentStatus === 'ON_PROCESS' ||
-        paymentStatus === 'IN_PROGRESS' ||
-        paymentStatus === 'PENDING'
-      ) {
-        normalizedStatus = 'ON_PROCESS';
-      } else if (
-        paymentStatus === 'COMPLETED' ||
-        paymentStatus === 'PAID' ||
-        paymentStatus === 'APPROVED'
-      ) {
-        normalizedStatus = 'COMPLETED';
-      }
-
-      // Status filter
-      if (statusFilter && normalizedStatus !== statusFilter) {
-        return false;
-      }
-
       // Trade filter
       if (tradeFilter && entry.trade !== tradeFilter) {
         return false;
@@ -170,13 +106,12 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
 
       return true;
     });
-  }, [entries, searchTerm, statusFilter, tradeFilter]);
+  }, [entries, searchTerm, tradeFilter]);
 
-  const hasActiveFilters = !!(searchTerm || statusFilter || tradeFilter);
+  const hasActiveFilters = !!(searchTerm || tradeFilter);
 
   const resetFilters = () => {
     setSearchTerm('');
-    setStatusFilter('');
     setTradeFilter('');
   };
 
@@ -251,21 +186,7 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
             />
           </div>
 
-          {/* Payment Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-            className={`${styles.filterSelect} ${
-              statusFilter ? styles.filterSelectActive : ''
-            }`}
-          >
-            <option value="">-- All Payment Statuses --</option>
-            <option value="COMPLETED">Completed ({completedCount})</option>
-            <option value="ON_PROCESS">On Process ({onProcessCount})</option>
-            <option value="INITIATED">
-              Initiated ({totalEntries - completedCount - onProcessCount})
-            </option>
-          </select>
+
 
           {/* Trade Filter */}
           <select
@@ -310,58 +231,18 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
                 <th>SME Name</th>
                 <th>Designation</th>
                 <th>Trade</th>
-                <th>Total Amt</th>
-                <th>Payment Status</th>
                 <th style={{ textAlign: 'right', minWidth: '170px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className={styles.emptyState}>
+                  <td colSpan={6} className={styles.emptyState}>
                     No SME Work Entries match your filter.
                   </td>
                 </tr>
               ) : (
                 filteredEntries.map((entry, index) => {
-                  const payment =
-                    entry.payments && entry.payments.length > 0 ? entry.payments[0] : null;
-                  const total =
-                    payment?.totalAmount !== undefined && payment?.totalAmount !== null
-                      ? payment.totalAmount
-                      : (entry.days || 0) * (entry.ratePerDay || 0);
-                  const paymentStatus = (payment?.status || 'INITIATED').toUpperCase();
-                  const isSaving = savingPaymentId === entry.id;
-
-                  // Normalize paymentStatus to one of INITIATED, ON_PROCESS, COMPLETED
-                  let normalizedStatus = 'INITIATED';
-                  if (
-                    paymentStatus === 'ON_PROCESS' ||
-                    paymentStatus === 'IN_PROGRESS' ||
-                    paymentStatus === 'PENDING'
-                  ) {
-                    normalizedStatus = 'ON_PROCESS';
-                  } else if (
-                    paymentStatus === 'COMPLETED' ||
-                    paymentStatus === 'PAID' ||
-                    paymentStatus === 'APPROVED'
-                  ) {
-                    normalizedStatus = 'COMPLETED';
-                  } else {
-                    normalizedStatus = 'INITIATED';
-                  }
-
-                  const getSelectClass = (st: string) => {
-                    switch (st) {
-                      case 'COMPLETED':
-                        return styles.statusSelectCompleted;
-                      case 'ON_PROCESS':
-                        return styles.statusSelectOnProcess;
-                      default:
-                        return styles.statusSelectInitiated;
-                    }
-                  };
-
                   return (
                     <tr key={entry.id}>
                       <td style={{ color: '#64748b', fontWeight: 600 }}>{index + 1}</td>
@@ -388,75 +269,6 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
                         <span className={styles.tradeBadge}>
                           {entry.trade || 'General'}
                         </span>
-                      </td>
-
-                      {/* Total Amt - Editable input option for Admin */}
-                      <td>
-                        {role === 'ADMIN' ? (
-                          <div className={styles.amountInputWrap}>
-                            <span className={styles.currencyPrefix}>₹</span>
-                            <input
-                              type="number"
-                              className={styles.amountInput}
-                              defaultValue={total}
-                              key={`${entry.id}-${total}`}
-                              onBlur={e => {
-                                const val = parseFloat(e.target.value) || 0;
-                                if (val !== total) {
-                                  handleUpdatePayment(entry.id, val, normalizedStatus);
-                                }
-                              }}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') {
-                                  const val =
-                                    parseFloat((e.target as HTMLInputElement).value) || 0;
-                                  if (val !== total) {
-                                    handleUpdatePayment(entry.id, val, normalizedStatus);
-                                  }
-                                }
-                              }}
-                              disabled={isSaving}
-                              title="Enter Total Amount and press Enter or click outside to save"
-                            />
-                          </div>
-                        ) : (
-                          <span style={{ fontWeight: 600 }}>
-                            ₹ {total.toLocaleString('en-IN')}
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Payment Status - Dropdown pattern with initiated / on process / completed */}
-                      <td>
-                        {role === 'ADMIN' ? (
-                          <select
-                            className={`${styles.statusSelect} ${getSelectClass(
-                              normalizedStatus
-                            )}`}
-                            value={normalizedStatus}
-                            disabled={isSaving}
-                            onChange={e => {
-                              const newStatus = e.target.value;
-                              handleUpdatePayment(entry.id, total, newStatus);
-                            }}
-                          >
-                            <option value="INITIATED">Initiated</option>
-                            <option value="ON_PROCESS">On Process</option>
-                            <option value="COMPLETED">Completed</option>
-                          </select>
-                        ) : (
-                          <span
-                            className={`${styles.statusSelect} ${getSelectClass(
-                              normalizedStatus
-                            )}`}
-                          >
-                            {normalizedStatus === 'ON_PROCESS'
-                              ? 'On Process'
-                              : normalizedStatus === 'COMPLETED'
-                              ? 'Completed'
-                              : 'Initiated'}
-                          </span>
-                        )}
                       </td>
 
                       {/* Actions: PRESERVE EXACT SAME EDIT ROUTE AND FUNCTIONALITY */}
