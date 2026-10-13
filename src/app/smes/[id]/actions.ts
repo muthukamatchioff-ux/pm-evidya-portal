@@ -78,7 +78,9 @@ export async function uploadDocument(
     });
 
     revalidatePath(`/smes/${smeId}`);
-    return { success: true };
+    revalidatePath('/accounts');
+    revalidatePath('/documents');
+    return { success: true, document: savedDoc };
   } catch (error: any) {
     console.error('Document upload error:', error);
     return { success: false, error: error.message || 'Upload failed' };

@@ -1,35 +1,49 @@
 'use client';
 
-import React, { useState } from 'react';
-import { updatePaymentStatus } from './actions';
-import { generateSanctionDoc } from './SanctionGenerator';
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import styles from './accounts.module.css';
 
-export default function AccountsClient({ initialData, initialHrSalaries }: { initialData: any[], initialHrSalaries: any[] }) {
-  const [activeTab, setActiveTab] = useState<'sme' | 'hr'>('sme');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ status: '', utrNumber: '', remarks: '' });
-  const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedEntryId, setSelectedEntryId] = useState<string>('');
+interface AccountsClientProps {
+  initialData: any[];
+  initialHrSalaries?: any[];
+}
+
+export default function AccountsClient({ initialData }: AccountsClientProps) {
+  const [entries, setEntries] = useState<any[]>(initialData || []);
+  const [selectedEntryId, setSelectedEntryId] = useState<string>(
+    initialData && initialData.length > 0 ? initialData[0].id : ''
+  );
   const [uploadingState, setUploadingState] = useState<{ [key: string]: boolean }>({});
+  const [previewDoc, setPreviewDoc] = useState<any | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [copiedEpic, setCopiedEpic] = useState(false);
 
-  const getEpicId = (epicSequence: number) => `EPIC-2026-PMeVidya ${String(epicSequence).padStart(2, '0')}`;
+  // Sync state if initialData updates
+  useEffect(() => {
+    if (initialData) {
+      setEntries(initialData);
+      if (!selectedEntryId && initialData.length > 0) {
+        setSelectedEntryId(initialData[0].id);
+      }
+    }
+  }, [initialData, selectedEntryId]);
 
-  const startEdit = (payment: any) => {
-    setEditingId(payment.id);
-    setForm({
-      status: payment.status,
-      utrNumber: payment.utrNumber || '',
-      remarks: payment.remarks || ''
-    });
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3800);
   };
 
-  const saveEdit = async (paymentId: string) => {
-    setLoading(true);
-    await updatePaymentStatus(paymentId, form.status, form.utrNumber, form.remarks);
-    setLoading(false);
-    setEditingId(null);
+  const getEpicId = (epicSequence: number) =>
+    `EPIC-2026-PMeVidya ${String(epicSequence || 1).padStart(2, '0')}`;
+
+  const copyEpicId = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedEpic(true);
+    showToast(`Copied ${text} to clipboard!`);
+    setTimeout(() => setCopiedEpic(false), 2000);
   };
 
   const handleFileUpload = async (smeId: string, entryId: string, type: string, file: File) => {
@@ -39,277 +53,501 @@ export default function AccountsClient({ initialData, initialHrSalaries }: { ini
       const { uploadDocument } = await import('../smes/[id]/actions');
       const formData = new FormData();
       formData.append('file', file);
-      const res = await uploadDocument(smeId, entryId, type, formData);
-      if (res.success) {
-        alert(`${type.replace('_', ' ')} uploaded successfully!`);
+      const res: any = await uploadDocument(smeId, entryId, type, formData);
+
+      if (res && res.success) {
+        const newDoc = res.document || {
+          id: `doc-${Date.now()}`,
+          name: file.name,
+          type,
+          status: 'UPLOADED',
+          filePath: URL.createObjectURL(file),
+          version: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        // Immediately update client-side entries state so the card switches to Uploaded
+        setEntries(prevEntries =>
+          prevEntries.map(entry => {
+            if (entry.id !== entryId) return entry;
+            const currentDocs = entry.documents || [];
+            const remainingDocs = currentDocs.filter((d: any) => {
+              if (type === 'SME_ATTENDANCE') {
+                return (
+                  d.type !== 'SME_ATTENDANCE' &&
+                  d.type !== 'ATTENDANCE' &&
+                  d.type !== 'TRADE_DETAILS'
+                );
+              }
+              return d.type !== type;
+            });
+            return {
+              ...entry,
+              documents: [newDoc, ...remainingDocs]
+            };
+          })
+        );
+
+        const typeLabel =
+          type === 'SME_ATTENDANCE'
+            ? 'SME Attendance'
+            : type === 'APPROVAL_LETTER'
+            ? 'SME Approval Letter'
+            : 'Work Completion Certificate';
+
+        showToast(`✓ ${typeLabel} uploaded successfully!`, 'success');
       } else {
-        alert(`Error: ${res.error}`);
+        showToast(`Error: ${res?.error || 'Upload failed'}`, 'error');
       }
-    } catch (e) {
-      alert(`Failed to upload ${type}`);
+    } catch (e: any) {
+      console.error(e);
+      showToast(`Failed to upload: ${e.message || 'Network error'}`, 'error');
     } finally {
       setUploadingState(prev => ({ ...prev, [key]: false }));
     }
   };
 
-  const getDocStatus = (docs: any[], type: string) => {
-    return docs?.find(d => d.type === type) ? '✅ Uploaded' : '❌ Missing';
+  const docDefinitions = [
+    {
+      type: 'SME_ATTENDANCE',
+      title: 'SME Attendance',
+      desc: 'Upload signed copy of SME Attendance sheet with daily verification',
+      icon: '📅'
+    },
+    {
+      type: 'APPROVAL_LETTER',
+      title: 'SME Approval Letter',
+      desc: 'Upload signed copy of SME Approval Letter issued by NIMI/NCERT',
+      icon: '📝'
+    },
+    {
+      type: 'WORK_COMPLETION',
+      title: 'Work Completion Certificate',
+      desc: 'Upload signed copy of official Work Completion Certificate',
+      icon: '🎓'
+    }
+  ];
+
+  const findDocument = (entryDocs: any[], type: string) => {
+    if (!entryDocs || !entryDocs.length) return null;
+    if (type === 'SME_ATTENDANCE') {
+      return entryDocs.find(
+        (d: any) =>
+          d.type === 'SME_ATTENDANCE' ||
+          d.type === 'ATTENDANCE' ||
+          d.type === 'TRADE_DETAILS'
+      );
+    }
+    return entryDocs.find((d: any) => d.type === type);
   };
 
-  const exportToCSV = () => {
-    const headers = ['SME Name', 'Trade', 'Topic', 'Total Amount', 'Payment Status', 'UTR Number'];
-    const rows = initialData.map(entry => {
-      const payment = entry.payments[0];
-      if (!payment) return null;
-      return [
-        `"${entry.sme.name.replace(/"/g, '""')}"`,
-        `"${entry.trade.replace(/"/g, '""')}"`,
-        `"${entry.topic.replace(/"/g, '""')}"`,
-        payment.totalAmount,
-        payment.status,
-        payment.utrNumber || ''
-      ].join(',');
-    }).filter(Boolean);
-    
-    const csvContent = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `Accounts_Export_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const selectedEntry = entries.find(e => e.id === selectedEntryId);
 
-  const filteredEntries = initialData.filter(entry => {
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      entry.sme.name.toLowerCase().includes(searchLower) ||
-      entry.trade.toLowerCase().includes(searchLower) ||
-      (entry.sme.designation && entry.sme.designation.toLowerCase().includes(searchLower)) ||
-      (entry.sme.institute && entry.sme.institute.toLowerCase().includes(searchLower))
-    );
-  });
+  // Calculate compliance for the currently selected SME
+  const uploadedCount = selectedEntry
+    ? docDefinitions.filter(def => !!findDocument(selectedEntry.documents, def.type)).length
+    : 0;
+  const isFullyCompliant = uploadedCount === docDefinitions.length;
 
   return (
     <div className={styles.container}>
-      <header className={styles.header}>
-        <h1>Accounts & Payments</h1>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <div style={{ display: 'flex', backgroundColor: 'var(--slate-100)', padding: '4px', borderRadius: 'var(--radius-md)' }}>
-            <button 
-              style={{ padding: '8px 16px', borderRadius: 'var(--radius-sm)', border: 'none', cursor: 'pointer', fontWeight: 500, backgroundColor: activeTab === 'sme' ? 'white' : 'transparent', color: activeTab === 'sme' ? 'var(--primary)' : 'var(--text-secondary)', boxShadow: activeTab === 'sme' ? 'var(--shadow-sm)' : 'none' }}
-              onClick={() => setActiveTab('sme')}
-            >Document Upload</button>
-            <button 
-              style={{ padding: '8px 16px', borderRadius: 'var(--radius-sm)', border: 'none', cursor: 'pointer', fontWeight: 500, backgroundColor: activeTab === 'hr' ? 'white' : 'transparent', color: activeTab === 'hr' ? 'var(--primary)' : 'var(--text-secondary)', boxShadow: activeTab === 'hr' ? 'var(--shadow-sm)' : 'none' }}
-              onClick={() => setActiveTab('hr')}
-            >HR Salaries (Head 3)</button>
-          </div>
-          <button className="btn-primary" onClick={exportToCSV}>Export to CSV</button>
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`${styles.toast} ${
+            toast.type === 'success' ? styles.toastSuccess : styles.toastError
+          }`}
+        >
+          <span>{toast.message}</span>
         </div>
+      )}
+
+      {/* Header Area */}
+      <header className={styles.header}>
+        <div className={styles.headerLeft}>
+          <h1>Document Upload</h1>
+          <div className={styles.headerSubtitle}>
+            SME Verification & Mandatory Document Upload Portal
+          </div>
+        </div>
+
+        {selectedEntry && (
+          <div className={styles.headerRight}>
+            <span
+              className={
+                isFullyCompliant
+                  ? styles.complianceBadge
+                  : styles.complianceBadgePending
+              }
+            >
+              {isFullyCompliant ? '✓ 3 / 3 Uploaded (Complete)' : `⚠️ ${uploadedCount} / 3 Uploaded`}
+            </span>
+            <Link href="/documents" className={styles.registryLink}>
+              View Document Registry →
+            </Link>
+          </div>
+        )}
       </header>
 
-      <div className="card" style={{ background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 }}>
-        {activeTab === 'sme' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            
-            {/* Visual Navigation Indicator */}
-            <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 500, display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <span>SME Records</span> <span style={{ color: '#cbd5e1' }}>→</span> 
-              <span style={{ color: '#3b82f6' }}>Document Upload</span> <span style={{ color: '#cbd5e1' }}>→</span> 
-              <span>Document Registry</span>
+      {/* Visual Navigation Flow */}
+      <div className={styles.breadcrumb}>
+        <span>SME Records</span>
+        <span className={styles.breadcrumbArrow}>→</span>
+        <span className={styles.breadcrumbActive}>Document Upload</span>
+        <span className={styles.breadcrumbArrow}>→</span>
+        <Link href="/documents" style={{ color: 'inherit', textDecoration: 'none' }}>
+          Document Registry
+        </Link>
+      </div>
+
+      {/* SME Selector Area */}
+      <div className={styles.selectorCard}>
+        <label className={styles.selectorLabel}>
+          Select SME Record to Upload Documents
+        </label>
+        <select
+          value={selectedEntryId}
+          onChange={e => setSelectedEntryId(e.target.value)}
+          className={styles.selectInput}
+        >
+          <option value="">-- Select an SME Entry --</option>
+          {entries.map(entry => (
+            <option key={entry.id} value={entry.id}>
+              {entry.sme?.name} | EPIC ID: {getEpicId(entry.epicSequence || 1)} | {entry.trade} |{' '}
+              {entry.sme?.institute || 'NIMI Chennai'} |{' '}
+              {entry.attendanceFrom
+                ? new Date(entry.attendanceFrom).toLocaleDateString('en-IN')
+                : 'Pending'}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Main Content Area */}
+      {!selectedEntry ? (
+        <div className={styles.emptyState}>
+          <div style={{ fontSize: '42px', marginBottom: '10px' }}>📄</div>
+          <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>
+            No SME Record Selected
+          </div>
+          <div style={{ fontSize: '14px', marginTop: '6px' }}>
+            Please select an SME entry from the dropdown above to view and upload their compliance documents.
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: '24px', flexDirection: 'row', flexWrap: 'wrap' }}>
+          {/* Left Column: Upload Cards and Flow */}
+          <div style={{ flex: '1 1 65%', display: 'flex', flexDirection: 'column' }}>
+            {/* Selected SME Entry Info Card */}
+            <div className={styles.smeDetailsCard}>
+              <div className={styles.smeHeaderRow}>
+                <div>
+                  <div className={styles.smeSubtitle}>Selected SME Entry</div>
+                  <h3 className={styles.smeName}>{selectedEntry.sme?.name}</h3>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <span className={styles.epicPill}>
+                    {getEpicId(selectedEntry.epicSequence || 1)}
+                  </span>
+                  <button
+                    className={styles.btnCopy}
+                    onClick={() => copyEpicId(getEpicId(selectedEntry.epicSequence || 1))}
+                    title="Copy EPIC ID"
+                  >
+                    {copiedEpic ? '✓ Copied' : '📋 Copy'}
+                  </button>
+                </div>
+              </div>
+
+              <div className={styles.smeGrid}>
+                <div className={styles.smeItem}>
+                  <strong>Trade:</strong> {selectedEntry.trade}
+                </div>
+                <div className={styles.smeItem}>
+                  <strong>Topic:</strong> {selectedEntry.topic || 'Curriculum Modules'}
+                </div>
+                <div className={styles.smeItem}>
+                  <strong>Institute:</strong> {selectedEntry.sme?.institute || 'NIMI Chennai'}
+                </div>
+                <div className={styles.smeItem}>
+                  <strong>Attendance Date:</strong>{' '}
+                  {selectedEntry.attendanceFrom
+                    ? new Date(selectedEntry.attendanceFrom).toLocaleDateString('en-IN')
+                    : 'Pending'}
+                </div>
+              </div>
             </div>
 
-            {/* Selection Area */}
-            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <label style={{ display: 'block', fontSize: '14px', fontWeight: 'bold', color: '#1e293b', marginBottom: '8px' }}>Select SME Record to Upload Documents</label>
-              <select 
-                value={selectedEntryId}
-                onChange={(e) => setSelectedEntryId(e.target.value)}
-                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px', outline: 'none' }}
-              >
-                <option value="">-- Select an SME Entry --</option>
-                {initialData.map(entry => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.sme.name} | EPIC ID: {getEpicId(entry.epicSequence || 1)} | {entry.trade} | {entry.sme.institute || 'NIMI Chennai'} | {entry.attendanceFrom ? new Date(entry.attendanceFrom).toLocaleDateString('en-IN') : 'Pending'}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Document Upload Grid (SME Attendance, SME Approval Letter, Work Completion Certificate) */}
+            <div className={styles.docGrid}>
+              {docDefinitions.map(docDef => {
+                const isUploading = uploadingState[`${selectedEntry.id}-${docDef.type}`];
+                const uploadedDoc = findDocument(selectedEntry.documents, docDef.type);
+                const hasDoc = !!uploadedDoc;
+                const fileDownloadUrl = uploadedDoc?.filePath || (uploadedDoc?.id ? `/api/documents/${uploadedDoc.id}` : '#');
 
-            {(() => {
-              const entry = initialData.find(e => e.id === selectedEntryId);
-              if (!entry) {
                 return (
-                  <div style={{ padding: '60px 20px', textAlign: 'center', background: 'white', borderRadius: '12px', border: '1px dashed #cbd5e1', color: '#64748b' }}>
-                    <div style={{ fontSize: '40px', marginBottom: '10px' }}>📄</div>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold' }}>No SME Selected</div>
-                    <div style={{ fontSize: '14px', marginTop: '5px' }}>Please select an SME from the dropdown above to upload their documents.</div>
+                  <div
+                    key={docDef.type}
+                    className={`${styles.docCard} ${hasDoc ? styles.docCardUploaded : ''}`}
+                  >
+                    <div>
+                      {/* Card Header with Icon & Status Badge */}
+                      <div className={styles.docCardTop}>
+                        <div
+                          className={`${styles.docIconWrap} ${
+                            hasDoc ? styles.docIconUploaded : ''
+                          }`}
+                        >
+                          {docDef.icon}
+                        </div>
+
+                        {/* Status Badge: If document exists, do NOT show 'Missing', show 'Uploaded' */}
+                        {hasDoc ? (
+                          <div className={styles.badgeUploaded}>
+                            <span>✓ Uploaded</span>
+                          </div>
+                        ) : (
+                          <div className={styles.badgeMissing}>
+                            <span>✕ Missing</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Title & Description */}
+                      <h4 className={styles.docTitle}>{docDef.title}</h4>
+                      <p className={styles.docDesc}>{docDef.desc}</p>
+
+                      {/* If file already exists: Display attached file details, View, Download */}
+                      {hasDoc && (
+                        <div className={styles.attachedFileBox}>
+                          <div className={styles.fileHeadRow}>
+                            <span className={styles.pdfTag}>PDF</span>
+                            <span
+                              className={styles.fileName}
+                              title={uploadedDoc.name}
+                            >
+                              {uploadedDoc.name}
+                            </span>
+                          </div>
+
+                          <div className={styles.fileMeta}>
+                            <span className={styles.fileMetaItem}>
+                              🏷️ v{uploadedDoc.version || 1}
+                            </span>
+                            <span className={styles.fileMetaItem}>
+                              📅{' '}
+                              {new Date(
+                                uploadedDoc.updatedAt || uploadedDoc.createdAt || Date.now()
+                              ).toLocaleDateString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric'
+                              })}
+                            </span>
+                          </div>
+
+                          {/* Quick Action buttons: View & Download */}
+                          <div className={styles.fileActionsRow}>
+                            <button
+                              className={styles.btnView}
+                              onClick={() =>
+                                setPreviewDoc({
+                                  ...uploadedDoc,
+                                  title: docDef.title,
+                                  epicId: getEpicId(selectedEntry.epicSequence || 1),
+                                  smeName: selectedEntry.sme?.name,
+                                  url: fileDownloadUrl
+                                })
+                              }
+                            >
+                              👁️ View
+                            </button>
+                            <a
+                              href={fileDownloadUrl}
+                              download={uploadedDoc.name}
+                              className={styles.btnDownload}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              ⬇ Download
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bottom Actions Area */}
+                    <div>
+                      {hasDoc ? (
+                        /* RE-UPLOAD OPTION ONLY AT THE BOTTOM (reupload option onli down la ah kamikkanum) */
+                        <div className={styles.reuploadContainer}>
+                          <label
+                            className={styles.btnReupload}
+                            style={{
+                              opacity: isUploading ? 0.7 : 1,
+                              cursor: isUploading ? 'not-allowed' : 'pointer'
+                            }}
+                          >
+                            <span>
+                              {isUploading
+                                ? '⏳ Uploading new version...'
+                                : '🔄 Re-upload / Replace Document'}
+                            </span>
+                            <input
+                              type="file"
+                              accept=".pdf,application/pdf"
+                              style={{ display: 'none' }}
+                              disabled={isUploading}
+                              onChange={e => {
+                                if (e.target.files && e.target.files[0]) {
+                                  handleFileUpload(
+                                    selectedEntry.smeId,
+                                    selectedEntry.id,
+                                    docDef.type,
+                                    e.target.files[0]
+                                  );
+                                  e.target.value = '';
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+                      ) : (
+                        /* PRIMARY UPLOAD BUTTON WHEN FILE IS MISSING */
+                        <label
+                          className={`${styles.btnUploadPrimary} ${
+                            isUploading ? styles.btnUploadLoading : ''
+                          }`}
+                        >
+                          <span>{isUploading ? '⏳ Uploading...' : '⬆ Upload PDF'}</span>
+                          <input
+                            type="file"
+                            accept=".pdf,application/pdf"
+                            style={{ display: 'none' }}
+                            disabled={isUploading}
+                            onChange={e => {
+                              if (e.target.files && e.target.files[0]) {
+                                handleFileUpload(
+                                  selectedEntry.smeId,
+                                  selectedEntry.id,
+                                  docDef.type,
+                                  e.target.files[0]
+                                );
+                                e.target.value = '';
+                              }
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
                   </div>
                 );
-              }
+              })}
+            </div>
 
-              return (
-                <div style={{ display: 'flex', gap: '20px', flexDirection: 'row', flexWrap: 'wrap' }}>
-                  
-                  {/* Left Column: Upload Cards */}
-                  <div style={{ flex: '1 1 65%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    
-                    {/* Related SME Info Card */}
-                    <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', borderLeft: '4px solid #3b82f6' }}>
-                      <div style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', fontWeight: 'bold', letterSpacing: '0.05em', marginBottom: '8px' }}>Selected SME Entry</div>
-                      <h3 style={{ margin: '0 0 10px 0', color: '#0f172a', fontSize: '20px' }}>{entry.sme.name}</h3>
-                      <div style={{ color: '#475569', fontSize: '14px', marginBottom: '4px' }}><strong>EPIC ID:</strong> {getEpicId(entry.epicSequence || 1)}</div>
-                      <div style={{ color: '#475569', fontSize: '14px', marginBottom: '4px' }}><strong>Trade:</strong> {entry.trade}</div>
-                      <div style={{ color: '#475569', fontSize: '14px', marginBottom: '4px' }}><strong>Topic:</strong> {entry.topic}</div>
-                      <div style={{ color: '#475569', fontSize: '14px', marginBottom: '4px' }}><strong>Institute:</strong> {entry.sme.institute || 'NIMI Chennai'}</div>
-                      <div style={{ color: '#475569', fontSize: '14px' }}><strong>Attendance Date:</strong> {entry.attendanceFrom ? new Date(entry.attendanceFrom).toLocaleDateString('en-IN') : 'Pending'}</div>
-                    </div>
-
-                    {/* Document Cards Grid */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
-                      {[
-                        { type: 'SME_ATTENDANCE', title: 'SME Attendance', desc: 'Upload signed copy of SME Attendance', icon: '📅' },
-                        { type: 'APPROVAL_LETTER', title: 'SME Approval Letter', desc: 'Upload signed copy of SME Approval Letter', icon: '📝' },
-                        { type: 'WORK_COMPLETION', title: 'Work Completion Certificate', desc: 'Upload signed copy of Work Completion Certificate', icon: '🎓' }
-                      ].map(docDef => {
-                        const isUploading = uploadingState[`${entry.id}-${docDef.type}`];
-                        const uploadedDoc = entry.documents?.find((d: any) => d.type === docDef.type);
-                        const hasDoc = !!uploadedDoc;
-                        
-                        return (
-                          <div key={docDef.type} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                              <div style={{ fontSize: '24px' }}>{docDef.icon}</div>
-                              <div style={{ fontSize: '12px', fontWeight: 'bold', padding: '4px 8px', borderRadius: '20px', background: hasDoc ? '#dcfce3' : '#fee2e2', color: hasDoc ? '#16a34a' : '#ef4444' }}>
-                                {hasDoc ? '✓ Uploaded' : '✕ Missing'}
-                              </div>
-                            </div>
-                            
-                            <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', color: '#1e293b' }}>{docDef.title}</h4>
-                            <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: '#64748b', flex: 1 }}>{docDef.desc}</p>
-                            
-                            {hasDoc && (
-                              <div style={{ fontSize: '12px', color: '#334155', background: '#f8fafc', padding: '8px', borderRadius: '6px', marginBottom: '15px', wordBreak: 'break-all' }}>
-                                ✓ {uploadedDoc.name}
-                              </div>
-                            )}
-
-                            <label style={{ 
-                              cursor: isUploading ? 'not-allowed' : 'pointer', 
-                              background: isUploading ? '#cbd5e1' : (hasDoc ? '#f8fafc' : '#3b82f6'), 
-                              color: isUploading ? '#475569' : (hasDoc ? '#334155' : 'white'), 
-                              border: hasDoc ? '1px solid #cbd5e1' : 'none',
-                              padding: '10px', 
-                              borderRadius: '6px', 
-                              textAlign: 'center', 
-                              fontSize: '14px', 
-                              fontWeight: 'bold', 
-                              display: 'block', 
-                              transition: 'all 0.2s' 
-                            }}>
-                              {isUploading ? 'Uploading...' : (hasDoc ? 'Replace PDF' : 'Upload PDF')}
-                              <input 
-                                type="file" 
-                                accept=".pdf" 
-                                style={{ display: 'none' }} 
-                                disabled={isUploading}
-                                onChange={(e) => {
-                                  if (e.target.files && e.target.files[0]) {
-                                    handleFileUpload(entry.smeId, entry.id, docDef.type, e.target.files[0]);
-                                  }
-                                }}
-                              />
-                            </label>
-                            
-                            {hasDoc && (
-                              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                                <button style={{ flex: 1, background: 'transparent', border: '1px solid #e2e8f0', padding: '6px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', color: '#475569' }} onClick={() => window.open(uploadedDoc.filePath, '_blank')}>View</button>
-                                <a href={uploadedDoc.filePath} download={uploadedDoc.name} style={{ flex: 1, background: 'transparent', border: '1px solid #e2e8f0', padding: '6px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', color: '#475569', textAlign: 'center', textDecoration: 'none' }}>Download</a>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Document Flow Panel */}
-                    <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-                      <div>
-                        <div style={{ fontWeight: 'bold', color: '#0369a1', marginBottom: '4px' }}>Document Flow</div>
-                        <div style={{ fontSize: '14px', color: '#0c4a6e' }}>Uploaded documents are linked to the selected SME Record and will be available in Document Registry.</div>
-                      </div>
-                      <a href="/documents" style={{ background: '#0ea5e9', color: 'white', padding: '10px 20px', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold', fontSize: '14px', whiteSpace: 'nowrap' }}>
-                        View in Document Registry →
-                      </a>
-                    </div>
-                  </div>
-
-                  {/* Right Column: Upload Guidelines */}
-                  <div style={{ flex: '1 1 30%', minWidth: '250px' }}>
-                    <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', position: 'sticky', top: '20px' }}>
-                      <h4 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#1e293b', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>Upload Guidelines</h4>
-                      <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px', color: '#475569' }}>
-                        <li style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#10b981' }}>✓</span> Upload signed documents only</li>
-                        <li style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#10b981' }}>✓</span> PDF format required</li>
-                        <li style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#10b981' }}>✓</span> Document will be linked to selected SME</li>
-                        <li style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#10b981' }}>✓</span> Uploaded document will appear in Document Registry</li>
-                        <li style={{ display: 'flex', gap: '8px' }}><span style={{ color: '#10b981' }}>✓</span> Maintain controlled document naming</li>
-                      </ul>
-                      <div style={{ marginTop: '20px', padding: '12px', background: '#f8fafc', borderRadius: '8px', fontSize: '12px', color: '#64748b' }}>
-                        <strong>Naming Convention:</strong><br/>
-                        The system will automatically generate a secure filename based on the SME ID and Document Type to maintain compliance.
-                      </div>
-                    </div>
-                  </div>
+            {/* Document Flow Banner */}
+            <div className={styles.flowBanner}>
+              <div>
+                <div className={styles.flowTitle}>Document Flow & Audit Tracking</div>
+                <div className={styles.flowDesc}>
+                  Uploaded documents are securely linked to this SME Record (
+                  {getEpicId(selectedEntry.epicSequence || 1)}) and are immediately accessible in the Document Registry.
                 </div>
-              );
-            })()}
+              </div>
+              <Link href="/documents" className={styles.registryLink}>
+                View in Document Registry →
+              </Link>
+            </div>
           </div>
-        )}
 
-        {activeTab === 'hr' && (
-          <div className={styles.tableWrapper}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>HR Name / Role</th>
-                  <th>Month / Year</th>
-                  <th>Base Salary</th>
-                  <th>Total Amount</th>
-                  <th>Payment Status</th>
-                  <th>UTR Number</th>
-                </tr>
-              </thead>
-              <tbody>
-                {initialHrSalaries.length === 0 ? (
-                  <tr><td colSpan={6} className={styles.emptyState}>No HR Salary records found. Configure HR Roles in Settings first.</td></tr>
-                ) : (
-                  initialHrSalaries.map(salary => (
-                    <tr key={salary.id}>
-                      <td>
-                        <strong>{salary.hr.name}</strong>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{salary.hr.role}</div>
-                      </td>
-                      <td>{salary.month} {salary.year}</td>
-                      <td>₹ {salary.hr.baseSalary.toLocaleString('en-IN')}</td>
-                      <td style={{ fontWeight: 600 }}>₹ {salary.totalAmount.toLocaleString('en-IN')}</td>
-                      <td>
-                        <span className={`${styles.badge} ${styles['badge-' + salary.status.toLowerCase()]}`}>
-                          {salary.status}
-                        </span>
-                      </td>
-                      <td>{salary.utrNumber || '-'}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          {/* Right Column: Upload Guidelines */}
+          <div style={{ flex: '1 1 30%', minWidth: '280px' }}>
+            <div className={styles.guidelinesCard}>
+              <h4 className={styles.guidelinesTitle}>Upload Guidelines & Compliance</h4>
+              <ul className={styles.guidelinesList}>
+                <li>
+                  <span className={styles.guidelinesCheck}>✓</span>
+                  <span><strong>Signed Documents:</strong> Upload only officially signed and stamped documents.</span>
+                </li>
+                <li>
+                  <span className={styles.guidelinesCheck}>✓</span>
+                  <span><strong>Format Requirement:</strong> Clear PDF format required for audit trail.</span>
+                </li>
+                <li>
+                  <span className={styles.guidelinesCheck}>✓</span>
+                  <span><strong>Automatic Linkage:</strong> Document is permanently associated with this EPIC ID.</span>
+                </li>
+                <li>
+                  <span className={styles.guidelinesCheck}>✓</span>
+                  <span><strong>Version Control:</strong> Re-uploading automatically increments the version counter without data loss.</span>
+                </li>
+                <li>
+                  <span className={styles.guidelinesCheck}>✓</span>
+                  <span><strong>Document Registry:</strong> All documents will reflect in real-time in the Central Registry.</span>
+                </li>
+              </ul>
+
+              <div className={styles.namingNote}>
+                <strong>Automated Compliance Naming:</strong><br />
+                The system automatically creates a secure, standardized filename combining the SME ID, Work Entry, and Document Type for government audit readiness.
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* PDF Viewer Modal */}
+      {previewDoc && (
+        <div
+          className={styles.modalOverlay}
+          onClick={e => {
+            if (e.target === e.currentTarget) setPreviewDoc(null);
+          }}
+        >
+          <div className={styles.modalHeader}>
+            <div>
+              <div className={styles.modalHeaderTitle}>
+                {previewDoc.title || previewDoc.name}
+              </div>
+              <div className={styles.modalHeaderSub}>
+                {previewDoc.smeName} • {previewDoc.epicId} • Version {previewDoc.version || 1}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <a
+                href={previewDoc.url}
+                download={previewDoc.name}
+                className={styles.registryLink}
+                target="_blank"
+                rel="noreferrer"
+              >
+                ⬇ Download
+              </a>
+              <button
+                className={styles.modalCloseBtn}
+                onClick={() => setPreviewDoc(null)}
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.modalBody}>
+            <div className={styles.modalIframeWrap}>
+              <iframe
+                src={previewDoc.url}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                title="Document Preview"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
