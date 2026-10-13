@@ -63,7 +63,9 @@ function cleanReviewComments(reviewComments: string | null | undefined): string 
 }
 
 export default function VideoProductionClient({ initialRecords = [], role = 'VIEWER' }: any) {
-  const [activeStage, setActiveStage] = useState<'STAGE_1' | 'STAGE_2' | 'STAGE_3'>('STAGE_1');
+  const [activeStage, setActiveStage] = useState<'STAGE_1' | 'STAGE_2' | 'STAGE_3'>(
+    role === 'EDITOR' ? 'STAGE_2' : 'STAGE_1'
+  );
   const [workEntries, setWorkEntries] = useState<any[]>(initialRecords);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -355,6 +357,19 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         </div>
       )}
 
+      {/* Role Assignment Notice for Cameraman or Editor */}
+      {(role === 'CAMERAMAN' || role === 'EDITOR') && workEntries.length === 0 && (
+        <div style={{ padding: '16px 20px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', color: '#1e40af', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '24px' }}>🎯</span>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: '15px' }}>No Epic IDs Assigned Yet</div>
+            <div style={{ fontSize: '13px', color: '#3b82f6', marginTop: '2px' }}>
+              You do not currently have any Epic IDs assigned by the Administrator. Please contact the Admin to assign Epic IDs to your account.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 2. THREE-STAGE WORKFLOW NAVIGATION TABS */}
       <div className={styles.workflowTabs}>
         <button 
@@ -405,7 +420,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
           </div>
 
           {/* Form to Add Video Topic by Epic ID */}
-          {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+          {(role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'CAMERAMAN') && (
             <form onSubmit={handleCreateStage1} className={styles.createForm}>
               <div className={styles.formField}>
                 <label className={styles.formLabel}>Epic ID *</label>
@@ -631,7 +646,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+                        {(role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'CAMERAMAN') && (
                           <button 
                             className={styles.btnEdit} 
                             onClick={() => setEditingStage1({
@@ -824,7 +839,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                           </td>
                           <td>
                             <div style={{ display: 'flex', gap: '6px' }}>
-                              {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+                              {(role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'EDITOR') && (
                                 <button 
                                   className={styles.btnEdit} 
                                   onClick={() => setEditingStage2({

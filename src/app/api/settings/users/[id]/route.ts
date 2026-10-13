@@ -11,28 +11,50 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
 
     const { id } = await context.params;
-    const { status } = await request.json();
+    const body = await request.json();
+    const { status, role, department, designation } = body;
 
-    if (status !== 'ACTIVE' && status !== 'INACTIVE') {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+    const dataToUpdate: any = {};
+
+    if (status !== undefined) {
+      if (status !== 'ACTIVE' && status !== 'INACTIVE') {
+        return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+      }
+
+      // Ensure we don't deactivate the last admin
+      if (status === 'INACTIVE') {
+        const activeAdminsCount = await prisma.user.count({
+          where: { role: 'ADMIN', status: 'ACTIVE' } as any
+        });
+        
+        const adminToUpdate = (await prisma.user.findUnique({ where: { id } })) as any;
+        
+        if (adminToUpdate?.status === 'ACTIVE' && activeAdminsCount <= 1) {
+          return NextResponse.json({ error: 'Cannot deactivate the last active admin' }, { status: 400 });
+        }
+      }
+      dataToUpdate.status = status;
     }
 
-    // Ensure we don't deactivate the last admin
-    if (status === 'INACTIVE') {
-      const activeAdminsCount = await prisma.user.count({
-        where: { role: 'ADMIN', status: 'ACTIVE' } as any
-      });
-      
-      const adminToUpdate = (await prisma.user.findUnique({ where: { id } })) as any;
-      
-      if (adminToUpdate?.status === 'ACTIVE' && activeAdminsCount <= 1) {
-        return NextResponse.json({ error: 'Cannot deactivate the last active admin' }, { status: 400 });
+    if (role !== undefined) {
+      const validRoles = ['ADMIN', 'CAMERAMAN', 'EDITOR', 'VIEWER', 'TEAM_MEMBER'];
+      if (!validRoles.includes(role)) {
+        return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
       }
+      dataToUpdate.role = role;
+    }
+
+    if (department !== undefined) {
+      dataToUpdate.department = department;
+    }
+
+    if (designation !== undefined) {
+      dataToUpdate.designation = designation;
     }
 
     const updatedUser = await prisma.user.update({
       where: { id },
-      data: { status } as any,
+      data: dataToUpdate,
       select: {
         id: true,
         email: true,
@@ -50,10 +72,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     
     const actorEmail = await getEmail();
     await logAudit({
-      action: 'UPDATE_USER_STATUS',
+      action: 'UPDATE_USER',
       entity: 'User',
       entityId: id,
-      newData: `Changed status to ${status}`,
+      newData: `Updated user properties: ${JSON.stringify(dataToUpdate)}`,
       userEmail: actorEmail
     });
 

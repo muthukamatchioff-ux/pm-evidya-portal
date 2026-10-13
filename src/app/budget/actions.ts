@@ -6,7 +6,7 @@ import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
 export async function getBudgetComponents() {
-  await requireAuth(['ADMIN', 'TEAM_MEMBER']);
+  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   try {
     const components = await prisma.budgetComponent.findMany({
       include: {
@@ -47,7 +47,7 @@ export async function getBudgetComponents() {
 }
 
 export async function getDashboardKPIs() {
-  await requireAuth(['ADMIN', 'TEAM_MEMBER']);
+  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   const components = await getBudgetComponents();
   
   let totalApproved = 0;

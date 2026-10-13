@@ -44,7 +44,7 @@ export async function login(email: string, password: string): Promise<{ success:
       where: { email: normalizedEmail }
     });
 
-    if (dbUser && (dbUser.role === 'ADMIN' || dbUser.role === 'TEAM_MEMBER' || dbUser.role === 'VIEWER')) {
+    if (dbUser && (dbUser.role === 'ADMIN' || dbUser.role === 'TEAM_MEMBER' || dbUser.role === 'VIEWER' || dbUser.role === 'CAMERAMAN' || dbUser.role === 'EDITOR')) {
       if (dbUser.status !== 'ACTIVE' && !isAdminEmail(normalizedEmail)) {
         return { success: false, error: 'Account is deactivated.' };
       }
@@ -206,15 +206,15 @@ export async function getRole() {
 
 import { redirect } from 'next/navigation';
 
-export async function checkAuth(allowedRoles: string[]) {
+export async function checkAuth(allowedRoles: string[]): Promise<{ success: true; role: string } | { success: false; error: string; status: number; role?: string }> {
   const role = await getRole();
   if (role === 'VISITOR') {
-    return { success: false, error: 'Authentication required.', status: 401 };
+    return { success: false, error: 'Authentication required.', status: 401, role };
   }
   if (!allowedRoles.includes(role)) {
-    return { success: false, error: 'You are not authorized to perform this action.', status: 403 };
+    return { success: false, error: 'You are not authorized to perform this action.', status: 403, role };
   }
-  return { success: true };
+  return { success: true, role };
 }
 
 export async function requireAuth(allowedRoles: string[]) {
@@ -227,4 +227,18 @@ export async function requireAuth(allowedRoles: string[]) {
   if (!allowedRoles.includes(role)) {
     redirect('/dashboard?error=forbidden');
   }
+}
+
+export async function getCurrentUser() {
+  const email = await getEmail();
+  if (!email) return null;
+  return await prisma.user.findUnique({
+    where: { email: email.toLowerCase().trim() }
+  });
+}
+
+import { parseAssignedEpics as parseEpicsSync } from './epicHelpers';
+
+export async function parseAssignedEpics(departmentStr: string | null | undefined): Promise<number[]> {
+  return parseEpicsSync(departmentStr);
 }

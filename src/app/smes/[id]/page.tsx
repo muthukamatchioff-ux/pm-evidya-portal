@@ -4,9 +4,10 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import styles from './smeProfile.module.css';
 import UnifiedSmeGeneratorClient from './UnifiedSmeGeneratorClient';
-import { getRole } from '@/lib/auth';
+import { getRole, requireAuth } from '@/lib/auth';
 
 export default async function SMEProfilePage(props: { params: Promise<{ id: string }> }) {
+  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   const role = await getRole();
   const params = await props.params;
   const sme = await prisma.sME.findUnique({

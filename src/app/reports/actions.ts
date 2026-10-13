@@ -1,7 +1,8 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { requireAuth, checkAuth } from '@/lib/auth';
+import { requireAuth, checkAuth, getCurrentUser } from '@/lib/auth';
+import { parseAssignedEpics } from '@/lib/epicHelpers';
 
 export async function generateReportData(reportId: string, dateFrom: string, dateTo: string) {
   const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER']);
@@ -62,14 +63,37 @@ export async function generateReportData(reportId: string, dateFrom: string, dat
 }
 
 export async function getComprehensiveReportData() {
-  const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER']);
+  const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
   if (!authCheck.success) return authCheck;
-  const smes = await prisma.sME.findMany({
+  const role = authCheck.role || 'VIEWER';
+  const user = await getCurrentUser();
+
+  let epicFilter: any = {};
+  if (role === 'CAMERAMAN' || role === 'EDITOR') {
+    const assigned = parseAssignedEpics(user?.department);
+    if (role === 'CAMERAMAN') {
+      epicFilter = {
+        OR: [
+          ...(assigned.length > 0 ? [{ epicSequence: { in: assigned } }] : []),
+          { shootingSchedules: { some: { cameraman: { in: [user?.name, user?.email].filter(Boolean) as string[] } } } }
+        ]
+      };
+    } else {
+      epicFilter = {
+        OR: [
+          ...(assigned.length > 0 ? [{ epicSequence: { in: assigned } }] : []),
+          { videoEditorRecords: { some: { editorName: { in: [user?.name, user?.email].filter(Boolean) as string[] } } } }
+        ]
+      };
+    }
+  }
+
+  const smes = (role === 'CAMERAMAN' || role === 'EDITOR') ? [] : await prisma.sME.findMany({
     include: {
       workEntries: {
         include: {
           documents: true,
-          payments: true
+          payments: (role === 'ADMIN' || role === 'TEAM_MEMBER')
         }
       }
     },
@@ -81,16 +105,19 @@ export async function getComprehensiveReportData() {
     orderBy: { createdAt: 'desc' }
   });
 
-  const auditLogs = await prisma.auditLog.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: 1000
-  });
+  const auditLogs = (role === 'ADMIN' || role === 'TEAM_MEMBER')
+    ? await prisma.auditLog.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 1000
+      })
+    : [];
 
   const epicWorkEntries = await prisma.sMEWorkEntry.findMany({
+    where: epicFilter,
     include: {
       sme: true,
       documents: true,
-      payments: true,
+      payments: (role === 'ADMIN' || role === 'TEAM_MEMBER'),
       shootingSchedules: true,
       videoEditorRecords: true,
       animationRecords: true,
@@ -104,8 +131,10 @@ export async function getComprehensiveReportData() {
 }
 
 export async function getEpicCompleteHistory(workEntryId: string) {
-  const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER']);
+  const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
   if (!authCheck.success) return { success: false, error: authCheck.error };
+  const role = authCheck.role || 'VIEWER';
+  const user = await getCurrentUser();
   
   try {
     const workEntry = await prisma.sMEWorkEntry.findUnique({
@@ -113,7 +142,7 @@ export async function getEpicCompleteHistory(workEntryId: string) {
       include: {
         sme: true,
         documents: { orderBy: { createdAt: 'desc' } },
-        payments: { orderBy: { createdAt: 'desc' } },
+        payments: (role === 'ADMIN' || role === 'TEAM_MEMBER') ? { orderBy: { createdAt: 'desc' } } : false,
         shootingSchedules: { orderBy: { createdAt: 'asc' } },
         videoEditorRecords: { orderBy: { createdAt: 'asc' } },
         animationRecords: { orderBy: { createdAt: 'asc' } },
@@ -124,16 +153,30 @@ export async function getEpicCompleteHistory(workEntryId: string) {
 
     if (!workEntry) return { success: false, error: 'Epic record not found.' };
 
-    const auditLogs = await prisma.auditLog.findMany({
-      where: {
-        OR: [
-          { entityId: workEntry.id },
-          ...(workEntry.smeId ? [{ entityId: workEntry.smeId }] : [])
-        ]
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100
-    });
+    if (role === 'CAMERAMAN' || role === 'EDITOR') {
+      const assigned = parseAssignedEpics(user?.department);
+      const isAssignedSeq = workEntry.epicSequence && assigned.includes(workEntry.epicSequence);
+      const isAssignedName = role === 'CAMERAMAN'
+        ? workEntry.shootingSchedules?.some((s: any) => s.cameraman === user?.name || s.cameraman === user?.email)
+        : workEntry.videoEditorRecords?.some((e: any) => e.editorName === user?.name || e.editorName === user?.email);
+      
+      if (!isAssignedSeq && !isAssignedName) {
+        return { success: false, error: 'Unauthorized: You are not assigned to this Epic ID.' };
+      }
+    }
+
+    const auditLogs = (role === 'ADMIN' || role === 'TEAM_MEMBER')
+      ? await prisma.auditLog.findMany({
+          where: {
+            OR: [
+              { entityId: workEntry.id },
+              ...(workEntry.smeId ? [{ entityId: workEntry.smeId }] : [])
+            ]
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 100
+        })
+      : [];
 
     return {
       success: true,

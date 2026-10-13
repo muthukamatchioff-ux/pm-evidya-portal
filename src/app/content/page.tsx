@@ -3,11 +3,14 @@ import ContentClient from './ContentClient';
 import { getVideos } from './actions';
 import { getTopicProductionRecords } from '../video-production/actions';
 
+import { requireAuth } from '@/lib/auth';
+
 export const metadata = {
   title: 'Video Content Library | PM e-Vidya'
 };
 
 export default async function ContentPage() {
+  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
   const videos = await getVideos();
   const epicsResult = await getTopicProductionRecords();
   const epics = epicsResult.success ? epicsResult.data : [];

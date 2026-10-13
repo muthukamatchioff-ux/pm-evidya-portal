@@ -4,8 +4,12 @@ import { getComprehensiveReportData } from './actions';
 import ReportsClient from './ReportsClient';
 import styles from '@/app/dashboard/dashboard.module.css';
 
+import { getRole, requireAuth } from '@/lib/auth';
+
 export default async function ReportsPage() {
-  const components = await getBudgetComponents();
+  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
+  const role = await getRole();
+  const components = (role === 'ADMIN' || role === 'TEAM_MEMBER') ? await getBudgetComponents() : [];
   const comprehensiveData = await getComprehensiveReportData();
   
   return (
@@ -14,13 +18,13 @@ export default async function ReportsPage() {
         <div>
           <h1 className={styles.pageTitle}>Reports & Export</h1>
           <p style={{ color: 'var(--text-secondary)', marginTop: '4px', fontSize: '14px' }}>
-            Generate PM e-Vidya Overall Financial Reports or Component-Specific Reports.
+            Generate PM e-Vidya Production, Operational, or Financial Reports according to your role permissions.
           </p>
         </div>
       </div>
       
       <div style={{ marginTop: '32px' }}>
-        <ReportsClient components={components} comprehensiveData={comprehensiveData} />
+        <ReportsClient components={components} comprehensiveData={comprehensiveData} role={role} />
       </div>
     </div>
   );

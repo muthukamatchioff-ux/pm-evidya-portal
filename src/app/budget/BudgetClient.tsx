@@ -14,8 +14,8 @@ export default function BudgetClient({ role, initialData }: { role?: string, ini
   };
 
   const handleSave = async (id: string) => {
-    const res = await updateComponentBudget(id, editBudget);
-    if (res && !res.success) { alert(res.error); return; }
+    const res = await updateComponentBudget(id, editBudget) as any;
+    if (res && !res.success) { alert(res.error || 'Failed to update budget'); return; }
     setEditingId(null);
     alert("Approved Budget updated successfully!");
   };

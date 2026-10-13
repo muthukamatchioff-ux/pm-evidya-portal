@@ -1,9 +1,18 @@
 import React from 'react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { getDashboardKPIs, getBudgetComponents } from '@/app/budget/actions';
+import { getRole, requireAuth } from '@/lib/auth';
 import styles from './dashboard.module.css';
 
 export default async function Dashboard() {
+  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
+  const role = await getRole();
+
+  if (role === 'CAMERAMAN' || role === 'EDITOR') {
+    redirect('/video-production');
+  }
+
   const kpis = await getDashboardKPIs();
   const components = await getBudgetComponents();
 

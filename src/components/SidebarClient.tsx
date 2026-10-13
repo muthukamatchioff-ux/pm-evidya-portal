@@ -6,23 +6,31 @@ import { usePathname } from 'next/navigation';
 import styles from './Sidebar.module.css';
 import LogoutButton from './LogoutButton';
 
-const menuItems = [
-  { name: 'Dashboard', path: '/dashboard', icon: '📊' },
+interface MenuItem {
+  name: string;
+  path?: string;
+  icon?: string;
+  isHeader?: boolean;
+  allowedRoles?: string[];
+}
+
+const menuItems: MenuItem[] = [
+  { name: 'Dashboard', path: '/dashboard', icon: '📊', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER'] },
   
   { isHeader: true, name: 'Core Modules' },
-  { name: 'SME Records', path: '/smes', icon: '👨‍🏫', adminOnly: true },
-  { name: 'Video Production Tracker', path: '/video-production', icon: '🎬' },
-  { name: 'Video Content Library', path: '/content', icon: '📼' },
-  { name: 'Document Management', path: '/accounts', icon: '📁', adminOnly: true },
-  { name: 'Document Registry', path: '/documents', icon: '📄' },
+  { name: 'SME Records', path: '/smes', icon: '👨‍🏫', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER'] },
+  { name: 'Video Production Tracker', path: '/video-production', icon: '🎬', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR'] },
+  { name: 'Video Content Library', path: '/content', icon: '📼', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR'] },
+  { name: 'Document Management', path: '/accounts', icon: '📁', allowedRoles: ['ADMIN'] },
+  { name: 'Document Registry', path: '/documents', icon: '📄', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER'] },
   
-  { isHeader: true, name: 'Communications' },
-  { name: 'Approval Letters', path: '/generator/deputation', icon: '✉️' },
+  { isHeader: true, name: 'Communications', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER'] },
+  { name: 'Approval Letters', path: '/generator/deputation', icon: '✉️', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER'] },
   
   { isHeader: true, name: 'System' },
-  { name: 'Reports', path: '/reports', icon: '📈' },
-  { name: 'Legacy Data', path: '/legacy', icon: '🗄️', adminOnly: true },
-  { name: 'Settings', path: '/settings', icon: '⚙️', adminOnly: true }
+  { name: 'Reports', path: '/reports', icon: '📈', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR'] },
+  { name: 'Legacy Data', path: '/legacy', icon: '🗄️', allowedRoles: ['ADMIN'] },
+  { name: 'Settings', path: '/settings', icon: '⚙️', allowedRoles: ['ADMIN'] }
 ];
 
 export default function SidebarClient({ role, email }: { role: string, email: string | null }) {
@@ -69,7 +77,7 @@ export default function SidebarClient({ role, email }: { role: string, email: st
         </div>
         
         <nav className={styles.nav}>
-          {menuItems.filter(item => !item.adminOnly || role === 'ADMIN').map((item, index) => {
+          {menuItems.filter(item => !item.allowedRoles || item.allowedRoles.includes(role)).map((item, index) => {
             if (item.isHeader) {
               return (
                 <div 

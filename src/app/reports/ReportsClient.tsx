@@ -7,9 +7,21 @@ import { getEpicCompleteHistory } from './actions';
 import EpicWorkflowReport from './EpicWorkflowReport';
 import styles from '@/app/dashboard/dashboard.module.css';
 
-export default function ReportsClient({ components, comprehensiveData }: { components: any[], comprehensiveData?: any }) {
+export default function ReportsClient({ 
+  components, 
+  comprehensiveData, 
+  role = 'VIEWER' 
+}: { 
+  components: any[], 
+  comprehensiveData?: any, 
+  role?: string 
+}) {
   const [selectedComponents, setSelectedComponents] = useState<string[]>([]);
   const { smes = [], production = [], auditLogs = [], epicWorkEntries = [] } = comprehensiveData || {};
+
+  const canViewFinancials = role === 'ADMIN' || role === 'TEAM_MEMBER';
+  const canViewAuditLogs = role === 'ADMIN' || role === 'TEAM_MEMBER';
+  const canViewSmeMaster = role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'VIEWER';
 
   const [isPrinting, setIsPrinting] = useState(false);
   const [isPrintingAnnexure, setIsPrintingAnnexure] = useState(false);
@@ -413,28 +425,31 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
       </div>
 
       {/* Overall Report Card */}
-      <div className={styles.sectionCard}>
-        <div className={styles.sectionTitle}>
-          <span style={{ fontSize: '20px' }}>📊 Export Overall Financial Report</span>
+      {canViewFinancials && (
+        <div className={styles.sectionCard}>
+          <div className={styles.sectionTitle}>
+            <span style={{ fontSize: '20px' }}>📊 Export Overall Financial Report</span>
+          </div>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
+            View a print-ready dashboard report or generate the complete consolidated workbook containing the Executive Summary.
+          </p>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button className={styles.btnAction} style={{ flex: 1, minWidth: '160px', justifyContent: 'center', backgroundColor: '#0284c7', color: 'white' }} onClick={() => setIsPreviewOpen(true)}>
+              👁️ Preview Infographic
+            </button>
+            <button className={styles.btnAction} style={{ flex: 1, minWidth: '160px', justifyContent: 'center', backgroundColor: '#f59e0b', color: 'white' }} onClick={triggerPrint}>
+              🖨️ Print Dashboard View
+            </button>
+            <button className={styles.btnAction} style={{ flex: 1, minWidth: '140px', justifyContent: 'center', backgroundColor: 'var(--primary)', color: 'white' }} onClick={generateOverallReport}>
+              Download Excel
+            </button>
+          </div>
         </div>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-          View a print-ready dashboard report or generate the complete consolidated workbook containing the Executive Summary.
-        </p>
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <button className={styles.btnAction} style={{ flex: 1, minWidth: '160px', justifyContent: 'center', backgroundColor: '#0284c7', color: 'white' }} onClick={() => setIsPreviewOpen(true)}>
-            👁️ Preview Infographic
-          </button>
-          <button className={styles.btnAction} style={{ flex: 1, minWidth: '160px', justifyContent: 'center', backgroundColor: '#f59e0b', color: 'white' }} onClick={triggerPrint}>
-            🖨️ Print Dashboard View
-          </button>
-          <button className={styles.btnAction} style={{ flex: 1, minWidth: '140px', justifyContent: 'center', backgroundColor: 'var(--primary)', color: 'white' }} onClick={generateOverallReport}>
-            Download Excel
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Component Report Card */}
-      <div className={styles.sectionCard} style={{ gridColumn: '1 / -1' }}>
+      {canViewFinancials && (
+        <div className={styles.sectionCard} style={{ gridColumn: '1 / -1' }}>
         <div className={styles.sectionTitle}>
           <span style={{ fontSize: '20px' }}>📑 Export Component Report</span>
         </div>
@@ -526,19 +541,22 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
           </div>
         )}
       </div>
+      )}
 
       {/* SME & Compliance Report Card */}
-      <div className={styles.sectionCard}>
-        <div className={styles.sectionTitle}>
-          <span style={{ fontSize: '20px' }}>👨‍🏫 SME & Document Compliance</span>
+      {canViewSmeMaster && (
+        <div className={styles.sectionCard}>
+          <div className={styles.sectionTitle}>
+            <span style={{ fontSize: '20px' }}>👨‍🏫 SME & Document Compliance</span>
+          </div>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
+            Exports a master list of all SMEs mapped to their exact EPIC IDs, Trades, Topics, and Document Upload statuses (Attendance, Approval Letter, Completion).
+          </p>
+          <button className={styles.btnAction} style={{ width: '100%', justifyContent: 'center', backgroundColor: '#10b981', color: 'white' }} onClick={generateSmeReport}>
+            Export SME Master & Compliance (Excel)
+          </button>
         </div>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-          Exports a master list of all SMEs mapped to their exact EPIC IDs, Trades, Topics, and Document Upload statuses (Attendance, Approval Letter, Completion).
-        </p>
-        <button className={styles.btnAction} style={{ width: '100%', justifyContent: 'center', backgroundColor: '#10b981', color: 'white' }} onClick={generateSmeReport}>
-          Export SME Master & Compliance (Excel)
-        </button>
-      </div>
+      )}
 
       {/* Production & Telecast Tracker */}
       <div className={styles.sectionCard}>
@@ -554,17 +572,19 @@ export default function ReportsClient({ components, comprehensiveData }: { compo
       </div>
 
       {/* System Audit Logs */}
-      <div className={styles.sectionCard} style={{ gridColumn: '1 / -1' }}>
-        <div className={styles.sectionTitle}>
-          <span style={{ fontSize: '20px' }}>🛡️ System Audit & Activity Logs</span>
+      {canViewAuditLogs && (
+        <div className={styles.sectionCard} style={{ gridColumn: '1 / -1' }}>
+          <div className={styles.sectionTitle}>
+            <span style={{ fontSize: '20px' }}>🛡️ System Audit & Activity Logs</span>
+          </div>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
+            Extracts up to the last 1000 system-level audit traces tracking document uploads, metadata modifications, and registration changes for security compliance.
+          </p>
+          <button className={styles.btnAction} style={{ width: '100%', maxWidth: '400px', justifyContent: 'center', backgroundColor: '#475569', color: 'white' }} onClick={generateAuditReport}>
+            Export Complete Audit Log (Excel)
+          </button>
         </div>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-          Extracts up to the last 1000 system-level audit traces tracking document uploads, metadata modifications, and registration changes for security compliance.
-        </p>
-        <button className={styles.btnAction} style={{ width: '100%', maxWidth: '400px', justifyContent: 'center', backgroundColor: '#475569', color: 'white' }} onClick={generateAuditReport}>
-          Export Complete Audit Log (Excel)
-        </button>
-      </div>
+      )}
 
       {/* Print View & Infographic Styling */}
       <style dangerouslySetInnerHTML={{__html: `

@@ -13,8 +13,8 @@ export async function uploadDocument(
   formData: FormData
 ) {
   try {
-    const authCheck = await checkAuth(['ADMIN']);
-  if (!authCheck.success) return authCheck;
+    const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
+    if (!authCheck.success) return authCheck;
     const file = formData.get('file') as File;
     if (!file) throw new Error('No file provided');
 
@@ -28,16 +28,24 @@ export async function uploadDocument(
       throw new Error('File size exceeds 10MB limit');
     }
 
+    // Check if document of this type already exists for this work entry
+    const existing = await prisma.document.findFirst({
+      where: { workEntryId, type }
+    });
+
+    // General Viewer protection: strictly block overwriting or replacing existing documents
+    if (authCheck.role === 'VIEWER' && existing) {
+      return {
+        success: false,
+        error: 'A document of this type already exists for this Epic ID. As a General Viewer, you cannot overwrite, replace, or modify existing documents. Please contact the Administrator for corrections.'
+      };
+    }
+
     const ext = file.name.split('.').pop();
     const storageKey = `sme_${smeId}_entry_${workEntryId}_type_${type}_${Date.now()}.${ext}`;
     
     // Upload via storage abstraction
     const filePath = await storage.upload(file, storageKey);
-
-    // Check if document of this type already exists for this work entry
-    const existing = await prisma.document.findFirst({
-      where: { workEntryId, type }
-    });
 
     let savedDoc;
     if (existing) {
@@ -257,6 +265,68 @@ export async function updateSmePaymentInline(workEntryId: string, totalAmount: n
   } catch (error: any) {
     console.error('Failed to update SME payment inline:', error);
     return { success: false, error: error.message || 'Failed to update payment' };
+  }
+}
+
+export async function saveGeneratedDocumentRecord(
+  smeId: string,
+  workEntryId: string,
+  type: string,
+  title: string
+) {
+  try {
+    const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
+    if (!authCheck.success) return authCheck;
+
+    const existing = await prisma.document.findFirst({
+      where: { workEntryId, type }
+    });
+
+    // General Viewer protection: strictly block overwriting or modifying existing documents
+    if (authCheck.role === 'VIEWER' && existing) {
+      return {
+        success: false,
+        error: 'A document for this stage already exists for this Epic ID. As a General Viewer, you cannot overwrite, recreate, or modify existing documents. Please contact the Administrator for corrections.'
+      };
+    }
+
+    let savedDoc;
+    if (existing) {
+      savedDoc = await prisma.document.update({
+        where: { id: existing.id },
+        data: {
+          name: title,
+          status: 'GENERATED',
+          version: { increment: 1 }
+        }
+      });
+    } else {
+      savedDoc = await prisma.document.create({
+        data: {
+          name: title,
+          type,
+          status: 'GENERATED',
+          workEntryId,
+          version: 1
+        }
+      });
+    }
+
+    const userEmail = await getEmail();
+    await logAudit({
+      action: existing ? 'UPDATE_GENERATED_DOCUMENT' : 'CREATE_GENERATED_DOCUMENT',
+      entity: 'Document',
+      entityId: savedDoc.id,
+      newData: `Generated document: ${title} (${type})`,
+      userEmail
+    });
+
+    revalidatePath(`/smes/${smeId}`);
+    revalidatePath('/documents');
+    return { success: true, document: savedDoc };
+  } catch (error: any) {
+    console.error('Save generated document error:', error);
+    return { success: false, error: error.message || 'Failed to save generated document record' };
   }
 }
 

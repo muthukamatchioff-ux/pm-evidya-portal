@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import styles from './smes.module.css';
 import SmeListClient from './SmeListClient';
-import { getRole } from '@/lib/auth';
+import { getRole, requireAuth } from '@/lib/auth';
 
 export const metadata = {
   title: 'SME Records | PM e-Vidya Portal',
@@ -11,6 +11,7 @@ export const metadata = {
 };
 
 export default async function SMEsPage() {
+  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   const role = await getRole();
   const workEntries = await prisma.sMEWorkEntry.findMany({
     include: {

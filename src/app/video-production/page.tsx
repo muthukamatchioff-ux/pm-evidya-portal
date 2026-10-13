@@ -9,7 +9,7 @@ export const metadata = {
 };
 
 export default async function VideoProductionPage() {
-  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
+  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
   const role = await getRole();
   const result = await getTopicProductionRecords();
   const records = (result.success ? result.data : []) || [];

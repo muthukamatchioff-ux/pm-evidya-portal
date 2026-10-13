@@ -48,6 +48,35 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
   const entry = sme.workEntries?.[0] || {};
   const getEpicId = (epicSequence: number) => `EPIC-2026-PMeVidya ${String(epicSequence).padStart(2, '0')}`;
 
+  const isViewer = role === 'VIEWER';
+  const [entryDocuments, setEntryDocuments] = useState<any[]>(entry.documents || []);
+
+  const existingApprovalDoc = entryDocuments.find((d: any) => d.type === 'APPROVAL_LETTER');
+  const existingCompletionDoc = entryDocuments.find((d: any) => d.type === 'WORK_COMPLETION');
+  const existingPaymentDoc = entryDocuments.find((d: any) => d.type === 'PAYMENT_NOTE' || d.type === 'SANCTION_NOTE');
+
+  const handleSaveGeneratedDoc = async (type: string, title: string) => {
+    setIsGenerating(true);
+    try {
+      const { saveGeneratedDocumentRecord } = await import('./actions');
+      const res = await saveGeneratedDocumentRecord(sme.id, entry.id, type, title) as any;
+      if (res.success && res.document) {
+        alert(`✅ ${title} recorded and saved successfully!`);
+        setEntryDocuments(prev => [...prev, res.document]);
+        return true;
+      } else {
+        alert(`⚠️ ${res.error || 'Failed to save document record'}`);
+        return false;
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert('Error saving document record: ' + (e?.message || 'Unknown error'));
+      return false;
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const [trades, setTrades] = useState([
     {
       id: Date.now().toString(),
@@ -168,6 +197,10 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
   };
 
   const handleSaveAndNext = async (nextTab: 'approval' | 'completion' | 'sanction') => {
+    if (isViewer) {
+      setActiveTab(nextTab);
+      return;
+    }
     const success = await handleSave({ silent: true });
     if (success) {
       setActiveTab(nextTab);
@@ -283,17 +316,23 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
                     {isDeleting ? 'Deleting...' : '🗑️ Delete Entry'}
                   </button>
                 )}
-                <button onClick={handleSave} disabled={isGenerating || isDeleting} style={{ background: '#3b82f6', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', fontWeight: 'bold', display: role === 'VISITOR' ? 'none' : 'block' }}>
-                  {isGenerating ? 'Saving...' : '💾 Save Changes'}
-                </button>
+                {!isViewer ? (
+                  <button onClick={handleSave} disabled={isGenerating || isDeleting} style={{ background: '#3b82f6', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                    {isGenerating ? 'Saving...' : '💾 Save Changes'}
+                  </button>
+                ) : (
+                  <span style={{ fontSize: '12px', background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '4px', color: '#64748b', fontWeight: 600 }}>
+                    🔒 Master Details Read-Only
+                  </span>
+                )}
               </div>
             </div>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-              <div><label style={{ display:'block', fontSize:'13px', fontWeight:'bold', marginBottom:'5px' }}>SME Name</label><input value={smeName} onChange={e=>setSmeName(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px' }} /></div>
-              <div><label style={{ display:'block', fontSize:'13px', fontWeight:'bold', marginBottom:'5px' }}>Designation</label><input value={smeDesignation} onChange={e=>setSmeDesignation(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px' }} /></div>
-              <div><label style={{ display:'block', fontSize:'13px', fontWeight:'bold', marginBottom:'5px' }}>Institution</label><input value={smeInst} onChange={e=>setSmeInst(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px' }} /></div>
-              <div><label style={{ display:'block', fontSize:'13px', fontWeight:'bold', marginBottom:'5px' }}>City & State</label><input value={smePlace} onChange={e=>setSmePlace(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px' }} /></div>
+              <div><label style={{ display:'block', fontSize:'13px', fontWeight:'bold', marginBottom:'5px' }}>SME Name</label><input value={smeName} onChange={e=>!isViewer && setSmeName(e.target.value)} readOnly={isViewer} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px', background: isViewer ? '#f8fafc' : 'white' }} /></div>
+              <div><label style={{ display:'block', fontSize:'13px', fontWeight:'bold', marginBottom:'5px' }}>Designation</label><input value={smeDesignation} onChange={e=>!isViewer && setSmeDesignation(e.target.value)} readOnly={isViewer} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px', background: isViewer ? '#f8fafc' : 'white' }} /></div>
+              <div><label style={{ display:'block', fontSize:'13px', fontWeight:'bold', marginBottom:'5px' }}>Institution</label><input value={smeInst} onChange={e=>!isViewer && setSmeInst(e.target.value)} readOnly={isViewer} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px', background: isViewer ? '#f8fafc' : 'white' }} /></div>
+              <div><label style={{ display:'block', fontSize:'13px', fontWeight:'bold', marginBottom:'5px' }}>City & State</label><input value={smePlace} onChange={e=>!isViewer && setSmePlace(e.target.value)} readOnly={isViewer} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px', background: isViewer ? '#f8fafc' : 'white' }} /></div>
             </div>
 
             <h3 style={{ marginTop: '10px' }}>Approval Letter Parameters</h3>
@@ -421,27 +460,62 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
 
         {/* Previews */}
         <div style={{ display: activeTab === 'approval' ? 'block' : 'none' }}>
+          {/* General Viewer Protection Alert for Tab 2 */}
+          {isViewer && existingApprovalDoc && (
+            <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '8px', padding: '12px 16px', color: '#92400e', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '20px' }}>⚠️</span>
+              <div>
+                <div style={{ fontWeight: 'bold' }}>Approval Letter Already Generated & Saved</div>
+                <div style={{ fontSize: '13px', marginTop: '2px' }}>
+                  An official Approval Letter already exists for this Epic ID. As a General Viewer, you cannot overwrite, regenerate, or replace existing documents. Please contact the Administrator for any modifications or corrections.
+                </div>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h2>Approval Letter Preview</h2>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button 
-                onClick={handleSave} 
-                disabled={isGenerating || isDeleting} 
-                style={{ 
-                  background: '#3b82f6', 
-                  color: 'white', 
-                  padding: '10px 18px', 
-                  border: 'none', 
-                  borderRadius: '4px', 
-                  cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', 
-                  fontWeight: 'bold',
-                  display: role === 'VISITOR' ? 'none' : 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                {isGenerating ? 'Saving...' : '💾 Save Changes'}
-              </button>
+              {!isViewer && (
+                <button 
+                  onClick={handleSave} 
+                  disabled={isGenerating || isDeleting} 
+                  style={{ 
+                    background: '#3b82f6', 
+                    color: 'white', 
+                    padding: '10px 18px', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', 
+                    fontWeight: 'bold',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  {isGenerating ? 'Saving...' : '💾 Save Changes'}
+                </button>
+              )}
+              {isViewer && !existingApprovalDoc && (
+                <button 
+                  onClick={() => handleSaveGeneratedDoc('APPROVAL_LETTER', `Approval Letter - ${getEpicId(entry.epicSequence || 1)}`)} 
+                  disabled={isGenerating || isDeleting} 
+                  style={{ 
+                    background: '#10b981', 
+                    color: 'white', 
+                    padding: '10px 18px', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', 
+                    fontWeight: 'bold',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  {isGenerating ? 'Saving...' : '💾 Save New Approval Letter'}
+                </button>
+              )}
               <button onClick={() => generatePDF(approvalRef, 'Approval_Letter')} style={{ background: '#10b981', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
                 {isGenerating ? 'Generating...' : '📥 Download PDF'}
               </button>
@@ -486,27 +560,62 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
         </div>
 
         <div style={{ display: activeTab === 'completion' ? 'block' : 'none' }}>
+          {/* General Viewer Protection Alert for Tab 3 */}
+          {isViewer && existingCompletionDoc && (
+            <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '8px', padding: '12px 16px', color: '#92400e', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '20px' }}>⚠️</span>
+              <div>
+                <div style={{ fontWeight: 'bold' }}>Work Completion Certificate Already Generated & Saved</div>
+                <div style={{ fontSize: '13px', marginTop: '2px' }}>
+                  An official Work Completion Certificate already exists for this Epic ID. As a General Viewer, you cannot overwrite, regenerate, or replace existing documents. Please contact the Administrator for any modifications or corrections.
+                </div>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h2>Work Completion Preview</h2>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button 
-                onClick={handleSave} 
-                disabled={isGenerating || isDeleting} 
-                style={{ 
-                  background: '#8b5cf6', 
-                  color: 'white', 
-                  padding: '10px 18px', 
-                  border: 'none', 
-                  borderRadius: '4px', 
-                  cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', 
-                  fontWeight: 'bold',
-                  display: role === 'VISITOR' ? 'none' : 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                {isGenerating ? 'Saving...' : '💾 Save Changes'}
-              </button>
+              {!isViewer && (
+                <button 
+                  onClick={handleSave} 
+                  disabled={isGenerating || isDeleting} 
+                  style={{ 
+                    background: '#8b5cf6', 
+                    color: 'white', 
+                    padding: '10px 18px', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', 
+                    fontWeight: 'bold',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  {isGenerating ? 'Saving...' : '💾 Save Changes'}
+                </button>
+              )}
+              {isViewer && !existingCompletionDoc && (
+                <button 
+                  onClick={() => handleSaveGeneratedDoc('WORK_COMPLETION', `Work Completion Certificate - ${getEpicId(entry.epicSequence || 1)}`)} 
+                  disabled={isGenerating || isDeleting} 
+                  style={{ 
+                    background: '#7c3aed', 
+                    color: 'white', 
+                    padding: '10px 18px', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', 
+                    fontWeight: 'bold',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  {isGenerating ? 'Saving...' : '💾 Save New Work Completion'}
+                </button>
+              )}
               <button onClick={() => generatePDF(completionRef, 'Work_Completion')} style={{ background: '#7c3aed', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
                 {isGenerating ? 'Generating...' : '📥 Download PDF'}
               </button>
@@ -586,27 +695,62 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
         </div>
 
         <div style={{ display: activeTab === 'sanction' ? 'block' : 'none' }}>
+          {/* General Viewer Protection Alert for Tab 4 */}
+          {isViewer && existingPaymentDoc && (
+            <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '8px', padding: '12px 16px', color: '#92400e', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '20px' }}>⚠️</span>
+              <div>
+                <div style={{ fontWeight: 'bold' }}>Payment Note Already Generated & Saved</div>
+                <div style={{ fontSize: '13px', marginTop: '2px' }}>
+                  An official Payment Sanction Note already exists for this Epic ID. As a General Viewer, you cannot overwrite, regenerate, or replace existing documents. Please contact the Administrator for any modifications or corrections.
+                </div>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h2>Payment Note Preview</h2>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button 
-                onClick={handleSave} 
-                disabled={isGenerating || isDeleting} 
-                style={{ 
-                  background: '#f59e0b', 
-                  color: 'white', 
-                  padding: '10px 18px', 
-                  border: 'none', 
-                  borderRadius: '4px', 
-                  cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', 
-                  fontWeight: 'bold',
-                  display: role === 'VISITOR' ? 'none' : 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                {isGenerating ? 'Saving...' : '💾 Save Changes'}
-              </button>
+              {!isViewer && (
+                <button 
+                  onClick={handleSave} 
+                  disabled={isGenerating || isDeleting} 
+                  style={{ 
+                    background: '#f59e0b', 
+                    color: 'white', 
+                    padding: '10px 18px', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', 
+                    fontWeight: 'bold',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  {isGenerating ? 'Saving...' : '💾 Save Changes'}
+                </button>
+              )}
+              {isViewer && !existingPaymentDoc && (
+                <button 
+                  onClick={() => handleSaveGeneratedDoc('PAYMENT_NOTE', `Payment Sanction Note - ${getEpicId(entry.epicSequence || 1)}`)} 
+                  disabled={isGenerating || isDeleting} 
+                  style={{ 
+                    background: '#d97706', 
+                    color: 'white', 
+                    padding: '10px 18px', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    cursor: (isGenerating || isDeleting) ? 'not-allowed' : 'pointer', 
+                    fontWeight: 'bold',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  {isGenerating ? 'Saving...' : '💾 Save New Payment Note'}
+                </button>
+              )}
               <button onClick={() => generatePDF(sanctionRef, 'Payment_Note')} style={{ background: '#d97706', color: 'white', padding: '10px 20px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
                 {isGenerating ? 'Generating...' : '📥 Download PDF'}
               </button>

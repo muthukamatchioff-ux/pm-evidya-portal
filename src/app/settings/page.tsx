@@ -20,6 +20,10 @@ export default async function SettingsPage() {
     select: { id: true, email: true, name: true, role: true, status: true, designation: true, department: true, lastLogin: true, createdBy: true, createdAt: true } as any,
     orderBy: { createdAt: 'desc' }
   })) as any[];
+  const availableEpics = await prisma.sMEWorkEntry.findMany({
+    select: { id: true, epicSequence: true, trade: true, topic: true },
+    orderBy: { epicSequence: 'asc' }
+  });
   return (
     <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
       <header style={{ marginBottom: '24px' }}>
@@ -61,7 +65,7 @@ export default async function SettingsPage() {
         </div>
 
         <div style={{ marginTop: '32px' }}>
-          <SettingsClient initialHrs={hrs} initialBudgetHeads={budgetHeads} initialUsers={users} />
+          <SettingsClient initialHrs={hrs} initialBudgetHeads={budgetHeads} initialUsers={users} availableEpics={availableEpics} />
         </div>
       </div>
     </div>

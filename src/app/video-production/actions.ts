@@ -1,33 +1,93 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { checkAuth } from '@/lib/auth';
+import { checkAuth, getRole, getEmail } from '@/lib/auth';
+import { parseAssignedEpics } from '@/lib/epicHelpers';
 import { revalidatePath } from 'next/cache';
 
-export async function getEpicWorkEntries() {
-  try {
-    const workEntries = await prisma.sMEWorkEntry.findMany({
-      include: {
-        sme: true,
-        shootingSchedules: true,
-        videoEditorRecords: true,
-        animationRecords: true,
-        finalVideoRecords: true,
-        videoLibraries: true,
-      },
-      orderBy: {
-        epicSequence: 'desc'
-      }
-    });
-    return { success: true, data: workEntries };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+async function verifyEpicPermission(workEntryId: string, allowedRoles: string[]): Promise<{ authorized: boolean; error?: string; role?: string; user?: any }> {
+  const role = await getRole();
+  if (role === 'VISITOR') {
+    return { authorized: false, error: 'Authentication required.' };
   }
+  if (!allowedRoles.includes(role)) {
+    return { authorized: false, error: `Forbidden: Role ${role} is not authorized for this operation.` };
+  }
+
+  // Admin and Team Member have full access across all Epics
+  if (role === 'ADMIN' || role === 'TEAM_MEMBER') {
+    return { authorized: true, role };
+  }
+
+  const email = await getEmail();
+  if (!email) {
+    return { authorized: false, error: 'User email not found in session.' };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: email.toLowerCase().trim() }
+  });
+  if (!user) {
+    return { authorized: false, error: 'User profile not found.' };
+  }
+
+  const entry = await prisma.sMEWorkEntry.findUnique({
+    where: { id: workEntryId },
+    include: { shootingSchedules: true, videoEditorRecords: true }
+  });
+  if (!entry) {
+    return { authorized: false, error: 'Epic record not found.' };
+  }
+
+  const assignedSequences = parseAssignedEpics(user.department);
+  const userNameLower = (user.name || '').toLowerCase().trim();
+  const userEmailLower = user.email.toLowerCase().trim();
+
+  if (role === 'CAMERAMAN') {
+    const isAssigned = assignedSequences.includes(entry.epicSequence) ||
+      entry.shootingSchedules.some((s: any) => {
+        const cam = (s.cameraman || '').toLowerCase().trim();
+        return cam && (cam === userNameLower || cam === userEmailLower);
+      });
+
+    if (!isAssigned) {
+      return { 
+        authorized: false, 
+        error: `Unauthorized: EPIC-${entry.epicSequence} is not assigned to your Camera Man account. Contact Admin for assignment.` 
+      };
+    }
+    return { authorized: true, role, user };
+  }
+
+  if (role === 'EDITOR') {
+    const isAssigned = assignedSequences.includes(entry.epicSequence) ||
+      entry.videoEditorRecords.some((e: any) => {
+        const ed = (e.editorName || '').toLowerCase().trim();
+        return ed && (ed === userNameLower || ed === userEmailLower);
+      });
+
+    if (!isAssigned) {
+      return { 
+        authorized: false, 
+        error: `Unauthorized: EPIC-${entry.epicSequence} is not assigned to your Editor account. Contact Admin for assignment.` 
+      };
+    }
+    return { authorized: true, role, user };
+  }
+
+  return { authorized: false, error: 'Forbidden.' };
+}
+
+export async function getEpicWorkEntries() {
+  return await getTopicProductionRecords();
 }
 
 export async function getTopicProductionRecords() {
+  const role = await getRole();
+  const email = await getEmail();
+
   try {
-    const records = await prisma.sMEWorkEntry.findMany({
+    const allRecords = await prisma.sMEWorkEntry.findMany({
       include: {
         sme: true,
         shootingSchedules: true,
@@ -40,15 +100,62 @@ export async function getTopicProductionRecords() {
         epicSequence: 'desc'
       }
     });
-    return { success: true, data: records };
+
+    if (role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'VIEWER') {
+      return { success: true, data: allRecords };
+    }
+
+    if (!email) {
+      return { success: false, error: 'Unauthorized: User session required.' };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase().trim() }
+    });
+
+    if (!user) {
+      return { success: false, error: 'User record not found.' };
+    }
+
+    const assignedSequences = parseAssignedEpics(user.department);
+    const userNameLower = (user.name || '').toLowerCase().trim();
+    const userEmailLower = user.email.toLowerCase().trim();
+
+    if (role === 'CAMERAMAN') {
+      const filtered = allRecords.filter((entry: any) => {
+        const matchesSequence = assignedSequences.includes(entry.epicSequence);
+        const matchesCameraman = entry.shootingSchedules?.some((s: any) => {
+          const cam = (s.cameraman || '').toLowerCase().trim();
+          return cam && (cam === userNameLower || cam === userEmailLower);
+        });
+        return matchesSequence || matchesCameraman;
+      });
+      return { success: true, data: filtered };
+    }
+
+    if (role === 'EDITOR') {
+      const filtered = allRecords.filter((entry: any) => {
+        const matchesSequence = assignedSequences.includes(entry.epicSequence);
+        const matchesEditor = entry.videoEditorRecords?.some((e: any) => {
+          const ed = (e.editorName || '').toLowerCase().trim();
+          return ed && (ed === userNameLower || ed === userEmailLower);
+        });
+        return matchesSequence || matchesEditor;
+      });
+      return { success: true, data: filtered };
+    }
+
+    return { success: true, data: allRecords };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 }
 
 export async function createShootingSchedule(workEntryId: string, data: any) {
-  const auth = await checkAuth(['ADMIN', 'TEAM_MEMBER']);
-  if (!auth.success) return auth;
+  const permCheck = await verifyEpicPermission(workEntryId, ['ADMIN', 'TEAM_MEMBER', 'CAMERAMAN']);
+  if (!permCheck.authorized) {
+    return { success: false, error: permCheck.error };
+  }
 
   try {
     if (!data.videoTitle) {
@@ -59,18 +166,20 @@ export async function createShootingSchedule(workEntryId: string, data: any) {
       return { success: false, error: 'Production End Date cannot be earlier than Production Start Date.' };
     }
 
+    const cameramanName = data.cameraman || (permCheck.role === 'CAMERAMAN' ? (permCheck.user?.name || permCheck.user?.email) : null);
+
     const newRecord = await prisma.shootingSchedule.create({
       data: {
         workEntryId,
         videoTitle: data.videoTitle,
-        shootDate: data.shootDate ? new Date(data.shootDate) : null,
+        shootDate: data.shootDate ? new Date(data.shootDate) : (data.scheduledStart ? new Date(data.scheduledStart) : null),
         location: data.location || null,
         shootingType: data.shootingType || null,
         scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : null,
         scheduledEnd: data.scheduledEnd ? new Date(data.scheduledEnd) : null,
         actualStart: data.actualStart ? new Date(data.actualStart) : null,
         actualEnd: data.actualEnd ? new Date(data.actualEnd) : null,
-        cameraman: data.cameraman || null,
+        cameraman: cameramanName,
         status: data.status || 'PLANNED',
         productionNotes: data.productionNotes || null
       }
@@ -102,17 +211,19 @@ export async function createShootingSchedule(workEntryId: string, data: any) {
 }
 
 export async function updateShootingSchedule(id: string, data: any) {
-  const auth = await checkAuth(['ADMIN', 'TEAM_MEMBER']);
-  if (!auth.success) return auth;
+  const prev = await prisma.shootingSchedule.findUnique({ where: { id } });
+  if (!prev) {
+    return { success: false, error: 'Production record not found.' };
+  }
+
+  const permCheck = await verifyEpicPermission(prev.workEntryId, ['ADMIN', 'TEAM_MEMBER', 'CAMERAMAN']);
+  if (!permCheck.authorized) {
+    return { success: false, error: permCheck.error };
+  }
 
   try {
     if (data.scheduledStart && data.scheduledEnd && new Date(data.scheduledEnd) < new Date(data.scheduledStart)) {
       return { success: false, error: 'Production End Date cannot be earlier than Production Start Date.' };
-    }
-
-    const prev = await prisma.shootingSchedule.findUnique({ where: { id } });
-    if (!prev) {
-      return { success: false, error: 'Production record not found.' };
     }
 
     const trimmedTitle = data.videoTitle ? data.videoTitle.trim() : prev.videoTitle;
@@ -155,18 +266,22 @@ export async function updateShootingSchedule(id: string, data: any) {
 }
 
 export async function updateVideoEditorRecord(id: string, data: any, workEntryId: string) {
-  const auth = await checkAuth(['ADMIN', 'TEAM_MEMBER']);
-  if (!auth.success) return auth;
+  const permCheck = await verifyEpicPermission(workEntryId, ['ADMIN', 'TEAM_MEMBER', 'EDITOR']);
+  if (!permCheck.authorized) {
+    return { success: false, error: permCheck.error };
+  }
 
   try {
     if (data.editingStartDate && data.editingEndDate && new Date(data.editingEndDate) < new Date(data.editingStartDate)) {
       return { success: false, error: 'Post-Production End Date cannot be earlier than Start Date.' };
     }
 
+    const editorName = data.editorName || (permCheck.role === 'EDITOR' ? (permCheck.user?.name || permCheck.user?.email) : null);
+
     const record = await prisma.videoEditorRecord.upsert({
       where: { id: id || 'new' }, 
       update: {
-        editorName: data.editorName || null,
+        editorName: editorName,
         assignedVideo: data.assignedVideo || null,
         editingStartDate: data.editingStartDate ? new Date(data.editingStartDate) : null,
         roughCutLink: data.roughCutLink || null,
@@ -178,7 +293,7 @@ export async function updateVideoEditorRecord(id: string, data: any, workEntryId
       },
       create: {
         workEntryId,
-        editorName: data.editorName || null,
+        editorName: editorName,
         assignedVideo: data.assignedVideo || null,
         editingStartDate: data.editingStartDate ? new Date(data.editingStartDate) : null,
         roughCutLink: data.roughCutLink || null,
