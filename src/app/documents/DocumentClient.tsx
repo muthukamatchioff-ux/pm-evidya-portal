@@ -9,7 +9,6 @@ interface DocumentClientProps {
 }
 
 export default function DocumentClient({ smes }: DocumentClientProps) {
-  const [searchTerm, setSearchTerm] = useState('');
   const [selectedEpicId, setSelectedEpicId] = useState('');
   const [selectedDocType, setSelectedDocType] = useState('');
   const [previewDoc, setPreviewDoc] = useState<any | null>(null);
@@ -108,7 +107,7 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
     return { hasAttendance, hasApproval, hasCompletion };
   }, [selectedEpicDetails]);
 
-  // Filtering documents based on EPIC ID, Doc Type, and Search Term
+  // Filtering documents based on EPIC ID and Doc Type
   const filteredDocs = useMemo(() => {
     return processedDocs.filter(doc => {
       // 1. EPIC ID Filter
@@ -131,24 +130,9 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
         }
       }
 
-      // 3. Search Text Filter
-      if (searchTerm) {
-        const s = searchTerm.toLowerCase();
-        return (
-          doc.smeName.toLowerCase().includes(s) ||
-          doc.friendlyEpicId.toLowerCase().includes(s) ||
-          (doc.trade && doc.trade.toLowerCase().includes(s)) ||
-          (doc.topic && doc.topic.toLowerCase().includes(s)) ||
-          (doc.smeInstitute && doc.smeInstitute.toLowerCase().includes(s)) ||
-          doc.friendlyDocName.toLowerCase().includes(s) ||
-          (doc.name && doc.name.toLowerCase().includes(s)) ||
-          (doc.status && doc.status.toLowerCase().includes(s))
-        );
-      }
-
       return true;
     });
-  }, [processedDocs, selectedEpicId, selectedDocType, searchTerm]);
+  }, [processedDocs, selectedEpicId, selectedDocType]);
 
   // Metrics
   const totalDocs = processedDocs.length;
@@ -158,10 +142,9 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
   const resetAllFilters = () => {
     setSelectedEpicId('');
     setSelectedDocType('');
-    setSearchTerm('');
   };
 
-  const hasActiveFilters = !!(selectedEpicId || selectedDocType || searchTerm);
+  const hasActiveFilters = !!(selectedEpicId || selectedDocType);
 
   const openPreview = (doc: any) => {
     const fileUrl =
@@ -197,11 +180,6 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
             Central repository of verified SME compliance and engagement documents
           </div>
         </div>
-
-        <Link href="/accounts" className={styles.headerUploadBtn}>
-          <span>📤</span>
-          <span>Upload Documents</span>
-        </Link>
       </header>
 
       {/* Summary Metrics (Removed confusing 'Verified Documents' card) */}
@@ -251,17 +229,20 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
         </div>
       </div>
 
-      {/* Advanced Filter Toolbar with Linked EPIC ID Option */}
+      {/* Sleek Compact Filter Toolbar */}
       <div className={styles.filterToolbar}>
         <div className={styles.filterControlsRow}>
-          {/* EPIC ID Filter Dropdown */}
-          <div className={styles.filterGroup}>
-            <label className={styles.filterLabel}>Filter by EPIC ID</label>
+          {/* EPIC ID Filter */}
+          <div className={styles.filterGroupInline}>
+            <label htmlFor="filter-epic-id" className={styles.filterInlineLabel}>
+              Filter by EPIC ID:
+            </label>
             <select
+              id="filter-epic-id"
               value={selectedEpicId}
               onChange={e => setSelectedEpicId(e.target.value)}
-              className={`${styles.selectEpic} ${
-                selectedEpicId ? styles.selectEpicActive : ''
+              className={`${styles.selectCompact} ${
+                selectedEpicId ? styles.selectCompactActive : ''
               }`}
             >
               <option value="">
@@ -276,13 +257,18 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
             </select>
           </div>
 
-          {/* Document Type Filter Dropdown */}
-          <div className={styles.filterGroup}>
-            <label className={styles.filterLabel}>Document Type</label>
+          {/* Document Type Filter */}
+          <div className={styles.filterGroupInline}>
+            <label htmlFor="filter-doc-type" className={styles.filterInlineLabel}>
+              Document Type:
+            </label>
             <select
+              id="filter-doc-type"
               value={selectedDocType}
               onChange={e => setSelectedDocType(e.target.value)}
-              className={styles.selectDocType}
+              className={`${styles.selectCompact} ${
+                selectedDocType ? styles.selectCompactActive : ''
+              }`}
             >
               <option value="">-- All Document Types --</option>
               <option value="SME_ATTENDANCE">SME Attendance PDF</option>
@@ -291,80 +277,22 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
             </select>
           </div>
 
-          {/* Search Input Box */}
-          <div className={styles.filterGroup} style={{ flex: '2 1 320px' }}>
-            <label className={styles.filterLabel}>Search Keywords</label>
-            <div className={styles.searchInputWrap}>
-              <span className={styles.searchIcon}>🔍</span>
-              <input
-                type="text"
-                placeholder="Search SME, Trade, Institute, Document Name..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className={styles.searchInput}
-              />
-            </div>
-          </div>
-
-          {/* Reset Filters Action */}
+          {/* Inline Reset Button */}
           {hasActiveFilters && (
-            <div className={styles.filterActions}>
-              <button
-                onClick={resetAllFilters}
-                className={styles.btnClearFilters}
-                title="Reset all active filters"
-              >
-                ✕ Clear Filters
-              </button>
-            </div>
+            <button
+              onClick={resetAllFilters}
+              className={styles.btnClearCompact}
+              title="Reset all active filters"
+            >
+              ✕ Clear Filter
+            </button>
           )}
-        </div>
 
-        {/* Active Filter Chips */}
-        {hasActiveFilters && (
-          <div className={styles.activeFiltersBar}>
-            <span className={styles.activeFilterLabel}>Active Filters:</span>
-
-            {selectedEpicId && (
-              <span className={styles.filterChip}>
-                EPIC ID: {selectedEpicId}
-                <span
-                  className={styles.filterChipRemove}
-                  onClick={() => setSelectedEpicId('')}
-                  title="Remove EPIC ID filter"
-                >
-                  ✕
-                </span>
-              </span>
-            )}
-
-            {selectedDocType && (
-              <span className={styles.filterChip}>
-                Type: {getFriendlyDocName(selectedDocType, '')}
-                <span
-                  className={styles.filterChipRemove}
-                  onClick={() => setSelectedDocType('')}
-                  title="Remove Document Type filter"
-                >
-                  ✕
-                </span>
-              </span>
-            )}
-
-            {searchTerm && (
-              <span className={styles.filterChip}>
-                Search: &quot;{searchTerm}&quot;
-                <span
-                  className={styles.filterChipRemove}
-                  onClick={() => setSearchTerm('')}
-                  title="Remove search filter"
-                >
-                  ✕
-                </span>
-              </span>
-            )}
+          {/* Inline Count Info */}
+          <div className={styles.filterResultCount}>
+            Showing <strong>{filteredDocs.length}</strong> of <strong>{totalDocs}</strong> documents
           </div>
-        )}
+        </div>
       </div>
 
       {/* Linked EPIC ID Spotlight Banner (Rendered when an EPIC ID is selected) */}
@@ -493,7 +421,7 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
                     <div style={{ fontSize: '13.5px', marginBottom: '16px' }}>
                       {selectedEpicId
                         ? `Upload documents for this EPIC ID from Document Upload.`
-                        : 'Try selecting a different filter or reset search keywords.'}
+                        : 'Try selecting a different EPIC ID or document type.'}
                     </div>
                     {selectedEpicId ? (
                       <Link
