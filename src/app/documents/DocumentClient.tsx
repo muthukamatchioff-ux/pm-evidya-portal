@@ -2,25 +2,35 @@
 
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
+import styles from './documents.module.css';
 
-export default function DocumentClient({ smes }: { smes: any[] }) {
+interface DocumentClientProps {
+  smes: any[];
+}
+
+export default function DocumentClient({ smes }: DocumentClientProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [previewDoc, setPreviewDoc] = useState<any>(null);
+  const [selectedEpicId, setSelectedEpicId] = useState('');
+  const [selectedDocType, setSelectedDocType] = useState('');
+  const [previewDoc, setPreviewDoc] = useState<any | null>(null);
 
-  const getEpicId = (epicSequence: number) => `EPIC-2026-PMeVidya ${String(epicSequence).padStart(2, '0')}`;
+  const getEpicId = (epicSequence: number) =>
+    `EPIC-2026-PMeVidya ${String(epicSequence || 1).padStart(2, '0')}`;
 
   const getFriendlyDocName = (type: string, name: string) => {
     if (type === 'APPROVAL_LETTER') return 'Signed Approval Letter';
-    if (type === 'SME_ATTENDANCE' || type === 'TRADE_DETAILS' || type === 'ATTENDANCE') return 'SME Attendance PDF';
+    if (type === 'SME_ATTENDANCE' || type === 'TRADE_DETAILS' || type === 'ATTENDANCE')
+      return 'SME Attendance PDF';
     if (type === 'WORK_COMPLETION') return 'Work Completion Certificate';
-    return type.replace(/_/g, ' ');
+    return (type || 'Document').replace(/_/g, ' ');
   };
 
+  // Collect all uploaded documents across all SMEs and work entries
   const processedDocs = useMemo(() => {
     const docsList: any[] = [];
     smes.forEach(sme => {
-      sme.workEntries.forEach((entry: any) => {
-        entry.documents.forEach((doc: any) => {
+      (sme.workEntries || []).forEach((entry: any) => {
+        (entry.documents || []).forEach((doc: any) => {
           docsList.push({
             ...doc,
             smeName: sme.name,
@@ -29,6 +39,7 @@ export default function DocumentClient({ smes }: { smes: any[] }) {
             trade: entry.trade,
             topic: entry.topic,
             entryId: entry.id,
+            epicSequence: entry.epicSequence,
             friendlyEpicId: getEpicId(entry.epicSequence || 1),
             friendlyDocName: getFriendlyDocName(doc.type, doc.name)
           });
@@ -36,152 +47,590 @@ export default function DocumentClient({ smes }: { smes: any[] }) {
       });
     });
     // Sort by newest first
-    return docsList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return docsList.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
   }, [smes]);
 
-  // Filtering
-  const filteredDocs = processedDocs.filter(doc => {
-    const s = searchTerm.toLowerCase();
-    return (
-      doc.smeName.toLowerCase().includes(s) ||
-      doc.friendlyEpicId.toLowerCase().includes(s) ||
-      (doc.trade && doc.trade.toLowerCase().includes(s)) ||
-      (doc.topic && doc.topic.toLowerCase().includes(s)) ||
-      (doc.smeInstitute && doc.smeInstitute.toLowerCase().includes(s)) ||
-      doc.friendlyDocName.toLowerCase().includes(s) ||
-      (doc.status && doc.status.toLowerCase().includes(s))
-    );
-  });
+  // Extract all unique EPIC IDs registered across all SMEs
+  const epicOptions = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        epicId: string;
+        smeName: string;
+        trade: string;
+        topic: string;
+        institute: string;
+        entryId: string;
+        docs: any[];
+      }
+    >();
 
-  // Summary Metrics
+    smes.forEach(sme => {
+      (sme.workEntries || []).forEach((entry: any) => {
+        const epicId = getEpicId(entry.epicSequence || 1);
+        map.set(epicId, {
+          epicId,
+          smeName: sme.name,
+          trade: entry.trade || 'General',
+          topic: entry.topic || '',
+          institute: sme.institute || 'NIMI Chennai',
+          entryId: entry.id,
+          docs: entry.documents || []
+        });
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) =>
+      a.epicId.localeCompare(b.epicId, undefined, { numeric: true })
+    );
+  }, [smes]);
+
+  // Details for the currently selected EPIC ID (if filtered)
+  const selectedEpicDetails = useMemo(() => {
+    if (!selectedEpicId) return null;
+    return epicOptions.find(opt => opt.epicId === selectedEpicId) || null;
+  }, [selectedEpicId, epicOptions]);
+
+  // Checklist of 3 mandatory docs for the currently selected EPIC ID
+  const epicChecklist = useMemo(() => {
+    if (!selectedEpicDetails) return null;
+    const docs = selectedEpicDetails.docs || [];
+    const hasAttendance = docs.some(
+      (d: any) =>
+        d.type === 'SME_ATTENDANCE' ||
+        d.type === 'ATTENDANCE' ||
+        d.type === 'TRADE_DETAILS'
+    );
+    const hasApproval = docs.some((d: any) => d.type === 'APPROVAL_LETTER');
+    const hasCompletion = docs.some((d: any) => d.type === 'WORK_COMPLETION');
+    return { hasAttendance, hasApproval, hasCompletion };
+  }, [selectedEpicDetails]);
+
+  // Filtering documents based on EPIC ID, Doc Type, and Search Term
+  const filteredDocs = useMemo(() => {
+    return processedDocs.filter(doc => {
+      // 1. EPIC ID Filter
+      if (selectedEpicId && doc.friendlyEpicId !== selectedEpicId) {
+        return false;
+      }
+
+      // 2. Document Type Filter
+      if (selectedDocType) {
+        if (selectedDocType === 'SME_ATTENDANCE') {
+          if (
+            doc.type !== 'SME_ATTENDANCE' &&
+            doc.type !== 'ATTENDANCE' &&
+            doc.type !== 'TRADE_DETAILS'
+          ) {
+            return false;
+          }
+        } else if (doc.type !== selectedDocType) {
+          return false;
+        }
+      }
+
+      // 3. Search Text Filter
+      if (searchTerm) {
+        const s = searchTerm.toLowerCase();
+        return (
+          doc.smeName.toLowerCase().includes(s) ||
+          doc.friendlyEpicId.toLowerCase().includes(s) ||
+          (doc.trade && doc.trade.toLowerCase().includes(s)) ||
+          (doc.topic && doc.topic.toLowerCase().includes(s)) ||
+          (doc.smeInstitute && doc.smeInstitute.toLowerCase().includes(s)) ||
+          doc.friendlyDocName.toLowerCase().includes(s) ||
+          (doc.name && doc.name.toLowerCase().includes(s)) ||
+          (doc.status && doc.status.toLowerCase().includes(s))
+        );
+      }
+
+      return true;
+    });
+  }, [processedDocs, selectedEpicId, selectedDocType, searchTerm]);
+
+  // Metrics
   const totalDocs = processedDocs.length;
-  const verifiedDocs = processedDocs.filter(d => d.status === 'VERIFIED').length;
-  const uploadedDocs = processedDocs.filter(d => d.status === 'UPLOADED').length;
-  
   const totalSmes = smes.length;
+  const totalEpics = epicOptions.length;
+
+  const resetAllFilters = () => {
+    setSelectedEpicId('');
+    setSelectedDocType('');
+    setSearchTerm('');
+  };
+
+  const hasActiveFilters = !!(selectedEpicId || selectedDocType || searchTerm);
 
   const openPreview = (doc: any) => {
-    setPreviewDoc(doc);
+    const fileUrl =
+      doc.filePath?.startsWith('http') || doc.filePath?.startsWith('data:')
+        ? doc.filePath
+        : `/api/documents/${doc.id}`;
+    setPreviewDoc({ ...doc, previewUrl: fileUrl });
   };
 
   const closePreview = () => {
     setPreviewDoc(null);
   };
 
-  const getStatusColor = (status: string) => {
-    if (status === 'Completed') return { bg: '#dcfce3', text: '#16a34a' };
-    if (status === 'Pending') return { bg: '#fef3c7', text: '#d97706' };
-    return { bg: '#f1f5f9', text: '#64748b' };
-  };
-
-
-
   return (
-    <div style={{ fontFamily: 'Inter, system-ui, sans-serif', padding: '20px', maxWidth: '1400px', margin: '0 auto', color: '#0f172a' }}>
-      
-      {/* Header & Breadcrumb */}
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '8px' }}>Dashboard / Documents / SME List</div>
-        <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: '#1e293b' }}>SME Document Registry</h1>
+    <div className={styles.container}>
+      {/* Breadcrumb & Header */}
+      <div className={styles.breadcrumb}>
+        <Link href="/dashboard" style={{ color: 'inherit', textDecoration: 'none' }}>
+          Dashboard
+        </Link>
+        <span>/</span>
+        <Link href="/accounts" style={{ color: 'inherit', textDecoration: 'none' }}>
+          Document Upload
+        </Link>
+        <span>/</span>
+        <span style={{ color: '#2563eb', fontWeight: 600 }}>Document Registry</span>
       </div>
 
-      {/* Summary Dashboard */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-        <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-          <div style={{ fontSize: '14px', color: '#64748b', fontWeight: 500 }}>Total Documents Uploaded</div>
-          <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#1e293b', marginTop: '5px' }}>{totalDocs}</div>
+      <header className={styles.header}>
+        <div className={styles.headerLeft}>
+          <h1>SME Document Registry</h1>
+          <div className={styles.headerSubtitle}>
+            Central repository of verified SME compliance and engagement documents
+          </div>
         </div>
-        <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-          <div style={{ fontSize: '14px', color: '#64748b', fontWeight: 500 }}>Verified Documents</div>
-          <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#16a34a', marginTop: '5px' }}>{verifiedDocs}</div>
+
+        <Link href="/accounts" className={styles.headerUploadBtn}>
+          <span>📤</span>
+          <span>Upload Documents</span>
+        </Link>
+      </header>
+
+      {/* Summary Metrics (Removed confusing 'Verified Documents' card) */}
+      <div className={styles.metricsGrid}>
+        <div className={styles.metricCard}>
+          <div className={styles.metricTop}>
+            <span className={styles.metricLabel}>Total Documents Uploaded</span>
+            <div className={styles.metricIcon}>📁</div>
+          </div>
+          <div className={styles.metricValue}>{totalDocs}</div>
+          <div className={styles.metricSubtext}>Across all SME work entries</div>
         </div>
-        <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-          <div style={{ fontSize: '14px', color: '#64748b', fontWeight: 500 }}>Uploaded (Pending Verification)</div>
-          <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#d97706', marginTop: '5px' }}>{uploadedDocs}</div>
+
+        <div className={styles.metricCard}>
+          <div className={styles.metricTop}>
+            <span className={styles.metricLabel}>Total Registered SMEs</span>
+            <div className={styles.metricIcon}>👨‍🏫</div>
+          </div>
+          <div className={styles.metricValue} style={{ color: '#0284c7' }}>
+            {totalSmes}
+          </div>
+          <div className={styles.metricSubtext}>Subject Matter Experts</div>
         </div>
-        <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-          <div style={{ fontSize: '14px', color: '#64748b', fontWeight: 500 }}>Total Registered SMEs</div>
-          <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#3b82f6', marginTop: '5px' }}>{totalSmes}</div>
+
+        <div className={styles.metricCard}>
+          <div className={styles.metricTop}>
+            <span className={styles.metricLabel}>Total Linked EPIC IDs</span>
+            <div className={styles.metricIcon}>🏷️</div>
+          </div>
+          <div className={styles.metricValue} style={{ color: '#16a34a' }}>
+            {totalEpics}
+          </div>
+          <div className={styles.metricSubtext}>Trackable work entry records</div>
+        </div>
+
+        <div className={styles.metricCard}>
+          <div className={styles.metricTop}>
+            <span className={styles.metricLabel}>Matching Documents</span>
+            <div className={styles.metricIcon}>🔍</div>
+          </div>
+          <div className={styles.metricValue} style={{ color: '#4f46e5' }}>
+            {filteredDocs.length}
+          </div>
+          <div className={styles.metricSubtext}>
+            {hasActiveFilters ? 'Based on active filters' : 'All records displayed'}
+          </div>
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '20px', display: 'flex', gap: '15px' }}>
-        <input 
-          type="text" 
-          placeholder="Search SME, Trade, Institute, Designation..." 
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          style={{ flex: 1, padding: '12px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '15px', outline: 'none' }}
-        />
+      {/* Advanced Filter Toolbar with Linked EPIC ID Option */}
+      <div className={styles.filterToolbar}>
+        <div className={styles.filterControlsRow}>
+          {/* EPIC ID Filter Dropdown */}
+          <div className={styles.filterGroup}>
+            <label className={styles.filterLabel}>Filter by EPIC ID</label>
+            <select
+              value={selectedEpicId}
+              onChange={e => setSelectedEpicId(e.target.value)}
+              className={`${styles.selectEpic} ${
+                selectedEpicId ? styles.selectEpicActive : ''
+              }`}
+            >
+              <option value="">
+                -- All EPIC IDs ({epicOptions.length} Registered) --
+              </option>
+              {epicOptions.map(opt => (
+                <option key={opt.epicId} value={opt.epicId}>
+                  {opt.epicId} — {opt.smeName} ({opt.docs.length}{' '}
+                  {opt.docs.length === 1 ? 'doc' : 'docs'})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Document Type Filter Dropdown */}
+          <div className={styles.filterGroup}>
+            <label className={styles.filterLabel}>Document Type</label>
+            <select
+              value={selectedDocType}
+              onChange={e => setSelectedDocType(e.target.value)}
+              className={styles.selectDocType}
+            >
+              <option value="">-- All Document Types --</option>
+              <option value="SME_ATTENDANCE">SME Attendance PDF</option>
+              <option value="APPROVAL_LETTER">Signed Approval Letter</option>
+              <option value="WORK_COMPLETION">Work Completion Certificate</option>
+            </select>
+          </div>
+
+          {/* Search Input Box */}
+          <div className={styles.filterGroup} style={{ flex: '2 1 320px' }}>
+            <label className={styles.filterLabel}>Search Keywords</label>
+            <div className={styles.searchInputWrap}>
+              <span className={styles.searchIcon}>🔍</span>
+              <input
+                type="text"
+                placeholder="Search SME, Trade, Institute, Document Name..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className={styles.searchInput}
+              />
+            </div>
+          </div>
+
+          {/* Reset Filters Action */}
+          {hasActiveFilters && (
+            <div className={styles.filterActions}>
+              <button
+                onClick={resetAllFilters}
+                className={styles.btnClearFilters}
+                title="Reset all active filters"
+              >
+                ✕ Clear Filters
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Active Filter Chips */}
+        {hasActiveFilters && (
+          <div className={styles.activeFiltersBar}>
+            <span className={styles.activeFilterLabel}>Active Filters:</span>
+
+            {selectedEpicId && (
+              <span className={styles.filterChip}>
+                EPIC ID: {selectedEpicId}
+                <span
+                  className={styles.filterChipRemove}
+                  onClick={() => setSelectedEpicId('')}
+                  title="Remove EPIC ID filter"
+                >
+                  ✕
+                </span>
+              </span>
+            )}
+
+            {selectedDocType && (
+              <span className={styles.filterChip}>
+                Type: {getFriendlyDocName(selectedDocType, '')}
+                <span
+                  className={styles.filterChipRemove}
+                  onClick={() => setSelectedDocType('')}
+                  title="Remove Document Type filter"
+                >
+                  ✕
+                </span>
+              </span>
+            )}
+
+            {searchTerm && (
+              <span className={styles.filterChip}>
+                Search: &quot;{searchTerm}&quot;
+                <span
+                  className={styles.filterChipRemove}
+                  onClick={() => setSearchTerm('')}
+                  title="Remove search filter"
+                >
+                  ✕
+                </span>
+              </span>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Linked EPIC ID Spotlight Banner (Rendered when an EPIC ID is selected) */}
+      {selectedEpicDetails && (
+        <div className={styles.epicSpotlightCard}>
+          <div className={styles.spotlightHeader}>
+            <div>
+              <span className={styles.spotlightEpicBadge}>
+                {selectedEpicDetails.epicId}
+              </span>
+              <h3 className={styles.spotlightSmeName}>
+                {selectedEpicDetails.smeName}
+              </h3>
+              <div className={styles.spotlightSmeMeta}>
+                <strong>Trade:</strong> {selectedEpicDetails.trade} &nbsp;•&nbsp;
+                <strong>Institute:</strong> {selectedEpicDetails.institute}
+                {selectedEpicDetails.topic && (
+                  <span> &nbsp;•&nbsp; <strong>Topic:</strong> {selectedEpicDetails.topic}</span>
+                )}
+              </div>
+            </div>
+
+            <div className={styles.spotlightActions}>
+              <Link
+                href="/accounts"
+                className={styles.btnSpotlightUpload}
+              >
+                <span>📤</span>
+                <span>Upload / Manage for this EPIC</span>
+              </Link>
+              <button
+                onClick={() => setSelectedEpicId('')}
+                className={styles.btnSpotlightReset}
+              >
+                Show All EPIC IDs
+              </button>
+            </div>
+          </div>
+
+          {/* Checklist of 3 Mandatory Documents for this EPIC ID */}
+          {epicChecklist && (
+            <div className={styles.spotlightChecklist}>
+              <div className={styles.checkItem}>
+                <span className={styles.checkItemTitle}>📅 SME Attendance</span>
+                {epicChecklist.hasAttendance ? (
+                  <span className={styles.checkBadgeAttached}>✓ Uploaded</span>
+                ) : (
+                  <span className={styles.checkBadgeMissing}>✕ Missing</span>
+                )}
+              </div>
+
+              <div className={styles.checkItem}>
+                <span className={styles.checkItemTitle}>📝 Approval Letter</span>
+                {epicChecklist.hasApproval ? (
+                  <span className={styles.checkBadgeAttached}>✓ Uploaded</span>
+                ) : (
+                  <span className={styles.checkBadgeMissing}>✕ Missing</span>
+                )}
+              </div>
+
+              <div className={styles.checkItem}>
+                <span className={styles.checkItemTitle}>🎓 Work Completion</span>
+                {epicChecklist.hasCompletion ? (
+                  <span className={styles.checkBadgeAttached}>✓ Uploaded</span>
+                ) : (
+                  <span className={styles.checkBadgeMissing}>✕ Missing</span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Document List Table */}
-      <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+      <div className={styles.tableCard}>
+        <div className={styles.tableHeaderBar}>
+          <h4 className={styles.tableTitle}>
+            {selectedEpicId
+              ? `Documents Linked to ${selectedEpicId}`
+              : 'Registered SME Compliance Documents'}
+          </h4>
+          <span className={styles.tableCount}>
+            Showing {filteredDocs.length} {filteredDocs.length === 1 ? 'document' : 'documents'}
+          </span>
+        </div>
+
+        <div className={styles.tableWrapper}>
+          <table className={styles.table}>
             <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                <th style={{ padding: '16px', fontSize: '13px', color: '#475569', fontWeight: 600 }}>SME Name & EPIC ID</th>
-                <th style={{ padding: '16px', fontSize: '13px', color: '#475569', fontWeight: 600 }}>Trade / Topic</th>
-                <th style={{ padding: '16px', fontSize: '13px', color: '#475569', fontWeight: 600 }}>Document Type</th>
-                <th style={{ padding: '16px', fontSize: '13px', color: '#475569', fontWeight: 600 }}>Document Name</th>
-                <th style={{ padding: '16px', fontSize: '13px', color: '#475569', fontWeight: 600 }}>Upload Date</th>
-                <th style={{ padding: '16px', fontSize: '13px', color: '#475569', fontWeight: 600 }}>Status</th>
-                <th style={{ padding: '16px', fontSize: '13px', color: '#475569', fontWeight: 600, textAlign: 'right' }}>Actions</th>
+              <tr>
+                <th>SME Name & EPIC ID</th>
+                <th>Trade / Topic</th>
+                <th>Document Type</th>
+                <th>Document Name</th>
+                <th>Upload Date</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredDocs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>No documents found</div>
-                    <div>Upload documents from the Document Management section.</div>
+                  <td
+                    colSpan={7}
+                    style={{
+                      padding: '50px 20px',
+                      textAlign: 'center',
+                      color: '#64748b'
+                    }}
+                  >
+                    <div style={{ fontSize: '36px', marginBottom: '10px' }}>
+                      📂
+                    </div>
+                    <div
+                      style={{
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        color: '#1e293b',
+                        marginBottom: '6px'
+                      }}
+                    >
+                      {selectedEpicId
+                        ? `No documents found linked to ${selectedEpicId}`
+                        : 'No documents match your filters'}
+                    </div>
+                    <div style={{ fontSize: '13.5px', marginBottom: '16px' }}>
+                      {selectedEpicId
+                        ? `Upload documents for this EPIC ID from Document Upload.`
+                        : 'Try selecting a different filter or reset search keywords.'}
+                    </div>
+                    {selectedEpicId ? (
+                      <Link
+                        href="/accounts"
+                        className={styles.btnSpotlightUpload}
+                        style={{ display: 'inline-flex' }}
+                      >
+                        Go to Document Upload →
+                      </Link>
+                    ) : (
+                      <button
+                        onClick={resetAllFilters}
+                        className={styles.btnClearFilters}
+                        style={{ display: 'inline-flex' }}
+                      >
+                        Reset All Filters
+                      </button>
+                    )}
                   </td>
                 </tr>
               ) : (
-                filteredDocs.map((doc, index) => {
+                filteredDocs.map(doc => {
+                  const downloadHref =
+                    doc.filePath?.startsWith('http') || doc.filePath?.startsWith('data:')
+                      ? doc.filePath
+                      : `/api/documents/${doc.id}`;
+
                   return (
-                    <tr key={doc.id} style={{ borderBottom: '1px solid #f1f5f9', background: 'white' }}>
-                      <td style={{ padding: '16px' }}>
-                        <div style={{ fontWeight: 'bold', color: '#0f172a', fontSize: '14px' }}>{doc.smeName}</div>
-                        <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 'bold', marginTop: '2px' }}>{doc.friendlyEpicId}</div>
+                    <tr key={doc.id}>
+                      <td>
+                        <div
+                          style={{
+                            fontWeight: 'bold',
+                            color: '#0f172a',
+                            fontSize: '14px'
+                          }}
+                        >
+                          {doc.smeName}
+                        </div>
+                        {/* Clickable EPIC ID Pill to quickly filter */}
+                        <button
+                          className={styles.epicPillBtn}
+                          onClick={() => setSelectedEpicId(doc.friendlyEpicId)}
+                          title="Click to filter all documents for this EPIC ID"
+                        >
+                          {doc.friendlyEpicId}
+                        </button>
                       </td>
-                      <td style={{ padding: '16px', color: '#334155' }}>
-                        <div style={{ fontSize: '14px', fontWeight: '500' }}>{doc.trade}</div>
-                        <div style={{ fontSize: '12px', color: '#64748b' }}>{doc.topic}</div>
+                      <td>
+                        <div style={{ fontSize: '13.5px', fontWeight: '500' }}>
+                          {doc.trade || 'General'}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#64748b' }}>
+                          {doc.topic || 'Curriculum Module'}
+                        </div>
                       </td>
-                      <td style={{ padding: '16px' }}>
-                        <div style={{ display: 'inline-block', background: '#e0e7ff', color: '#4f46e5', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
+                      <td>
+                        <span className={styles.docTypePill}>
                           {doc.friendlyDocName}
-                        </div>
-                      </td>
-                      <td style={{ padding: '16px' }}>
-                        <div style={{ fontSize: '13px', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '16px' }}>📄</span> {doc.name}
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>v{doc.version || 1}</div>
-                      </td>
-                      <td style={{ padding: '16px', fontSize: '13px', color: '#475569' }}>
-                        {new Date(doc.createdAt).toLocaleDateString('en-IN')}
-                      </td>
-                      <td style={{ padding: '16px' }}>
-                        <span style={{ background: doc.status === 'VERIFIED' ? '#dcfce3' : '#fef3c7', color: doc.status === 'VERIFIED' ? '#16a34a' : '#d97706', padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold' }}>
-                          {doc.status || 'UPLOADED'}
                         </span>
                       </td>
-                      <td style={{ padding: '16px', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                          <button 
+                      <td>
+                        <div
+                          style={{
+                            fontSize: '13px',
+                            color: '#1e293b',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <span>📄</span>
+                          <span
+                            style={{
+                              maxWidth: '260px',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis'
+                            }}
+                            title={doc.name}
+                          >
+                            {doc.name}
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            color: '#94a3b8',
+                            marginTop: '2px'
+                          }}
+                        >
+                          Version v{doc.version || 1}
+                        </div>
+                      </td>
+                      <td style={{ fontSize: '13px', color: '#475569' }}>
+                        {new Date(doc.createdAt).toLocaleDateString('en-IN', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </td>
+                      <td>
+                        <span
+                          style={{
+                            background: '#dcfce7',
+                            color: '#15803d',
+                            padding: '4px 10px',
+                            borderRadius: '9999px',
+                            fontSize: '11.5px',
+                            fontWeight: 700,
+                            letterSpacing: '0.02em',
+                            border: '1px solid #bbf7d0'
+                          }}
+                        >
+                          UPLOADED
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: '8px',
+                            justifyContent: 'flex-end'
+                          }}
+                        >
+                          <button
                             onClick={() => openPreview(doc)}
-                            style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}
+                            className={styles.btnView}
                           >
                             View
                           </button>
-                          <a 
-                            href={doc.filePath} 
+                          <a
+                            href={downloadHref}
                             download={doc.name}
-                            style={{ background: '#3b82f6', border: '1px solid #2563eb', color: 'white', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', textDecoration: 'none' }}
+                            className={styles.btnDownload}
+                            target="_blank"
+                            rel="noreferrer"
                           >
                             Download
                           </a>
@@ -198,52 +647,73 @@ export default function DocumentClient({ smes }: { smes: any[] }) {
 
       {/* PDF Preview Modal */}
       {previewDoc && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.8)', zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
-          
-          <div style={{ background: '#1e293b', color: 'white', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #334155' }}>
-            <div style={{ display: 'flex', gap: '40px' }}>
+        <div
+          className={styles.modalOverlay}
+          onClick={e => {
+            if (e.target === e.currentTarget) closePreview();
+          }}
+        >
+          <div className={styles.modalHeader}>
+            <div className={styles.modalMetaGroup}>
               <div>
-                <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>EPIC ID</div>
-                <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#60a5fa' }}>{previewDoc.friendlyEpicId}</div>
-              </div>
-              
-              <div>
-                <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Document Type</div>
-                <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{previewDoc.friendlyDocName || getFriendlyDocName(previewDoc.type, previewDoc.name)}</div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Version</div>
-                <div style={{ fontWeight: 'bold', fontSize: '14px' }}>v{previewDoc.version || 1}</div>
-              </div>
-
-              <div>
-                <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Status</div>
-                <div style={{ fontWeight: 'bold', fontSize: '14px', color: previewDoc.status === 'VERIFIED' ? '#4ade80' : '#fbbf24' }}>{previewDoc.status || 'Verified'}</div>
+                <div className={styles.modalMetaLabel}>EPIC ID</div>
+                <div
+                  className={styles.modalMetaValue}
+                  style={{ color: '#60a5fa' }}
+                >
+                  {previewDoc.friendlyEpicId}
+                </div>
               </div>
 
               <div>
-                <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Uploaded By</div>
-                <div style={{ fontWeight: 'bold', fontSize: '14px' }}>Admin User</div>
+                <div className={styles.modalMetaLabel}>SME Name</div>
+                <div className={styles.modalMetaValue}>
+                  {previewDoc.smeName}
+                </div>
               </div>
 
               <div>
-                <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Uploaded On</div>
-                <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{new Date(previewDoc.createdAt).toLocaleDateString('en-IN')}</div>
+                <div className={styles.modalMetaLabel}>Document Type</div>
+                <div className={styles.modalMetaValue}>
+                  {previewDoc.friendlyDocName ||
+                    getFriendlyDocName(previewDoc.type, previewDoc.name)}
+                </div>
+              </div>
+
+              <div>
+                <div className={styles.modalMetaLabel}>Version</div>
+                <div className={styles.modalMetaValue}>
+                  v{previewDoc.version || 1}
+                </div>
+              </div>
+
+              <div>
+                <div className={styles.modalMetaLabel}>Uploaded On</div>
+                <div className={styles.modalMetaValue}>
+                  {new Date(previewDoc.createdAt).toLocaleDateString('en-IN')}
+                </div>
               </div>
             </div>
-            
-            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-              <a 
-                href={previewDoc.filePath}
+
+            <div
+              style={{
+                display: 'flex',
+                gap: '14px',
+                alignItems: 'center'
+              }}
+            >
+              <a
+                href={previewDoc.previewUrl}
                 download={previewDoc.name}
-                style={{ background: '#3b82f6', color: 'white', padding: '8px 16px', borderRadius: '6px', textDecoration: 'none', fontSize: '14px', fontWeight: 500 }}
+                className={styles.btnDownload}
+                target="_blank"
+                rel="noreferrer"
               >
                 ⬇ Download
               </a>
-              <button 
+              <button
                 onClick={closePreview}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '24px', cursor: 'pointer', padding: '4px' }}
+                className={styles.modalCloseBtn}
                 title="Close"
               >
                 ✕
@@ -251,11 +721,10 @@ export default function DocumentClient({ smes }: { smes: any[] }) {
             </div>
           </div>
 
-          {/* Modal Body / PDF Viewer */}
-          <div style={{ flex: 1, background: '#0f172a', padding: '24px', display: 'flex', justifyContent: 'center' }}>
-            <div style={{ width: '100%', maxWidth: '1000px', background: 'white', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
-              <iframe 
-                src={previewDoc.filePath} 
+          <div className={styles.modalBody}>
+            <div className={styles.modalIframeWrap}>
+              <iframe
+                src={previewDoc.previewUrl}
                 style={{ width: '100%', height: '100%', border: 'none' }}
                 title="PDF Preview"
               />
@@ -263,7 +732,6 @@ export default function DocumentClient({ smes }: { smes: any[] }) {
           </div>
         </div>
       )}
-
     </div>
   );
 }
