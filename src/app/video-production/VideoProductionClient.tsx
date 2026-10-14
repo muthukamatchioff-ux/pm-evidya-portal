@@ -74,8 +74,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const [videoTitle, setVideoTitle] = useState('');
   const [shootStartDate, setShootStartDate] = useState('');
   const [shootEndDate, setShootEndDate] = useState('');
-  const [shootLocation, setShootLocation] = useState('');
-  const [cameraman, setCameraman] = useState('');
+  const [shootLocationType, setShootLocationType] = useState<'' | 'Studio - NIMI Chennai' | 'On-site'>('');
+  const [shootLocationCustom, setShootLocationCustom] = useState('');
+  const [cameramanSelect, setCameramanSelect] = useState<'' | 'Antony Alcander' | 'Parasuraman' | 'OTHER'>('');
+  const [cameramanCustom, setCameramanCustom] = useState('');
   const [productionNotes, setProductionNotes] = useState('');
   
   // Stage 2 Filter state
@@ -161,12 +163,30 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setError(null);
     setSuccess(null);
 
+    let finalLocation: string | null = null;
+    if (shootLocationType === 'Studio - NIMI Chennai') {
+      finalLocation = 'Studio - NIMI Chennai';
+    } else if (shootLocationType === 'On-site') {
+      finalLocation = shootLocationCustom.trim()
+        ? (shootLocationCustom.trim().toLowerCase().startsWith('on-site')
+            ? shootLocationCustom.trim()
+            : `On-site - ${shootLocationCustom.trim()}`)
+        : 'On-site';
+    }
+
+    let finalCameraman: string | null = null;
+    if (cameramanSelect === 'Antony Alcander' || cameramanSelect === 'Parasuraman') {
+      finalCameraman = cameramanSelect;
+    } else if (cameramanSelect === 'OTHER') {
+      finalCameraman = cameramanCustom.trim() || null;
+    }
+
     const res = await createShootingSchedule(selectedEpicId, { 
       videoTitle: videoTitle.trim(),
       scheduledStart: shootStartDate || null,
       scheduledEnd: shootEndDate || null,
-      location: shootLocation || null,
-      cameraman: cameraman || null,
+      location: finalLocation,
+      cameraman: finalCameraman,
       productionNotes: productionNotes || null,
       status: 'PLANNED'
     });
@@ -179,8 +199,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       setVideoTitle('');
       setShootStartDate('');
       setShootEndDate('');
-      setShootLocation('');
-      setCameraman('');
+      setShootLocationType('');
+      setShootLocationCustom('');
+      setCameramanSelect('');
+      setCameramanCustom('');
       setProductionNotes('');
     } else {
       setError(res.error || 'Failed to create production record.');
@@ -555,25 +577,74 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
               </div>
 
               <div className={styles.formField}>
-                <label className={styles.formLabel}>Shoot Location</label>
-                <input 
-                  type="text" 
-                  className={styles.formInput} 
-                  placeholder="Studio A / On-site" 
-                  value={shootLocation}
-                  onChange={e => setShootLocation(e.target.value)}
-                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className={styles.formLabel}>Shoot Location</label>
+                  {shootLocationType === 'On-site' && (
+                    <span className={styles.formBadgeNotice}>Specify Location</span>
+                  )}
+                </div>
+                <select 
+                  className={styles.formSelect}
+                  value={shootLocationType}
+                  onChange={e => {
+                    const val = e.target.value as any;
+                    setShootLocationType(val);
+                    if (val !== 'On-site') {
+                      setShootLocationCustom('');
+                    }
+                  }}
+                >
+                  <option value="">Select Shoot Location...</option>
+                  <option value="Studio - NIMI Chennai">Studio - NIMI Chennai</option>
+                  <option value="On-site">On-site</option>
+                </select>
+                {shootLocationType === 'On-site' && (
+                  <input 
+                    type="text" 
+                    className={styles.formInput} 
+                    placeholder="Enter On-site Location (e.g. Guindy ITI, Workshop, Site name)" 
+                    value={shootLocationCustom}
+                    onChange={e => setShootLocationCustom(e.target.value)}
+                    autoFocus
+                    style={{ marginTop: '4px' }}
+                  />
+                )}
               </div>
 
               <div className={styles.formField}>
-                <label className={styles.formLabel}>Cameraman</label>
-                <input 
-                  type="text" 
-                  className={styles.formInput} 
-                  placeholder="Camera operator name" 
-                  value={cameraman}
-                  onChange={e => setCameraman(e.target.value)}
-                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className={styles.formLabel}>Cameraman</label>
+                  {cameramanSelect === 'OTHER' && (
+                    <span className={styles.formBadgeNotice}>Manual Entry</span>
+                  )}
+                </div>
+                <select 
+                  className={styles.formSelect}
+                  value={cameramanSelect}
+                  onChange={e => {
+                    const val = e.target.value as any;
+                    setCameramanSelect(val);
+                    if (val !== 'OTHER') {
+                      setCameramanCustom('');
+                    }
+                  }}
+                >
+                  <option value="">Select Camera Operator...</option>
+                  <option value="Antony Alcander">Antony Alcander</option>
+                  <option value="Parasuraman">Parasuraman</option>
+                  <option value="OTHER">✍️ Other (Enter Camera Operator Name)</option>
+                </select>
+                {cameramanSelect === 'OTHER' && (
+                  <input 
+                    type="text" 
+                    className={styles.formInput} 
+                    placeholder="Enter Camera operator name" 
+                    value={cameramanCustom}
+                    onChange={e => setCameramanCustom(e.target.value)}
+                    autoFocus
+                    style={{ marginTop: '4px' }}
+                  />
+                )}
               </div>
 
               <div className={styles.formField} style={{ gridColumn: 'span 2' }}>
@@ -1048,13 +1119,44 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
 /* =========================================================================
    STAGE 1 EDIT MODAL COMPONENT
    ========================================================================= */
+function parseLocationInit(loc?: string | null) {
+  if (!loc) return { type: '' as '' | 'Studio - NIMI Chennai' | 'On-site', custom: '' };
+  const trimmed = loc.trim();
+  if (trimmed === 'Studio - NIMI Chennai' || trimmed === 'Studio / NIMI Chennai') {
+    return { type: 'Studio - NIMI Chennai' as const, custom: '' };
+  }
+  if (trimmed.toLowerCase().startsWith('on-site')) {
+    const customPart = trimmed.replace(/^on-site\s*[-:]?\s*/i, '').trim();
+    return { type: 'On-site' as const, custom: customPart };
+  }
+  return { type: 'On-site' as const, custom: trimmed };
+}
+
+function parseCameramanInit(cam?: string | null) {
+  if (!cam) return { select: '' as '' | 'Antony Alcander' | 'Parasuraman' | 'OTHER', custom: '' };
+  const trimmed = cam.trim();
+  if (trimmed.toLowerCase() === 'antony alcander' || trimmed.toLowerCase() === 'anotony alcander') {
+    return { select: 'Antony Alcander' as const, custom: '' };
+  }
+  if (trimmed.toLowerCase() === 'parasuraman') {
+    return { select: 'Parasuraman' as const, custom: '' };
+  }
+  return { select: 'OTHER' as const, custom: trimmed };
+}
+
 function Stage1EditModal({ record, loading, onClose, onSave }: any) {
+  const initLoc = parseLocationInit(record.location);
+  const initCam = parseCameramanInit(record.cameraman);
+
+  const [locationType, setLocationType] = useState<'' | 'Studio - NIMI Chennai' | 'On-site'>(initLoc.type);
+  const [locationCustom, setLocationCustom] = useState(initLoc.custom);
+  const [cameramanSelect, setCameramanSelect] = useState<'' | 'Antony Alcander' | 'Parasuraman' | 'OTHER'>(initCam.select);
+  const [cameramanCustom, setCameramanCustom] = useState(initCam.custom);
+
   const [formData, setFormData] = useState({
     videoTitle: record.videoTitle || '',
     scheduledStart: formatDateForInput(record.scheduledStart || record.shootDate),
     scheduledEnd: formatDateForInput(record.scheduledEnd),
-    location: record.location || '',
-    cameraman: record.cameraman || '',
     status: record.status || 'PLANNED',
     productionNotes: record.productionNotes || ''
   });
@@ -1065,7 +1167,30 @@ function Stage1EditModal({ record, loading, onClose, onSave }: any) {
       alert('Production End Date cannot be earlier than Production Start Date.');
       return;
     }
-    onSave(record.id, formData);
+
+    let finalLocation: string | null = null;
+    if (locationType === 'Studio - NIMI Chennai') {
+      finalLocation = 'Studio - NIMI Chennai';
+    } else if (locationType === 'On-site') {
+      finalLocation = locationCustom.trim()
+        ? (locationCustom.trim().toLowerCase().startsWith('on-site')
+            ? locationCustom.trim()
+            : `On-site - ${locationCustom.trim()}`)
+        : 'On-site';
+    }
+
+    let finalCameraman: string | null = null;
+    if (cameramanSelect === 'Antony Alcander' || cameramanSelect === 'Parasuraman') {
+      finalCameraman = cameramanSelect;
+    } else if (cameramanSelect === 'OTHER') {
+      finalCameraman = cameramanCustom.trim() || null;
+    }
+
+    onSave(record.id, {
+      ...formData,
+      location: finalLocation,
+      cameraman: finalCameraman
+    });
   };
 
   return (
@@ -1115,23 +1240,74 @@ function Stage1EditModal({ record, loading, onClose, onSave }: any) {
 
             <div className={styles.modalGrid}>
               <div className={styles.formField}>
-                <label className={styles.formLabel}>Shoot Location</label>
-                <input 
-                  type="text" 
-                  className={styles.formInput} 
-                  value={formData.location} 
-                  onChange={e => setFormData({ ...formData, location: e.target.value })}
-                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className={styles.formLabel}>Shoot Location</label>
+                  {locationType === 'On-site' && (
+                    <span className={styles.formBadgeNotice}>Specify Location</span>
+                  )}
+                </div>
+                <select 
+                  className={styles.formSelect} 
+                  value={locationType} 
+                  onChange={e => {
+                    const val = e.target.value as any;
+                    setLocationType(val);
+                    if (val !== 'On-site') {
+                      setLocationCustom('');
+                    }
+                  }}
+                >
+                  <option value="">Select Shoot Location...</option>
+                  <option value="Studio - NIMI Chennai">Studio - NIMI Chennai</option>
+                  <option value="On-site">On-site</option>
+                </select>
+                {locationType === 'On-site' && (
+                  <input 
+                    type="text" 
+                    className={styles.formInput} 
+                    placeholder="Enter On-site Location (e.g. Guindy ITI / Workshop)" 
+                    value={locationCustom} 
+                    onChange={e => setLocationCustom(e.target.value)}
+                    autoFocus
+                    style={{ marginTop: '4px' }}
+                  />
+                )}
               </div>
 
               <div className={styles.formField}>
-                <label className={styles.formLabel}>Cameraman</label>
-                <input 
-                  type="text" 
-                  className={styles.formInput} 
-                  value={formData.cameraman} 
-                  onChange={e => setFormData({ ...formData, cameraman: e.target.value })}
-                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label className={styles.formLabel}>Cameraman</label>
+                  {cameramanSelect === 'OTHER' && (
+                    <span className={styles.formBadgeNotice}>Manual Entry</span>
+                  )}
+                </div>
+                <select 
+                  className={styles.formSelect} 
+                  value={cameramanSelect} 
+                  onChange={e => {
+                    const val = e.target.value as any;
+                    setCameramanSelect(val);
+                    if (val !== 'OTHER') {
+                      setCameramanCustom('');
+                    }
+                  }}
+                >
+                  <option value="">Select Camera Operator...</option>
+                  <option value="Antony Alcander">Antony Alcander</option>
+                  <option value="Parasuraman">Parasuraman</option>
+                  <option value="OTHER">✍️ Other (Enter Camera Operator Name)</option>
+                </select>
+                {cameramanSelect === 'OTHER' && (
+                  <input 
+                    type="text" 
+                    className={styles.formInput} 
+                    placeholder="Enter Camera operator name" 
+                    value={cameramanCustom} 
+                    onChange={e => setCameramanCustom(e.target.value)}
+                    autoFocus
+                    style={{ marginTop: '4px' }}
+                  />
+                )}
               </div>
             </div>
 
