@@ -98,6 +98,14 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   useEffect(() => {
     if (initialRecords && initialRecords.length > 0) {
       setWorkEntries(initialRecords);
+    } else {
+      async function loadData() {
+        const res = await getTopicProductionRecords();
+        if (res.success && res.data && res.data.length > 0) {
+          setWorkEntries(res.data);
+        }
+      }
+      loadData();
     }
   }, [initialRecords]);
 

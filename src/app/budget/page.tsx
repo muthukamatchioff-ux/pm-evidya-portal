@@ -5,10 +5,8 @@ import styles from './budget.module.css';
 import { getRole } from '@/lib/auth';
 
 export default async function BudgetPage() {
-  const [components, role] = await Promise.all([
-    getBudgetComponents(),
-    getRole()
-  ]);
+  const components = await getBudgetComponents();
+  const role = await getRole();
 
   return (
     <div className={styles.container}>

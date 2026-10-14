@@ -7,10 +7,8 @@ import Component6Client from './Component6Client';
 import { getRole } from '@/lib/auth';
 
 export default async function Component6Page() {
-  const [role, compData] = await Promise.all([
-    getRole(),
-    getComponent6Data()
-  ]);
+  const role = await getRole();
+  const compData = await getComponent6Data();
   if (!compData) return <div>Component not found</div>;
 
   return (

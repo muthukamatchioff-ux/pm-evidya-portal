@@ -10,10 +10,8 @@ export const metadata = {
 
 export default async function VideoProductionPage() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
-  const [role, result] = await Promise.all([
-    getRole(),
-    getTopicProductionRecords()
-  ]);
+  const role = await getRole();
+  const result = await getTopicProductionRecords();
   const records = (result.success ? result.data : []) || [];
   const errorMsg = !result.success ? result.error : null;
 

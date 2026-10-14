@@ -142,65 +142,71 @@ export async function getComprehensiveReportData() {
       orderBy: { createdAt: 'desc' }
     }),
 
-    // Deferred: audit logs are loaded on-demand during export to prevent slowing initial page render
-    Promise.resolve([]),
-
-    prisma.sMEWorkEntry.findMany({
-      where: epicFilter,
-      select: {
-        id: true,
-        epicSequence: true,
-        topic: true,
-        trade: true,
-        sme: {
+    (role === 'ADMIN' || role === 'TEAM_MEMBER')
+      ? prisma.auditLog.findMany({
           select: {
             id: true,
-            name: true,
-            designation: true,
-            institute: true,
-          }
-        },
-        shootingSchedules: {
-          select: {
-            scheduledStart: true,
-            scheduledEnd: true,
-            shootDate: true,
-            status: true,
-            videoTitle: true,
-          },
-          take: 1
-        },
-        videoEditorRecords: {
-          select: {
-            editingStartDate: true,
-            editingEndDate: true,
-            reviewComments: true,
-            status: true,
-            editorName: true,
-            duration: true,
-          },
-          take: 1
-        },
-        videoLibraries: {
-          select: {
-            videoLink: true,
             createdAt: true,
-            title: true,
-            duration: true,
+            action: true,
+            entity: true,
+            entityId: true,
           },
-          take: 1
-        },
-        finalVideoRecords: {
-          select: {
-            finalVideoFile: true,
-            approvalDate: true,
-            finalVideoStatus: true,
+          orderBy: { createdAt: 'desc' },
+          take: 250
+        })
+      : Promise.resolve([]),
+
+    (async () => {
+      try {
+        return await prisma.sMEWorkEntry.findMany({
+          where: epicFilter,
+          include: {
+            sme: {
+              select: {
+                id: true,
+                name: true,
+                designation: true,
+                institute: true,
+              }
+            },
+            documents: true,
+            payments: (role === 'ADMIN' || role === 'TEAM_MEMBER'),
+            shootingSchedules: true,
+            videoEditorRecords: true,
+            animationRecords: true,
+            finalVideoRecords: true,
+            videoLibraries: true,
           },
-          take: 1
-        },
-      },
-      orderBy: { epicSequence: 'asc' }
-    })
+          orderBy: { epicSequence: 'asc' }
+        });
+      } catch (err: any) {
+        console.warn('Extended video relations unavailable for reports, falling back to core relations:', err?.message);
+        const coreEntries = await prisma.sMEWorkEntry.findMany({
+          where: epicFilter,
+          include: {
+            sme: {
+              select: {
+                id: true,
+                name: true,
+                designation: true,
+                institute: true,
+              }
+            },
+            documents: true,
+            payments: (role === 'ADMIN' || role === 'TEAM_MEMBER'),
+          },
+          orderBy: { epicSequence: 'asc' }
+        });
+        return coreEntries.map((e: any) => ({
+          ...e,
+          shootingSchedules: [],
+          videoEditorRecords: [],
+          animationRecords: [],
+          finalVideoRecords: [],
+          videoLibraries: []
+        }));
+      }
+    })()
   ]);
 
   return JSON.parse(JSON.stringify({ smes, production, auditLogs, epicWorkEntries }));

@@ -130,27 +130,58 @@ export async function getTopicProductionRecords() {
       }
     }
 
-    const allRecords = await prisma.sMEWorkEntry.findMany({
-      where: whereFilter,
-      include: {
-        sme: {
-          select: {
-            id: true,
-            name: true,
-            designation: true,
-            institute: true,
-          }
+    let allRecords: any[] = [];
+    try {
+      allRecords = await prisma.sMEWorkEntry.findMany({
+        where: whereFilter,
+        include: {
+          sme: {
+            select: {
+              id: true,
+              name: true,
+              designation: true,
+              institute: true,
+            }
+          },
+          shootingSchedules: true,
+          videoEditorRecords: true,
+          animationRecords: true,
+          finalVideoRecords: true,
+          videoLibraries: true,
         },
-        shootingSchedules: true,
-        videoEditorRecords: true,
-        animationRecords: true,
-        finalVideoRecords: true,
-        videoLibraries: true,
-      },
-      orderBy: {
-        epicSequence: 'desc'
-      }
-    });
+        orderBy: {
+          epicSequence: 'desc'
+        }
+      });
+    } catch (err: any) {
+      console.warn('Extended video relations unavailable, falling back to core relations:', err?.message);
+      const coreRecords = await prisma.sMEWorkEntry.findMany({
+        where: whereFilter,
+        include: {
+          sme: {
+            select: {
+              id: true,
+              name: true,
+              designation: true,
+              institute: true,
+            }
+          },
+          documents: true,
+          payments: true,
+        },
+        orderBy: {
+          epicSequence: 'desc'
+        }
+      });
+      allRecords = coreRecords.map((r: any) => ({
+        ...r,
+        shootingSchedules: [],
+        videoEditorRecords: [],
+        animationRecords: [],
+        finalVideoRecords: [],
+        videoLibraries: []
+      }));
+    }
 
     if (role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'VIEWER') {
       return { success: true, data: allRecords };

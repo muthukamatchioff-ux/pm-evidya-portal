@@ -6,24 +6,28 @@ const getDbUrl = () => {
   const candidates = [
     process.env.DATABASE_URL,
     process.env.POSTGRES_PRISMA_URL,
-    process.env.POSTGRES_URL
+    process.env.POSTGRES_URL,
+    process.env.POSTGRES_URL_NON_POOLING
   ];
-  for (const u of candidates) {
-    if (typeof u === 'string' && (u.startsWith('postgresql://') || u.startsWith('postgres://'))) {
-      return u;
+  for (const raw of candidates) {
+    if (typeof raw === 'string') {
+      const clean = raw.trim().replace(/^["']|["']$/g, '');
+      if (clean.startsWith('postgresql://') || clean.startsWith('postgres://')) {
+        return clean;
+      }
     }
   }
-  return process.env.DATABASE_URL;
+  const fallback = process.env.DATABASE_URL?.trim().replace(/^["']|["']$/g, '');
+  return fallback && (fallback.startsWith('postgresql://') || fallback.startsWith('postgres://'))
+    ? fallback
+    : undefined;
 };
 
 const createPrismaClient = () => {
+  const dbUrl = getDbUrl();
   const client = new PrismaClient({
     log: process.env.NODE_ENV === 'production' ? ['error', 'warn'] : ['query'],
-    datasources: {
-      db: {
-        url: getDbUrl()
-      }
-    }
+    ...(dbUrl ? { datasources: { db: { url: dbUrl } } } : {})
   });
 
   // Attach an extension to catch database connection failures globally
@@ -115,4 +119,4 @@ const createPrismaClient = () => {
 
 export const prisma = globalForPrisma.prisma || createPrismaClient();
 
-globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;

@@ -7,10 +7,8 @@ import Component4Client from './Component4Client';
 import { getRole } from '@/lib/auth';
 
 export default async function Component4Page() {
-  const [role, compData] = await Promise.all([
-    getRole(),
-    getComponent4Data()
-  ]);
+  const role = await getRole();
+  const compData = await getComponent4Data();
   if (!compData) return <div>Component not found</div>;
 
   return (
