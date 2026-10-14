@@ -92,11 +92,32 @@ export async function getComprehensiveReportData() {
     (role === 'CAMERAMAN' || role === 'EDITOR')
       ? Promise.resolve([])
       : prisma.sME.findMany({
-          include: {
+          select: {
+            id: true,
+            name: true,
+            institute: true,
             workEntries: {
-              include: {
-                documents: true,
+              select: {
+                id: true,
+                epicSequence: true,
+                trade: true,
+                topic: true,
+                status: true,
+                createdAt: true,
+                documents: {
+                  select: {
+                    id: true,
+                    type: true,
+                  }
+                },
                 payments: (role === 'ADMIN' || role === 'TEAM_MEMBER')
+                  ? {
+                      select: {
+                        id: true,
+                        status: true,
+                      }
+                    }
+                  : false
               }
             }
           },
@@ -104,21 +125,48 @@ export async function getComprehensiveReportData() {
         }),
 
     prisma.productionRecord.findMany({
-      include: { project: true },
+      select: {
+        id: true,
+        shootDate: true,
+        status: true,
+        videoUrl: true,
+        updatedAt: true,
+        project: {
+          select: {
+            id: true,
+            projectCode: true,
+            title: true,
+          }
+        }
+      },
       orderBy: { createdAt: 'desc' }
     }),
 
     (role === 'ADMIN' || role === 'TEAM_MEMBER')
       ? prisma.auditLog.findMany({
+          select: {
+            id: true,
+            createdAt: true,
+            action: true,
+            entity: true,
+            entityId: true,
+          },
           orderBy: { createdAt: 'desc' },
-          take: 1000
+          take: 250
         })
       : Promise.resolve([]),
 
     prisma.sMEWorkEntry.findMany({
       where: epicFilter,
       include: {
-        sme: true,
+        sme: {
+          select: {
+            id: true,
+            name: true,
+            designation: true,
+            institute: true,
+          }
+        },
         documents: true,
         payments: (role === 'ADMIN' || role === 'TEAM_MEMBER'),
         shootingSchedules: true,

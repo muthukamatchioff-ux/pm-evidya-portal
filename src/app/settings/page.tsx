@@ -12,9 +12,11 @@ export default async function SettingsPage() {
   await requireAuth(['ADMIN']);
   const [budgetHeads, hrs, users, availableEpics] = await Promise.all([
     prisma.budgetHead.findMany({
+      select: { id: true, name: true, approvedBudget: true },
       orderBy: { name: 'asc' }
     }),
     prisma.humanResource.findMany({
+      select: { id: true, name: true, role: true, baseSalary: true, joiningDate: true },
       orderBy: { createdAt: 'desc' }
     }),
     prisma.user.findMany({

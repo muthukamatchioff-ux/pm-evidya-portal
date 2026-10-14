@@ -5,18 +5,28 @@ import { revalidatePath } from 'next/cache';
 import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
-export async function getBudgetComponents() {
+export async function getBudgetComponents(options?: { detailed?: boolean }) {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
+  const isDetailed = options?.detailed ?? false;
   try {
     const components = await prisma.budgetComponent.findMany({
-      include: {
-        annexureI: { orderBy: { createdAt: 'desc' } },
-        annexureII: { orderBy: { createdAt: 'desc' } },
-        annexureIII: { orderBy: { createdAt: 'desc' } },
-        annexureIV: { orderBy: { createdAt: 'desc' } },
-        annexureV: { orderBy: { createdAt: 'desc' } },
-        annexureVI: { orderBy: { createdAt: 'desc' } },
-      },
+      include: isDetailed
+        ? {
+            annexureI: { orderBy: { createdAt: 'desc' } },
+            annexureII: { orderBy: { createdAt: 'desc' } },
+            annexureIII: { orderBy: { createdAt: 'desc' } },
+            annexureIV: { orderBy: { createdAt: 'desc' } },
+            annexureV: { orderBy: { createdAt: 'desc' } },
+            annexureVI: { orderBy: { createdAt: 'desc' } },
+          }
+        : {
+            annexureI: { select: { id: true, totalExpenditure: true } },
+            annexureII: { select: { id: true, totalExpenditure: true } },
+            annexureIII: { select: { id: true, totalExpenditure: true } },
+            annexureIV: { select: { id: true, totalExpenditure: true } },
+            annexureV: { select: { id: true, totalExpenditure: true } },
+            annexureVI: { select: { id: true, totalExpenditure: true } },
+          },
       orderBy: { componentNo: 'asc' },
     });
 

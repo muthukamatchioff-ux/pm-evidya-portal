@@ -87,9 +87,60 @@ export async function getTopicProductionRecords() {
   const email = await getEmail();
 
   try {
+    let whereFilter: any = undefined;
+    let user: any = null;
+    let assignedSequences: number[] = [];
+    let userNameLower = '';
+    let userEmailLower = '';
+
+    if (role === 'CAMERAMAN' || role === 'EDITOR') {
+      if (!email) {
+        return { success: false, error: 'Unauthorized: User session required.' };
+      }
+
+      user = await prisma.user.findUnique({
+        where: { email: email.toLowerCase().trim() },
+        select: { id: true, name: true, email: true, department: true }
+      });
+
+      if (!user) {
+        return { success: false, error: 'User record not found.' };
+      }
+
+      assignedSequences = parseAssignedEpics(user.department);
+      userNameLower = (user.name || '').toLowerCase().trim();
+      userEmailLower = user.email.toLowerCase().trim();
+
+      const names = [user.name, user.email].filter(Boolean) as string[];
+
+      if (role === 'CAMERAMAN') {
+        whereFilter = {
+          OR: [
+            ...(assignedSequences.length > 0 ? [{ epicSequence: { in: assignedSequences } }] : []),
+            { shootingSchedules: { some: { cameraman: { in: names } } } }
+          ]
+        };
+      } else if (role === 'EDITOR') {
+        whereFilter = {
+          OR: [
+            ...(assignedSequences.length > 0 ? [{ epicSequence: { in: assignedSequences } }] : []),
+            { videoEditorRecords: { some: { editorName: { in: names } } } }
+          ]
+        };
+      }
+    }
+
     const allRecords = await prisma.sMEWorkEntry.findMany({
+      where: whereFilter,
       include: {
-        sme: true,
+        sme: {
+          select: {
+            id: true,
+            name: true,
+            designation: true,
+            institute: true,
+          }
+        },
         shootingSchedules: true,
         videoEditorRecords: true,
         animationRecords: true,
@@ -104,22 +155,6 @@ export async function getTopicProductionRecords() {
     if (role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'VIEWER') {
       return { success: true, data: allRecords };
     }
-
-    if (!email) {
-      return { success: false, error: 'Unauthorized: User session required.' };
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() }
-    });
-
-    if (!user) {
-      return { success: false, error: 'User record not found.' };
-    }
-
-    const assignedSequences = parseAssignedEpics(user.department);
-    const userNameLower = (user.name || '').toLowerCase().trim();
-    const userEmailLower = user.email.toLowerCase().trim();
 
     if (role === 'CAMERAMAN') {
       const filtered = allRecords.filter((entry: any) => {

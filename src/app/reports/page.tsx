@@ -10,7 +10,7 @@ export default async function ReportsPage() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
   const role = await getRole();
   const [components, comprehensiveData] = await Promise.all([
-    (role === 'ADMIN' || role === 'TEAM_MEMBER') ? getBudgetComponents() : Promise.resolve([]),
+    (role === 'ADMIN' || role === 'TEAM_MEMBER') ? getBudgetComponents({ detailed: true }) : Promise.resolve([]),
     getComprehensiveReportData()
   ]);
   
