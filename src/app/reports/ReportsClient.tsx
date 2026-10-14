@@ -152,15 +152,18 @@ export default function ReportsClient({
         if (roman === 'I') {
           return {
             "Sl. No.": idx + 1,
-            "Date": item.datePeriod || '-',
-            "Expert": item.expertName || '-',
+            "Name": item.expertName || '-',
             "Designation": item.designation || '-',
-            "Days": item.workingDays || 0,
-            "Honorarium": item.honorarium || 0,
-            "TA": item.travelAllowance || 0,
-            "Total": item.totalExpenditure || 0,
-            "UTR": item.utrNumber || '-',
-            "Remarks": item.remarks || '-'
+            "Working Days": item.workingDays != null ? item.workingDays : '-',
+            "HA Issued Date": item.datePeriod || '-',
+            "Honorarium Amount (₹)": item.honorarium ? Number(item.honorarium) : 0,
+            "Honorarium Voucher No.": item.utrNumber || '-',
+            "Honorarium Narration": item.remarks || '-',
+            "TA Date": item.tranType || '-',
+            "TA Amount (₹)": item.travelAllowance ? Number(item.travelAllowance) : 0,
+            "TA Voucher No.": item.voucherNo || '-',
+            "TA Narration": item.narration || '-',
+            "Total Amount (₹)": (Number(item.honorarium) || 0) + (Number(item.travelAllowance) || 0)
           };
         }
         
@@ -501,15 +504,41 @@ export default function ReportsClient({
 
               let cols: string[] = [];
               if (roman === 'I') {
-                cols = ['Date', 'Expert', 'Designation', 'Days', 'Honorarium', 'TA', 'Total', 'UTR', 'Remarks'];
+                cols = [
+                  'Name',
+                  'Designation',
+                  'Working Days',
+                  'HA Issued Date',
+                  'Honorarium Amount (₹)',
+                  'Honorarium Voucher No.',
+                  'Honorarium Narration',
+                  'TA Date',
+                  'TA Amount (₹)',
+                  'TA Voucher No.',
+                  'TA Narration',
+                  'Total Amount (₹)'
+                ];
               } else {
                 cols = Object.keys(items[0]).filter(k => !['id', 'budgetComponentId', 'createdAt', 'updatedAt', 'verificationStatus', 'supportingDoc', 'approvalRef'].includes(k));
               }
 
               const getMappedValue = (item: any, col: string) => {
                 if (roman === 'I') {
-                  const map: any = { 'Date': 'datePeriod', 'Expert': 'expertName', 'Designation': 'designation', 'Days': 'workingDays', 'Honorarium': 'honorarium', 'TA': 'travelAllowance', 'Total': 'totalExpenditure', 'UTR': 'utrNumber', 'Remarks': 'remarks' };
-                  return item[map[col]];
+                  const map: any = {
+                    'Name': item.expertName || '-',
+                    'Designation': item.designation || '-',
+                    'Working Days': item.workingDays != null ? item.workingDays : '-',
+                    'HA Issued Date': item.datePeriod || '-',
+                    'Honorarium Amount (₹)': item.honorarium && Number(item.honorarium) > 0 ? `₹ ${Number(item.honorarium).toLocaleString('en-IN')}` : '-',
+                    'Honorarium Voucher No.': item.utrNumber || '-',
+                    'Honorarium Narration': item.remarks || '-',
+                    'TA Date': item.tranType || '-',
+                    'TA Amount (₹)': item.travelAllowance && Number(item.travelAllowance) > 0 ? `₹ ${Number(item.travelAllowance).toLocaleString('en-IN')}` : '-',
+                    'TA Voucher No.': item.voucherNo || '-',
+                    'TA Narration': item.narration || '-',
+                    'Total Amount (₹)': `₹ ${((Number(item.honorarium) || 0) + (Number(item.travelAllowance) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  };
+                  return map[col] !== undefined ? map[col] : item[col];
                 }
                 return item[col];
               };
@@ -1123,7 +1152,20 @@ export default function ReportsClient({
           let cols: string[] = [];
           if (items.length > 0) {
             if (roman === 'I') {
-              cols = ['Date', 'Expert', 'Designation', 'Days', 'Honorarium', 'TA', 'Total', 'UTR', 'Remarks'];
+              cols = [
+                'Name',
+                'Designation',
+                'Working Days',
+                'HA Issued Date',
+                'Honorarium Amount (₹)',
+                'Honorarium Voucher No.',
+                'Honorarium Narration',
+                'TA Date',
+                'TA Amount (₹)',
+                'TA Voucher No.',
+                'TA Narration',
+                'Total Amount (₹)'
+              ];
             } else {
               cols = Object.keys(items[0]).filter(k => !['id', 'budgetComponentId', 'createdAt', 'updatedAt', 'verificationStatus', 'supportingDoc', 'approvalRef'].includes(k));
             }
@@ -1131,8 +1173,21 @@ export default function ReportsClient({
 
           const getMappedValue = (item: any, col: string) => {
             if (roman === 'I') {
-              const map: any = { 'Date': 'datePeriod', 'Expert': 'expertName', 'Designation': 'designation', 'Days': 'workingDays', 'Honorarium': 'honorarium', 'TA': 'travelAllowance', 'Total': 'totalExpenditure', 'UTR': 'utrNumber', 'Remarks': 'remarks' };
-              return item[map[col]];
+              const map: any = {
+                'Name': item.expertName || '-',
+                'Designation': item.designation || '-',
+                'Working Days': item.workingDays != null ? item.workingDays : '-',
+                'HA Issued Date': item.datePeriod || '-',
+                'Honorarium Amount (₹)': item.honorarium && Number(item.honorarium) > 0 ? `₹ ${Number(item.honorarium).toLocaleString('en-IN')}` : '-',
+                'Honorarium Voucher No.': item.utrNumber || '-',
+                'Honorarium Narration': item.remarks || '-',
+                'TA Date': item.tranType || '-',
+                'TA Amount (₹)': item.travelAllowance && Number(item.travelAllowance) > 0 ? `₹ ${Number(item.travelAllowance).toLocaleString('en-IN')}` : '-',
+                'TA Voucher No.': item.voucherNo || '-',
+                'TA Narration': item.narration || '-',
+                'Total Amount (₹)': `₹ ${((Number(item.honorarium) || 0) + (Number(item.travelAllowance) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              };
+              return map[col] !== undefined ? map[col] : item[col];
             }
             return item[col];
           };

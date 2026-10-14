@@ -43,16 +43,34 @@ export const generateDocxReport = async (components: any[]) => {
     );
 
     if (items.length > 0) {
-      // Determine columns dynamically from the first item
-      const keys = ['Sl. No.', ...Object.keys(items[0]).filter(k => !['id', 'budgetComponentId', 'createdAt', 'updatedAt'].includes(k))];
-      
+      const isAnnexureI = component.componentNo === 1;
+      const annexureICols = [
+        { label: 'Sl. No.', getVal: (_: any, idx: number) => String(idx + 1) },
+        { label: 'Name', getVal: (i: any) => i.expertName || '-' },
+        { label: 'Designation', getVal: (i: any) => i.designation || '-' },
+        { label: 'Working Days', getVal: (i: any) => i.workingDays != null ? String(i.workingDays) : '-' },
+        { label: 'HA Issued Date', getVal: (i: any) => i.datePeriod || '-' },
+        { label: 'Honorarium Amount (₹)', getVal: (i: any) => i.honorarium && Number(i.honorarium) > 0 ? Number(i.honorarium).toLocaleString('en-IN') : '-' },
+        { label: 'Honorarium Voucher No.', getVal: (i: any) => i.utrNumber || '-' },
+        { label: 'Honorarium Narration', getVal: (i: any) => i.remarks || '-' },
+        { label: 'TA Date', getVal: (i: any) => i.tranType || '-' },
+        { label: 'TA Amount (₹)', getVal: (i: any) => i.travelAllowance && Number(i.travelAllowance) > 0 ? Number(i.travelAllowance).toLocaleString('en-IN') : '-' },
+        { label: 'TA Voucher No.', getVal: (i: any) => i.voucherNo || '-' },
+        { label: 'TA Narration', getVal: (i: any) => i.narration || '-' },
+        { label: 'Total Amount (₹)', getVal: (i: any) => `₹ ${((Number(i.honorarium) || 0) + (Number(i.travelAllowance) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+      ];
+
+      const headerLabels = isAnnexureI
+        ? annexureICols.map(c => c.label)
+        : ['Sl. No.', ...Object.keys(items[0]).filter(k => !['id', 'budgetComponentId', 'createdAt', 'updatedAt', 'verificationStatus', 'supportingDoc', 'approvalRef'].includes(k))];
+
       const tableRows = [];
       
       // Header Row
       tableRows.push(
         new TableRow({
-          children: keys.map(k => new TableCell({
-            children: [new Paragraph({ children: [new TextRun({ text: k, bold: true })] })],
+          children: headerLabels.map(lbl => new TableCell({
+            children: [new Paragraph({ children: [new TextRun({ text: lbl, bold: true })] })],
             margins: { top: 100, bottom: 100, left: 100, right: 100 }
           }))
         })
@@ -62,13 +80,18 @@ export const generateDocxReport = async (components: any[]) => {
       items.forEach((item: any, idx: number) => {
         tableRows.push(
           new TableRow({
-            children: keys.map(k => {
-              const cellValue = k === 'Sl. No.' ? (idx + 1).toString() : (item[k] !== null && item[k] !== undefined ? item[k].toString() : '');
-              return new TableCell({
-                children: [new Paragraph(cellValue)],
-                margins: { top: 100, bottom: 100, left: 100, right: 100 }
-              });
-            })
+            children: isAnnexureI
+              ? annexureICols.map(c => new TableCell({
+                  children: [new Paragraph(c.getVal(item, idx))],
+                  margins: { top: 100, bottom: 100, left: 100, right: 100 }
+                }))
+              : headerLabels.map(k => {
+                  const cellValue = k === 'Sl. No.' ? (idx + 1).toString() : (item[k] !== null && item[k] !== undefined ? item[k].toString() : '');
+                  return new TableCell({
+                    children: [new Paragraph(cellValue)],
+                    margins: { top: 100, bottom: 100, left: 100, right: 100 }
+                  });
+                })
           })
         );
       });
