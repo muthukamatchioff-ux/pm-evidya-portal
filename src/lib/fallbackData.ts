@@ -1,5 +1,5 @@
 // Real PM e-Vidya Portal Master Data Fallback
-// Contains authentic PM e-Vidya components, budget heads, and expenditure records.
+// Contains authentic PM e-Vidya components, budget heads, expenditure records, and video library.
 
 export const REAL_PM_EVIDYA_BUDGET_COMPONENTS = [
   {
@@ -3053,3 +3053,346 @@ export const REAL_PM_EVIDYA_PROJECTS = [
 ];
 
 export const REAL_PM_EVIDYA_PRODUCTION_RECORDS = [];
+
+export const REAL_PM_EVIDYA_VIDEOS = [
+  {
+    "id": "cmupe2e6r0001qg6sz7yyokb6",
+    "smeName": "Shri. V. Babu",
+    "title": "Communication for Online Training",
+    "videoLink": "https://drive.google.com/file/d/1dyTpht9-P_1nsHXPBcUUb5Pe-L0i_EKF/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.915Z",
+    "updatedAt": "2026-10-01T10:38:31.509Z",
+    "duration": "1:02:43",
+    "trade": "POT"
+  },
+  {
+    "id": "cmupe2e6t0002qg6sbkrq2ocj",
+    "smeName": "Shri. V. Babu",
+    "title": "Dale's Cone of Experience",
+    "videoLink": "https://drive.google.com/file/d/1_bNKqqXmZ_Bz9kJQSTDbPNQwetqqYZPb/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.917Z",
+    "updatedAt": "2026-10-01T10:38:31.511Z",
+    "duration": "0:07:59",
+    "trade": "POT"
+  },
+  {
+    "id": "cmupe2e6u0003qg6s7muvbhuv",
+    "smeName": "Shri. V. Babu",
+    "title": "Roles of Audio - Visual Aids",
+    "videoLink": "https://drive.google.com/file/d/1HygrEw2DwfpP44WLLKCjghgY28S6bYds/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.919Z",
+    "updatedAt": "2026-10-01T10:38:31.513Z",
+    "duration": "0:29:02",
+    "trade": "POT"
+  },
+  {
+    "id": "cmupe2e6w0004qg6su8pm6dsg",
+    "smeName": "Shri. V. Babu",
+    "title": "Transactional Analysis",
+    "videoLink": "https://drive.google.com/file/d/13WaWnbJ79z2Cs_PpLmnE4rhUG02yQ_0k/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.920Z",
+    "updatedAt": "2026-10-01T10:38:31.515Z",
+    "duration": "0:34:01",
+    "trade": "POT"
+  },
+  {
+    "id": "cmupe2e6x0005qg6sl25i7ii5",
+    "smeName": "Smt. Priya",
+    "title": "50 Questions for Drone Technician",
+    "videoLink": "https://www.youtube.com/live/TaM7NYrEYYQ?si=t9AtzOz_82FGAjwE",
+    "createdAt": "2026-10-01T10:26:00.921Z",
+    "updatedAt": "2026-10-01T10:38:31.517Z",
+    "duration": "1:09:27",
+    "trade": "Drone Technician"
+  },
+  {
+    "id": "cmupe2e6y0006qg6szgfciamc",
+    "smeName": "H.A. Manukumar",
+    "title": "Cutting Speed & RPM Speed",
+    "videoLink": "https://drive.google.com/file/d/1Mgi-Ggq1CU_ZDKiAe8nSxCLjIrYz5ukh/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.923Z",
+    "updatedAt": "2026-10-01T10:38:31.519Z",
+    "duration": "0:34:23",
+    "trade": "Advanced CNC Machinist"
+  },
+  {
+    "id": "cmupe2e700007qg6s8ey5ekry",
+    "smeName": "H.A. Manukumar",
+    "title": "Face Milling Programming",
+    "videoLink": "https://drive.google.com/file/d/1GjQ1tOCse5ISo-vc9gPQY2O694PcOoiC/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.924Z",
+    "updatedAt": "2026-10-01T10:38:31.520Z",
+    "duration": "0:27:59",
+    "trade": "Advanced CNC Machinist"
+  },
+  {
+    "id": "cmupe2e720008qg6scezrka9q",
+    "smeName": "H.A. Manukumar",
+    "title": "Peck Drilling Cycle on VMC",
+    "videoLink": "https://drive.google.com/file/d/1cYkY49iMICUlDMeZjBk4dVVd4fz2Pyyw/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.926Z",
+    "updatedAt": "2026-10-01T10:38:31.522Z",
+    "duration": "0:25:55",
+    "trade": "Advanced CNC Machinist"
+  },
+  {
+    "id": "cmupe2e740009qg6snus8uk4r",
+    "smeName": "Dr. Majji Bala Ganesh",
+    "title": "50 Questions for AI Programming Assistant",
+    "videoLink": "https://www.youtube.com/live/NWOeFN322QY?si=CS5EgLMVsQJP_CXe",
+    "createdAt": "2026-10-01T10:26:00.929Z",
+    "updatedAt": "2026-10-01T10:38:31.523Z",
+    "duration": "0:50:20",
+    "trade": "AI Programming Assistant"
+  },
+  {
+    "id": "cmupe2e76000aqg6s61xvc21y",
+    "smeName": "Dr. Majji Bala Ganesh",
+    "title": "AI (Artificial Intelligence Program Assistant)",
+    "videoLink": "https://drive.google.com/file/d/1FmOQB4N_qzMFIb_MBpKFXTD6D-m4YgE_/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.930Z",
+    "updatedAt": "2026-10-01T10:38:31.525Z",
+    "duration": "0:34:49",
+    "trade": "AI Programming Assistant"
+  },
+  {
+    "id": "cmupe2e76000bqg6sdfl3wx2h",
+    "smeName": "Dr. Majji Bala Ganesh",
+    "title": "AI TOOLS (Artificial Intelligence)",
+    "videoLink": "https://drive.google.com/file/d/1Fzuy79rbY7gRYD1xezWyVo-1WwMaXzGS/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.931Z",
+    "updatedAt": "2026-10-01T10:38:31.527Z",
+    "duration": "0:26:06",
+    "trade": "AI Programming Assistant"
+  },
+  {
+    "id": "cmupe2e77000cqg6sxqd03iua",
+    "smeName": "Dr. Majji Bala Ganesh",
+    "title": "Introduction of AI (Program Assistant - Computer Components)",
+    "videoLink": "https://drive.google.com/file/d/14UiWJmDCIFrAY1069xP9iPL2ewIBz_is/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.932Z",
+    "updatedAt": "2026-10-01T10:38:31.529Z",
+    "duration": "0:12:38",
+    "trade": "AI Programming Assistant"
+  },
+  {
+    "id": "cmupe2e78000dqg6s6flmu6kc",
+    "smeName": "Dr. Majji Bala Ganesh",
+    "title": "Machine Learning",
+    "videoLink": "https://drive.google.com/file/d/10Tseq0I0DwYxcAjZC_E8rv6Ya_MXfbKs/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.933Z",
+    "updatedAt": "2026-10-01T10:38:31.530Z",
+    "duration": "0:30:00",
+    "trade": "AI Programming Assistant"
+  },
+  {
+    "id": "cmupe2e7a000eqg6sxxvvzdqx",
+    "smeName": "Dr. Majji Bala Ganesh",
+    "title": "Introduction of Computer Vision in AI",
+    "videoLink": "https://drive.google.com/file/d/1vg7honuzlbZgCu8jTh0PcF1wsgg0rRDB/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.934Z",
+    "updatedAt": "2026-10-01T10:38:31.532Z",
+    "duration": "0:28:18",
+    "trade": "AI Programming Assistant"
+  },
+  {
+    "id": "cmupe2e7b000fqg6swkykn9iw",
+    "smeName": "Drone SME",
+    "title": "Introduction of drone technician",
+    "videoLink": "https://drive.google.com/file/d/1Gg9b6yLR1cHEb8KSJgS0mMkelXMrJTIV/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.935Z",
+    "updatedAt": "2026-10-01T10:38:31.534Z",
+    "duration": "0:32:47",
+    "trade": "Drone Technician"
+  },
+  {
+    "id": "cmupe2e7c000gqg6skgbq25gc",
+    "smeName": "Drone SME",
+    "title": "Introduction to 3d printer & their designs",
+    "videoLink": "https://drive.google.com/file/d/1aux3YIMm26cfPfaeG0q5WYlfn2hvJvTx/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.936Z",
+    "updatedAt": "2026-10-01T10:38:31.535Z",
+    "duration": "0:23:20",
+    "trade": "Drone Technician"
+  },
+  {
+    "id": "cmupe2e7d000hqg6sgidtlgpy",
+    "smeName": "Drone SME",
+    "title": "Sensors used in drones",
+    "videoLink": "https://drive.google.com/file/d/1VojNNyPbt4YxYI2tSIx4fmINFCCo2egf/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.937Z",
+    "updatedAt": "2026-10-01T10:38:31.536Z",
+    "duration": "0:14:09",
+    "trade": "Drone Technician"
+  },
+  {
+    "id": "cmupe2e7e000iqg6sfc9hhav6",
+    "smeName": "Drone SME",
+    "title": "BLDC Motors & Servo Motors in Drone",
+    "videoLink": "https://drive.google.com/file/d/1cGhahnEvnosBHDRyfxQESaSIVx589kDe/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.938Z",
+    "updatedAt": "2026-10-01T10:38:31.538Z",
+    "duration": "0:25:45",
+    "trade": "Drone Technician"
+  },
+  {
+    "id": "cmupe2e7g000kqg6srqnor36a",
+    "smeName": "Mrs. Rupasree",
+    "title": "Scope and necessity of Instrumentation",
+    "videoLink": "https://drive.google.com/file/d/1EDl_AusljbgYfC_RaOIscpgWkVa4kvZ_/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.941Z",
+    "updatedAt": "2026-10-01T10:38:31.544Z",
+    "duration": "0:21:55",
+    "trade": "Instrument Mechanic"
+  },
+  {
+    "id": "cmupe2e7i000lqg6sb3q8s5mi",
+    "smeName": "Mrs. Rupasree",
+    "title": "Fundamentals of Electricity",
+    "videoLink": "https://drive.google.com/file/d/1CocCtJZa8cwR0mQ6waUFnbcypRXtiCCY/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.942Z",
+    "updatedAt": "2026-10-01T10:38:31.545Z",
+    "duration": "0:18:58",
+    "trade": "Instrument Mechanic"
+  },
+  {
+    "id": "cmupe2e7j000mqg6scswu5qnx",
+    "smeName": "Mrs. Rupasree",
+    "title": "Semiconductors and Diodes",
+    "videoLink": "https://drive.google.com/file/d/1188YLAHN83z2jgR35M6d77Th9-1NAMZp/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.943Z",
+    "updatedAt": "2026-10-01T10:38:31.546Z",
+    "duration": "0:26:21",
+    "trade": "Instrument Mechanic"
+  },
+  {
+    "id": "cmupe2e7k000nqg6svcw6grcu",
+    "smeName": "Mrs. Rupasree",
+    "title": "Rectifiers & Filters",
+    "videoLink": "https://drive.google.com/file/d/13JYjU3WBtqVscvSsriCMHcxd_nMpeMj3/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.944Z",
+    "updatedAt": "2026-10-01T10:38:31.547Z",
+    "duration": "0:21:29",
+    "trade": "Instrument Mechanic"
+  },
+  {
+    "id": "cmupe2e7l000oqg6s3nxlwmoo",
+    "smeName": "Mrs. Rupasree",
+    "title": "Pressure Measurement",
+    "videoLink": "https://drive.google.com/file/d/12O97NIkGI0F0to4IrcFx6wA0cloujuaI/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.945Z",
+    "updatedAt": "2026-10-01T10:38:31.548Z",
+    "duration": "0:28:47",
+    "trade": "Instrument Mechanic"
+  },
+  {
+    "id": "cmupe2e7m000pqg6szkdgw0du",
+    "smeName": "Mrs. Rupasree",
+    "title": "Pressure Measurement Introduction",
+    "videoLink": "https://drive.google.com/file/d/1mPJwb3CO5cFzcX98oLuKeH4m0DQqMuGM/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.946Z",
+    "updatedAt": "2026-10-01T10:38:31.549Z",
+    "duration": "0:40:11",
+    "trade": "Instrument Mechanic"
+  },
+  {
+    "id": "cmupe2e7n000qqg6somw8z2z7",
+    "smeName": "Mrs. Rupasree",
+    "title": "Flow Measurement",
+    "videoLink": "https://drive.google.com/file/d/1Ml1W0GlliyM8ytroOsRz2BF7w34m-X97/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.947Z",
+    "updatedAt": "2026-10-01T10:38:31.551Z",
+    "duration": "0:36:55",
+    "trade": "Instrument Mechanic"
+  },
+  {
+    "id": "cmupe2e7o000rqg6sq4pf1p7c",
+    "smeName": "Mrs. Rupasree",
+    "title": "Level Measurement",
+    "videoLink": "https://drive.google.com/file/d/1lpXV_pAb3UeKme7Ri9jcY5zjklS85qN3/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.949Z",
+    "updatedAt": "2026-10-01T10:38:31.553Z",
+    "duration": "0:32:24",
+    "trade": "Instrument Mechanic"
+  },
+  {
+    "id": "cmupe2e7p000sqg6s3rscsfdv",
+    "smeName": "Mrs. Rupasree",
+    "title": "Temperature Measurement",
+    "videoLink": "https://drive.google.com/file/d/10apqvSOC7R8OrD9dsHColCwutN-7Z2ZN/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.950Z",
+    "updatedAt": "2026-10-01T10:38:31.555Z",
+    "duration": "0:21:59",
+    "trade": "Instrument Mechanic"
+  },
+  {
+    "id": "cmupe2e7s000uqg6sq3etvs50",
+    "smeName": "Media SSC Stakeholder",
+    "title": "Unit 2: Self-Management Skills → Session 3: Self-awareness",
+    "videoLink": "https://drive.google.com/file/d/10s9Uj1p02Ja7g0e8uYwVJEL_m__klH-H/view?usp=sharing",
+    "createdAt": "2026-10-01T10:26:00.953Z",
+    "updatedAt": "2026-10-01T10:38:31.559Z",
+    "duration": "0:20:49",
+    "trade": "Employability Skills"
+  },
+  {
+    "id": "cmupe2e7t000vqg6sc706672w",
+    "smeName": "Media SSC Stakeholder",
+    "title": "Chapter 6: Rasa Adhyaya (Rasa Theory)",
+    "videoLink": "https://drive.google.com/file/d/1YNphn-JndRd8rnYPtM5Piw-yAjOuD7OL/view?usp=sharing",
+    "createdAt": "2026-10-01T10:26:00.954Z",
+    "updatedAt": "2026-10-01T10:38:31.561Z",
+    "duration": "0:15:03",
+    "trade": "Acting / Rasa Theory (Performing Arts)"
+  },
+  {
+    "id": "cmupe2e7u000wqg6s9rdzl32u",
+    "smeName": "Media SSC Stakeholder",
+    "title": "Unit 1: Understanding the Language of the Medium → Chapter II: Aspects of Film Language",
+    "videoLink": "https://drive.google.com/file/d/1qnOGc3EWO8y8Sw26U8o6G-KL_g4zP9zJ/view?usp=sharing",
+    "createdAt": "2026-10-01T10:26:00.955Z",
+    "updatedAt": "2026-10-01T10:38:31.563Z",
+    "duration": "0:16:34",
+    "trade": "Mass Media Studies"
+  },
+  {
+    "id": "cmupe2e7v000xqg6skgk6punl",
+    "smeName": "Media SSC Stakeholder",
+    "title": "Chapter 6: Rasa Adhyaya — Shanta Rasa",
+    "videoLink": "https://drive.google.com/file/d/1GmwayM3U66BxDOEnv1Kpq2ZMIJORwGGm/view?usp=sharing",
+    "createdAt": "2026-10-01T10:26:00.955Z",
+    "updatedAt": "2026-10-01T10:38:31.565Z",
+    "duration": "0:21:04",
+    "trade": "Acting / Rasa Theory (Performing Arts)"
+  },
+  {
+    "id": "cmupe2e6f0000qg6sl4xei7qr",
+    "smeName": "Shri. V. Babu",
+    "title": "COPA - Javascript: The Language of the Web",
+    "videoLink": "https://drive.google.com/file/d/1Dt0uoxK7s2pEwJw-l1FgbFoXvArVBWk3/view?usp=sharing",
+    "createdAt": "2026-10-01T10:26:00.902Z",
+    "updatedAt": "2026-10-01T10:38:31.506Z",
+    "duration": "1:47:43",
+    "trade": "COPA"
+  },
+  {
+    "id": "cmupe2e7f000jqg6ssvg4cytf",
+    "smeName": "Drone SME",
+    "title": "FLIGHT CONTROLLER BOARD & ELECTRONIC SPEED CONTROLLER IN DRONE",
+    "videoLink": "https://drive.google.com/file/d/1mh2Cqf0kBjdqx1nE6EEHshfdvrl1L_qs/view?usp=drive_link",
+    "createdAt": "2026-10-01T10:26:00.939Z",
+    "updatedAt": "2026-10-01T10:38:31.540Z",
+    "duration": "0:27:45",
+    "trade": "Drone Technician"
+  },
+  {
+    "id": "cmupe2e7r000tqg6s61gtjuki",
+    "smeName": "Media SSC Stakeholder",
+    "title": "Unit 2: Self-Management Skills → Session 3: Self-confidence",
+    "videoLink": "https://drive.google.com/file/d/13Ld5-n61TB7rVKl5qQm2y2r_4LdDgVeV/view?usp=sharing",
+    "createdAt": "2026-10-01T10:26:00.951Z",
+    "updatedAt": "2026-10-01T10:38:31.557Z",
+    "duration": "0:38:19",
+    "trade": "Employability Skills"
+  }
+];

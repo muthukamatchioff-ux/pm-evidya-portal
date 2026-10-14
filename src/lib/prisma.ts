@@ -4,7 +4,8 @@ import {
   REAL_PM_EVIDYA_BUDGET_HEADS,
   REAL_PM_EVIDYA_SMES,
   REAL_PM_EVIDYA_PROJECTS,
-  REAL_PM_EVIDYA_PRODUCTION_RECORDS
+  REAL_PM_EVIDYA_PRODUCTION_RECORDS,
+  REAL_PM_EVIDYA_VIDEOS
 } from './fallbackData';
 
 const globalForPrisma = global as unknown as { prisma: any };
@@ -139,6 +140,18 @@ const createPrismaClient = () => {
 
               if (model === 'ProductionRecord' && operation === 'findMany') {
                 return REAL_PM_EVIDYA_PRODUCTION_RECORDS;
+              }
+
+              if (model === 'VideoLibrary' && operation === 'findMany') {
+                return REAL_PM_EVIDYA_VIDEOS;
+              }
+
+              if (model === 'VideoLibrary' && (operation === 'findUnique' || operation === 'findFirst')) {
+                const id = args?.where?.id;
+                if (id) {
+                  return REAL_PM_EVIDYA_VIDEOS.find((v: any) => v.id === id) || null;
+                }
+                return REAL_PM_EVIDYA_VIDEOS[0] || null;
               }
 
               if (model === 'User' && operation === 'findMany') {
