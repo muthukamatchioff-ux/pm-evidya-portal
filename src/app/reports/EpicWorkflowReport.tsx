@@ -115,68 +115,110 @@ export default function EpicWorkflowReport({
         background: 'linear-gradient(135deg, #f0f9ff 0%, #ffffff 50%, #f0fdf4 100%)',
         borderTop: '4px solid #0284c7',
         borderBottom: '2px solid #bae6fd',
-        padding: '14px 28px',
+        padding: '16px 24px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: '16px',
-        flexWrap: 'wrap'
+        flexWrap: 'nowrap'
       }}>
-        {/* Left Branding: NIMI Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '260px' }}>
+        {/* Left Branding: NIMI Logo with text below */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          width: '210px',
+          flexShrink: 0
+        }}>
           <img
             src="/nimi-logo.png"
             alt="NIMI Logo"
-            style={{ height: '68px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.06))' }}
+            style={{
+              height: '52px',
+              width: 'auto',
+              objectFit: 'contain',
+              marginBottom: '6px',
+              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.06))'
+            }}
           />
-          <div>
-            <div style={{ fontSize: '12px', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-              National Instructional Media Institute
-            </div>
-            <div style={{ fontSize: '10px', color: '#475569', marginTop: '2px', fontWeight: 500 }}>
-              Ministry of Skill Development & Entrepreneurship, Govt. of India
-            </div>
+          <div style={{
+            fontSize: '11px',
+            fontWeight: 800,
+            color: '#0369a1',
+            textTransform: 'uppercase',
+            letterSpacing: '0.4px',
+            lineHeight: 1.25
+          }}>
+            National Instructional Media Institute
+          </div>
+          <div style={{
+            fontSize: '9.5px',
+            color: '#475569',
+            marginTop: '2px',
+            fontWeight: 500,
+            lineHeight: 1.2
+          }}>
+            Ministry of Skill Development & Entrepreneurship, Govt. of India
           </div>
         </div>
 
         {/* Center Title & Metadata */}
-        <div style={{ textAlign: 'center', flex: '1 1 280px' }}>
+        <div style={{
+          textAlign: 'center',
+          flex: '1 1 auto',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '0 12px'
+        }}>
           <h1 style={{
-            fontSize: '21px',
+            fontSize: '22px',
             fontWeight: 800,
             color: '#0f2942',
-            margin: '0 0 3px 0',
+            margin: '0 0 4px 0',
             letterSpacing: '-0.3px',
-            lineHeight: 1.2
+            lineHeight: 1.2,
+            whiteSpace: 'nowrap'
           }}>
             PM e-Vidya — SME Epic Workflow Report
           </h1>
           <p style={{
-            fontSize: '12px',
+            fontSize: '12.5px',
             fontWeight: 600,
             color: '#334155',
-            margin: '0 0 6px 0'
+            margin: '0 0 8px 0',
+            lineHeight: 1.2
           }}>
             Complete History & Details for Selected Epic ID
           </p>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            flexWrap: 'wrap',
+            justifyContent: 'center'
+          }}>
             <span style={{
               background: '#0284c7',
               color: '#ffffff',
-              padding: '3px 10px',
+              padding: '4px 12px',
               borderRadius: '20px',
-              fontSize: '11px',
+              fontSize: '11.5px',
               fontWeight: 800,
-              letterSpacing: '0.5px'
+              letterSpacing: '0.5px',
+              boxShadow: '0 1px 3px rgba(2, 132, 199, 0.25)'
             }}>
               {friendlyEpicId}
             </span>
             <span style={{
               background: '#e0f2fe',
               color: '#0369a1',
-              padding: '3px 10px',
+              padding: '4px 12px',
               borderRadius: '20px',
-              fontSize: '11px',
+              fontSize: '11.5px',
               fontWeight: 600,
               border: '1px solid #bae6fd'
             }}>
@@ -185,13 +227,19 @@ export default function EpicWorkflowReport({
           </div>
         </div>
 
-        {/* Right Branding: PM e-Vidya Logo (Scaled to match NIMI logo size) */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', minWidth: '220px' }}>
+        {/* Right Branding: PM e-Vidya Logo (Scaled & Transparent) */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '210px',
+          flexShrink: 0
+        }}>
           <img
             src="/pm-evidya-logo.png"
             alt="PM e-Vidya Logo"
             style={{ 
-              height: '68px', 
+              height: '62px', 
               width: 'auto', 
               objectFit: 'contain', 
               filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.06))' 
