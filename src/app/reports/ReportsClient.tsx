@@ -604,7 +604,23 @@ export default function ReportsClient({
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          @page { size: landscape; margin: 8mm; }
+          @page { size: landscape; margin: 6mm 8mm; }
+
+          h1, h2, h3, h4, .print-no-break-after {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+          }
+          .print-avoid-break {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          table {
+            page-break-inside: auto;
+          }
+          tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
         }
       `}} />
 
@@ -700,9 +716,9 @@ export default function ReportsClient({
               {/* Right Branding: PM e-Vidya Logo */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '16px', flex: '1 1 0' }}>
                 <img 
-                  src="/evidya-logo-exact.png" 
+                  src="/pm-evidya-logo.png" 
                   alt="PM e-Vidya Logo" 
-                  style={{ height: '84px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.06))' }} 
+                  style={{ height: '70px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.06))' }} 
                 />
               </div>
             </div>

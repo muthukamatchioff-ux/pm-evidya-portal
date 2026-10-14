@@ -90,52 +90,72 @@ export default function EpicWorkflowReport({
 
   return (
     <div style={reportCardStyle}>
-      {/* SECTION 10: REPORT HEADER */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @media print {
+          .print-avoid-break {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .print-no-break-after {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+          }
+          table {
+            page-break-inside: auto;
+          }
+          tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+        }
+      `}} />
+
+      {/* SECTION 1: REPORT HEADER */}
       <div style={{
         background: 'linear-gradient(135deg, #f0f9ff 0%, #ffffff 50%, #f0fdf4 100%)',
-        borderTop: '5px solid #0284c7',
+        borderTop: '4px solid #0284c7',
         borderBottom: '2px solid #bae6fd',
-        padding: '24px 32px',
+        padding: '14px 28px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '20px',
+        gap: '16px',
         flexWrap: 'wrap'
       }}>
         {/* Left Branding: NIMI Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', minWidth: '280px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '260px' }}>
           <img
             src="/nimi-logo.png"
             alt="NIMI Logo"
-            style={{ height: '78px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.06))' }}
+            style={{ height: '68px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.06))' }}
           />
           <div>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
               National Instructional Media Institute
             </div>
-            <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px', fontWeight: 500 }}>
+            <div style={{ fontSize: '10px', color: '#475569', marginTop: '2px', fontWeight: 500 }}>
               Ministry of Skill Development & Entrepreneurship, Govt. of India
             </div>
           </div>
         </div>
 
         {/* Center Title & Metadata */}
-        <div style={{ textAlign: 'center', flex: '1 1 320px' }}>
+        <div style={{ textAlign: 'center', flex: '1 1 280px' }}>
           <h1 style={{
-            fontSize: '26px',
+            fontSize: '21px',
             fontWeight: 800,
             color: '#0f2942',
-            margin: '0 0 4px 0',
+            margin: '0 0 3px 0',
             letterSpacing: '-0.3px',
             lineHeight: 1.2
           }}>
             PM e-Vidya — SME Epic Workflow Report
           </h1>
           <p style={{
-            fontSize: '14px',
+            fontSize: '12px',
             fontWeight: 600,
             color: '#334155',
-            margin: '0 0 8px 0'
+            margin: '0 0 6px 0'
           }}>
             Complete History & Details for Selected Epic ID
           </p>
@@ -143,9 +163,9 @@ export default function EpicWorkflowReport({
             <span style={{
               background: '#0284c7',
               color: '#ffffff',
-              padding: '4px 12px',
+              padding: '3px 10px',
               borderRadius: '20px',
-              fontSize: '12px',
+              fontSize: '11px',
               fontWeight: 800,
               letterSpacing: '0.5px'
             }}>
@@ -154,9 +174,9 @@ export default function EpicWorkflowReport({
             <span style={{
               background: '#e0f2fe',
               color: '#0369a1',
-              padding: '4px 12px',
+              padding: '3px 10px',
               borderRadius: '20px',
-              fontSize: '12px',
+              fontSize: '11px',
               fontWeight: 600,
               border: '1px solid #bae6fd'
             }}>
@@ -165,12 +185,17 @@ export default function EpicWorkflowReport({
           </div>
         </div>
 
-        {/* Right Branding: PM e-Vidya Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', minWidth: '200px' }}>
+        {/* Right Branding: PM e-Vidya Logo (Scaled to match NIMI logo size) */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', minWidth: '220px' }}>
           <img
-            src="/evidya-logo-exact.png"
+            src="/pm-evidya-logo.png"
             alt="PM e-Vidya Logo"
-            style={{ height: '78px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.06))' }}
+            style={{ 
+              height: '68px', 
+              width: 'auto', 
+              objectFit: 'contain', 
+              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.06))' 
+            }}
           />
         </div>
       </div>
@@ -179,29 +204,29 @@ export default function EpicWorkflowReport({
       <div style={{
         background: '#f8fafc',
         borderBottom: '1px solid #e2e8f0',
-        padding: '16px 32px',
+        padding: '10px 28px',
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: '16px'
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '12px'
       }}>
         <div>
-          <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Subject Matter Expert</span>
-          <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>{sme.name || 'Unassigned'}</div>
-          <div style={{ fontSize: '12px', color: '#475569' }}>{sme.designation || 'Expert'} • {sme.institute || 'N/A'}</div>
+          <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Subject Matter Expert</span>
+          <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginTop: '1px' }}>{sme.name || 'Unassigned'}</div>
+          <div style={{ fontSize: '11px', color: '#475569' }}>{sme.designation || 'Expert'} • {sme.institute || 'N/A'}</div>
         </div>
         <div>
-          <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Trade & Module Topic</span>
-          <div style={{ fontSize: '14px', fontWeight: 700, color: '#0369a1', marginTop: '2px' }}>{entry.trade || 'General'}</div>
-          <div style={{ fontSize: '12px', color: '#334155' }}>{entry.topic || 'Untitled Topic'}</div>
+          <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Trade & Module Topic</span>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0369a1', marginTop: '1px' }}>{entry.trade || 'General'}</div>
+          <div style={{ fontSize: '11px', color: '#334155' }}>{entry.topic || 'Untitled Topic'}</div>
         </div>
         <div>
-          <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Workflow Status</span>
-          <div style={{ marginTop: '4px' }}>
+          <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Workflow Status</span>
+          <div style={{ marginTop: '2px' }}>
             <span style={{
               display: 'inline-block',
-              padding: '3px 10px',
-              borderRadius: '12px',
-              fontSize: '12px',
+              padding: '2px 8px',
+              borderRadius: '10px',
+              fontSize: '11px',
               fontWeight: 800,
               ...getStatusBadgeStyle(entry.status)
             }}>
@@ -210,143 +235,158 @@ export default function EpicWorkflowReport({
           </div>
         </div>
         <div>
-          <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Attendance Window</span>
-          <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>
+          <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Attendance Window</span>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: '#1e293b', marginTop: '1px' }}>
             {entry.attendanceFrom ? new Date(entry.attendanceFrom).toLocaleDateString('en-IN') : 'TBD'} to{' '}
             {entry.attendanceTo ? new Date(entry.attendanceTo).toLocaleDateString('en-IN') : 'TBD'}
           </div>
-          <div style={{ fontSize: '11px', color: '#64748b' }}>Working Days: {entry.days || '-'}</div>
+          <div style={{ fontSize: '10px', color: '#64748b' }}>Working Days: {entry.days || '-'}</div>
         </div>
       </div>
 
-      {/* SECTION 2: EXECUTIVE SUMMARY (6 KPI CARDS) */}
-      <div style={{ padding: '24px 32px 16px 32px' }}>
-        <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f2942', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '12px' }}>
-          Executive Summary Metrics
+      {/* MERGED: EXECUTIVE SUMMARY METRICS & WORKFLOW LIFECYCLE TIMELINE (IN 1 TITLE & UNIFIED CONTAINER) */}
+      <div className="print-avoid-break" style={{ 
+        padding: '12px 28px 12px 28px',
+        breakInside: 'avoid',
+        pageBreakInside: 'avoid'
+      }}>
+        <div className="print-no-break-after" style={{ 
+          fontSize: '13px', 
+          fontWeight: 800, 
+          color: '#0f2942', 
+          textTransform: 'uppercase', 
+          letterSpacing: '0.6px', 
+          marginBottom: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          breakAfter: 'avoid',
+          pageBreakAfter: 'avoid'
+        }}>
+          <span>📊</span>
+          <span>Executive Summary Metrics & Workflow Lifecycle Timeline</span>
         </div>
+
+        {/* 6 KPI Cards */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: '14px'
+          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+          gap: '8px',
+          marginBottom: '8px'
         }}>
           {/* Card 1: Epic ID */}
-          <div style={{ padding: '16px', borderRadius: '12px', background: 'linear-gradient(135deg, #ffffff 0%, #eff6ff 100%)', border: '1.5px solid #bfdbfe', borderLeft: '4px solid #2563eb' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase' }}>Selected Epic ID</div>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: '#1e3a8a', marginTop: '6px' }}>{friendlyEpicId}</div>
-            <div style={{ fontSize: '11px', color: '#2563eb', marginTop: '4px' }}>Sequence #{entry.epicSequence}</div>
+          <div style={{ padding: '8px 10px', borderRadius: '8px', background: 'linear-gradient(135deg, #ffffff 0%, #eff6ff 100%)', border: '1.5px solid #bfdbfe', borderLeft: '4px solid #2563eb' }}>
+            <div style={{ fontSize: '9px', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase' }}>Selected Epic ID</div>
+            <div style={{ fontSize: '14px', fontWeight: 800, color: '#1e3a8a', marginTop: '2px' }}>{friendlyEpicId}</div>
+            <div style={{ fontSize: '9px', color: '#2563eb', marginTop: '1px' }}>Sequence #{entry.epicSequence}</div>
           </div>
 
           {/* Card 2: Documents */}
-          <div style={{ padding: '16px', borderRadius: '12px', background: 'linear-gradient(135deg, #ffffff 0%, #ecfeff 100%)', border: '1.5px solid #a5f3fc', borderLeft: '4px solid #0891b2' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#0e7490', textTransform: 'uppercase' }}>Linked Documents</div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: '#155e75', marginTop: '6px' }}>{documents.length}</div>
-            <div style={{ fontSize: '11px', color: '#0891b2', marginTop: '4px' }}>Verified Files Uploaded</div>
+          <div style={{ padding: '8px 10px', borderRadius: '8px', background: 'linear-gradient(135deg, #ffffff 0%, #ecfeff 100%)', border: '1.5px solid #a5f3fc', borderLeft: '4px solid #0891b2' }}>
+            <div style={{ fontSize: '9px', fontWeight: 700, color: '#0e7490', textTransform: 'uppercase' }}>Linked Documents</div>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: '#155e75', marginTop: '2px' }}>{documents.length}</div>
+            <div style={{ fontSize: '9px', color: '#0891b2', marginTop: '1px' }}>Verified Files Uploaded</div>
           </div>
 
           {/* Card 3: Shooting */}
-          <div style={{ padding: '16px', borderRadius: '12px', background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 100%)', border: '1.5px solid #e9d5ff', borderLeft: '4px solid #7c3aed' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase' }}>Shooting Schedules</div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: '#581c87', marginTop: '6px' }}>{shootingSchedules.length}</div>
-            <div style={{ fontSize: '11px', color: '#7c3aed', marginTop: '4px' }}>Status: {shootingStageStatus}</div>
+          <div style={{ padding: '8px 10px', borderRadius: '8px', background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 100%)', border: '1.5px solid #e9d5ff', borderLeft: '4px solid #7c3aed' }}>
+            <div style={{ fontSize: '9px', fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase' }}>Shooting Schedules</div>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: '#581c87', marginTop: '2px' }}>{shootingSchedules.length}</div>
+            <div style={{ fontSize: '9px', color: '#7c3aed', marginTop: '1px' }}>Status: {shootingStageStatus}</div>
           </div>
 
           {/* Card 4: Editing */}
-          <div style={{ padding: '16px', borderRadius: '12px', background: 'linear-gradient(135deg, #ffffff 0%, #eef2ff 100%)', border: '1.5px solid #c7d2fe', borderLeft: '4px solid #4f46e5' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#3730a3', textTransform: 'uppercase' }}>Editing Records</div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: '#312e81', marginTop: '6px' }}>{videoEditorRecords.length}</div>
-            <div style={{ fontSize: '11px', color: '#4f46e5', marginTop: '4px' }}>Status: {editingStageStatus}</div>
+          <div style={{ padding: '8px 10px', borderRadius: '8px', background: 'linear-gradient(135deg, #ffffff 0%, #eef2ff 100%)', border: '1.5px solid #c7d2fe', borderLeft: '4px solid #4f46e5' }}>
+            <div style={{ fontSize: '9px', fontWeight: 700, color: '#3730a3', textTransform: 'uppercase' }}>Editing Records</div>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: '#312e81', marginTop: '2px' }}>{videoEditorRecords.length}</div>
+            <div style={{ fontSize: '9px', color: '#4f46e5', marginTop: '1px' }}>Status: {editingStageStatus}</div>
           </div>
 
           {/* Card 5: Animation */}
-          <div style={{ padding: '16px', borderRadius: '12px', background: 'linear-gradient(135deg, #ffffff 0%, #fffbeb 100%)', border: '1.5px solid #fde68a', borderLeft: '4px solid #d97706' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#92400e', textTransform: 'uppercase' }}>Animation Records</div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: '#78350f', marginTop: '6px' }}>{animationRecords.length}</div>
-            <div style={{ fontSize: '11px', color: '#d97706', marginTop: '4px' }}>Status: {animationStageStatus}</div>
+          <div style={{ padding: '8px 10px', borderRadius: '8px', background: 'linear-gradient(135deg, #ffffff 0%, #fffbeb 100%)', border: '1.5px solid #fde68a', borderLeft: '4px solid #d97706' }}>
+            <div style={{ fontSize: '9px', fontWeight: 700, color: '#92400e', textTransform: 'uppercase' }}>Animation Records</div>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: '#78350f', marginTop: '2px' }}>{animationRecords.length}</div>
+            <div style={{ fontSize: '9px', color: '#d97706', marginTop: '1px' }}>Status: {animationStageStatus}</div>
           </div>
 
           {/* Card 6: Final Video */}
-          <div style={{ padding: '16px', borderRadius: '12px', background: 'linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%)', border: '1.5px solid #a7f3d0', borderLeft: '4px solid #059669' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#065f46', textTransform: 'uppercase' }}>Final Video & Duration</div>
-            <div style={{ fontSize: '18px', fontWeight: 800, color: '#064e3b', marginTop: '6px' }}>
+          <div style={{ padding: '8px 10px', borderRadius: '8px', background: 'linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%)', border: '1.5px solid #a7f3d0', borderLeft: '4px solid #059669' }}>
+            <div style={{ fontSize: '9px', fontWeight: 700, color: '#065f46', textTransform: 'uppercase' }}>Final Video & Duration</div>
+            <div style={{ fontSize: '14px', fontWeight: 800, color: '#064e3b', marginTop: '2px' }}>
               {primaryFinalVideo?.finalDuration || (entry.videoLibraries?.[0]?.duration) || 'Not Recorded'}
             </div>
-            <div style={{ fontSize: '11px', color: '#059669', marginTop: '4px' }}>
+            <div style={{ fontSize: '9px', color: '#059669', marginTop: '1px' }}>
               Status: {finalStageStatus}
             </div>
           </div>
         </div>
-      </div>
 
-      {/* SECTION 3: WORKFLOW TIMELINE */}
-      <div style={{ padding: '8px 32px 24px 32px' }}>
-        <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f2942', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '12px' }}>
-          Workflow Lifecycle Timeline
-        </div>
+        {/* 4 Workflow Timeline Stages */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '12px'
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '8px'
         }}>
           {/* Stage 1 */}
-          <div style={{ padding: '14px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 800, color: '#0f2942' }}>1. Shooting Schedule</span>
-              <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '8px', fontWeight: 700, ...getStatusBadgeStyle(shootingStageStatus) }}>
+          <div style={{ padding: '8px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#0f2942' }}>1. Shooting Schedule</span>
+              <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '6px', fontWeight: 700, ...getStatusBadgeStyle(shootingStageStatus) }}>
                 {shootingStageStatus}
               </span>
             </div>
-            <div style={{ fontSize: '12px', color: '#334155' }}>
+            <div style={{ fontSize: '11px', color: '#334155' }}>
               <strong>Date:</strong> {shootingRecord?.shootDate ? new Date(shootingRecord.shootDate).toLocaleDateString('en-IN') : 'Not Scheduled'}
             </div>
-            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '1px' }}>
               Cameraman: {shootingRecord?.cameraman || 'Unassigned'}
             </div>
           </div>
 
           {/* Stage 2 */}
-          <div style={{ padding: '14px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 800, color: '#0f2942' }}>2. Video Editing</span>
-              <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '8px', fontWeight: 700, ...getStatusBadgeStyle(editingStageStatus) }}>
+          <div style={{ padding: '8px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#0f2942' }}>2. Video Editing</span>
+              <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '6px', fontWeight: 700, ...getStatusBadgeStyle(editingStageStatus) }}>
                 {editingStageStatus}
               </span>
             </div>
-            <div style={{ fontSize: '12px', color: '#334155' }}>
+            <div style={{ fontSize: '11px', color: '#334155' }}>
               <strong>Editor:</strong> {editingRecord?.editorName || 'Not Assigned'}
             </div>
-            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-              Rough: {editingRecord?.roughCutLink ? '✓ Uploaded' : 'Pending'} • Final: {editingRecord?.finalCutLink ? '✓ Ready' : 'Pending'}
+            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '1px' }}>
+              Rough: {editingRecord?.roughCutLink ? '✓' : 'Pending'} • Final: {editingRecord?.finalCutLink ? '✓' : 'Pending'}
             </div>
           </div>
 
           {/* Stage 3 */}
-          <div style={{ padding: '14px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 800, color: '#0f2942' }}>3. 2D Animation</span>
-              <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '8px', fontWeight: 700, ...getStatusBadgeStyle(animationStageStatus) }}>
+          <div style={{ padding: '8px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#0f2942' }}>3. 2D Animation</span>
+              <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '6px', fontWeight: 700, ...getStatusBadgeStyle(animationStageStatus) }}>
                 {animationStageStatus}
               </span>
             </div>
-            <div style={{ fontSize: '12px', color: '#334155' }}>
+            <div style={{ fontSize: '11px', color: '#334155' }}>
               <strong>Animator:</strong> {animationRecord?.animatorName || 'Not Assigned'}
             </div>
-            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '1px' }}>
               File: {animationRecord?.finalAnimationFile ? '✓ Attached' : 'None'}
             </div>
           </div>
 
           {/* Stage 4 */}
-          <div style={{ padding: '14px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 800, color: '#0f2942' }}>4. Final Video & Telecast</span>
-              <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '8px', fontWeight: 700, ...getStatusBadgeStyle(finalStageStatus) }}>
+          <div style={{ padding: '8px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#0f2942' }}>4. Final Video & Telecast</span>
+              <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '6px', fontWeight: 700, ...getStatusBadgeStyle(finalStageStatus) }}>
                 {finalStageStatus}
               </span>
             </div>
-            <div style={{ fontSize: '12px', color: '#334155' }}>
+            <div style={{ fontSize: '11px', color: '#334155' }}>
               <strong>Approval:</strong> {primaryFinalVideo?.finalApproval || 'Pending Approval'}
             </div>
-            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '1px' }}>
               Channel: {primaryFinalVideo?.telecastChannel || 'TBD'} • Ep: {primaryFinalVideo?.telecastEpisode || '-'}
             </div>
           </div>
@@ -354,47 +394,47 @@ export default function EpicWorkflowReport({
       </div>
 
       {/* SECTION 4: SHOOTING SCHEDULE DETAILS TABLE */}
-      <div style={{ padding: '0 32px 24px 32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-          <span style={{ fontSize: '16px' }}>🎬</span>
-          <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
+      <div className="print-avoid-break" style={{ padding: '0 28px 12px 28px', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        <div className="print-no-break-after" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', breakAfter: 'avoid', pageBreakAfter: 'avoid' }}>
+          <span style={{ fontSize: '14px' }}>🎬</span>
+          <h3 style={{ fontSize: '13px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
             Shooting Schedule Details ({shootingSchedules.length})
           </h3>
         </div>
         {shootingSchedules.length === 0 ? (
-          <div style={{ padding: '16px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '8px', color: '#64748b', fontSize: '13px' }}>
+          <div style={{ padding: '10px 14px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '6px', color: '#64748b', fontSize: '11px' }}>
             No shooting schedule records created for this Epic ID yet.
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '6px', overflow: 'hidden' }}>
               <thead>
                 <tr style={{ background: '#0f2942', color: '#ffffff' }}>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Sl.</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Video Title</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Prod Start Date</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Prod End Date</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Location</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Cameraman</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>Status</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Production Notes</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Sl.</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Video Title</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Prod Start Date</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Prod End Date</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Location</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Cameraman</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'center' }}>Status</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Production Notes</th>
                 </tr>
               </thead>
               <tbody>
                 {shootingSchedules.map((s, idx) => (
                   <tr key={s.id} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{idx + 1}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }}>{s.videoTitle}</td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{s.scheduledStart ? new Date(s.scheduledStart).toLocaleDateString('en-IN') : (s.shootDate ? new Date(s.shootDate).toLocaleDateString('en-IN') : '-')}</td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{s.scheduledEnd ? new Date(s.scheduledEnd).toLocaleDateString('en-IN') : '-'}</td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{s.location || '-'}</td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{s.cameraman || '-'}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
-                      <span style={{ padding: '2px 8px', borderRadius: '8px', fontWeight: 700, fontSize: '11px', ...getStatusBadgeStyle(s.status) }}>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{idx + 1}</td>
+                    <td style={{ padding: '6px 10px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }}>{s.videoTitle}</td>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{s.scheduledStart ? new Date(s.scheduledStart).toLocaleDateString('en-IN') : (s.shootDate ? new Date(s.shootDate).toLocaleDateString('en-IN') : '-')}</td>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{s.scheduledEnd ? new Date(s.scheduledEnd).toLocaleDateString('en-IN') : '-'}</td>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{s.location || '-'}</td>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{s.cameraman || '-'}</td>
+                    <td style={{ padding: '6px 10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                      <span style={{ padding: '1px 6px', borderRadius: '6px', fontWeight: 700, fontSize: '10px', ...getStatusBadgeStyle(s.status) }}>
                         {s.status || 'PLANNED'}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 12px', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>{s.productionNotes || '-'}</td>
+                    <td style={{ padding: '6px 10px', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>{s.productionNotes || '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -404,32 +444,32 @@ export default function EpicWorkflowReport({
       </div>
 
       {/* SECTION 5: VIDEO EDITOR DETAILS TABLE */}
-      <div style={{ padding: '0 32px 24px 32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-          <span style={{ fontSize: '16px' }}>✂️</span>
-          <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
+      <div className="print-avoid-break" style={{ padding: '0 28px 12px 28px', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        <div className="print-no-break-after" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', breakAfter: 'avoid', pageBreakAfter: 'avoid' }}>
+          <span style={{ fontSize: '14px' }}>✂️</span>
+          <h3 style={{ fontSize: '13px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
             Video Editing Records ({videoEditorRecords.length})
           </h3>
         </div>
         {videoEditorRecords.length === 0 ? (
-          <div style={{ padding: '16px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '8px', color: '#64748b', fontSize: '13px' }}>
+          <div style={{ padding: '10px 14px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '6px', color: '#64748b', fontSize: '11px' }}>
             No video editing records created for this Epic ID yet.
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '6px', overflow: 'hidden' }}>
               <thead>
                 <tr style={{ background: '#0f2942', color: '#ffffff' }}>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Sl.</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Editor Name</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Assigned Video</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Post-Prod Start Date</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Post-Prod End Date</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Duration</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>Status</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Rough Cut</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Final Cut</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Review Comments</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Sl.</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Editor Name</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Assigned Video</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Post-Prod Start Date</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Post-Prod End Date</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Duration</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'center' }}>Status</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Rough Cut</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Final Cut</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Review Comments</th>
                 </tr>
               </thead>
               <tbody>
@@ -439,24 +479,24 @@ export default function EpicWorkflowReport({
 
                   return (
                     <tr key={e.id} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{idx + 1}</td>
-                      <td style={{ padding: '10px 12px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }}>{e.editorName || '-'}</td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{e.assignedVideo || '-'}</td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{e.editingStartDate ? new Date(e.editingStartDate).toLocaleDateString('en-IN') : '-'}</td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{endDate ? new Date(endDate).toLocaleDateString('en-IN') : '-'}</td>
-                      <td style={{ padding: '10px 12px', fontWeight: 700, borderBottom: '1px solid #e2e8f0' }}>{e.duration || '-'}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
-                        <span style={{ padding: '2px 8px', borderRadius: '8px', fontWeight: 700, fontSize: '11px', ...getStatusBadgeStyle(e.status) }}>
+                      <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{idx + 1}</td>
+                      <td style={{ padding: '6px 10px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }}>{e.editorName || '-'}</td>
+                      <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{e.assignedVideo || '-'}</td>
+                      <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{e.editingStartDate ? new Date(e.editingStartDate).toLocaleDateString('en-IN') : '-'}</td>
+                      <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{endDate ? new Date(endDate).toLocaleDateString('en-IN') : '-'}</td>
+                      <td style={{ padding: '6px 10px', fontWeight: 700, borderBottom: '1px solid #e2e8f0' }}>{e.duration || '-'}</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                        <span style={{ padding: '1px 6px', borderRadius: '6px', fontWeight: 700, fontSize: '10px', ...getStatusBadgeStyle(e.status) }}>
                           {e.status || 'NOT_STARTED'}
                         </span>
                       </td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>
                         {e.roughCutLink ? <a href={e.roughCutLink} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>View Link</a> : '-'}
                       </td>
-                      <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>
                         {e.finalCutLink ? <a href={e.finalCutLink} target="_blank" rel="noreferrer" style={{ color: '#059669', textDecoration: 'underline' }}>View Link</a> : '-'}
                       </td>
-                      <td style={{ padding: '10px 12px', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>{cleanComments}</td>
+                      <td style={{ padding: '6px 10px', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>{cleanComments}</td>
                     </tr>
                   );
                 })}
@@ -467,45 +507,45 @@ export default function EpicWorkflowReport({
       </div>
 
       {/* SECTION 6: ANIMATION DETAILS TABLE */}
-      <div style={{ padding: '0 32px 24px 32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-          <span style={{ fontSize: '16px' }}>🎨</span>
-          <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
+      <div className="print-avoid-break" style={{ padding: '0 28px 12px 28px', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        <div className="print-no-break-after" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', breakAfter: 'avoid', pageBreakAfter: 'avoid' }}>
+          <span style={{ fontSize: '14px' }}>🎨</span>
+          <h3 style={{ fontSize: '13px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
             2D Animation Records ({animationRecords.length})
           </h3>
         </div>
         {animationRecords.length === 0 ? (
-          <div style={{ padding: '16px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '8px', color: '#64748b', fontSize: '13px' }}>
+          <div style={{ padding: '10px 14px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '6px', color: '#64748b', fontSize: '11px' }}>
             No animation records created for this Epic ID yet.
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '6px', overflow: 'hidden' }}>
               <thead>
                 <tr style={{ background: '#0f2942', color: '#ffffff' }}>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Sl.</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Animator Name</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Assigned Video</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Start Date</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>End Date</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>Status</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Final Animation File</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Sl.</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Animator Name</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Assigned Video</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Start Date</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>End Date</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'center' }}>Status</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Final Animation File</th>
                 </tr>
               </thead>
               <tbody>
                 {animationRecords.map((a, idx) => (
                   <tr key={a.id} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{idx + 1}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }}>{a.animatorName || '-'}</td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{a.assignedVideo || '-'}</td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{a.animationStartDate ? new Date(a.animationStartDate).toLocaleDateString('en-IN') : '-'}</td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{a.animationEndDate ? new Date(a.animationEndDate).toLocaleDateString('en-IN') : '-'}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
-                      <span style={{ padding: '2px 8px', borderRadius: '8px', fontWeight: 700, fontSize: '11px', ...getStatusBadgeStyle(a.status) }}>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{idx + 1}</td>
+                    <td style={{ padding: '6px 10px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }}>{a.animatorName || '-'}</td>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{a.assignedVideo || '-'}</td>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{a.animationStartDate ? new Date(a.animationStartDate).toLocaleDateString('en-IN') : '-'}</td>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{a.animationEndDate ? new Date(a.animationEndDate).toLocaleDateString('en-IN') : '-'}</td>
+                    <td style={{ padding: '6px 10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                      <span style={{ padding: '1px 6px', borderRadius: '6px', fontWeight: 700, fontSize: '10px', ...getStatusBadgeStyle(a.status) }}>
                         {a.status || 'NOT_STARTED'}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{a.finalAnimationFile || '-'}</td>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{a.finalAnimationFile || '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -515,50 +555,50 @@ export default function EpicWorkflowReport({
       </div>
 
       {/* SECTION 7: FINAL VIDEO DELIVERABLE & TELECAST DETAILS */}
-      <div style={{ padding: '0 32px 24px 32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-          <span style={{ fontSize: '16px' }}>📺</span>
-          <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
+      <div className="print-avoid-break" style={{ padding: '0 28px 12px 28px', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        <div className="print-no-break-after" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', breakAfter: 'avoid', pageBreakAfter: 'avoid' }}>
+          <span style={{ fontSize: '14px' }}>📺</span>
+          <h3 style={{ fontSize: '13px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
             Final Video Deliverable & Video Content Library Link
           </h3>
         </div>
 
-        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '18px 20px', marginBottom: '12px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px 16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
             {/* Library Link */}
             <div>
-              <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Authoritative Library Video</span>
-              <div style={{ marginTop: '4px' }}>
+              <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Authoritative Library Video</span>
+              <div style={{ marginTop: '2px' }}>
                 {primaryLibraryVideo?.videoLink ? (
                   <a 
                     href={primaryLibraryVideo.videoLink} 
                     target="_blank" 
                     rel="noreferrer"
-                    style={{ fontSize: '13px', fontWeight: 700, color: '#0284c7', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    style={{ fontSize: '12px', fontWeight: 700, color: '#0284c7', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                   >
                     <span>🔗</span> Watch Final Video
                   </a>
                 ) : (
-                  <span style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic' }}>Pending Delivery in Library</span>
+                  <span style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>Pending Delivery in Library</span>
                 )}
               </div>
-              <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
+              <div style={{ fontSize: '10px', color: '#475569', marginTop: '1px' }}>
                 Title: {primaryLibraryVideo?.title || entry.topic || 'PM e-Vidya Video'}
               </div>
             </div>
 
             {/* Duration */}
             <div>
-              <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Final Duration</span>
-              <div style={{ fontSize: '15px', fontWeight: 800, color: '#0284c7', marginTop: '4px' }}>
+              <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Final Duration</span>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: '#0284c7', marginTop: '2px' }}>
                 {primaryLibraryVideo?.duration || primaryFinalVideo?.finalDuration || '-'}
               </div>
             </div>
 
             {/* Delivery Date */}
             <div>
-              <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Delivery Date</span>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a', marginTop: '4px' }}>
+              <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Delivery Date</span>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: '#0f172a', marginTop: '2px' }}>
                 {primaryLibraryVideo?.createdAt 
                   ? new Date(primaryLibraryVideo.createdAt).toLocaleDateString('en-IN')
                   : (primaryFinalVideo?.approvalDate ? new Date(primaryFinalVideo.approvalDate).toLocaleDateString('en-IN') : 'Pending')}
@@ -567,13 +607,13 @@ export default function EpicWorkflowReport({
 
             {/* Delivery Status */}
             <div>
-              <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Delivery Status</span>
-              <div style={{ marginTop: '4px' }}>
+              <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Delivery Status</span>
+              <div style={{ marginTop: '2px' }}>
                 <span style={{
-                  padding: '3px 10px',
-                  borderRadius: '10px',
+                  padding: '2px 8px',
+                  borderRadius: '8px',
                   fontWeight: 700,
-                  fontSize: '11px',
+                  fontSize: '10px',
                   ...getStatusBadgeStyle(primaryLibraryVideo ? 'COMPLETED' : (primaryFinalVideo?.finalVideoStatus || 'PENDING'))
                 }}>
                   {primaryLibraryVideo ? 'DELIVERED & CATALOGUED' : (primaryFinalVideo?.finalVideoStatus || 'PENDING DELIVERY')}
@@ -583,19 +623,19 @@ export default function EpicWorkflowReport({
 
             {/* Telecast Details */}
             <div>
-              <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Telecast Channel & Episode</span>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', marginTop: '4px' }}>
+              <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Telecast Channel & Episode</span>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>
                 {primaryFinalVideo?.telecastChannel || 'Not Broadcast Yet'} {primaryFinalVideo?.telecastEpisode ? `(Ep: ${primaryFinalVideo.telecastEpisode})` : ''}
               </div>
-              <div style={{ fontSize: '11px', color: '#64748b' }}>
+              <div style={{ fontSize: '10px', color: '#64748b' }}>
                 {primaryFinalVideo?.telecastDate ? new Date(primaryFinalVideo.telecastDate).toLocaleDateString('en-IN') : ''}
               </div>
             </div>
 
             {/* Remarks */}
             <div>
-              <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Remarks</span>
-              <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px' }}>
+              <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Remarks</span>
+              <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
                 {primaryFinalVideo?.remarks || primaryFinalVideo?.telecastRemarks || '-'}
               </div>
             </div>
@@ -604,47 +644,47 @@ export default function EpicWorkflowReport({
       </div>
 
       {/* SECTION 8: DOCUMENTS & SUPPORTING FILES TABLE */}
-      <div style={{ padding: '0 32px 24px 32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-          <span style={{ fontSize: '16px' }}>📄</span>
-          <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
+      <div className="print-avoid-break" style={{ padding: '0 28px 12px 28px', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        <div className="print-no-break-after" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', breakAfter: 'avoid', pageBreakAfter: 'avoid' }}>
+          <span style={{ fontSize: '14px' }}>📄</span>
+          <h3 style={{ fontSize: '13px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
             Documents & Supporting Files ({documents.length})
           </h3>
         </div>
         {documents.length === 0 ? (
-          <div style={{ padding: '16px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '8px', color: '#64748b', fontSize: '13px' }}>
+          <div style={{ padding: '10px 14px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '6px', color: '#64748b', fontSize: '11px' }}>
             No documents uploaded for this Epic ID yet.
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '6px', overflow: 'hidden' }}>
               <thead>
                 <tr style={{ background: '#0f2942', color: '#ffffff' }}>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Sl.</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Document Name</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Document Type</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Upload Date</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>Status</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center' }}>File Action</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Sl.</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Document Name</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Document Type</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Upload Date</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'center' }}>Status</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'center' }}>File Action</th>
                 </tr>
               </thead>
               <tbody>
                 {documents.map((d, idx) => (
                   <tr key={d.id} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{idx + 1}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }}>{d.name}</td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>
-                      <span style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '11px', fontWeight: 600 }}>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{idx + 1}</td>
+                    <td style={{ padding: '6px 10px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }}>{d.name}</td>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>
+                      <span style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '10px', fontWeight: 600 }}>
                         {d.type.replace(/_/g, ' ')}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>{d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-IN') : '-'}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
-                      <span style={{ padding: '2px 8px', borderRadius: '8px', fontWeight: 700, fontSize: '11px', ...getStatusBadgeStyle(d.status) }}>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-IN') : '-'}</td>
+                    <td style={{ padding: '6px 10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                      <span style={{ padding: '1px 6px', borderRadius: '6px', fontWeight: 700, fontSize: '10px', ...getStatusBadgeStyle(d.status) }}>
                         {d.status || 'UPLOADED'}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '6px 10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
                       {d.filePath ? (
                         <a href={d.filePath} target="_blank" rel="noreferrer" style={{ color: '#0284c7', textDecoration: 'underline', fontWeight: 700 }}>
                           View / Download
@@ -662,45 +702,45 @@ export default function EpicWorkflowReport({
       </div>
 
       {/* SECTION 9: COMPLETE EPIC HISTORY LOG */}
-      <div style={{ padding: '0 32px 32px 32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-          <span style={{ fontSize: '16px' }}>🛡️</span>
-          <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
+      <div className="print-avoid-break" style={{ padding: '0 28px 18px 28px', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        <div className="print-no-break-after" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', breakAfter: 'avoid', pageBreakAfter: 'avoid' }}>
+          <span style={{ fontSize: '14px' }}>🛡️</span>
+          <h3 style={{ fontSize: '13px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
             Complete Epic History & System Audit Log
           </h3>
         </div>
         {auditLogs.length === 0 ? (
-          <div style={{ padding: '16px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '8px', color: '#64748b', fontSize: '13px' }}>
+          <div style={{ padding: '10px 14px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '6px', color: '#64748b', fontSize: '11px' }}>
             ℹ️ No direct database audit traces logged for this specific Epic ID yet. All workflow stages and current state records displayed above are verified directly from active system entities.
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '6px', overflow: 'hidden' }}>
               <thead>
                 <tr style={{ background: '#0f2942', color: '#ffffff' }}>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Timestamp</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Action / Event</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Entity</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Details</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Updated By</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Timestamp</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Action / Event</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Entity</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Details</th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left' }}>Updated By</th>
                 </tr>
               </thead>
               <tbody>
                 {auditLogs.map((log: any, idx: number) => (
                   <tr key={log.id || idx} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>
                       {log.createdAt ? new Date(log.createdAt).toLocaleString('en-IN') : '-'}
                     </td>
-                    <td style={{ padding: '10px 12px', fontWeight: 700, color: '#0369a1', borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '6px 10px', fontWeight: 700, color: '#0369a1', borderBottom: '1px solid #e2e8f0' }}>
                       {log.action}
                     </td>
-                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>
                       {log.entity}
                     </td>
-                    <td style={{ padding: '10px 12px', color: '#334155', borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '6px 10px', color: '#334155', borderBottom: '1px solid #e2e8f0' }}>
                       {log.newData || log.previousData || `Record ID: ${log.entityId}`}
                     </td>
-                    <td style={{ padding: '10px 12px', color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '6px 10px', color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>
                       {log.userId || 'System Administrator'}
                     </td>
                   </tr>
@@ -711,22 +751,22 @@ export default function EpicWorkflowReport({
         )}
 
         {/* Audit Disclosure Note */}
-        <div style={{ marginTop: '12px', fontSize: '11px', color: '#64748b', fontStyle: 'italic' }}>
+        <div style={{ marginTop: '8px', fontSize: '10px', color: '#64748b', fontStyle: 'italic' }}>
           * Audit trail is compiled from system registration, document uploads, and production tracking records genuinely linked to {friendlyEpicId}.
         </div>
 
         {/* Official Sign-off Footer Bar */}
         <div style={{
-          marginTop: '24px',
+          marginTop: '14px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          fontSize: '11px',
+          fontSize: '10px',
           color: '#64748b',
           borderTop: '1px solid #e2e8f0',
-          paddingTop: '14px',
+          paddingTop: '8px',
           flexWrap: 'wrap',
-          gap: '8px'
+          gap: '6px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span>🛡️</span>
