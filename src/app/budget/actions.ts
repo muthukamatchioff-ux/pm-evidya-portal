@@ -10,7 +10,7 @@ export async function getBudgetComponents() {
   try {
     const components = await prisma.budgetComponent.findMany({
       include: {
-        annexureI: { orderBy: { createdAt: 'desc' } },
+        annexureI: { orderBy: { createdAt: 'asc' } },
         annexureII: { orderBy: { createdAt: 'desc' } },
         annexureIII: { orderBy: { createdAt: 'desc' } },
         annexureIV: { orderBy: { createdAt: 'desc' } },
@@ -81,17 +81,78 @@ export async function getDashboardKPIs(existingComponents?: any[]) {
 export async function addAnnexureIEntry(data: any) {
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
-  // Enforce calculation rule
-  const total = (Number(data.honorarium) || 0) + (Number(data.travelAllowance) || 0) + (Number(data.otherCharges) || 0);
+  // Enforce calculation rule: Total Amount (₹) = Honorarium Amount (₹) + TA Amount (₹)
+  const honorarium = Number(data.honorarium) || 0;
+  const travelAllowance = Number(data.travelAllowance) || 0;
+  const total = honorarium + travelAllowance;
   
-  await prisma.annexureI.create({
-    data: {
-      ...data,
+  try {
+    const entry = await prisma.annexureI.create({
+      data: {
+        budgetComponentId: data.budgetComponentId,
+        datePeriod: data.datePeriod || '',
+        expertName: data.expertName || '',
+        designation: data.designation || '',
+        activity: data.activity || 'Digital Content Development',
+        workingDays: Number(data.workingDays) || 0,
+        honorarium,
+        travelAllowance,
+        otherCharges: Number(data.otherCharges) || 0,
+        totalExpenditure: total,
+        utrNumber: data.utrNumber || '',
+        remarks: data.remarks || '',
+        tranType: data.tranType || '',
+        voucherNo: data.voucherNo || '',
+        narration: data.narration || '',
+        contentDuration: data.contentDuration || '',
+        verificationStatus: 'DRAFT',
+      }
+    });
+    revalidatePath('/dashboard');
+    revalidatePath('/budget/annexure-1');
+    return { success: true, data: entry };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to add entry' };
+  }
+}
+
+export async function updateAnnexureIEntry(id: string, data: any) {
+  const authCheck = await checkAuth(['ADMIN']);
+  if (!authCheck.success) return authCheck;
+
+  const honorarium = Number(data.honorarium) || 0;
+  const travelAllowance = Number(data.travelAllowance) || 0;
+  const total = honorarium + travelAllowance;
+
+  try {
+    const updateData: any = {
+      honorarium,
+      travelAllowance,
       totalExpenditure: total,
-    }
-  });
-  revalidatePath('/dashboard');
-  revalidatePath('/budget/master');
+    };
+    if (data.datePeriod !== undefined) updateData.datePeriod = data.datePeriod || '';
+    if (data.expertName !== undefined) updateData.expertName = data.expertName || '';
+    if (data.designation !== undefined) updateData.designation = data.designation || '';
+    if (data.activity !== undefined) updateData.activity = data.activity || 'Digital Content Development';
+    if (data.workingDays !== undefined) updateData.workingDays = Number(data.workingDays) || 0;
+    if (data.otherCharges !== undefined) updateData.otherCharges = Number(data.otherCharges) || 0;
+    if (data.utrNumber !== undefined) updateData.utrNumber = data.utrNumber || '';
+    if (data.remarks !== undefined) updateData.remarks = data.remarks || '';
+    if (data.tranType !== undefined) updateData.tranType = data.tranType || '';
+    if (data.voucherNo !== undefined) updateData.voucherNo = data.voucherNo || '';
+    if (data.narration !== undefined) updateData.narration = data.narration || '';
+    if (data.contentDuration !== undefined) updateData.contentDuration = data.contentDuration || '';
+
+    const entry = await prisma.annexureI.update({
+      where: { id },
+      data: updateData
+    });
+    revalidatePath('/dashboard');
+    revalidatePath('/budget/annexure-1');
+    return { success: true, data: entry };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to update entry' };
+  }
 }
 
 export async function getComponent1Data() {
@@ -100,7 +161,7 @@ export async function getComponent1Data() {
     where: { componentNo: 1 },
     include: {
       annexureI: {
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: 'asc' }
       }
     }
   });
@@ -269,14 +330,6 @@ export async function addAnnexureVIEntry(data: any) {
   revalidatePath('/dashboard'); revalidatePath('/budget/annexure-6');
 }
 
-
-export async function updateAnnexureIEntry(id: string, data: any) {
-  const authCheck = await checkAuth(['ADMIN']);
-  if (!authCheck.success) return authCheck;
-  const total = (Number(data.honorarium) || 0) + (Number(data.travelAllowance) || 0) + (Number(data.otherCharges) || 0);
-  await prisma.annexureI.update({ where: { id }, data: { ...data, totalExpenditure: total } });
-  revalidatePath('/dashboard'); revalidatePath('/budget/annexure-1');
-}
 export async function updateAnnexureIIEntry(id: string, data: any) {
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
