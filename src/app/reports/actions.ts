@@ -92,32 +92,11 @@ export async function getComprehensiveReportData() {
     (role === 'CAMERAMAN' || role === 'EDITOR')
       ? Promise.resolve([])
       : prisma.sME.findMany({
-          select: {
-            id: true,
-            name: true,
-            institute: true,
+          include: {
             workEntries: {
-              select: {
-                id: true,
-                epicSequence: true,
-                trade: true,
-                topic: true,
-                status: true,
-                createdAt: true,
-                documents: {
-                  select: {
-                    id: true,
-                    type: true,
-                  }
-                },
+              include: {
+                documents: true,
                 payments: (role === 'ADMIN' || role === 'TEAM_MEMBER')
-                  ? {
-                      select: {
-                        id: true,
-                        status: true,
-                      }
-                    }
-                  : false
               }
             }
           },
@@ -125,112 +104,34 @@ export async function getComprehensiveReportData() {
         }),
 
     prisma.productionRecord.findMany({
-      select: {
-        id: true,
-        shootDate: true,
-        status: true,
-        videoUrl: true,
-        updatedAt: true,
-        project: {
-          select: {
-            id: true,
-            projectCode: true,
-            title: true,
-          }
-        }
-      },
+      include: { project: true },
       orderBy: { createdAt: 'desc' }
     }),
 
     (role === 'ADMIN' || role === 'TEAM_MEMBER')
       ? prisma.auditLog.findMany({
-          select: {
-            id: true,
-            createdAt: true,
-            action: true,
-            entity: true,
-            entityId: true,
-          },
           orderBy: { createdAt: 'desc' },
-          take: 250
+          take: 1000
         })
       : Promise.resolve([]),
 
-    (async () => {
-      try {
-        return await prisma.sMEWorkEntry.findMany({
-          where: epicFilter,
-          include: {
-            sme: {
-              select: {
-                id: true,
-                name: true,
-                designation: true,
-                institute: true,
-              }
-            },
-            documents: true,
-            payments: (role === 'ADMIN' || role === 'TEAM_MEMBER'),
-            shootingSchedules: true,
-            videoEditorRecords: true,
-            animationRecords: true,
-            finalVideoRecords: true,
-            videoLibraries: true,
-          },
-          orderBy: { epicSequence: 'asc' }
-        });
-      } catch (err: any) {
-        console.warn('Extended video relations unavailable for reports, falling back to core relations:', err?.message);
-        const coreEntries = await prisma.sMEWorkEntry.findMany({
-          where: epicFilter,
-          include: {
-            sme: {
-              select: {
-                id: true,
-                name: true,
-                designation: true,
-                institute: true,
-              }
-            },
-            documents: true,
-            payments: (role === 'ADMIN' || role === 'TEAM_MEMBER'),
-          },
-          orderBy: { epicSequence: 'asc' }
-        });
-        return coreEntries.map((e: any) => ({
-          ...e,
-          shootingSchedules: [],
-          videoEditorRecords: [],
-          animationRecords: [],
-          finalVideoRecords: [],
-          videoLibraries: []
-        }));
-      }
-    })()
+    prisma.sMEWorkEntry.findMany({
+      where: epicFilter,
+      include: {
+        sme: true,
+        documents: true,
+        payments: (role === 'ADMIN' || role === 'TEAM_MEMBER'),
+        shootingSchedules: true,
+        videoEditorRecords: true,
+        animationRecords: true,
+        finalVideoRecords: true,
+        videoLibraries: true,
+      },
+      orderBy: { epicSequence: 'asc' }
+    })
   ]);
 
   return JSON.parse(JSON.stringify({ smes, production, auditLogs, epicWorkEntries }));
-}
-
-export async function getSystemAuditLogsForExport() {
-  const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER']);
-  if (!authCheck.success) return { success: false, error: authCheck.error };
-
-  try {
-    const logs = await prisma.auditLog.findMany({
-      select: {
-        id: true,
-        createdAt: true,
-        action: true,
-        entity: true,
-        entityId: true,
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-    return { success: true, data: JSON.parse(JSON.stringify(logs)) };
-  } catch (error: any) {
-    return { success: false, error: error.message || 'Failed to fetch audit logs.' };
-  }
 }
 
 export async function getEpicCompleteHistory(workEntryId: string) {

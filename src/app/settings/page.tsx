@@ -12,35 +12,15 @@ export default async function SettingsPage() {
   await requireAuth(['ADMIN']);
   const [budgetHeads, hrs, users, availableEpics] = await Promise.all([
     prisma.budgetHead.findMany({
-      select: { id: true, name: true, approvedBudget: true },
       orderBy: { name: 'asc' }
     }),
     prisma.humanResource.findMany({
-      select: { id: true, name: true, role: true, baseSalary: true, joiningDate: true },
       orderBy: { createdAt: 'desc' }
     }),
-    (async () => {
-      try {
-        return await prisma.user.findMany({
-          select: { id: true, email: true, name: true, role: true, status: true, designation: true, department: true, lastLogin: true, createdBy: true, createdAt: true } as any,
-          orderBy: { createdAt: 'desc' }
-        }) as any[];
-      } catch {
-        const rawUsers = await prisma.$queryRaw<any[]>`
-          SELECT id, email, name, role, "createdAt", "updatedAt"
-          FROM "User"
-          ORDER BY "createdAt" DESC;
-        `;
-        return rawUsers.map((u: any) => ({
-          ...u,
-          status: 'ACTIVE',
-          designation: null,
-          department: null,
-          lastLogin: null,
-          createdBy: null
-        }));
-      }
-    })(),
+    prisma.user.findMany({
+      select: { id: true, email: true, name: true, role: true, status: true, designation: true, department: true, lastLogin: true, createdBy: true, createdAt: true } as any,
+      orderBy: { createdAt: 'desc' }
+    }) as Promise<any[]>,
     prisma.sMEWorkEntry.findMany({
       select: { id: true, epicSequence: true, trade: true, topic: true },
       orderBy: { epicSequence: 'asc' }
