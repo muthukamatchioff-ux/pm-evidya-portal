@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { generateDocxReport } from './docxHelper';
-import { getEpicCompleteHistory } from './actions';
+import { getEpicCompleteHistory, getSystemAuditLogsForExport } from './actions';
 import EpicWorkflowReport from './EpicWorkflowReport';
 import styles from '@/app/dashboard/dashboard.module.css';
 
@@ -293,18 +293,36 @@ export default function ReportsClient({
     XLSX.writeFile(wb, `PM_eVidya_Production_Tracker_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  const generateAuditReport = () => {
-    const data = auditLogs.map((log: any) => ({
-      "Date": new Date(log.createdAt).toLocaleString('en-IN'),
-      "Action": log.action,
-      "Module": log.entity,
-      "Record ID": log.entityId
-    }));
-    if (data.length === 0) return alert("No Audit Logs found");
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "System Audit");
-    XLSX.writeFile(wb, `PM_eVidya_Audit_Log_${new Date().toISOString().split('T')[0]}.xlsx`);
+  const [isExportingAudit, setIsExportingAudit] = useState(false);
+
+  const generateAuditReport = async () => {
+    setIsExportingAudit(true);
+    try {
+      let logs = auditLogs;
+      if (!logs || logs.length === 0) {
+        const res = await getSystemAuditLogsForExport();
+        if (res && res.success && res.data) {
+          logs = res.data;
+        } else {
+          return alert(res?.error || 'Could not load audit logs');
+        }
+      }
+      const data = logs.map((log: any) => ({
+        "Date": new Date(log.createdAt).toLocaleString('en-IN'),
+        "Action": log.action,
+        "Module": log.entity,
+        "Record ID": log.entityId
+      }));
+      if (data.length === 0) return alert("No Audit Logs found");
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "System Audit");
+      XLSX.writeFile(wb, `PM_eVidya_Audit_Log_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (err: any) {
+      alert("Error generating audit report: " + (err.message || ''));
+    } finally {
+      setIsExportingAudit(false);
+    }
   };
 
   return (
@@ -580,8 +598,13 @@ export default function ReportsClient({
           <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
             Extracts up to the last 1000 system-level audit traces tracking document uploads, metadata modifications, and registration changes for security compliance.
           </p>
-          <button className={styles.btnAction} style={{ width: '100%', maxWidth: '400px', justifyContent: 'center', backgroundColor: '#475569', color: 'white' }} onClick={generateAuditReport}>
-            Export Complete Audit Log (Excel)
+          <button 
+            className={styles.btnAction} 
+            style={{ width: '100%', maxWidth: '400px', justifyContent: 'center', backgroundColor: '#475569', color: 'white' }} 
+            onClick={generateAuditReport}
+            disabled={isExportingAudit}
+          >
+            {isExportingAudit ? 'Preparing Complete Audit Log...' : 'Export Complete Audit Log (Excel)'}
           </button>
         </div>
       )}

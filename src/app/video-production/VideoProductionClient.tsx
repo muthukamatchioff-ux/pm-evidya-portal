@@ -96,14 +96,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadData() {
-      const res = await getTopicProductionRecords();
-      if (res.success && res.data) {
-        setWorkEntries(res.data);
-      }
+    if (initialRecords && initialRecords.length > 0) {
+      setWorkEntries(initialRecords);
     }
-    loadData();
-  }, []);
+  }, [initialRecords]);
 
   const selectedEpic = workEntries.find(e => e.id === selectedEpicId);
 

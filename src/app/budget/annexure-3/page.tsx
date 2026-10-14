@@ -7,8 +7,10 @@ import Component3Client from './Component3Client';
 import { getRole } from '@/lib/auth';
 
 export default async function Component3Page() {
-  const role = await getRole();
-  const compData = await getComponent3Data();
+  const [role, compData] = await Promise.all([
+    getRole(),
+    getComponent3Data()
+  ]);
   if (!compData) return <div>Component not found</div>;
 
   return (

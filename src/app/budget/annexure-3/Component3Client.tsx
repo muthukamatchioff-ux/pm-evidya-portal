@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { addAnnexureIIIEntry, updateAnnexureIIIEntry, deleteAnnexureIIIEntry } from '../actions';
 import styles from '../budget.module.css';
-import { downloadTableAsDocx } from '@/lib/tableToDocx';
 
 export default function Component3Client({ role, budgetComponentId, entries }: { role?: string, budgetComponentId: string, entries: any[] }) {
   const [isAdding, setIsAdding] = useState(false);
@@ -97,11 +96,16 @@ export default function Component3Client({ role, budgetComponentId, entries }: {
 
   const totalCalculated = (Number(formData.remuneration) || 0) * (Number(formData.workPeriod) || 1) + (Number(formData.taDa) || 0) + (Number(formData.otherCharges) || 0);
 
+  const handleDownloadDocx = async () => {
+    const { downloadTableAsDocx } = await import('@/lib/tableToDocx');
+    downloadTableAsDocx('dataTable', 'PM e-Vidya - Human Resource Support', 'Annexure-III', 'Annexure-III_Report.docx');
+  };
+
   return (
     <div>
       <div className={styles.actionsBar} style={{ marginTop: '24px' }}>
         <h3 className={styles.title} style={{ fontSize: '20px' }}>Expenditure Entries</h3>
-        <button className={styles.btnPrimary} style={{ backgroundColor: '#8b5cf6', color: 'white', marginRight: '12px', fontWeight: 'bold' }} onClick={() => downloadTableAsDocx('dataTable', 'PM e-Vidya - Human Resource Support', 'Annexure-III', 'Annexure-III_Report.docx')}>
+        <button className={styles.btnPrimary} style={{ backgroundColor: '#8b5cf6', color: 'white', marginRight: '12px', fontWeight: 'bold' }} onClick={handleDownloadDocx}>
           Download Docs Pattern
         </button>
         {role === 'ADMIN' && (

@@ -18,7 +18,7 @@ const getDbUrl = () => {
 
 const createPrismaClient = () => {
   const client = new PrismaClient({
-    log: ['query'],
+    log: process.env.NODE_ENV === 'production' ? ['error', 'warn'] : ['query'],
     datasources: {
       db: {
         url: getDbUrl()
@@ -115,4 +115,4 @@ const createPrismaClient = () => {
 
 export const prisma = globalForPrisma.prisma || createPrismaClient();
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+globalForPrisma.prisma = prisma;

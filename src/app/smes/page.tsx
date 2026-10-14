@@ -12,15 +12,17 @@ export const metadata = {
 
 export default async function SMEsPage() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
-  const role = await getRole();
-  const workEntries = await prisma.sMEWorkEntry.findMany({
-    include: {
-      sme: true,
-      payments: true,
-      documents: true,
-    },
-    orderBy: { createdAt: 'desc' }
-  });
+  const [role, workEntries] = await Promise.all([
+    getRole(),
+    prisma.sMEWorkEntry.findMany({
+      include: {
+        sme: true,
+        payments: true,
+        documents: true,
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+  ]);
 
   return (
     <div className={styles.container}>
