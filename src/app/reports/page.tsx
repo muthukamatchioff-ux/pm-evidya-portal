@@ -9,8 +9,10 @@ import { getRole, requireAuth } from '@/lib/auth';
 export default async function ReportsPage() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
   const role = await getRole();
-  const components = (role === 'ADMIN' || role === 'TEAM_MEMBER') ? await getBudgetComponents() : [];
-  const comprehensiveData = await getComprehensiveReportData();
+  const [components, comprehensiveData] = await Promise.all([
+    (role === 'ADMIN' || role === 'TEAM_MEMBER') ? getBudgetComponents() : Promise.resolve([]),
+    getComprehensiveReportData()
+  ]);
   
   return (
     <div className={styles.container} style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px' }}>

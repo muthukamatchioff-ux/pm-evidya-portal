@@ -203,3 +203,16 @@ table {
     padding: 12px !important;
   }
 }
+
+/* Skeleton Shimmer Loading */
+@keyframes skeleton-shimmer-pulse {
+  0% { opacity: 0.55; }
+  50% { opacity: 0.25; }
+  100% { opacity: 0.55; }
+}
+
+.skeleton-shimmer {
+  background: #cbd5e1;
+  animation: skeleton-shimmer-pulse 1.4s ease-in-out infinite;
+  border-radius: var(--radius-sm, 4px);
+}

@@ -88,44 +88,48 @@ export async function getComprehensiveReportData() {
     }
   }
 
-  const smes = (role === 'CAMERAMAN' || role === 'EDITOR') ? [] : await prisma.sME.findMany({
-    include: {
-      workEntries: {
-        include: {
-          documents: true,
-          payments: (role === 'ADMIN' || role === 'TEAM_MEMBER')
-        }
-      }
-    },
-    orderBy: { createdAt: 'desc' }
-  });
+  const [smes, production, auditLogs, epicWorkEntries] = await Promise.all([
+    (role === 'CAMERAMAN' || role === 'EDITOR')
+      ? Promise.resolve([])
+      : prisma.sME.findMany({
+          include: {
+            workEntries: {
+              include: {
+                documents: true,
+                payments: (role === 'ADMIN' || role === 'TEAM_MEMBER')
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' }
+        }),
 
-  const production = await prisma.productionRecord.findMany({
-    include: { project: true },
-    orderBy: { createdAt: 'desc' }
-  });
+    prisma.productionRecord.findMany({
+      include: { project: true },
+      orderBy: { createdAt: 'desc' }
+    }),
 
-  const auditLogs = (role === 'ADMIN' || role === 'TEAM_MEMBER')
-    ? await prisma.auditLog.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 1000
-      })
-    : [];
+    (role === 'ADMIN' || role === 'TEAM_MEMBER')
+      ? prisma.auditLog.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: 1000
+        })
+      : Promise.resolve([]),
 
-  const epicWorkEntries = await prisma.sMEWorkEntry.findMany({
-    where: epicFilter,
-    include: {
-      sme: true,
-      documents: true,
-      payments: (role === 'ADMIN' || role === 'TEAM_MEMBER'),
-      shootingSchedules: true,
-      videoEditorRecords: true,
-      animationRecords: true,
-      finalVideoRecords: true,
-      videoLibraries: true,
-    },
-    orderBy: { epicSequence: 'asc' }
-  });
+    prisma.sMEWorkEntry.findMany({
+      where: epicFilter,
+      include: {
+        sme: true,
+        documents: true,
+        payments: (role === 'ADMIN' || role === 'TEAM_MEMBER'),
+        shootingSchedules: true,
+        videoEditorRecords: true,
+        animationRecords: true,
+        finalVideoRecords: true,
+        videoLibraries: true,
+      },
+      orderBy: { epicSequence: 'asc' }
+    })
+  ]);
 
   return JSON.parse(JSON.stringify({ smes, production, auditLogs, epicWorkEntries }));
 }

@@ -10,20 +10,22 @@ import { requireAuth } from '@/lib/auth';
 
 export default async function SettingsPage() {
   await requireAuth(['ADMIN']);
-  const budgetHeads = await prisma.budgetHead.findMany({
-    orderBy: { name: 'asc' }
-  });
-  const hrs = await prisma.humanResource.findMany({
-    orderBy: { createdAt: 'desc' }
-  });
-  const users = (await prisma.user.findMany({
-    select: { id: true, email: true, name: true, role: true, status: true, designation: true, department: true, lastLogin: true, createdBy: true, createdAt: true } as any,
-    orderBy: { createdAt: 'desc' }
-  })) as any[];
-  const availableEpics = await prisma.sMEWorkEntry.findMany({
-    select: { id: true, epicSequence: true, trade: true, topic: true },
-    orderBy: { epicSequence: 'asc' }
-  });
+  const [budgetHeads, hrs, users, availableEpics] = await Promise.all([
+    prisma.budgetHead.findMany({
+      orderBy: { name: 'asc' }
+    }),
+    prisma.humanResource.findMany({
+      orderBy: { createdAt: 'desc' }
+    }),
+    prisma.user.findMany({
+      select: { id: true, email: true, name: true, role: true, status: true, designation: true, department: true, lastLogin: true, createdBy: true, createdAt: true } as any,
+      orderBy: { createdAt: 'desc' }
+    }) as Promise<any[]>,
+    prisma.sMEWorkEntry.findMany({
+      select: { id: true, epicSequence: true, trade: true, topic: true },
+      orderBy: { epicSequence: 'asc' }
+    })
+  ]);
   return (
     <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
       <header style={{ marginBottom: '24px' }}>

@@ -13,8 +13,8 @@ export default async function Dashboard() {
     redirect('/video-production');
   }
 
-  const kpis = await getDashboardKPIs();
   const components = await getBudgetComponents();
+  const kpis = await getDashboardKPIs(components);
 
   return (
     <div className={styles.container}>

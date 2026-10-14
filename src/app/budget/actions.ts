@@ -46,9 +46,9 @@ export async function getBudgetComponents() {
   }
 }
 
-export async function getDashboardKPIs() {
+export async function getDashboardKPIs(existingComponents?: any[]) {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
-  const components = await getBudgetComponents();
+  const components = existingComponents || await getBudgetComponents();
   
   let totalApproved = 0;
   let totalExpenditure = 0;
