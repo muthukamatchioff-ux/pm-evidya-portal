@@ -166,6 +166,22 @@ export default function ReportsClient({
             "Total Amount (₹)": (Number(item.honorarium) || 0) + (Number(item.travelAllowance) || 0)
           };
         }
+
+        if (roman === 'II') {
+          return {
+            "Sl. No.": idx + 1,
+            "datePeriod": item.datePeriod || '-',
+            "trainingName": item.trainingName || '-',
+            "trainingType": item.trainingType || '-',
+            "participant": item.participant || '-',
+            "venue": item.venue || '-',
+            "trainingDays": item.trainingDays != null ? item.trainingDays : '-',
+            "TA Amount": item.travelAllowance ? Number(item.travelAllowance) : 0,
+            "TA Voucher No.": item.utrNumber || '-',
+            "Ta Narration": item.remarks || '-',
+            "trainingDates": item.trainingDates || '-'
+          };
+        }
         
         // Fallback for other annexures
         const obj: any = { "Sl. No.": idx + 1 };
@@ -518,6 +534,19 @@ export default function ReportsClient({
                   'TA Narration',
                   'Total Amount (₹)'
                 ];
+              } else if (roman === 'II') {
+                cols = [
+                  'datePeriod',
+                  'trainingName',
+                  'trainingType',
+                  'participant',
+                  'venue',
+                  'trainingDays',
+                  'TA Amount',
+                  'TA Voucher No.',
+                  'Ta Narration',
+                  'trainingDates'
+                ];
               } else {
                 cols = Object.keys(items[0]).filter(k => !['id', 'budgetComponentId', 'createdAt', 'updatedAt', 'verificationStatus', 'supportingDoc', 'approvalRef'].includes(k));
               }
@@ -537,6 +566,21 @@ export default function ReportsClient({
                     'TA Voucher No.': item.voucherNo || '-',
                     'TA Narration': item.narration || '-',
                     'Total Amount (₹)': `₹ ${((Number(item.honorarium) || 0) + (Number(item.travelAllowance) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  };
+                  return map[col] !== undefined ? map[col] : item[col];
+                }
+                if (roman === 'II') {
+                  const map: any = {
+                    'datePeriod': item.datePeriod || '-',
+                    'trainingName': item.trainingName || '-',
+                    'trainingType': item.trainingType || '-',
+                    'participant': item.participant || '-',
+                    'venue': item.venue || '-',
+                    'trainingDays': item.trainingDays != null ? item.trainingDays : '-',
+                    'TA Amount': item.travelAllowance && Number(item.travelAllowance) > 0 ? `₹ ${Number(item.travelAllowance).toLocaleString('en-IN')}` : '-',
+                    'TA Voucher No.': item.utrNumber || '-',
+                    'Ta Narration': item.remarks || '-',
+                    'trainingDates': item.trainingDates || '-'
                   };
                   return map[col] !== undefined ? map[col] : item[col];
                 }
@@ -1166,6 +1210,19 @@ export default function ReportsClient({
                 'TA Narration',
                 'Total Amount (₹)'
               ];
+            } else if (roman === 'II') {
+              cols = [
+                'datePeriod',
+                'trainingName',
+                'trainingType',
+                'participant',
+                'venue',
+                'trainingDays',
+                'TA Amount',
+                'TA Voucher No.',
+                'Ta Narration',
+                'trainingDates'
+              ];
             } else {
               cols = Object.keys(items[0]).filter(k => !['id', 'budgetComponentId', 'createdAt', 'updatedAt', 'verificationStatus', 'supportingDoc', 'approvalRef'].includes(k));
             }
@@ -1186,6 +1243,21 @@ export default function ReportsClient({
                 'TA Voucher No.': item.voucherNo || '-',
                 'TA Narration': item.narration || '-',
                 'Total Amount (₹)': `₹ ${((Number(item.honorarium) || 0) + (Number(item.travelAllowance) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              };
+              return map[col] !== undefined ? map[col] : item[col];
+            }
+            if (roman === 'II') {
+              const map: any = {
+                'datePeriod': item.datePeriod || '-',
+                'trainingName': item.trainingName || '-',
+                'trainingType': item.trainingType || '-',
+                'participant': item.participant || '-',
+                'venue': item.venue || '-',
+                'trainingDays': item.trainingDays != null ? item.trainingDays : '-',
+                'TA Amount': item.travelAllowance && Number(item.travelAllowance) > 0 ? `₹ ${Number(item.travelAllowance).toLocaleString('en-IN')}` : '-',
+                'TA Voucher No.': item.utrNumber || '-',
+                'Ta Narration': item.remarks || '-',
+                'trainingDates': item.trainingDates || '-'
               };
               return map[col] !== undefined ? map[col] : item[col];
             }

@@ -11,7 +11,7 @@ export async function getBudgetComponents() {
     const components = await prisma.budgetComponent.findMany({
       include: {
         annexureI: { orderBy: { createdAt: 'asc' } },
-        annexureII: { orderBy: { createdAt: 'desc' } },
+        annexureII: { orderBy: { createdAt: 'asc' } },
         annexureIII: { orderBy: { createdAt: 'desc' } },
         annexureIV: { orderBy: { createdAt: 'desc' } },
         annexureV: { orderBy: { createdAt: 'desc' } },
@@ -183,7 +183,7 @@ export async function getComponent1Data() {
 export async function getComponent2Data() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER']);
   const comp = await prisma.budgetComponent.findUnique({
-    where: { componentNo: 2 }, include: { annexureII: { orderBy: { createdAt: 'desc' } } }
+    where: { componentNo: 2 }, include: { annexureII: { orderBy: { createdAt: 'asc' } } }
   });
   if (!comp) return null;
   let expenditure = 0; comp.annexureII.forEach((a: any) => expenditure += a.totalExpenditure);

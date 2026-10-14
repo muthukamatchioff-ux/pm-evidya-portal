@@ -44,6 +44,7 @@ export const generateDocxReport = async (components: any[]) => {
 
     if (items.length > 0) {
       const isAnnexureI = component.componentNo === 1;
+      const isAnnexureII = component.componentNo === 2;
       const annexureICols = [
         { label: 'Sl. No.', getVal: (_: any, idx: number) => String(idx + 1) },
         { label: 'Name', getVal: (i: any) => i.expertName || '-' },
@@ -59,9 +60,24 @@ export const generateDocxReport = async (components: any[]) => {
         { label: 'TA Narration', getVal: (i: any) => i.narration || '-' },
         { label: 'Total Amount (₹)', getVal: (i: any) => `₹ ${((Number(i.honorarium) || 0) + (Number(i.travelAllowance) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
       ];
+      const annexureIICols = [
+        { label: 'Sl. No.', getVal: (_: any, idx: number) => String(idx + 1) },
+        { label: 'datePeriod', getVal: (i: any) => i.datePeriod || '-' },
+        { label: 'trainingName', getVal: (i: any) => i.trainingName || '-' },
+        { label: 'trainingType', getVal: (i: any) => i.trainingType || '-' },
+        { label: 'participant', getVal: (i: any) => i.participant || '-' },
+        { label: 'venue', getVal: (i: any) => i.venue || '-' },
+        { label: 'trainingDays', getVal: (i: any) => i.trainingDays != null ? String(i.trainingDays) : '-' },
+        { label: 'TA Amount', getVal: (i: any) => i.travelAllowance && Number(i.travelAllowance) > 0 ? `₹ ${Number(i.travelAllowance).toLocaleString('en-IN')}` : '-' },
+        { label: 'TA Voucher No.', getVal: (i: any) => i.utrNumber || '-' },
+        { label: 'Ta Narration', getVal: (i: any) => i.remarks || '-' },
+        { label: 'trainingDates', getVal: (i: any) => i.trainingDates || '-' },
+      ];
 
       const headerLabels = isAnnexureI
         ? annexureICols.map(c => c.label)
+        : isAnnexureII
+        ? annexureIICols.map(c => c.label)
         : ['Sl. No.', ...Object.keys(items[0]).filter(k => !['id', 'budgetComponentId', 'createdAt', 'updatedAt', 'verificationStatus', 'supportingDoc', 'approvalRef'].includes(k))];
 
       const tableRows = [];
@@ -82,6 +98,11 @@ export const generateDocxReport = async (components: any[]) => {
           new TableRow({
             children: isAnnexureI
               ? annexureICols.map(c => new TableCell({
+                  children: [new Paragraph(c.getVal(item, idx))],
+                  margins: { top: 100, bottom: 100, left: 100, right: 100 }
+                }))
+              : isAnnexureII
+              ? annexureIICols.map(c => new TableCell({
                   children: [new Paragraph(c.getVal(item, idx))],
                   margins: { top: 100, bottom: 100, left: 100, right: 100 }
                 }))
