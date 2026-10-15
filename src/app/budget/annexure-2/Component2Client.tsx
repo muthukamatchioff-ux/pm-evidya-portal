@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { addAnnexureIIEntry, updateAnnexureIIEntry } from '../actions';
+import React, { useState, useEffect } from 'react';
+import { addAnnexureIIEntry, updateAnnexureIIEntry, deleteAnnexureIIEntry } from '../actions';
 import styles from '../budget.module.css';
 import { downloadTableAsDocx } from '@/lib/tableToDocx';
 
@@ -14,8 +14,16 @@ export default function Component2Client({
   budgetComponentId: string;
   entries: any[];
 }) {
+  const [records, setRecords] = useState(entries);
+  useEffect(() => {
+    setRecords(entries);
+  }, [entries]);
+
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
     datePeriod: '',
     trainingName: 'Capacity Building Program on PM eVidya Content Development Ecosystem and Digital Content Standards for Stakeholders.',
@@ -82,6 +90,9 @@ export default function Component2Client({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
     const taAmount = Number(formData.travelAllowance) || 0;
     const dataToSubmit = {
       budgetComponentId,
@@ -105,20 +116,63 @@ export default function Component2Client({
     };
 
     try {
+      let res;
       if (editingId) {
-        await updateAnnexureIIEntry(editingId, dataToSubmit);
+        res = await updateAnnexureIIEntry(editingId, dataToSubmit);
       } else {
-        await addAnnexureIIEntry(dataToSubmit);
+        res = await addAnnexureIIEntry(dataToSubmit);
       }
+
+      if (res && !res.success) {
+        alert(res.error || 'Operation failed');
+        return;
+      }
+
+      if (res?.data) {
+        if (editingId) {
+          setRecords(prev => prev.map(r => r.id === editingId ? res.data : r));
+        } else {
+          setRecords(prev => [...prev, res.data]);
+        }
+      }
+
       handleCancel();
       alert(editingId ? 'Transaction Updated Successfully' : 'Transaction Added Successfully');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Failed to save entry. Please check the values and try again.');
+      alert('Operation failed: ' + (err?.message || 'Please check the values and try again.'));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const totalTAAmount = entries.reduce((sum, e) => sum + (Number(e.travelAllowance) || 0), 0);
+  const handleDelete = async (entry: any) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete the record for "${entry.participant || 'this participant'}"?\n\nThis will permanently delete this record from Annexure II.`
+      )
+    ) {
+      return;
+    }
+
+    setDeletingId(entry.id);
+    try {
+      const res = await deleteAnnexureIIEntry(entry.id);
+      if (res && res.success) {
+        setRecords(prev => prev.filter(r => r.id !== entry.id));
+        alert('Record deleted successfully.');
+      } else {
+        alert(res?.error || 'Failed to delete record.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error deleting record.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const totalTAAmount = records.reduce((sum, e) => sum + (Number(e.travelAllowance) || 0), 0);
 
   return (
     <div>
@@ -265,8 +319,8 @@ export default function Component2Client({
           </div>
 
           <div className={styles.formActions} style={{ gridColumn: '1 / -1', marginTop: '12px' }}>
-            <button type="submit" className={styles.btnPrimary}>
-              {editingId ? 'Update Entry' : 'Save Entry'}
+            <button type="submit" className={styles.btnPrimary} disabled={isSubmitting}>
+              {isSubmitting ? (editingId ? 'Updating Entry...' : 'Saving Entry...') : (editingId ? 'Update Entry' : 'Save Entry')}
             </button>
             <button
               type="button"
@@ -295,18 +349,18 @@ export default function Component2Client({
               <th style={{ minWidth: '140px' }}>TA Voucher No.</th>
               <th style={{ minWidth: '240px' }}>Ta Narration</th>
               <th style={{ minWidth: '150px', textAlign: 'center' }}>trainingDates</th>
-              {role === 'ADMIN' && <th style={{ minWidth: '80px', textAlign: 'center' }}>Actions</th>}
+              {role === 'ADMIN' && <th style={{ minWidth: '130px', textAlign: 'center' }}>Actions</th>}
             </tr>
           </thead>
           <tbody>
-            {entries.length === 0 ? (
+            {records.length === 0 ? (
               <tr>
                 <td colSpan={role === 'ADMIN' ? 12 : 11} style={{ textAlign: 'center', padding: '24px' }}>
                   No records found
                 </td>
               </tr>
             ) : (
-              entries.map((entry, idx) => (
+              records.map((entry, idx) => (
                 <tr key={entry.id}>
                   <td style={{ textAlign: 'right' }}>{idx + 1}</td>
                   <td style={{ textAlign: 'center' }}>{entry.datePeriod || '-'}</td>
@@ -350,27 +404,49 @@ export default function Component2Client({
                   </td>
                   <td style={{ textAlign: 'center' }}>{entry.trainingDates || '-'}</td>
                   {role === 'ADMIN' && (
-                    <td style={{ textAlign: 'center' }}>
-                      <button
-                        onClick={() => handleEdit(entry)}
-                        style={{
-                          color: '#2563eb',
-                          textDecoration: 'underline',
-                          border: 'none',
-                          background: 'none',
-                          cursor: 'pointer',
-                          fontWeight: 600
-                        }}
-                      >
-                        Edit
-                      </button>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                        <button
+                          onClick={() => handleEdit(entry)}
+                          style={{
+                            color: '#2563eb',
+                            background: '#eff6ff',
+                            border: '1px solid #bfdbfe',
+                            borderRadius: '4px',
+                            padding: '4px 8px',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontSize: '12px'
+                          }}
+                          title="Edit this record"
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(entry)}
+                          disabled={deletingId === entry.id}
+                          style={{
+                            color: '#dc2626',
+                            background: '#fef2f2',
+                            border: '1px solid #fecaca',
+                            borderRadius: '4px',
+                            padding: '4px 8px',
+                            cursor: deletingId === entry.id ? 'not-allowed' : 'pointer',
+                            fontWeight: 600,
+                            fontSize: '12px'
+                          }}
+                          title="Delete this record"
+                        >
+                          {deletingId === entry.id ? 'Deleting...' : '🗑️ Delete'}
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
               ))
             )}
           </tbody>
-          {entries.length > 0 && (
+          {records.length > 0 && (
             <tfoot>
               <tr style={{ background: '#f8fafc', fontWeight: 700, borderTop: '2px solid #cbd5e1' }}>
                 <td colSpan={7} style={{ textAlign: 'right', padding: '12px' }}>

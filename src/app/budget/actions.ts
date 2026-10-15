@@ -155,6 +155,33 @@ export async function updateAnnexureIEntry(id: string, data: any) {
   }
 }
 
+export async function deleteAnnexureIEntry(id: string) {
+  const authCheck = await checkAuth(['ADMIN']);
+  if (!authCheck.success) return authCheck;
+
+  try {
+    const entry = await prisma.annexureI.delete({
+      where: { id }
+    });
+
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'DELETE_ANNEXURE_I_ENTRY',
+      entity: 'AnnexureI',
+      entityId: id,
+      newData: `Deleted Annexure-I entry: ${entry.expertName || id}`,
+      userEmail
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/budget/annexure-1');
+    return { success: true };
+  } catch (err: any) {
+    console.error('Failed to delete Annexure-I entry:', err);
+    return { success: false, error: err.message || 'Failed to delete entry' };
+  }
+}
+
 export async function getComponent1Data() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER']);
   const comp = await prisma.budgetComponent.findUnique({
@@ -189,33 +216,128 @@ export async function getComponent2Data() {
   let expenditure = 0; comp.annexureII.forEach((a: any) => expenditure += a.totalExpenditure);
   return { ...comp, expenditureIncurred: expenditure, unutilizedBalance: comp.approvedBudget - expenditure, utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00' };
 }
+
 export async function addAnnexureIIEntry(data: any) {
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
-  const total = (Number(data.trainerFee) || 0) + (Number(data.trainingCost) || 0) + (Number(data.travelAllowance) || 0) + (Number(data.accommodation) || 0) + (Number(data.otherExpenses) || 0);
+  const total = (Number(data.travelAllowance) || 0) + (Number(data.trainerFee) || 0) + (Number(data.trainingCost) || 0) + (Number(data.accommodation) || 0) + (Number(data.otherExpenses) || 0);
   
-  const createData: any = {
-    budgetComponentId: data.budgetComponentId,
-    datePeriod: data.datePeriod || '',
-    trainingName: data.trainingName || '',
-    trainingType: data.trainingType || '',
-    participant: data.participant || '',
-    venue: data.venue || '',
-    trainingDays: Number(data.trainingDays) || 0,
-    noOfParticipants: Number(data.noOfParticipants) || 0,
-    trainerFee: Number(data.trainerFee) || 0,
-    trainingCost: Number(data.trainingCost) || 0,
-    travelAllowance: Number(data.travelAllowance) || 0,
-    accommodation: Number(data.accommodation) || 0,
-    otherExpenses: Number(data.otherExpenses) || 0,
-    totalExpenditure: total,
-    utrNumber: data.utrNumber || '',
-    remarks: data.remarks || '',
-    trainingDates: data.trainingDates || '',
-  };
+  try {
+    const createData: any = {
+      budgetComponentId: data.budgetComponentId,
+      datePeriod: data.datePeriod || '',
+      trainingName: data.trainingName || 'Capacity Building Program on PM eVidya Content Development Ecosystem and Digital Content Standards for Stakeholders.',
+      trainingType: data.trainingType || 'Hybrid',
+      participant: data.participant || '',
+      venue: data.venue || 'NIMI Chennai',
+      trainingDays: Number(data.trainingDays) || 0,
+      noOfParticipants: Number(data.noOfParticipants) || 0,
+      trainerFee: Number(data.trainerFee) || 0,
+      trainingCost: Number(data.trainingCost) || 0,
+      travelAllowance: Number(data.travelAllowance) || 0,
+      accommodation: Number(data.accommodation) || 0,
+      otherExpenses: Number(data.otherExpenses) || 0,
+      totalExpenditure: total,
+      utrNumber: data.utrNumber || '',
+      remarks: data.remarks || '',
+      trainingDates: data.trainingDates || '30:07:2026 & 31:07:2026',
+      verificationStatus: 'DRAFT',
+    };
 
-  await prisma.annexureII.create({ data: createData });
-  revalidatePath('/dashboard'); revalidatePath('/budget/annexure-2');
+    const entry = await prisma.annexureII.create({ data: createData });
+
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'ADD_ANNEXURE_II_ENTRY',
+      entity: 'AnnexureII',
+      entityId: entry.id,
+      newData: `Added Annexure-II entry for ${createData.participant} - ₹${total}`,
+      userEmail
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/budget/annexure-2');
+    return { success: true, data: entry };
+  } catch (err: any) {
+    console.error('Failed to add Annexure-II entry:', err);
+    return { success: false, error: err.message || 'Failed to add entry' };
+  }
+}
+
+export async function updateAnnexureIIEntry(id: string, data: any) {
+  const authCheck = await checkAuth(['ADMIN']);
+  if (!authCheck.success) return authCheck;
+
+  const total = (Number(data.travelAllowance) || 0) + (Number(data.trainerFee) || 0) + (Number(data.trainingCost) || 0) + (Number(data.accommodation) || 0) + (Number(data.otherExpenses) || 0);
+
+  try {
+    const updateData: any = {
+      totalExpenditure: total,
+    };
+    if (data.datePeriod !== undefined) updateData.datePeriod = data.datePeriod || '';
+    if (data.trainingName !== undefined) updateData.trainingName = data.trainingName || 'Capacity Building Program on PM eVidya Content Development Ecosystem and Digital Content Standards for Stakeholders.';
+    if (data.trainingType !== undefined) updateData.trainingType = data.trainingType || 'Hybrid';
+    if (data.participant !== undefined) updateData.participant = data.participant || '';
+    if (data.venue !== undefined) updateData.venue = data.venue || 'NIMI Chennai';
+    if (data.trainingDays !== undefined) updateData.trainingDays = Number(data.trainingDays) || 0;
+    if (data.noOfParticipants !== undefined) updateData.noOfParticipants = Number(data.noOfParticipants) || 0;
+    if (data.trainerFee !== undefined) updateData.trainerFee = Number(data.trainerFee) || 0;
+    if (data.trainingCost !== undefined) updateData.trainingCost = Number(data.trainingCost) || 0;
+    if (data.travelAllowance !== undefined) updateData.travelAllowance = Number(data.travelAllowance) || 0;
+    if (data.accommodation !== undefined) updateData.accommodation = Number(data.accommodation) || 0;
+    if (data.otherExpenses !== undefined) updateData.otherExpenses = Number(data.otherExpenses) || 0;
+    if (data.utrNumber !== undefined) updateData.utrNumber = data.utrNumber || '';
+    if (data.remarks !== undefined) updateData.remarks = data.remarks || '';
+    if (data.trainingDates !== undefined) updateData.trainingDates = data.trainingDates || '30:07:2026 & 31:07:2026';
+
+    const entry = await prisma.annexureII.update({
+      where: { id },
+      data: updateData
+    });
+
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'UPDATE_ANNEXURE_II_ENTRY',
+      entity: 'AnnexureII',
+      entityId: id,
+      newData: `Updated Annexure-II entry for ${entry.participant} - ₹${total}`,
+      userEmail
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/budget/annexure-2');
+    return { success: true, data: entry };
+  } catch (err: any) {
+    console.error('Failed to update Annexure-II entry:', err);
+    return { success: false, error: err.message || 'Failed to update entry' };
+  }
+}
+
+export async function deleteAnnexureIIEntry(id: string) {
+  const authCheck = await checkAuth(['ADMIN']);
+  if (!authCheck.success) return authCheck;
+
+  try {
+    const entry = await prisma.annexureII.delete({
+      where: { id }
+    });
+
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'DELETE_ANNEXURE_II_ENTRY',
+      entity: 'AnnexureII',
+      entityId: id,
+      newData: `Deleted Annexure-II entry: ${entry.participant || id}`,
+      userEmail
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/budget/annexure-2');
+    return { success: true };
+  } catch (err: any) {
+    console.error('Failed to delete Annexure-II entry:', err);
+    return { success: false, error: err.message || 'Failed to delete entry' };
+  }
 }
 
 // --- Component 3 ---
@@ -330,36 +452,6 @@ export async function addAnnexureVIEntry(data: any) {
   revalidatePath('/dashboard'); revalidatePath('/budget/annexure-6');
 }
 
-export async function updateAnnexureIIEntry(id: string, data: any) {
-  const authCheck = await checkAuth(['ADMIN']);
-  if (!authCheck.success) return authCheck;
-  const total = (Number(data.trainerFee) || 0) + (Number(data.trainingCost) || 0) + (Number(data.travelAllowance) || 0) + (Number(data.accommodation) || 0) + (Number(data.otherExpenses) || 0);
-  
-  const updateData: any = {
-    datePeriod: data.datePeriod,
-    trainingName: data.trainingName,
-    trainingType: data.trainingType,
-    participant: data.participant,
-    venue: data.venue,
-    trainingDays: Number(data.trainingDays) || 0,
-    noOfParticipants: Number(data.noOfParticipants) || 0,
-    trainerFee: Number(data.trainerFee) || 0,
-    trainingCost: Number(data.trainingCost) || 0,
-    travelAllowance: Number(data.travelAllowance) || 0,
-    accommodation: Number(data.accommodation) || 0,
-    otherExpenses: Number(data.otherExpenses) || 0,
-    totalExpenditure: total,
-    utrNumber: data.utrNumber,
-    remarks: data.remarks,
-    trainingDates: data.trainingDates,
-  };
-
-  // Remove undefined fields so they aren't written as null if not sent
-  Object.keys(updateData).forEach(k => updateData[k] === undefined && delete updateData[k]);
-
-  await prisma.annexureII.update({ where: { id }, data: updateData });
-  revalidatePath('/dashboard'); revalidatePath('/budget/annexure-2');
-}
 export async function updateAnnexureIIIEntry(id: string, data: any) {
   try {
     const authCheck = await checkAuth(['ADMIN']);

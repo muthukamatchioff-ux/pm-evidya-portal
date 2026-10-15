@@ -107,12 +107,56 @@ const createPrismaClient = () => {
                 return REAL_PM_EVIDYA_BUDGET_HEADS;
               }
 
-              if (model === 'AnnexureI' && operation === 'findMany') {
-                return REAL_PM_EVIDYA_BUDGET_COMPONENTS[0]?.annexureI || [];
+              if (model === 'AnnexureI') {
+                const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[0]?.annexureI || []) as any[];
+                if (operation === 'findMany') return list;
+                if (operation === 'create') {
+                  const newItem = { id: `ai-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+                  list.push(newItem);
+                  return newItem;
+                }
+                if (operation === 'update') {
+                  const idx = list.findIndex((x: any) => x.id === args?.where?.id);
+                  if (idx !== -1) {
+                    list[idx] = { ...list[idx], ...args?.data, updatedAt: new Date().toISOString() };
+                    return list[idx];
+                  }
+                  return { ...args?.data, id: args?.where?.id };
+                }
+                if (operation === 'delete') {
+                  const idx = list.findIndex((x: any) => x.id === args?.where?.id);
+                  if (idx !== -1) {
+                    const removed = list.splice(idx, 1)[0];
+                    return removed;
+                  }
+                  return { id: args?.where?.id, expertName: 'Entry' };
+                }
               }
 
-              if (model === 'AnnexureII' && operation === 'findMany') {
-                return REAL_PM_EVIDYA_BUDGET_COMPONENTS[1]?.annexureII || [];
+              if (model === 'AnnexureII') {
+                const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[1]?.annexureII || []) as any[];
+                if (operation === 'findMany') return list;
+                if (operation === 'create') {
+                  const newItem = { id: `aii-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+                  list.push(newItem);
+                  return newItem;
+                }
+                if (operation === 'update') {
+                  const idx = list.findIndex((x: any) => x.id === args?.where?.id);
+                  if (idx !== -1) {
+                    list[idx] = { ...list[idx], ...args?.data, updatedAt: new Date().toISOString() };
+                    return list[idx];
+                  }
+                  return { ...args?.data, id: args?.where?.id };
+                }
+                if (operation === 'delete') {
+                  const idx = list.findIndex((x: any) => x.id === args?.where?.id);
+                  if (idx !== -1) {
+                    const removed = list.splice(idx, 1)[0];
+                    return removed;
+                  }
+                  return { id: args?.where?.id, participant: 'Entry' };
+                }
               }
 
               if (model === 'AnnexureIII' && operation === 'findMany') {

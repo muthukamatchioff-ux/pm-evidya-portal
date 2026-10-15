@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { addAnnexureIEntry, updateAnnexureIEntry } from '../actions';
+import React, { useState, useEffect } from 'react';
+import { addAnnexureIEntry, updateAnnexureIEntry, deleteAnnexureIEntry } from '../actions';
 import styles from '../budget.module.css';
 import { downloadTableAsDocx } from '@/lib/tableToDocx';
 
@@ -14,8 +14,16 @@ export default function Component1Client({
   budgetComponentId: string;
   entries: any[];
 }) {
+  const [records, setRecords] = useState(entries);
+  useEffect(() => {
+    setRecords(entries);
+  }, [entries]);
+
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
     expertName: '',
     designation: '',
@@ -82,50 +90,94 @@ export default function Component1Client({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const dataToSubmit = {
-      budgetComponentId,
-      expertName: formData.expertName,
-      designation: formData.designation,
-      workingDays: Number(formData.workingDays) || 0,
-      datePeriod: formData.datePeriod,
-      honorarium: Number(formData.honorarium) || 0,
-      utrNumber: formData.utrNumber,
-      remarks: formData.remarks,
-      tranType: formData.tranType,
-      travelAllowance: Number(formData.travelAllowance) || 0,
-      voucherNo: formData.voucherNo,
-      narration: formData.narration,
-      activity: formData.activity || 'Digital Content Development',
-      otherCharges: Number(formData.otherCharges) || 0,
-      contentDuration: formData.contentDuration
-    };
+    if (isSubmitting) return;
+    setIsSubmitting(true);
 
-    let res;
-    if (editingId) {
-      res = await updateAnnexureIEntry(editingId, dataToSubmit);
-    } else {
-      res = await addAnnexureIEntry(dataToSubmit);
+    try {
+      const dataToSubmit = {
+        budgetComponentId,
+        expertName: formData.expertName,
+        designation: formData.designation,
+        workingDays: Number(formData.workingDays) || 0,
+        datePeriod: formData.datePeriod,
+        honorarium: Number(formData.honorarium) || 0,
+        utrNumber: formData.utrNumber,
+        remarks: formData.remarks,
+        tranType: formData.tranType,
+        travelAllowance: Number(formData.travelAllowance) || 0,
+        voucherNo: formData.voucherNo,
+        narration: formData.narration,
+        activity: formData.activity || 'Digital Content Development',
+        otherCharges: Number(formData.otherCharges) || 0,
+        contentDuration: formData.contentDuration
+      };
+
+      let res;
+      if (editingId) {
+        res = await updateAnnexureIEntry(editingId, dataToSubmit);
+      } else {
+        res = await addAnnexureIEntry(dataToSubmit);
+      }
+
+      if (res && !res.success) {
+        alert(res.error || 'Operation failed');
+        return;
+      }
+
+      if (res?.data) {
+        if (editingId) {
+          setRecords(prev => prev.map(r => r.id === editingId ? res.data : r));
+        } else {
+          setRecords(prev => [...prev, res.data]);
+        }
+      }
+
+      handleCancel();
+      alert(editingId ? 'Transaction Updated Successfully' : 'Transaction Added Successfully');
+    } catch (err: any) {
+      console.error(err);
+      alert('Operation failed: ' + (err?.message || 'Please try again'));
+    } finally {
+      setIsSubmitting(false);
     }
+  };
 
-    if (res && !res.success) {
-      alert(res.error || 'Operation failed');
+  const handleDelete = async (entry: any) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete the record for "${entry.expertName}"?\n\nThis will permanently delete this record from Annexure I.`
+      )
+    ) {
       return;
     }
 
-    handleCancel();
-    alert(editingId ? 'Transaction Updated Successfully' : 'Transaction Added Successfully');
+    setDeletingId(entry.id);
+    try {
+      const res = await deleteAnnexureIEntry(entry.id);
+      if (res && res.success) {
+        setRecords(prev => prev.filter(r => r.id !== entry.id));
+        alert('Record deleted successfully.');
+      } else {
+        alert(res?.error || 'Failed to delete record.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error deleting record.');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
-  // Safe Total Calculation
-  const calculatedHonorariumTotal = entries.reduce(
+  // Safe Total Calculation based on active records
+  const calculatedHonorariumTotal = records.reduce(
     (sum, e) => sum + (Number(e.honorarium) || 0),
     0
   );
-  const calculatedTATotal = entries.reduce(
+  const calculatedTATotal = records.reduce(
     (sum, e) => sum + (Number(e.travelAllowance) || 0),
     0
   );
-  const calculatedSubtotal = entries.reduce(
+  const calculatedSubtotal = records.reduce(
     (sum, e) => sum + ((Number(e.honorarium) || 0) + (Number(e.travelAllowance) || 0)),
     0
   );
@@ -301,8 +353,8 @@ export default function Component1Client({
           </div>
 
           <div className={styles.formActions} style={{ gridColumn: '1 / -1', marginTop: '12px' }}>
-            <button type="submit" className={styles.btnPrimary}>
-              {editingId ? 'Update Entry' : 'Save Entry'}
+            <button type="submit" className={styles.btnPrimary} disabled={isSubmitting}>
+              {isSubmitting ? (editingId ? 'Updating Entry...' : 'Saving Entry...') : (editingId ? 'Update Entry' : 'Save Entry')}
             </button>
             <button
               type="button"
@@ -333,18 +385,18 @@ export default function Component1Client({
               <th style={{ minWidth: '140px' }}>TA Voucher No.</th>
               <th style={{ minWidth: '200px' }}>TA Narration</th>
               <th style={{ minWidth: '130px', textAlign: 'right' }}>Total Amount (₹)</th>
-              {role === 'ADMIN' && <th style={{ minWidth: '80px', textAlign: 'center' }}>Actions</th>}
+              {role === 'ADMIN' && <th style={{ minWidth: '130px', textAlign: 'center' }}>Actions</th>}
             </tr>
           </thead>
           <tbody>
-            {entries.length === 0 ? (
+            {records.length === 0 ? (
               <tr>
                 <td colSpan={role === 'ADMIN' ? 14 : 13} style={{ textAlign: 'center', padding: '24px' }}>
                   No records found
                 </td>
               </tr>
             ) : (
-              entries.map((entry, idx) => {
+              records.map((entry, idx) => {
                 const total = (Number(entry.honorarium) || 0) + (Number(entry.travelAllowance) || 0);
                 const hasHA = entry.honorarium && Number(entry.honorarium) > 0;
                 const hasTA = entry.travelAllowance && Number(entry.travelAllowance) > 0;
@@ -397,20 +449,42 @@ export default function Component1Client({
                       ₹ {total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     {role === 'ADMIN' && (
-                      <td style={{ textAlign: 'center' }}>
-                        <button
-                          onClick={() => handleEdit(entry)}
-                          style={{
-                            color: '#2563eb',
-                            textDecoration: 'underline',
-                            border: 'none',
-                            background: 'none',
-                            cursor: 'pointer',
-                            fontWeight: 600
-                          }}
-                        >
-                          Edit
-                        </button>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                          <button
+                            onClick={() => handleEdit(entry)}
+                            style={{
+                              color: '#2563eb',
+                              background: '#eff6ff',
+                              border: '1px solid #bfdbfe',
+                              borderRadius: '4px',
+                              padding: '4px 8px',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                              fontSize: '12px'
+                            }}
+                            title="Edit this record"
+                          >
+                            ✏️ Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(entry)}
+                            disabled={deletingId === entry.id}
+                            style={{
+                              color: '#dc2626',
+                              background: '#fef2f2',
+                              border: '1px solid #fecaca',
+                              borderRadius: '4px',
+                              padding: '4px 8px',
+                              cursor: deletingId === entry.id ? 'not-allowed' : 'pointer',
+                              fontWeight: 600,
+                              fontSize: '12px'
+                            }}
+                            title="Delete this record"
+                          >
+                            {deletingId === entry.id ? 'Deleting...' : '🗑️ Delete'}
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -418,7 +492,7 @@ export default function Component1Client({
               })
             )}
           </tbody>
-          {entries.length > 0 && (
+          {records.length > 0 && (
             <tfoot>
               <tr style={{ background: '#f8fafc', fontWeight: 700, borderTop: '2px solid #cbd5e1' }}>
                 <td colSpan={5} style={{ textAlign: 'right', padding: '12px' }}>
