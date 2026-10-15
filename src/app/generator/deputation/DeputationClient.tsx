@@ -7,7 +7,8 @@ import {
   saveCommunicationsStage,
   StageAParameters,
   StageBParameters,
-  StageCParameters
+  StageCParameters,
+  AttendanceSlot
 } from './actions';
 
 interface DeputationClientProps {
@@ -37,6 +38,16 @@ const formatDateDot = (dateStr: string) => {
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
   return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}`;
+};
+
+const calculateSlotDays = (start: string, end: string): number => {
+  if (!start || !end) return 0;
+  const d1 = new Date(start);
+  const d2 = new Date(end);
+  if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
+  const diffTime = d2.getTime() - d1.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  return diffDays > 0 ? diffDays : 0;
 };
 
 const getEpicId = (epicSequence: number) =>
@@ -197,6 +208,27 @@ export default function DeputationClient({
     if (docC?.filePath) {
       try {
         const parsed = JSON.parse(docC.filePath);
+        if (!parsed.attendanceSlots || !Array.isArray(parsed.attendanceSlots) || parsed.attendanceSlots.length === 0) {
+          const startDate = selectedEntry.attendanceFrom
+            ? new Date(selectedEntry.attendanceFrom).toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0];
+          const endDate = selectedEntry.attendanceTo
+            ? new Date(selectedEntry.attendanceTo).toISOString().split('T')[0]
+            : startDate;
+          parsed.attendanceSlots = [{ id: 'slot-1', startDate, endDate }];
+        }
+        if (!parsed.trade) {
+          parsed.trade = selectedEntry.trade || '';
+        }
+        parsed.taAmount = 0;
+        parsed.otherAmount = 0;
+        const sumDays = parsed.attendanceSlots.reduce((acc: number, s: any) => acc + calculateSlotDays(s.startDate, s.endDate), 0);
+        parsed.totalDays = sumDays > 0 ? sumDays : (Number(parsed.totalDays) || 4);
+        const rate = Number(parsed.ratePerDay) || 1500;
+        parsed.grossAmount = parsed.totalDays * rate;
+        parsed.totalAmount = parsed.grossAmount;
+        parsed.amountInWords = numberToWords(parsed.totalAmount);
+
         setStageCParams(parsed);
         setHasSavedDocC(true);
         setIsEditingC(false);
@@ -260,46 +292,134 @@ export default function DeputationClient({
   };
 
   const initDefaultStageC = (entry: any, payment: any) => {
-    const days = entry.days || 4;
     const ratePerDay = entry.ratePerDay || 1500;
+    const startDate = entry.attendanceFrom
+      ? new Date(entry.attendanceFrom).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0];
+    const endDate = entry.attendanceTo
+      ? new Date(entry.attendanceTo).toISOString().split('T')[0]
+      : startDate;
+
+    const initialSlots: AttendanceSlot[] = [
+      { id: 'slot-1', startDate, endDate }
+    ];
+
+    const slotDays = calculateSlotDays(startDate, endDate);
+    const days = slotDays > 0 ? slotDays : (entry.days || 4);
     const grossAmount = days * ratePerDay;
-    const taAmount = entry.taAmount || payment.taAmount || 0;
-    const otherAmount = entry.otherAmount || payment.otherAmount || 0;
-    const totalAmount = grossAmount + taAmount + otherAmount;
+    const totalAmount = grossAmount;
 
     setStageCParams({
       programmeName: 'PM e-Vidya Classroom Teaching Video Production',
       workTitle: 'Classroom Teaching Video Production for PM e-Vidya',
       location: 'National Instructional Media Institute (NIMI), Chennai',
+      trade: entry.trade || '',
+      attendanceSlots: initialSlots,
       totalDays: days,
       ratePerDay,
       grossAmount,
-      taAmount,
-      otherAmount,
+      taAmount: 0,
+      otherAmount: 0,
       totalAmount,
       amountInWords: numberToWords(totalAmount),
       submissionDate: new Date().toISOString().split('T')[0],
-      verifierName: 'Joint Director / HOO',
-      verifierDesignation: 'Head of Office'
+      verifierName: '',
+      verifierDesignation: ''
     });
     setHasSavedDocC(false);
     setIsEditingC(false);
     setDocCLastSavedAt(null);
   };
 
-  // Stage C auto-calculation when values change
+  // Slot Management for Stage C (Multiple attendance date ranges)
+  const handleAddSlot = () => {
+    setStageCParams(prev => {
+      const currentSlots = prev.attendanceSlots || [];
+      const lastSlot = currentSlots[currentSlots.length - 1];
+      let nextStart = new Date().toISOString().split('T')[0];
+      if (lastSlot?.endDate) {
+        const d = new Date(lastSlot.endDate);
+        d.setDate(d.getDate() + 2); // Default 2-day gap (break/holiday/weekend)
+        nextStart = d.toISOString().split('T')[0];
+      }
+      const newSlot: AttendanceSlot = {
+        id: `slot-${Date.now()}`,
+        startDate: nextStart,
+        endDate: nextStart
+      };
+      const updatedSlots = [...currentSlots, newSlot];
+      const sumDays = updatedSlots.reduce((acc, s) => acc + calculateSlotDays(s.startDate, s.endDate), 0);
+      const days = sumDays > 0 ? sumDays : 1;
+      const rate = prev.ratePerDay || 1500;
+      const gross = days * rate;
+      return {
+        ...prev,
+        attendanceSlots: updatedSlots,
+        totalDays: days,
+        grossAmount: gross,
+        totalAmount: gross,
+        amountInWords: numberToWords(gross)
+      };
+    });
+  };
+
+  const handleRemoveSlot = (index: number) => {
+    setStageCParams(prev => {
+      const currentSlots = prev.attendanceSlots || [];
+      if (currentSlots.length <= 1) return prev;
+      const updatedSlots = currentSlots.filter((_, i) => i !== index);
+      const sumDays = updatedSlots.reduce((acc, s) => acc + calculateSlotDays(s.startDate, s.endDate), 0);
+      const days = sumDays > 0 ? sumDays : 1;
+      const rate = prev.ratePerDay || 1500;
+      const gross = days * rate;
+      return {
+        ...prev,
+        attendanceSlots: updatedSlots,
+        totalDays: days,
+        grossAmount: gross,
+        totalAmount: gross,
+        amountInWords: numberToWords(gross)
+      };
+    });
+  };
+
+  const handleSlotDateChange = (index: number, field: 'startDate' | 'endDate', value: string) => {
+    setStageCParams(prev => {
+      const currentSlots = [...(prev.attendanceSlots || [])];
+      if (!currentSlots[index]) return prev;
+      const updatedSlot = { ...currentSlots[index], [field]: value };
+      if (field === 'startDate' && updatedSlot.endDate < value) {
+        updatedSlot.endDate = value;
+      }
+      currentSlots[index] = updatedSlot;
+
+      const sumDays = currentSlots.reduce((acc, s) => acc + calculateSlotDays(s.startDate, s.endDate), 0);
+      const days = sumDays > 0 ? sumDays : 1;
+      const rate = prev.ratePerDay || 1500;
+      const gross = days * rate;
+      return {
+        ...prev,
+        attendanceSlots: currentSlots,
+        totalDays: days,
+        grossAmount: gross,
+        totalAmount: gross,
+        amountInWords: numberToWords(gross)
+      };
+    });
+  };
+
+  // Stage C auto-calculation when values change (Total Days / Rate per Day / Trade / Submission Date)
   const handleStageCChange = (field: keyof StageCParameters, value: any) => {
     setStageCParams(prev => {
       const updated = { ...prev, [field]: value };
       const days = Number(field === 'totalDays' ? value : updated.totalDays) || 0;
       const rate = Number(field === 'ratePerDay' ? value : updated.ratePerDay) || 0;
-      const ta = Number(field === 'taAmount' ? value : updated.taAmount) || 0;
-      const other = Number(field === 'otherAmount' ? value : updated.otherAmount) || 0;
       const gross = days * rate;
-      const total = gross + ta + other;
       updated.grossAmount = gross;
-      updated.totalAmount = total;
-      updated.amountInWords = numberToWords(total);
+      updated.taAmount = 0;
+      updated.otherAmount = 0;
+      updated.totalAmount = gross;
+      updated.amountInWords = numberToWords(gross);
       return updated;
     });
   };
@@ -376,10 +496,11 @@ export default function DeputationClient({
           const otherDocs = (e.documents || []).filter((d: any) => d.type !== 'STAGE_C_REMUNERATION');
           return {
             ...e,
+            trade: stageCParams.trade || e.trade,
             days: stageCParams.totalDays,
             ratePerDay: stageCParams.ratePerDay,
-            taAmount: stageCParams.taAmount,
-            otherAmount: stageCParams.otherAmount,
+            taAmount: 0,
+            otherAmount: 0,
             documents: [...otherDocs, res.document]
           };
         }));
@@ -699,7 +820,7 @@ export default function DeputationClient({
 
           {/* 6. Trade */}
           <div className={styles.smeFieldItem}>
-            <span className={styles.smeFieldLabel}>Assigned Trade</span>
+            <span className={styles.smeFieldLabel}>Assigned Trade(s)</span>
             {selectedEntry.trade ? (
               <span className={styles.smeFieldValue}>{selectedEntry.trade}</span>
             ) : (
@@ -1238,69 +1359,76 @@ export default function DeputationClient({
                 Work Completion Certificate
               </h2>
 
-              <div style={{ textAlign: 'justify', lineHeight: '1.6', fontSize: '13px' }}>
-                This is to certify that <strong>{sme.name || 'Subject Matter Expert'}</strong>, <strong>Guest Expert / Subject Matter Expert (SME)</strong>, has successfully completed the <strong>{stageBParams.programmeName}</strong> for the <strong>{selectedEntry.trade || 'General'}</strong> trade at the <strong>{stageBParams.location}</strong>, during the period from <strong>{formatDateDot(stageBParams.startDate)}</strong> to <strong>{formatDateDot(stageBParams.endDate)}</strong>.
-                <br /><br />
-                As the <strong>Guest Expert / Subject Matter Expert (SME)</strong>, <strong>{sme.name || 'the SME'}</strong> effectively delivered the assigned classroom sessions in accordance with the approved curriculum, ensuring technical accuracy, instructional quality, and compliance with the applicable standards for PM e-Vidya digital learning content.
-                <br /><br />
-                The following topics were successfully delivered and recorded for integration into the PM e-Vidya Digital Learning Platform:
-                <div style={{ paddingLeft: '20px', marginTop: '8px', marginBottom: '12px', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '12px', background: '#f8fafc', padding: '10px 14px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
-                  {stageBParams.topicsCovered || 'E-Content Video Production Topics'}
-                </div>
-                The recorded classroom sessions have been completed satisfactorily and are certified for further processing as per the applicable NIMI norms.
-                <br /><br />
+              {(() => {
+                const bTrade = (stageBParams.trade || selectedEntry.trade || 'General').trim();
+                const isBMultipleTrades = /[,/&;]|\band\b/i.test(bTrade);
 
-                <table className={styles.docTable}>
-                  <thead>
-                    <tr>
-                      <th>Trade</th>
-                      <th>Guest Expert (SME)</th>
-                      <th>Work Completed</th>
-                      <th>Date</th>
-                      <th>Amount (Rs.)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td><strong>{selectedEntry.trade || 'General'}</strong></td>
-                      <td>
-                        <strong>{sme.name || 'Subject Matter Expert'}</strong><br />
-                        {sme.designation || 'Designation'}, {sme.institute || 'Institute'}, {sme.location || 'Location'}
-                      </td>
-                      <td>{stageBParams.workTitle}</td>
-                      <td>{formatDateDot(stageBParams.startDate)} &ndash; {formatDateDot(stageBParams.endDate)}</td>
-                      <td>₹{selectedEntry.ratePerDay || 1500}/- (per Day)</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', fontWeight: 'bold', fontSize: '13px' }}>
-                  <div style={{ textDecoration: 'underline' }}>SME DECLARATION</div>
-                  <div style={{ textDecoration: 'underline' }}>NIMI VERIFICATION</div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '24px', marginTop: '10px', fontSize: '12.5px' }}>
-                  <div style={{ flex: 1 }}>
-                    I, <strong>{sme.name || 'Subject Matter Expert'}</strong>, hereby declare that I have successfully completed the <strong>{stageBParams.programmeName}</strong> for the <strong>{selectedEntry.trade || 'General'}</strong> trade during the period from <strong>{formatDateDot(stageBParams.startDate)}</strong> to <strong>{formatDateDot(stageBParams.endDate)}</strong>.
+                return (
+                  <div style={{ textAlign: 'justify', lineHeight: '1.6', fontSize: '13px' }}>
+                    This is to certify that <strong>{sme.name || 'Subject Matter Expert'}</strong>, <strong>Guest Expert / Subject Matter Expert (SME)</strong>, has successfully completed the <strong>{stageBParams.programmeName}</strong> for the <strong>{bTrade}</strong> {isBMultipleTrades ? 'trades' : 'trade'} at the <strong>{stageBParams.location}</strong>, during the period from <strong>{formatDateDot(stageBParams.startDate)}</strong> to <strong>{formatDateDot(stageBParams.endDate)}</strong>.
                     <br /><br />
-                    I certify that the assigned topics were delivered as per the approved curriculum and that the work has been completed satisfactorily for processing of honorarium as per applicable NIMI norms.
-                    <br /><br /><br /><br />
-                    Signature of Guest Expert:<br />
-                    Designation: {sme.designation || 'Designation'}, {sme.institute || 'Institute'}<br />
-                    Date: {formatDateDot(stageBParams.submissionDate)}
-                  </div>
+                    As the <strong>Guest Expert / Subject Matter Expert (SME)</strong>, <strong>{sme.name || 'the SME'}</strong> effectively delivered the assigned classroom sessions in accordance with the approved curriculum, ensuring technical accuracy, instructional quality, and compliance with the applicable standards for PM e-Vidya digital learning content.
+                    <br /><br />
+                    The following topics were successfully delivered and recorded for integration into the PM e-Vidya Digital Learning Platform:
+                    <div style={{ paddingLeft: '20px', marginTop: '8px', marginBottom: '12px', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '12px', background: '#f8fafc', padding: '10px 14px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                      {stageBParams.topicsCovered || 'E-Content Video Production Topics'}
+                    </div>
+                    The recorded classroom sessions have been completed satisfactorily and are certified for further processing as per the applicable NIMI norms.
+                    <br /><br />
 
-                  <div style={{ flex: 1, paddingLeft: '16px', borderLeft: '1px dashed #cbd5e1' }}>
-                    Certified that the above work has been completed satisfactorily and verified as per the requirements of the National Instructional Media Institute (NIMI).
-                    <br /><br /><br /><br /><br /><br />
-                    Signature<br />
-                    Name: <strong>{stageBParams.verifierName}</strong><br />
-                    Designation: {stageBParams.verifierDesignation}<br />
-                    Organisation: {stageBParams.verifierOrganisation}<br />
-                    Date: {formatDateDot(stageBParams.verificationDate)}
+                    <table className={styles.docTable}>
+                      <thead>
+                        <tr>
+                          <th>Trade(s)</th>
+                          <th>Guest Expert (SME)</th>
+                          <th>Work Completed</th>
+                          <th>Date</th>
+                          <th>Amount (Rs.)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td><strong>{bTrade}</strong></td>
+                          <td>
+                            <strong>{sme.name || 'Subject Matter Expert'}</strong><br />
+                            {sme.designation || 'Designation'}, {sme.institute || 'Institute'}, {sme.location || 'Location'}
+                          </td>
+                          <td>{stageBParams.workTitle}</td>
+                          <td>{formatDateDot(stageBParams.startDate)} &ndash; {formatDateDot(stageBParams.endDate)}</td>
+                          <td>₹{selectedEntry.ratePerDay || 1500}/- (per Day)</td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', fontWeight: 'bold', fontSize: '13px' }}>
+                      <div style={{ textDecoration: 'underline' }}>SME DECLARATION</div>
+                      <div style={{ textDecoration: 'underline' }}>NIMI VERIFICATION</div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '24px', marginTop: '10px', fontSize: '12.5px' }}>
+                      <div style={{ flex: 1 }}>
+                        I, <strong>{sme.name || 'Subject Matter Expert'}</strong>, hereby declare that I have successfully completed the <strong>{stageBParams.programmeName}</strong> for the <strong>{bTrade}</strong> {isBMultipleTrades ? 'trades' : 'trade'} during the period from <strong>{formatDateDot(stageBParams.startDate)}</strong> to <strong>{formatDateDot(stageBParams.endDate)}</strong>.
+                        <br /><br />
+                        I certify that the assigned topics were delivered as per the approved curriculum and that the work has been completed satisfactorily for processing of honorarium as per applicable NIMI norms.
+                        <br /><br /><br /><br />
+                        Signature of Guest Expert:<br />
+                        Designation: {sme.designation || 'Designation'}, {sme.institute || 'Institute'}<br />
+                        Date: {formatDateDot(stageBParams.submissionDate)}
+                      </div>
+
+                      <div style={{ flex: 1, paddingLeft: '16px', borderLeft: '1px dashed #cbd5e1' }}>
+                        Certified that the above work has been completed satisfactorily and verified as per the requirements of the National Instructional Media Institute (NIMI).
+                        <br /><br /><br /><br /><br /><br />
+                        Signature<br />
+                        Name: <strong>{stageBParams.verifierName}</strong><br />
+                        Designation: {stageBParams.verifierDesignation}<br />
+                        Organisation: {stageBParams.verifierOrganisation}<br />
+                        Date: {formatDateDot(stageBParams.verificationDate)}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {renderOfficialFooter()}
             </div>
@@ -1354,11 +1482,152 @@ export default function DeputationClient({
               </div>
             </div>
 
+            {/* Trade(s) Selection/Edit */}
+            <div className={styles.formSectionTitle}>Trade(s) & Specialization</div>
+            <div className={styles.fieldGroup}>
+              <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Assigned Trade(s)</span>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>Supports multiple trades</span>
+              </label>
+              <input
+                type="text"
+                className={styles.inputField}
+                disabled={!isEditingC && hasSavedDocC}
+                value={stageCParams.trade ?? selectedEntry.trade ?? ''}
+                onChange={e => handleStageCChange('trade', e.target.value)}
+                placeholder="e.g. AI Programming Assistant, Electrician"
+              />
+            </div>
+
+            {/* Attendance Date Slots (Multiple Entries for breaks/holidays) */}
+            <div style={{ marginTop: '14px', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <div className={styles.formSectionTitle} style={{ margin: 0, padding: 0 }}>
+                  📅 Attendance Date Ranges / Slots
+                </div>
+                {(isEditingC || !hasSavedDocC) && (
+                  <button
+                    type="button"
+                    onClick={handleAddSlot}
+                    style={{
+                      background: '#eff6ff',
+                      color: '#2563eb',
+                      border: '1.5px solid #bfdbfe',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    ➕ Add Date Slot
+                  </button>
+                )}
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '10px' }}>
+                Add multiple date slots if work was split across holidays or leave days. Total Working Days auto-calculates.
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {(stageCParams.attendanceSlots || []).map((slot, index) => {
+                  const daysCount = calculateSlotDays(slot.startDate, slot.endDate);
+                  return (
+                    <div
+                      key={slot.id || index}
+                      style={{
+                        background: '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                          Slot {index + 1}
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span
+                            style={{
+                              background: '#dcfce7',
+                              color: '#15803d',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              fontSize: '11.5px',
+                              fontWeight: 700
+                            }}
+                          >
+                            {daysCount} {daysCount === 1 ? 'Day' : 'Days'}
+                          </span>
+                          {(isEditingC || !hasSavedDocC) && (stageCParams.attendanceSlots || []).length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSlot(index)}
+                              title="Remove this slot"
+                              style={{
+                                background: '#fee2e2',
+                                color: '#dc2626',
+                                border: 'none',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ✕ Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
+                            Start Date
+                          </label>
+                          <input
+                            type="date"
+                            className={styles.inputField}
+                            style={{ padding: '6px 8px', fontSize: '12.5px' }}
+                            disabled={!isEditingC && hasSavedDocC}
+                            value={slot.startDate}
+                            onChange={e => handleSlotDateChange(index, 'startDate', e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
+                            End Date
+                          </label>
+                          <input
+                            type="date"
+                            className={styles.inputField}
+                            style={{ padding: '6px 8px', fontSize: '12.5px' }}
+                            disabled={!isEditingC && hasSavedDocC}
+                            value={slot.endDate}
+                            onChange={e => handleSlotDateChange(index, 'endDate', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Financial Calculations */}
             <div className={styles.formSectionTitle}>Financial & Working Days Parameters</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div className={styles.fieldGroup}>
-                <label>Total Working Days</label>
+                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Total Working Days</span>
+                  <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700 }}>Auto-calculated</span>
+                </label>
                 <input
                   type="number"
                   className={styles.inputField}
@@ -1379,42 +1648,11 @@ export default function DeputationClient({
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div className={styles.fieldGroup}>
-                <label>TA Amount (₹)</label>
-                <input
-                  type="number"
-                  className={styles.inputField}
-                  disabled={!isEditingC && hasSavedDocC}
-                  value={stageCParams.taAmount}
-                  onChange={e => handleStageCChange('taAmount', Number(e.target.value))}
-                />
-              </div>
-              <div className={styles.fieldGroup}>
-                <label>Other Charges (₹)</label>
-                <input
-                  type="number"
-                  className={styles.inputField}
-                  disabled={!isEditingC && hasSavedDocC}
-                  value={stageCParams.otherAmount}
-                  onChange={e => handleStageCChange('otherAmount', Number(e.target.value))}
-                />
-              </div>
-            </div>
-
-            {/* Auto-Calculated Summary Card */}
-            <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1.5px solid #cbd5e1', marginTop: '6px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
+            {/* Auto-Calculated Summary Card - Pure Honorarium */}
+            <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1.5px solid #cbd5e1', marginTop: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
                 <span style={{ color: '#64748b' }}>Base Honorarium ({stageCParams.totalDays} days &times; ₹{stageCParams.ratePerDay}):</span>
                 <strong style={{ color: '#0f172a' }}>₹ {stageCParams.grossAmount.toLocaleString('en-IN')}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
-                <span style={{ color: '#64748b' }}>Travelling Allowance (TA):</span>
-                <strong style={{ color: '#0f172a' }}>₹ {stageCParams.taAmount.toLocaleString('en-IN')}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
-                <span style={{ color: '#64748b' }}>Other Charges:</span>
-                <strong style={{ color: '#0f172a' }}>₹ {stageCParams.otherAmount.toLocaleString('en-IN')}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1.5px solid #cbd5e1', paddingTop: '8px', fontSize: '15px' }}>
                 <span style={{ fontWeight: 800, color: '#1e40af' }}>Grand Total Remuneration:</span>
@@ -1425,8 +1663,8 @@ export default function DeputationClient({
               </div>
             </div>
 
-            {/* Authority & Dates */}
-            <div className={styles.formSectionTitle}>Authority & Sanction Details</div>
+            {/* Sanction Submission Date */}
+            <div className={styles.formSectionTitle}>Sanction Submission Date</div>
             <div className={styles.fieldGroup}>
               <label>Submission Date</label>
               <input
@@ -1436,28 +1674,6 @@ export default function DeputationClient({
                 value={stageCParams.submissionDate}
                 onChange={e => handleStageCChange('submissionDate', e.target.value)}
               />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div className={styles.fieldGroup}>
-                <label>Sanction Verifier</label>
-                <input
-                  type="text"
-                  className={styles.inputField}
-                  disabled={!isEditingC && hasSavedDocC}
-                  value={stageCParams.verifierName}
-                  onChange={e => handleStageCChange('verifierName', e.target.value)}
-                />
-              </div>
-              <div className={styles.fieldGroup}>
-                <label>Designation</label>
-                <input
-                  type="text"
-                  className={styles.inputField}
-                  disabled={!isEditingC && hasSavedDocC}
-                  value={stageCParams.verifierDesignation}
-                  onChange={e => handleStageCChange('verifierDesignation', e.target.value)}
-                />
-              </div>
             </div>
           </div>
 
@@ -1488,67 +1704,78 @@ export default function DeputationClient({
             </div>
 
             {/* A4 Printable Page Container */}
-            <div className={styles.a4Page} ref={remunerationPrintRef} style={{ width: '210mm', minHeight: '297mm', background: 'white', padding: '20mm', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
-              <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: '18px', margin: '30px 0' }}>SME REMUNERATION / SANCTION NOTE</h2>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontWeight: 'bold' }}>
-                <div>Submitted</div>
-                <div>{formatDateDot(stageCParams.submissionDate)}</div>
-              </div>
-              <div style={{ textAlign: 'justify', lineHeight: '1.8', fontSize: '14px' }}>
-                Sanction may kindly be accorded for a sum of <strong>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/- (Rupees {stageCParams.amountInWords})</strong> towards the remuneration of <strong>{sme.name || 'Subject Matter Expert'}</strong>, <strong>{sme.designation || 'Designation'}</strong>, <strong>{sme.institute || 'Institution'}, {sme.location || 'Location'}</strong>, who served as the <strong>Guest Expert / Subject Matter Expert (SME)</strong> for the <strong>{stageCParams.programmeName}</strong> for the <strong>{selectedEntry.trade || 'General'}</strong> trades. The <strong>{stageCParams.workTitle}</strong> was successfully conducted and completed at the <strong>{stageCParams.location}</strong>.
-                <br /><br />
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', marginBottom: '20px' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>S. No.</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Name & Designation</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Trade & Organization</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>Total No. of Days</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Remuneration per Day</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Total Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style={{ border: '1px solid #000', padding: '8px' }}>1</td>
-                      <td style={{ border: '1px solid #000', padding: '8px' }}><strong>{sme.name || 'Subject Matter Expert'}</strong><br />{sme.designation || 'Designation'}</td>
-                      <td style={{ border: '1px solid #000', padding: '8px' }}><strong>{selectedEntry.trade || 'General'}</strong> &ndash; {sme.institute || 'Institution'}, {sme.location || 'Location'}</td>
-                      <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>{stageCParams.totalDays} Days</td>
-                      <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Rs. {stageCParams.ratePerDay}/-</td>
-                      <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Rs. {stageCParams.grossAmount.toLocaleString('en-IN')}/-</td>
-                    </tr>
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan={3} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Subtotal (Remuneration):</td>
-                      <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{stageCParams.totalDays} Days</td>
-                      <td style={{ border: '1px solid #000', padding: '8px' }}></td>
-                      <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Rs. {stageCParams.grossAmount.toLocaleString('en-IN')}/-</td>
-                    </tr>
-                    {stageCParams.taAmount > 0 && (
-                      <tr>
-                        <td colSpan={5} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Travelling Allowance (TA):</td>
-                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Rs. {stageCParams.taAmount.toLocaleString('en-IN')}/-</td>
-                      </tr>
-                    )}
-                    {stageCParams.otherAmount > 0 && (
-                      <tr>
-                        <td colSpan={5} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Other Charges:</td>
-                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Rs. {stageCParams.otherAmount.toLocaleString('en-IN')}/-</td>
-                      </tr>
-                    )}
-                    <tr>
-                      <td colSpan={5} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Grand Total:</td>
-                      <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/-</td>
-                    </tr>
-                  </tfoot>
-                </table>
-                <br />
-                If approved, payment of <strong>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/- (Rupees {stageCParams.amountInWords})</strong> may be released to the above Subject Matter Expert from the PM e-Vidya Funds as per the prevailing NCERT norms. The SME engagement approval letter, Work Completion Certificate, and other supporting documents are enclosed separately for kind perusal.
-                <br /><br />
-                Submitted for kind approval, please.
-              </div>
-            </div>
+            {(() => {
+              const currentTrade = (stageCParams.trade || selectedEntry.trade || 'General').trim();
+              const isMultipleTrades = /[,/&;]|\band\b/i.test(currentTrade);
+
+              return (
+                <div className={styles.a4Page} ref={remunerationPrintRef} style={{ width: '210mm', minHeight: '297mm', background: 'white', padding: '20mm', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
+                  <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: '18px', margin: '30px 0' }}>SME REMUNERATION / SANCTION NOTE</h2>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontWeight: 'bold' }}>
+                    <div>Submitted</div>
+                    <div>{formatDateDot(stageCParams.submissionDate)}</div>
+                  </div>
+                  <div style={{ textAlign: 'justify', lineHeight: '1.8', fontSize: '14px' }}>
+                    Sanction may kindly be accorded for a sum of <strong>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/- (Rupees {stageCParams.amountInWords})</strong> towards the remuneration of <strong>{sme.name || 'Subject Matter Expert'}</strong>, <strong>{sme.designation || 'Designation'}</strong>, <strong>{sme.institute || 'Institution'}, {sme.location || 'Location'}</strong>, who served as the <strong>Guest Expert / Subject Matter Expert (SME)</strong> for the <strong>{stageCParams.programmeName}</strong> for the <strong>{currentTrade}</strong> {isMultipleTrades ? 'trades' : 'trade'}. The <strong>{stageCParams.workTitle}</strong> was successfully conducted and completed at the <strong>{stageCParams.location}</strong>.
+                    <br /><br />
+                    <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', marginBottom: '20px' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>S. No.</th>
+                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Name &amp; Designation</th>
+                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Trade &amp; Organization</th>
+                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>Total No. of Days</th>
+                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Remuneration per Day</th>
+                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Total Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td style={{ border: '1px solid #000', padding: '8px' }}>1</td>
+                          <td style={{ border: '1px solid #000', padding: '8px' }}>
+                            <strong>{sme.name || 'Subject Matter Expert'}</strong><br />
+                            {sme.designation || 'Designation'}
+                          </td>
+                          <td style={{ border: '1px solid #000', padding: '8px' }}>
+                            <strong>{currentTrade}</strong> &ndash; {sme.institute || 'Institution'}, {sme.location || 'Location'}
+                          </td>
+                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>
+                            <div style={{ fontWeight: 700 }}>{stageCParams.totalDays} Days</div>
+                            {stageCParams.attendanceSlots && stageCParams.attendanceSlots.length > 0 && (
+                              <div style={{ fontSize: '11px', color: '#475569', marginTop: '4px', lineHeight: '1.4' }}>
+                                {stageCParams.attendanceSlots.map((slot, idx) => (
+                                  <div key={idx}>
+                                    {formatDateDot(slot.startDate)} &ndash; {formatDateDot(slot.endDate)} ({calculateSlotDays(slot.startDate, slot.endDate)}d)
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Rs. {stageCParams.ratePerDay}/-</td>
+                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Rs. {stageCParams.grossAmount.toLocaleString('en-IN')}/-</td>
+                        </tr>
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colSpan={3} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Subtotal (Remuneration):</td>
+                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{stageCParams.totalDays} Days</td>
+                          <td style={{ border: '1px solid #000', padding: '8px' }}></td>
+                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Rs. {stageCParams.grossAmount.toLocaleString('en-IN')}/-</td>
+                        </tr>
+                        <tr>
+                          <td colSpan={5} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Grand Total:</td>
+                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/-</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                    <br />
+                    If approved, payment of <strong>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/- (Rupees {stageCParams.amountInWords})</strong> may be released to the above Subject Matter Expert from the PM e-Vidya Funds as per the prevailing NCERT norms. The SME engagement approval letter, Work Completion Certificate, and other supporting documents are enclosed separately for kind perusal.
+                    <br /><br />
+                    Submitted for kind approval, please.
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

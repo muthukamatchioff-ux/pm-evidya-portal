@@ -20,6 +20,13 @@ export interface StageAParameters {
   signatory: string;
 }
 
+export interface AttendanceSlot {
+  id?: string;
+  startDate: string;
+  endDate: string;
+  days?: number;
+}
+
 export interface StageBParameters {
   programmeName: string;
   workTitle: string;
@@ -27,6 +34,8 @@ export interface StageBParameters {
   startDate: string;
   endDate: string;
   topicsCovered: string;
+  trade?: string;
+  attendanceSlots?: AttendanceSlot[];
   submissionDate: string;
   verifierName: string;
   verifierDesignation: string;
@@ -38,16 +47,18 @@ export interface StageCParameters {
   programmeName: string;
   workTitle: string;
   location: string;
+  trade?: string;
+  attendanceSlots?: AttendanceSlot[];
   totalDays: number;
   ratePerDay: number;
   grossAmount: number;
-  taAmount: number;
-  otherAmount: number;
+  taAmount?: number;
+  otherAmount?: number;
   totalAmount: number;
   amountInWords: string;
   submissionDate: string;
-  verifierName: string;
-  verifierDesignation: string;
+  verifierName?: string;
+  verifierDesignation?: string;
 }
 
 function getEpicId(epicSequence: number): string {
@@ -227,19 +238,31 @@ export async function saveCommunicationsStage(
       // Update primary SMEWorkEntry financial fields
       const days = Number(parameters.totalDays) || workEntry.days || 0;
       const ratePerDay = Number(parameters.ratePerDay) || workEntry.ratePerDay || 0;
-      const taAmount = Number(parameters.taAmount) || 0;
-      const otherAmount = Number(parameters.otherAmount) || 0;
-      const grossAmount = Number(parameters.grossAmount) || (days * ratePerDay);
-      const totalAmount = Number(parameters.totalAmount) || (grossAmount + taAmount + otherAmount);
+      const grossAmount = days * ratePerDay;
+      const totalAmount = grossAmount; // TA Amount & Other Charges removed per user instruction
+
+      const smeWorkUpdate: any = {
+        days,
+        ratePerDay,
+        taAmount: 0,
+        otherAmount: 0,
+      };
+
+      if (parameters.trade && typeof parameters.trade === 'string' && parameters.trade.trim()) {
+        smeWorkUpdate.trade = parameters.trade.trim();
+      }
+
+      if (Array.isArray(parameters.attendanceSlots) && parameters.attendanceSlots.length > 0) {
+        const validSlots = parameters.attendanceSlots.filter((s: any) => s.startDate && s.endDate);
+        if (validSlots.length > 0) {
+          smeWorkUpdate.attendanceFrom = new Date(validSlots[0].startDate);
+          smeWorkUpdate.attendanceTo = new Date(validSlots[validSlots.length - 1].endDate);
+        }
+      }
 
       await prisma.sMEWorkEntry.update({
         where: { id: workEntryId },
-        data: {
-          days,
-          ratePerDay,
-          taAmount,
-          otherAmount,
-        }
+        data: smeWorkUpdate
       });
 
       // Synchronize Payment record
@@ -249,8 +272,8 @@ export async function saveCommunicationsStage(
           where: { id: payments[0].id },
           data: {
             grossAmount,
-            taAmount,
-            otherAmount,
+            taAmount: 0,
+            otherAmount: 0,
             totalAmount,
           }
         });
@@ -259,8 +282,8 @@ export async function saveCommunicationsStage(
           data: {
             workEntryId,
             grossAmount,
-            taAmount,
-            otherAmount,
+            taAmount: 0,
+            otherAmount: 0,
             totalAmount,
             status: 'PENDING'
           }

@@ -404,13 +404,14 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any; rol
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                Assigned Trade
+                Assigned Trade(s) <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>(Multiple trades supported)</span>
               </label>
               <input
                 type="text"
                 value={trade}
                 onChange={e => !isViewer && setTrade(e.target.value)}
                 readOnly={isViewer}
+                placeholder="e.g. AI Programming Assistant, Electrician"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
