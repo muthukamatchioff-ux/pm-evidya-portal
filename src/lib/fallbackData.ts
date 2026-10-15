@@ -1835,7 +1835,47 @@ export const REAL_PM_EVIDYA_SMES = [
             "budgetHeadId": null
           }
         ],
-        "documents": []
+        "documents": [
+          {
+        "id": "cmv91l8mw0001rxp6uz80uuih",
+        "name": "Approval Letter - EPIC-2026-PMeVidya 01",
+        "type": "APPROVAL_LETTER",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g10h00013rxk45rtlf97",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.696Z",
+        "updatedAt": "2026-10-15T04:32:08.696Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8mz0003rxp6jpcmd6iz",
+        "name": "Work Completion Certificate - EPIC-2026-PMeVidya 01",
+        "type": "WORK_COMPLETION",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g10h00013rxk45rtlf97",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.699Z",
+        "updatedAt": "2026-10-15T04:32:08.699Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8n00005rxp6y9ohjk2e",
+        "name": "SME Remuneration Note - EPIC-2026-PMeVidya 01",
+        "type": "PAYMENT_NOTE",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g10h00013rxk45rtlf97",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.701Z",
+        "updatedAt": "2026-10-15T04:32:08.701Z",
+        "projectId": null
+      }
+        ]
       }
     ]
   },
@@ -1883,7 +1923,47 @@ export const REAL_PM_EVIDYA_SMES = [
             "budgetHeadId": null
           }
         ],
-        "documents": []
+        "documents": [
+          {
+        "id": "cmv91l8n50007rxp6y16ddnk5",
+        "name": "Approval Letter - EPIC-2026-PMeVidya 02",
+        "type": "APPROVAL_LETTER",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g10m00043rxkg89gd1xm",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.705Z",
+        "updatedAt": "2026-10-15T04:32:08.705Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8n60009rxp6x9q3w593",
+        "name": "Work Completion Certificate - EPIC-2026-PMeVidya 02",
+        "type": "WORK_COMPLETION",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g10m00043rxkg89gd1xm",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.706Z",
+        "updatedAt": "2026-10-15T04:32:08.706Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8n7000brxp6va2w9caw",
+        "name": "SME Remuneration Note - EPIC-2026-PMeVidya 02",
+        "type": "PAYMENT_NOTE",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g10m00043rxkg89gd1xm",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.708Z",
+        "updatedAt": "2026-10-15T04:32:08.708Z",
+        "projectId": null
+      }
+        ]
       }
     ]
   },
@@ -1931,7 +2011,47 @@ export const REAL_PM_EVIDYA_SMES = [
             "budgetHeadId": null
           }
         ],
-        "documents": []
+        "documents": [
+          {
+        "id": "cmv91l8nb000drxp6oa7xqgct",
+        "name": "Approval Letter - EPIC-2026-PMeVidya 03",
+        "type": "APPROVAL_LETTER",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g10r00073rxkt8wgrbq9",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.712Z",
+        "updatedAt": "2026-10-15T04:32:08.712Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8nc000frxp6iiz800au",
+        "name": "Work Completion Certificate - EPIC-2026-PMeVidya 03",
+        "type": "WORK_COMPLETION",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g10r00073rxkt8wgrbq9",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.712Z",
+        "updatedAt": "2026-10-15T04:32:08.712Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8nd000hrxp64g8krpk7",
+        "name": "SME Remuneration Note - EPIC-2026-PMeVidya 03",
+        "type": "PAYMENT_NOTE",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g10r00073rxkt8wgrbq9",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.713Z",
+        "updatedAt": "2026-10-15T04:32:08.713Z",
+        "projectId": null
+      }
+        ]
       }
     ]
   },
@@ -1979,7 +2099,47 @@ export const REAL_PM_EVIDYA_SMES = [
             "budgetHeadId": null
           }
         ],
-        "documents": []
+        "documents": [
+          {
+        "id": "cmv91l8nh000jrxp6m21cbls1",
+        "name": "Approval Letter - EPIC-2026-PMeVidya 04",
+        "type": "APPROVAL_LETTER",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g10u000a3rxkhpa8vcpz",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.718Z",
+        "updatedAt": "2026-10-15T04:32:08.718Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8ni000lrxp6dkvzyjm9",
+        "name": "Work Completion Certificate - EPIC-2026-PMeVidya 04",
+        "type": "WORK_COMPLETION",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g10u000a3rxkhpa8vcpz",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.719Z",
+        "updatedAt": "2026-10-15T04:32:08.719Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8nj000nrxp6x0c0jhwc",
+        "name": "SME Remuneration Note - EPIC-2026-PMeVidya 04",
+        "type": "PAYMENT_NOTE",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g10u000a3rxkhpa8vcpz",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.720Z",
+        "updatedAt": "2026-10-15T04:32:08.720Z",
+        "projectId": null
+      }
+        ]
       }
     ]
   },
@@ -2027,7 +2187,47 @@ export const REAL_PM_EVIDYA_SMES = [
             "budgetHeadId": null
           }
         ],
-        "documents": []
+        "documents": [
+          {
+        "id": "cmv91l8no000prxp6l3de1c2g",
+        "name": "Approval Letter - EPIC-2026-PMeVidya 05",
+        "type": "APPROVAL_LETTER",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g10x000d3rxkquhd90wg",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.724Z",
+        "updatedAt": "2026-10-15T04:32:08.724Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8np000rrxp6om3bjylv",
+        "name": "Work Completion Certificate - EPIC-2026-PMeVidya 05",
+        "type": "WORK_COMPLETION",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g10x000d3rxkquhd90wg",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.725Z",
+        "updatedAt": "2026-10-15T04:32:08.725Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8np000trxp66wlezjur",
+        "name": "SME Remuneration Note - EPIC-2026-PMeVidya 05",
+        "type": "PAYMENT_NOTE",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g10x000d3rxkquhd90wg",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.726Z",
+        "updatedAt": "2026-10-15T04:32:08.726Z",
+        "projectId": null
+      }
+        ]
       }
     ]
   },
@@ -2075,7 +2275,47 @@ export const REAL_PM_EVIDYA_SMES = [
             "budgetHeadId": null
           }
         ],
-        "documents": []
+        "documents": [
+          {
+        "id": "cmv91l8nt000vrxp6tak1lzt2",
+        "name": "Approval Letter - EPIC-2026-PMeVidya 06",
+        "type": "APPROVAL_LETTER",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g110000g3rxk5xh7yr40",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.729Z",
+        "updatedAt": "2026-10-15T04:32:08.729Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8nu000xrxp6zj7bde0n",
+        "name": "Work Completion Certificate - EPIC-2026-PMeVidya 06",
+        "type": "WORK_COMPLETION",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g110000g3rxk5xh7yr40",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.730Z",
+        "updatedAt": "2026-10-15T04:32:08.730Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8nv000zrxp67msiw6u8",
+        "name": "SME Remuneration Note - EPIC-2026-PMeVidya 06",
+        "type": "PAYMENT_NOTE",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g110000g3rxk5xh7yr40",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.731Z",
+        "updatedAt": "2026-10-15T04:32:08.731Z",
+        "projectId": null
+      }
+        ]
       }
     ]
   },
@@ -2123,7 +2363,47 @@ export const REAL_PM_EVIDYA_SMES = [
             "budgetHeadId": null
           }
         ],
-        "documents": []
+        "documents": [
+          {
+        "id": "cmv91l8nz0011rxp6lpxy45o8",
+        "name": "Approval Letter - EPIC-2026-PMeVidya 07",
+        "type": "APPROVAL_LETTER",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g114000j3rxkns15de3j",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.735Z",
+        "updatedAt": "2026-10-15T04:32:08.735Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8o00013rxp61mp8zavy",
+        "name": "Work Completion Certificate - EPIC-2026-PMeVidya 07",
+        "type": "WORK_COMPLETION",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g114000j3rxkns15de3j",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.736Z",
+        "updatedAt": "2026-10-15T04:32:08.736Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8o10015rxp62ojyynac",
+        "name": "SME Remuneration Note - EPIC-2026-PMeVidya 07",
+        "type": "PAYMENT_NOTE",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g114000j3rxkns15de3j",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.737Z",
+        "updatedAt": "2026-10-15T04:32:08.737Z",
+        "projectId": null
+      }
+        ]
       }
     ]
   },
@@ -2171,7 +2451,47 @@ export const REAL_PM_EVIDYA_SMES = [
             "budgetHeadId": null
           }
         ],
-        "documents": []
+        "documents": [
+          {
+        "id": "cmv91l8o40017rxp6c4z9ybc6",
+        "name": "Approval Letter - EPIC-2026-PMeVidya 08",
+        "type": "APPROVAL_LETTER",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g117000m3rxk9253m9fz",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.741Z",
+        "updatedAt": "2026-10-15T04:32:08.741Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8o60019rxp6oax8mhho",
+        "name": "Work Completion Certificate - EPIC-2026-PMeVidya 08",
+        "type": "WORK_COMPLETION",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g117000m3rxk9253m9fz",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.742Z",
+        "updatedAt": "2026-10-15T04:32:08.742Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8o7001brxp6lse75kmh",
+        "name": "SME Remuneration Note - EPIC-2026-PMeVidya 08",
+        "type": "PAYMENT_NOTE",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g117000m3rxk9253m9fz",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.743Z",
+        "updatedAt": "2026-10-15T04:32:08.743Z",
+        "projectId": null
+      }
+        ]
       }
     ]
   },
@@ -2219,7 +2539,47 @@ export const REAL_PM_EVIDYA_SMES = [
             "budgetHeadId": null
           }
         ],
-        "documents": []
+        "documents": [
+          {
+        "id": "cmv91l8oa001drxp6sf08atge",
+        "name": "Approval Letter - EPIC-2026-PMeVidya 09",
+        "type": "APPROVAL_LETTER",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g11a000p3rxkk8hwebwv",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.747Z",
+        "updatedAt": "2026-10-15T04:32:08.747Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8oc001frxp65o3khwe1",
+        "name": "Work Completion Certificate - EPIC-2026-PMeVidya 09",
+        "type": "WORK_COMPLETION",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g11a000p3rxkk8hwebwv",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.748Z",
+        "updatedAt": "2026-10-15T04:32:08.748Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8od001hrxp6txtoct7v",
+        "name": "SME Remuneration Note - EPIC-2026-PMeVidya 09",
+        "type": "PAYMENT_NOTE",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g11a000p3rxkk8hwebwv",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.749Z",
+        "updatedAt": "2026-10-15T04:32:08.749Z",
+        "projectId": null
+      }
+        ]
       }
     ]
   },
@@ -2267,7 +2627,47 @@ export const REAL_PM_EVIDYA_SMES = [
             "budgetHeadId": null
           }
         ],
-        "documents": []
+        "documents": [
+          {
+        "id": "cmv91l8og001jrxp6qy7vaydy",
+        "name": "Approval Letter - EPIC-2026-PMeVidya 10",
+        "type": "APPROVAL_LETTER",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g11d000s3rxk5u4ur5ja",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.753Z",
+        "updatedAt": "2026-10-15T04:32:08.753Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8oh001lrxp6dtd3ga0d",
+        "name": "Work Completion Certificate - EPIC-2026-PMeVidya 10",
+        "type": "WORK_COMPLETION",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g11d000s3rxk5u4ur5ja",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.754Z",
+        "updatedAt": "2026-10-15T04:32:08.754Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv91l8oi001nrxp61gq6n6f3",
+        "name": "SME Remuneration Note - EPIC-2026-PMeVidya 10",
+        "type": "PAYMENT_NOTE",
+        "status": "GENERATED",
+        "filePath": null,
+        "version": 1,
+        "workEntryId": "cmus2g11d000s3rxk5u4ur5ja",
+        "paymentId": null,
+        "createdAt": "2026-10-15T04:32:08.755Z",
+        "updatedAt": "2026-10-15T04:32:08.755Z",
+        "projectId": null
+      }
+        ]
       }
     ]
   },

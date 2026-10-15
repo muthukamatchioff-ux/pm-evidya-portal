@@ -302,7 +302,22 @@ const createPrismaClient = () => {
               }
 
               if (model === 'SME') {
-                if (operation === 'findMany') return REAL_PM_EVIDYA_SMES;
+                if (operation === 'findMany') {
+                  return (REAL_PM_EVIDYA_SMES as any[]).map(sme => {
+                    const workEntries = (sme.workEntries || []).map((we: any) => {
+                      if (!we.documents || we.documents.length === 0) {
+                        const matchedWe = (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).find(
+                          (e: any) => e.id === we.id || e.epicSequence === we.epicSequence || (e.smeId === sme.id && e.trade === we.trade)
+                        );
+                        if (matchedWe && Array.isArray(matchedWe.documents) && matchedWe.documents.length > 0) {
+                          return { ...we, documents: matchedWe.documents };
+                        }
+                      }
+                      return we;
+                    });
+                    return { ...sme, workEntries };
+                  });
+                }
                 if (operation === 'findUnique' || operation === 'findFirst') {
                   const id = args?.where?.id;
                   if (id) {
@@ -438,7 +453,18 @@ const createPrismaClient = () => {
               if (model === 'Document') {
                 const allDocs: any[] = [];
                 (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).forEach(e => {
-                  if (Array.isArray(e.documents)) allDocs.push(...e.documents);
+                  if (Array.isArray(e.documents)) {
+                    e.documents.forEach((d: any) => {
+                      const sme = e.sme || (REAL_PM_EVIDYA_SMES as any[]).find((s: any) => s.id === e.smeId);
+                      allDocs.push({
+                        ...d,
+                        workEntry: {
+                          ...e,
+                          sme: sme || { name: 'Subject Matter Expert', designation: 'SME', institute: 'NIMI' }
+                        }
+                      });
+                    });
+                  }
                 });
 
                 if (operation === 'findFirst' || operation === 'findUnique') {
@@ -534,20 +560,6 @@ const createPrismaClient = () => {
               const opStr = operation as string;
               const anyArgs = args as any;
 
-              if (model === 'Document') {
-                const allDocs: any[] = [];
-                (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).forEach(e => {
-                  if (Array.isArray(e.documents)) allDocs.push(...e.documents);
-                });
-                if (opStr === 'findUnique' || opStr === 'findFirst') {
-                  const id = anyArgs?.where?.id;
-                  return allDocs.find((d: any) => d.id === id) || null;
-                }
-                if (opStr === 'findMany') {
-                  const { workEntryId } = anyArgs?.where || {};
-                  return allDocs.filter((d: any) => !workEntryId || d.workEntryId === workEntryId);
-                }
-              }
 
               if (model === 'User' && opStr === 'findMany') {
                 return [

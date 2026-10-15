@@ -26,8 +26,17 @@ export async function GET(
 
     const isDownload = request.nextUrl.searchParams.get('download') === '1';
 
-    // 1. If filePath contains an actual uploaded file (Vercel Blob URL or Data URI)
-    if (document.filePath && (document.filePath.startsWith('http') || document.filePath.startsWith('data:'))) {
+    // 1. If document is marked as UPLOADED or has an external file URL / data URI
+    const isUploadedDoc = document.status === 'UPLOADED' || (document.filePath && (document.filePath.startsWith('http') || document.filePath.startsWith('data:')));
+
+    if (isUploadedDoc) {
+      if (!document.filePath) {
+        return new NextResponse(
+          `Uploaded file reference is missing for document "${document.name}" (ID: ${document.id}). No replacement template was generated to protect file identity.`,
+          { status: 404 }
+        );
+      }
+
       try {
         const fileBuffer = await storage.download(document.filePath);
         const ext = document.name.split('.').pop()?.toLowerCase() || 'pdf';
@@ -48,8 +57,12 @@ export async function GET(
             'Content-Disposition': `${disposition}; filename="${document.name}"`,
           },
         });
-      } catch (blobErr) {
-        console.warn('Storage download fallback to document render:', blobErr);
+      } catch (blobErr: any) {
+        console.error('Storage download failed for uploaded document:', document.id, blobErr);
+        return new NextResponse(
+          `The original uploaded file "${document.name}" could not be retrieved from storage (${blobErr?.message || 'Storage error'}). The exact record identity is preserved; no generated template or alternate file was substituted.`,
+          { status: 502 }
+        );
       }
     }
 

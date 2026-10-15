@@ -6,9 +6,10 @@ import styles from './documents.module.css';
 
 interface DocumentClientProps {
   smes: any[];
+  documents?: any[];
 }
 
-export default function DocumentClient({ smes }: DocumentClientProps) {
+export default function DocumentClient({ smes, documents }: DocumentClientProps) {
   const [selectedEpicId, setSelectedEpicId] = useState('');
   const [selectedDocType, setSelectedDocType] = useState('');
   const [previewDoc, setPreviewDoc] = useState<any | null>(null);
@@ -25,34 +26,67 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
     return (type || 'Document').replace(/_/g, ' ');
   };
 
-  // Collect all uploaded documents across all SMEs and work entries
+  // Pre-build index for fast metadata lookups
+  const workEntryMap = useMemo(() => {
+    const map = new Map<string, { entry: any; sme: any }>();
+    smes.forEach(sme => {
+      (sme.workEntries || []).forEach((entry: any) => {
+        map.set(entry.id, { entry, sme });
+      });
+    });
+    return map;
+  }, [smes]);
+
+  // Collect all uploaded documents across all SMEs and direct document queries, deduplicated by doc.id
   const processedDocs = useMemo(() => {
-    const docsList: any[] = [];
+    const docMap = new Map<string, any>();
+
+    const registerDoc = (doc: any, fallbackEntry?: any, fallbackSme?: any) => {
+      if (!doc || !doc.id || docMap.has(doc.id)) return;
+
+      const weInfo = doc.workEntryId ? workEntryMap.get(doc.workEntryId) : null;
+      const entry = doc.workEntry || weInfo?.entry || fallbackEntry;
+      const sme = entry?.sme || weInfo?.sme || fallbackSme;
+
+      const epicSequence = entry?.epicSequence || (doc.workEntry?.epicSequence ?? 1);
+      const friendlyEpicId = getEpicId(epicSequence);
+      const isStoredFile = !!(doc.filePath && (doc.filePath.startsWith('http') || doc.filePath.startsWith('data:')));
+
+      docMap.set(doc.id, {
+        ...doc,
+        smeName: sme?.name || doc.workEntry?.sme?.name || 'Subject Matter Expert',
+        smeDesignation: sme?.designation || doc.workEntry?.sme?.designation || '',
+        smeInstitute: sme?.institute || doc.workEntry?.sme?.institute || 'NIMI Chennai',
+        trade: entry?.trade || doc.workEntry?.trade || 'General',
+        topic: entry?.topic || doc.workEntry?.topic || '',
+        entryId: entry?.id || doc.workEntryId,
+        epicSequence,
+        friendlyEpicId,
+        friendlyDocName: getFriendlyDocName(doc.type, doc.name),
+        hasStoredFile: isStoredFile
+      });
+    };
+
+    // 1. Process documents passed from primary query
+    if (Array.isArray(documents) && documents.length > 0) {
+      documents.forEach(doc => registerDoc(doc));
+    }
+
+    // 2. Also process documents attached to SMEs to guarantee completeness
     smes.forEach(sme => {
       (sme.workEntries || []).forEach((entry: any) => {
         (entry.documents || []).forEach((doc: any) => {
-          docsList.push({
-            ...doc,
-            smeName: sme.name,
-            smeDesignation: sme.designation,
-            smeInstitute: sme.institute || 'NIMI Chennai',
-            trade: entry.trade,
-            topic: entry.topic,
-            entryId: entry.id,
-            epicSequence: entry.epicSequence,
-            friendlyEpicId: getEpicId(entry.epicSequence || 1),
-            friendlyDocName: getFriendlyDocName(doc.type, doc.name)
-          });
+          registerDoc(doc, entry, sme);
         });
       });
     });
-    // Sort by newest first
-    return docsList.sort(
+
+    return Array.from(docMap.values()).sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
-  }, [smes]);
+  }, [smes, documents, workEntryMap]);
 
-  // Extract all unique EPIC IDs registered across all SMEs
+  // Extract all unique EPIC IDs registered across all SMEs and processed documents
   const epicOptions = useMemo(() => {
     const map = new Map<
       string,
@@ -70,6 +104,7 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
     smes.forEach(sme => {
       (sme.workEntries || []).forEach((entry: any) => {
         const epicId = getEpicId(entry.epicSequence || 1);
+        const matchingDocs = processedDocs.filter(d => d.friendlyEpicId === epicId);
         map.set(epicId, {
           epicId,
           smeName: sme.name,
@@ -77,15 +112,31 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
           topic: entry.topic || '',
           institute: sme.institute || 'NIMI Chennai',
           entryId: entry.id,
-          docs: entry.documents || []
+          docs: matchingDocs
         });
       });
+    });
+
+    // Also include any EPIC IDs that exist in processedDocs but might not be in smes array
+    processedDocs.forEach(d => {
+      if (d.friendlyEpicId && !map.has(d.friendlyEpicId)) {
+        const matchingDocs = processedDocs.filter(doc => doc.friendlyEpicId === d.friendlyEpicId);
+        map.set(d.friendlyEpicId, {
+          epicId: d.friendlyEpicId,
+          smeName: d.smeName || 'Subject Matter Expert',
+          trade: d.trade || 'General',
+          topic: d.topic || '',
+          institute: d.smeInstitute || 'NIMI Chennai',
+          entryId: d.entryId || '',
+          docs: matchingDocs
+        });
+      }
     });
 
     return Array.from(map.values()).sort((a, b) =>
       a.epicId.localeCompare(b.epicId, undefined, { numeric: true })
     );
-  }, [smes]);
+  }, [smes, processedDocs]);
 
   // Details for the currently selected EPIC ID (if filtered)
   const selectedEpicDetails = useMemo(() => {
@@ -538,20 +589,61 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
                         })}
                       </td>
                       <td>
-                        <span
-                          style={{
-                            background: '#dcfce7',
-                            color: '#15803d',
-                            padding: '4px 10px',
-                            borderRadius: '9999px',
-                            fontSize: '11.5px',
-                            fontWeight: 700,
-                            letterSpacing: '0.02em',
-                            border: '1px solid #bbf7d0'
-                          }}
-                        >
-                          UPLOADED
-                        </span>
+                        {doc.status === 'UPLOADED' || doc.hasStoredFile ? (
+                          <span
+                            style={{
+                              background: '#dcfce7',
+                              color: '#15803d',
+                              padding: '4px 10px',
+                              borderRadius: '9999px',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              letterSpacing: '0.02em',
+                              border: '1px solid #bbf7d0',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <span>✓</span> UPLOADED
+                          </span>
+                        ) : doc.status === 'SAVED' ? (
+                          <span
+                            style={{
+                              background: '#e0e7ff',
+                              color: '#3730a3',
+                              padding: '4px 10px',
+                              borderRadius: '9999px',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              letterSpacing: '0.02em',
+                              border: '1px solid #c7d2fe',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <span>📝</span> PARAMETERS
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              background: '#fef3c7',
+                              color: '#92400e',
+                              padding: '4px 10px',
+                              borderRadius: '9999px',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              letterSpacing: '0.02em',
+                              border: '1px solid #fde68a',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <span>⚡</span> GENERATED
+                          </span>
+                        )}
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <div
