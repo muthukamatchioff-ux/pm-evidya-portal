@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import UploadButton from './UploadButton';
 
 function numberToWords(num: number): string {
   const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
@@ -54,6 +55,14 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
   const existingApprovalDoc = entryDocuments.find((d: any) => d.type === 'APPROVAL_LETTER');
   const existingCompletionDoc = entryDocuments.find((d: any) => d.type === 'WORK_COMPLETION');
   const existingPaymentDoc = entryDocuments.find((d: any) => d.type === 'PAYMENT_NOTE' || d.type === 'SANCTION_NOTE');
+  const existingAttendanceDoc = entryDocuments.find((d: any) => d.type === 'SME_ATTENDANCE' || d.type === 'ATTENDANCE_COPY');
+
+  const handleDownloadDocument = (tab: 'approval' | 'completion' | 'sanction', ref: React.RefObject<HTMLDivElement | null>, filename: string) => {
+    setActiveTab(tab);
+    setTimeout(() => {
+      generatePDF(ref, filename);
+    }, 150);
+  };
 
   const handleSaveGeneratedDoc = async (type: string, title: string) => {
     setIsGenerating(true);
@@ -245,10 +254,10 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
     <div style={{ display: 'flex', gap: '20px', height: '100%', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button onClick={() => setActiveTab('entry')} style={{ padding: '8px 16px', background: activeTab === 'entry' ? '#1d4ed8' : '#e2e8f0', color: activeTab === 'entry' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>1. Enter All Details</button>
-          <button onClick={() => setActiveTab('approval')} style={{ padding: '8px 16px', background: activeTab === 'approval' ? '#10b981' : '#e2e8f0', color: activeTab === 'approval' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>2. Preview Approval Letter</button>
-          <button onClick={() => setActiveTab('completion')} style={{ padding: '8px 16px', background: activeTab === 'completion' ? '#8b5cf6' : '#e2e8f0', color: activeTab === 'completion' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>3. Preview Work Completion</button>
-          <button onClick={() => setActiveTab('sanction')} style={{ padding: '8px 16px', background: activeTab === 'sanction' ? '#f59e0b' : '#e2e8f0', color: activeTab === 'sanction' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>4. Preview Payment Note</button>
+          <button onClick={() => setActiveTab('entry')} style={{ padding: '8px 16px', background: activeTab === 'entry' ? '#1d4ed8' : '#e2e8f0', color: activeTab === 'entry' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>1. Master Details & Documents</button>
+          <button onClick={() => setActiveTab('approval')} style={{ padding: '8px 16px', background: activeTab === 'approval' ? '#10b981' : '#e2e8f0', color: activeTab === 'approval' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>2. Approval Letter</button>
+          <button onClick={() => setActiveTab('completion')} style={{ padding: '8px 16px', background: activeTab === 'completion' ? '#8b5cf6' : '#e2e8f0', color: activeTab === 'completion' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>3. Work Completion Certificate</button>
+          <button onClick={() => setActiveTab('sanction')} style={{ padding: '8px 16px', background: activeTab === 'sanction' ? '#f59e0b' : '#e2e8f0', color: activeTab === 'sanction' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>4. SME Remuneration Note</button>
         </div>
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -325,6 +334,456 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
                     🔒 Master Details Read-Only
                   </span>
                 )}
+              </div>
+            </div>
+            
+            {/* OFFICIAL DOCUMENTS & CERTIFICATES CARD */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1.5px solid #e2e8f0',
+              borderRadius: '8px',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', color: '#0f172a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>📁</span> Official Engagement Documents & Certificates
+                  </h3>
+                  <p style={{ margin: '3px 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                    Preview, generate, download, or upload the official records for {smeName} ({trades[0]?.tradeName || 'SME Assignment'})
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <span style={{ fontSize: '12px', background: '#e0f2fe', color: '#0369a1', fontWeight: 600, padding: '4px 10px', borderRadius: '999px', border: '1px solid #bae6fd' }}>
+                    3 Official Documents Active
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {/* 1. Approval Letter */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: 'white',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  padding: '12px 16px',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '260px' }}>
+                    <span style={{ fontSize: '24px' }}>📄</span>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b' }}>
+                        1. Approval Letter
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748b' }}>
+                        Formal deputation & shoot invitation order issued by NIMI
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      background: existingApprovalDoc ? '#dcfce7' : '#f1f5f9',
+                      color: existingApprovalDoc ? '#166534' : '#475569',
+                      border: existingApprovalDoc ? '1px solid #bbf7d0' : '1px solid #e2e8f0'
+                    }}>
+                      {existingApprovalDoc?.filePath ? '✓ Uploaded File' : existingApprovalDoc ? '✓ Generated Record' : '✓ Template Ready'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('approval')}
+                      style={{
+                        background: '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        padding: '6px 12px',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                      title="Preview live Approval Letter"
+                    >
+                      👁️ Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadDocument('approval', approvalRef, 'Approval_Letter')}
+                      disabled={isGenerating}
+                      style={{
+                        background: '#047857',
+                        color: 'white',
+                        border: 'none',
+                        padding: '6px 12px',
+                        borderRadius: '4px',
+                        cursor: isGenerating ? 'not-allowed' : 'pointer',
+                        fontWeight: 600,
+                        fontSize: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                      title="Download Approval Letter as PDF"
+                    >
+                      📥 Download PDF
+                    </button>
+                    {existingApprovalDoc?.filePath && (
+                      <a
+                        href={existingApprovalDoc.filePath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          background: '#f8fafc',
+                          color: '#0369a1',
+                          border: '1px solid #cbd5e1',
+                          padding: '6px 12px',
+                          borderRadius: '4px',
+                          textDecoration: 'none',
+                          fontWeight: 600,
+                          fontSize: '12px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        🔗 Open File
+                      </a>
+                    )}
+                    <UploadButton
+                      smeId={sme.id}
+                      workEntryId={entry.id}
+                      type="APPROVAL_LETTER"
+                      label="📤 Upload Signed Copy"
+                      style={{
+                        background: '#ffffff',
+                        color: '#334155',
+                        border: '1px solid #cbd5e1',
+                        padding: '6px 12px',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        fontWeight: 600
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* 2. Work Completion Certificate */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: 'white',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  padding: '12px 16px',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '260px' }}>
+                    <span style={{ fontSize: '24px' }}>📜</span>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b' }}>
+                        2. Work Completion Certificate
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748b' }}>
+                        Certification of recorded sessions, topic delivery, and academic verification
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      background: existingCompletionDoc ? '#f3e8ff' : '#f1f5f9',
+                      color: existingCompletionDoc ? '#7e22ce' : '#475569',
+                      border: existingCompletionDoc ? '1px solid #e9d5ff' : '1px solid #e2e8f0'
+                    }}>
+                      {existingCompletionDoc?.filePath ? '✓ Uploaded File' : existingCompletionDoc ? '✓ Generated Record' : '✓ Template Ready'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('completion')}
+                      style={{
+                        background: '#8b5cf6',
+                        color: 'white',
+                        border: 'none',
+                        padding: '6px 12px',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                      title="Preview live Work Completion Certificate"
+                    >
+                      👁️ Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadDocument('completion', completionRef, 'Work_Completion')}
+                      disabled={isGenerating}
+                      style={{
+                        background: '#6d28d9',
+                        color: 'white',
+                        border: 'none',
+                        padding: '6px 12px',
+                        borderRadius: '4px',
+                        cursor: isGenerating ? 'not-allowed' : 'pointer',
+                        fontWeight: 600,
+                        fontSize: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                      title="Download Work Completion as PDF"
+                    >
+                      📥 Download PDF
+                    </button>
+                    {existingCompletionDoc?.filePath && (
+                      <a
+                        href={existingCompletionDoc.filePath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          background: '#f8fafc',
+                          color: '#0369a1',
+                          border: '1px solid #cbd5e1',
+                          padding: '6px 12px',
+                          borderRadius: '4px',
+                          textDecoration: 'none',
+                          fontWeight: 600,
+                          fontSize: '12px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        🔗 Open File
+                      </a>
+                    )}
+                    <UploadButton
+                      smeId={sme.id}
+                      workEntryId={entry.id}
+                      type="WORK_COMPLETION"
+                      label="📤 Upload Signed Copy"
+                      style={{
+                        background: '#ffffff',
+                        color: '#334155',
+                        border: '1px solid #cbd5e1',
+                        padding: '6px 12px',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        fontWeight: 600
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* 3. SME Remuneration Note */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: 'white',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  padding: '12px 16px',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '260px' }}>
+                    <span style={{ fontSize: '24px' }}>💰</span>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b' }}>
+                        3. SME Remuneration Note
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748b' }}>
+                        Official Sanction Note for release of honorarium and TA under PM e-Vidya funds
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      background: existingPaymentDoc ? '#fef3c7' : '#f1f5f9',
+                      color: existingPaymentDoc ? '#92400e' : '#475569',
+                      border: existingPaymentDoc ? '1px solid #fde68a' : '1px solid #e2e8f0'
+                    }}>
+                      {existingPaymentDoc?.filePath ? '✓ Uploaded File' : existingPaymentDoc ? '✓ Generated Record' : '✓ Template Ready'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('sanction')}
+                      style={{
+                        background: '#f59e0b',
+                        color: 'white',
+                        border: 'none',
+                        padding: '6px 12px',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                      title="Preview live SME Remuneration Note"
+                    >
+                      👁️ Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadDocument('sanction', sanctionRef, 'Payment_Note')}
+                      disabled={isGenerating}
+                      style={{
+                        background: '#b45309',
+                        color: 'white',
+                        border: 'none',
+                        padding: '6px 12px',
+                        borderRadius: '4px',
+                        cursor: isGenerating ? 'not-allowed' : 'pointer',
+                        fontWeight: 600,
+                        fontSize: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                      title="Download Remuneration Note as PDF"
+                    >
+                      📥 Download PDF
+                    </button>
+                    {existingPaymentDoc?.filePath && (
+                      <a
+                        href={existingPaymentDoc.filePath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          background: '#f8fafc',
+                          color: '#0369a1',
+                          border: '1px solid #cbd5e1',
+                          padding: '6px 12px',
+                          borderRadius: '4px',
+                          textDecoration: 'none',
+                          fontWeight: 600,
+                          fontSize: '12px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        🔗 Open File
+                      </a>
+                    )}
+                    <UploadButton
+                      smeId={sme.id}
+                      workEntryId={entry.id}
+                      type="PAYMENT_NOTE"
+                      label="📤 Upload Signed Copy"
+                      style={{
+                        background: '#ffffff',
+                        color: '#334155',
+                        border: '1px solid #cbd5e1',
+                        padding: '6px 12px',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        fontWeight: 600
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* 4. Attendance Copy */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: 'white',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '6px',
+                  padding: '10px 16px',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '260px' }}>
+                    <span style={{ fontSize: '22px' }}>📋</span>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '13px', color: '#334155' }}>
+                        4. Attendance Copy
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                        Daily studio / classroom shooting attendance sheet
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      background: existingAttendanceDoc ? '#dcfce7' : '#fff7ed',
+                      color: existingAttendanceDoc ? '#166534' : '#c2410c',
+                      border: existingAttendanceDoc ? '1px solid #bbf7d0' : '1px solid #fed7aa'
+                    }}>
+                      {existingAttendanceDoc ? '✓ Uploaded' : '⚠️ Missing File'}
+                    </span>
+                    {existingAttendanceDoc?.filePath && (
+                      <a
+                        href={existingAttendanceDoc.filePath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          background: '#f8fafc',
+                          color: '#0369a1',
+                          border: '1px solid #cbd5e1',
+                          padding: '6px 12px',
+                          borderRadius: '4px',
+                          textDecoration: 'none',
+                          fontWeight: 600,
+                          fontSize: '12px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        🔗 View Attendance
+                      </a>
+                    )}
+                    <UploadButton
+                      smeId={sme.id}
+                      workEntryId={entry.id}
+                      type="SME_ATTENDANCE"
+                      label="📤 Upload Attendance"
+                      style={{
+                        background: '#ffffff',
+                        color: '#334155',
+                        border: '1px solid #cbd5e1',
+                        padding: '6px 12px',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        fontWeight: 600
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -474,7 +933,25 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2>Approval Letter Preview</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setActiveTab('entry')}
+                style={{
+                  background: '#f1f5f9',
+                  color: '#475569',
+                  border: '1px solid #cbd5e1',
+                  padding: '8px 14px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '13px'
+                }}
+              >
+                ← Back to Master Details & Documents
+              </button>
+              <h2 style={{ margin: 0 }}>Approval Letter Preview</h2>
+            </div>
             <div style={{ display: 'flex', gap: '10px' }}>
               {!isViewer && (
                 <button 
@@ -574,7 +1051,25 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2>Work Completion Preview</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setActiveTab('entry')}
+                style={{
+                  background: '#f1f5f9',
+                  color: '#475569',
+                  border: '1px solid #cbd5e1',
+                  padding: '8px 14px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '13px'
+                }}
+              >
+                ← Back to Master Details & Documents
+              </button>
+              <h2 style={{ margin: 0 }}>Work Completion Certificate Preview</h2>
+            </div>
             <div style={{ display: 'flex', gap: '10px' }}>
               {!isViewer && (
                 <button 
@@ -709,7 +1204,25 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any, rol
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2>Payment Note Preview</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setActiveTab('entry')}
+                style={{
+                  background: '#f1f5f9',
+                  color: '#475569',
+                  border: '1px solid #cbd5e1',
+                  padding: '8px 14px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '13px'
+                }}
+              >
+                ← Back to Master Details & Documents
+              </button>
+              <h2 style={{ margin: 0 }}>SME Remuneration Note Preview</h2>
+            </div>
             <div style={{ display: 'flex', gap: '10px' }}>
               {!isViewer && (
                 <button 

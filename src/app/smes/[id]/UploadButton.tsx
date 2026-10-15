@@ -4,7 +4,21 @@ import React, { useRef, useState } from 'react';
 import { uploadDocument } from './actions';
 import styles from './smeProfile.module.css';
 
-export default function UploadButton({ smeId, workEntryId, type }: { smeId: string, workEntryId: string, type: string }) {
+export default function UploadButton({ 
+  smeId, 
+  workEntryId, 
+  type,
+  label = 'Upload',
+  style,
+  onUploaded
+}: { 
+  smeId: string; 
+  workEntryId: string; 
+  type: string;
+  label?: string;
+  style?: React.CSSProperties;
+  onUploaded?: (doc: any) => void;
+}) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
 
@@ -21,6 +35,13 @@ export default function UploadButton({ smeId, workEntryId, type }: { smeId: stri
     
     if (!result.success) {
       alert(`Upload failed: ${result.error}`);
+    } else {
+      alert(`✅ ${file.name} uploaded successfully!`);
+      if (onUploaded && result.document) {
+        onUploaded(result.document);
+      } else {
+        window.location.reload();
+      }
     }
     
     // Reset input
@@ -42,8 +63,9 @@ export default function UploadButton({ smeId, workEntryId, type }: { smeId: stri
         className={styles.btnAction} 
         onClick={() => fileInputRef.current?.click()}
         disabled={loading}
+        style={style}
       >
-        {loading ? 'Uploading...' : 'Upload'}
+        {loading ? 'Uploading...' : label}
       </button>
     </>
   );
