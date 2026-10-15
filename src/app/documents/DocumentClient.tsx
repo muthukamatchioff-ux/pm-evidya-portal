@@ -148,7 +148,7 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
 
   const openPreview = (doc: any) => {
     const fileUrl =
-      doc.filePath?.startsWith('http') || doc.filePath?.startsWith('data:')
+      doc.filePath?.startsWith('data:')
         ? doc.filePath
         : `/api/documents/${doc.id}`;
     setPreviewDoc({ ...doc, previewUrl: fileUrl });
@@ -445,9 +445,9 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
               ) : (
                 filteredDocs.map(doc => {
                   const downloadHref =
-                    doc.filePath?.startsWith('http') || doc.filePath?.startsWith('data:')
+                    doc.filePath?.startsWith('data:')
                       ? doc.filePath
-                      : `/api/documents/${doc.id}`;
+                      : `/api/documents/${doc.id}?download=1`;
 
                   return (
                     <tr key={doc.id}>
@@ -631,7 +631,7 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
               }}
             >
               <a
-                href={previewDoc.previewUrl}
+                href={previewDoc.filePath?.startsWith('data:') ? previewDoc.previewUrl : `/api/documents/${previewDoc.id}?download=1`}
                 download={previewDoc.name}
                 className={styles.btnDownload}
                 target="_blank"

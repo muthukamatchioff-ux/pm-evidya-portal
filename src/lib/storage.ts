@@ -36,14 +36,24 @@ export class VercelBlobStorageProvider implements StorageProvider {
     }
 
     try {
-      if (!blobToken) throw new Error('No token');
-      const pathname = new URL(key).pathname.slice(1);
-      const result = await get(pathname, {
-        access: 'private',
-        token: blobToken,
-      });
+      const token = process.env.BLOB_READ_WRITE_TOKEN || blobToken;
+      if (!token) throw new Error('No token configured');
 
-      if (!result) {
+      let result = null;
+      try {
+        result = await get(key, {
+          access: 'private',
+          token,
+        });
+      } catch (e) {
+        const pathname = new URL(key).pathname.slice(1);
+        result = await get(pathname, {
+          access: 'private',
+          token,
+        });
+      }
+
+      if (!result || !result.stream) {
         throw new Error('Blob not found');
       }
 

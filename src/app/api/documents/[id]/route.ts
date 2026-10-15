@@ -30,10 +30,10 @@ export async function GET(
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     if (ext === 'doc') contentType = 'application/msword';
 
-    const disposition =
-      ext === 'pdf' || ext === 'jpg' || ext === 'jpeg' || ext === 'png'
-        ? 'inline'
-        : 'attachment';
+    const isDownload = request.nextUrl.searchParams.get('download') === '1';
+    const disposition = isDownload
+      ? 'attachment'
+      : (ext === 'pdf' || ext === 'jpg' || ext === 'jpeg' || ext === 'png' ? 'inline' : 'attachment');
 
     return new NextResponse(fileBuffer as any, {
       headers: {

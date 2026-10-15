@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import styles from './Sidebar.module.css';
@@ -17,7 +17,7 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { name: 'Dashboard', path: '/dashboard', icon: '📊', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER'] },
   
-  { isHeader: true, name: 'Core Modules' },
+  { isHeader: true, name: 'Core Modules', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR'] },
   { name: 'SME Records', path: '/smes', icon: '👨‍🏫', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER'] },
   { name: 'Video Production Tracker', path: '/video-production', icon: '🎬', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR'] },
   { name: 'Video Content Library', path: '/content', icon: '📼', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR'] },
@@ -27,7 +27,7 @@ const menuItems: MenuItem[] = [
   { isHeader: true, name: 'Communications', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER'] },
   { name: 'SME Document Workflow', path: '/generator/deputation', icon: '✉️', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER'] },
   
-  { isHeader: true, name: 'System' },
+  { isHeader: true, name: 'System', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR'] },
   { name: 'Reports', path: '/reports', icon: '📈', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR'] },
   { name: 'Legacy Data', path: '/legacy', icon: '🗄️', allowedRoles: ['ADMIN'] },
   { name: 'Settings', path: '/settings', icon: '⚙️', allowedRoles: ['ADMIN'] }
@@ -37,6 +37,28 @@ export default function SidebarClient({ role, email }: { role: string, email: st
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const normalizedRole = (role || 'VIEWER').toUpperCase().trim();
+
+  // Filter items matching role
+  const renderedItems = useMemo(() => {
+    const roleFiltered = menuItems.filter(item => {
+      if (item.allowedRoles && !item.allowedRoles.includes(normalizedRole)) {
+        return false;
+      }
+      return true;
+    });
+
+    // Remove any section header that has no visible items beneath it
+    return roleFiltered.filter((item, idx) => {
+      if (!item.isHeader) return true;
+      for (let i = idx + 1; i < roleFiltered.length; i++) {
+        if (!roleFiltered[i].isHeader) return true;
+        break;
+      }
+      return false;
+    });
+  }, [normalizedRole]);
 
   useEffect(() => {
     const handler = () => setMobileOpen(prev => !prev);
@@ -77,7 +99,7 @@ export default function SidebarClient({ role, email }: { role: string, email: st
         </div>
         
         <nav className={styles.nav}>
-          {menuItems.filter(item => !item.allowedRoles || item.allowedRoles.includes(role)).map((item, index) => {
+          {renderedItems.map((item, index) => {
             if (item.isHeader) {
               return (
                 <div 

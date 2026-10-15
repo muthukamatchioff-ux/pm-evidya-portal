@@ -59,12 +59,13 @@ const getDbUrl = () => {
 
 const createPrismaClient = () => {
   const dbUrl = getDbUrl();
-  if (dbUrl) {
-    process.env.DATABASE_URL = dbUrl;
-  }
+  const DUMMY_URL = 'postgresql://dummy:dummy@localhost:5432/pm_evidya_preview?schema=public';
+  const effectiveUrl = dbUrl || (process.env.DATABASE_URL && (process.env.DATABASE_URL.startsWith('postgresql://') || process.env.DATABASE_URL.startsWith('postgres://')) ? process.env.DATABASE_URL : DUMMY_URL);
+  process.env.DATABASE_URL = effectiveUrl;
+
   const client = new PrismaClient({
     log: process.env.NODE_ENV === 'production' ? ['error', 'warn'] : ['query'],
-    ...(dbUrl ? { datasources: { db: { url: dbUrl } } } : {})
+    datasources: { db: { url: effectiveUrl } }
   });
 
   // Attach an extension to safely catch database connection failures and return authentic PM e-Vidya data
@@ -496,15 +497,42 @@ const createPrismaClient = () => {
                 }
               }
 
-              if (model === 'User' && operation === 'findMany') {
+              const opStr = operation as string;
+              const anyArgs = args as any;
+
+              if (model === 'Document') {
+                const allDocs: any[] = [];
+                (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).forEach(e => {
+                  if (Array.isArray(e.documents)) allDocs.push(...e.documents);
+                });
+                if (opStr === 'findUnique' || opStr === 'findFirst') {
+                  const id = anyArgs?.where?.id;
+                  return allDocs.find((d: any) => d.id === id) || null;
+                }
+                if (opStr === 'findMany') {
+                  const { workEntryId } = anyArgs?.where || {};
+                  return allDocs.filter((d: any) => !workEntryId || d.workEntryId === workEntryId);
+                }
+              }
+
+              if (model === 'User' && opStr === 'findMany') {
                 return [
-                  { id: 'user-1', name: 'System Administrator', email: 'admin@pm-evidya.gov.in', role: 'ADMIN', status: 'ACTIVE', department: 'IT', designation: 'Head of IT' },
-                  { id: 'user-2', name: 'Nodal Officer', email: 'nodal@pm-evidya.gov.in', role: 'TEAM_MEMBER', status: 'ACTIVE', department: 'Operations', designation: 'Project Manager' }
+                  { id: 'user-admin', name: 'Administrator', email: 'muthukamatchi.off@gmail.com', role: 'ADMIN', status: 'ACTIVE', department: 'IT', designation: 'Admin' }
                 ];
               }
 
-              if (model === 'User' && (operation === 'findUnique' || operation === 'findFirst')) {
-                return { id: 'user-1', name: 'System Administrator', email: 'admin@pm-evidya.gov.in', role: 'ADMIN', status: 'ACTIVE', department: 'IT', designation: 'Head of IT' };
+              if (model === 'User' && (opStr === 'findUnique' || opStr === 'findFirst')) {
+                const rawEmail = typeof anyArgs?.where?.email === 'string' ? anyArgs.where.email : '';
+                const searchEmail = rawEmail.toLowerCase().trim();
+                const ADMIN_EMAILS = [
+                  'muthukamatchi.off@gmail.com',
+                  'harshitharaman.nimi@gmail.com',
+                  'harshitharamannimi@gmail.com'
+                ];
+                if (ADMIN_EMAILS.includes(searchEmail)) {
+                  return { id: 'admin-user', name: 'Administrator', email: searchEmail, role: 'ADMIN', status: 'ACTIVE', department: 'IT', designation: 'Admin' };
+                }
+                return null;
               }
 
               // Return safe values based on the operation type to prevent 500 crashes

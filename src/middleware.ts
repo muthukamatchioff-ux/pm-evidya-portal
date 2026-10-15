@@ -60,15 +60,11 @@ export async function middleware(request: NextRequest) {
   const strictAdminRoutes = [
     '/accounts', 
     '/legacy', 
-    '/settings',
-    '/smes',
-    '/production',
-    '/projects',
-    '/templates',
-    '/generator/sme-engagement'
+    '/settings'
   ];
   const isStrictAdminRoute = strictAdminRoutes.some(route => pathname.startsWith(route));
-  if (isStrictAdminRoute && role !== 'ADMIN') {
+  const normalizedRole = (role || '').toUpperCase().trim();
+  if (isStrictAdminRoute && normalizedRole !== 'ADMIN') {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
