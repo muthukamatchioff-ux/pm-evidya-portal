@@ -447,9 +447,44 @@ export async function getComponent6Data() {
 export async function addAnnexureVIEntry(data: any) {
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
-  const total = (Number(data.amount) || 0) + (Number(data.tax) || 0);
-  await prisma.annexureVI.create({ data: { ...data, totalExpenditure: total } });
-  revalidatePath('/dashboard'); revalidatePath('/budget/annexure-6');
+  const amount = Number(data.amount) || 0;
+  const tax = Number(data.tax) || 0;
+  const total = amount + tax;
+
+  try {
+    const entry = await prisma.annexureVI.create({
+      data: {
+        budgetComponentId: data.budgetComponentId,
+        datePeriod: data.datePeriod || '',
+        platform: data.platform || '',
+        campaignDesc: data.campaignDesc || '',
+        serviceProvider: data.serviceProvider || '',
+        campaignType: data.campaignType || '',
+        amount,
+        tax,
+        totalExpenditure: total,
+        utrNumber: data.utrNumber || '',
+        remarks: data.remarks || '',
+        verificationStatus: 'DRAFT',
+      }
+    });
+
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'ADD_ANNEXURE_VI_ENTRY',
+      entity: 'AnnexureVI',
+      entityId: entry?.id || 'new',
+      newData: `Added Annexure-VI entry for ${data.platform || data.campaignDesc} - ₹${total}`,
+      userEmail
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/budget/annexure-6');
+    return { success: true, data: entry };
+  } catch (err: any) {
+    console.error('Failed to add Annexure-VI entry:', err);
+    return { success: false, error: err.message || 'Failed to add entry' };
+  }
 }
 
 export async function updateAnnexureIIIEntry(id: string, data: any) {
@@ -544,9 +579,70 @@ export async function updateAnnexureVEntry(id: string, data: any) {
 export async function updateAnnexureVIEntry(id: string, data: any) {
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
-  const total = (Number(data.amount) || 0) + (Number(data.tax) || 0);
-  await prisma.annexureVI.update({ where: { id }, data: { ...data, totalExpenditure: total } });
-  revalidatePath('/dashboard'); revalidatePath('/budget/annexure-6');
+  const amount = Number(data.amount) || 0;
+  const tax = Number(data.tax) || 0;
+  const total = amount + tax;
+
+  try {
+    const updateData: any = {
+      amount,
+      tax,
+      totalExpenditure: total,
+    };
+    if (data.datePeriod !== undefined) updateData.datePeriod = data.datePeriod || '';
+    if (data.platform !== undefined) updateData.platform = data.platform || '';
+    if (data.campaignDesc !== undefined) updateData.campaignDesc = data.campaignDesc || '';
+    if (data.serviceProvider !== undefined) updateData.serviceProvider = data.serviceProvider || '';
+    if (data.campaignType !== undefined) updateData.campaignType = data.campaignType || '';
+    if (data.utrNumber !== undefined) updateData.utrNumber = data.utrNumber || '';
+    if (data.remarks !== undefined) updateData.remarks = data.remarks || '';
+
+    const entry = await prisma.annexureVI.update({
+      where: { id },
+      data: updateData
+    });
+
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'UPDATE_ANNEXURE_VI_ENTRY',
+      entity: 'AnnexureVI',
+      entityId: id,
+      newData: `Updated Annexure-VI entry for ${entry.platform || id} - ₹${total}`,
+      userEmail
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/budget/annexure-6');
+    return { success: true, data: entry };
+  } catch (err: any) {
+    console.error('Failed to update Annexure-VI entry:', err);
+    return { success: false, error: err.message || 'Failed to update entry' };
+  }
+}
+
+export async function deleteAnnexureVIEntry(id: string) {
+  const authCheck = await checkAuth(['ADMIN']);
+  if (!authCheck.success) return authCheck;
+
+  try {
+    const entry = await prisma.annexureVI.delete({ where: { id } });
+
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'DELETE_ANNEXURE_VI_ENTRY',
+      entity: 'AnnexureVI',
+      entityId: id,
+      newData: `Deleted Annexure-VI entry: ${entry.platform || id}`,
+      userEmail
+    });
+
+    revalidatePath('/dashboard');
+    revalidatePath('/budget/annexure-6');
+    return { success: true };
+  } catch (err: any) {
+    console.error('Failed to delete Annexure-VI entry:', err);
+    return { success: false, error: err.message || 'Failed to delete entry' };
+  }
 }
 
 // Legacy exports to satisfy BudgetClient.tsx compiler errors

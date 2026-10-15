@@ -159,20 +159,108 @@ const createPrismaClient = () => {
                 }
               }
 
-              if (model === 'AnnexureIII' && operation === 'findMany') {
-                return REAL_PM_EVIDYA_BUDGET_COMPONENTS[2]?.annexureIII || [];
+              if (model === 'AnnexureIII') {
+                const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[2]?.annexureIII || []) as any[];
+                if (operation === 'findMany') return list;
+                if (operation === 'findUnique' || operation === 'findFirst') {
+                  return list.find((x: any) => x.id === args?.where?.id) || null;
+                }
+                if (operation === 'create') {
+                  const newItem = { id: `aiii-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+                  list.push(newItem);
+                  return newItem;
+                }
+                if (operation === 'update') {
+                  const idx = list.findIndex((x: any) => x.id === args?.where?.id);
+                  if (idx !== -1) {
+                    list[idx] = { ...list[idx], ...args?.data, updatedAt: new Date().toISOString() };
+                    return list[idx];
+                  }
+                  return { ...args?.data, id: args?.where?.id };
+                }
+                if (operation === 'delete') {
+                  const idx = list.findIndex((x: any) => x.id === args?.where?.id);
+                  if (idx !== -1) return list.splice(idx, 1)[0];
+                  return { id: args?.where?.id };
+                }
               }
 
-              if (model === 'AnnexureIV' && operation === 'findMany') {
-                return REAL_PM_EVIDYA_BUDGET_COMPONENTS[3]?.annexureIV || [];
+              if (model === 'AnnexureIV') {
+                const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[3]?.annexureIV || []) as any[];
+                if (operation === 'findMany') return list;
+                if (operation === 'findUnique' || operation === 'findFirst') {
+                  return list.find((x: any) => x.id === args?.where?.id) || null;
+                }
+                if (operation === 'create') {
+                  const newItem = { id: `aiv-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+                  list.push(newItem);
+                  return newItem;
+                }
+                if (operation === 'update') {
+                  const idx = list.findIndex((x: any) => x.id === args?.where?.id);
+                  if (idx !== -1) {
+                    list[idx] = { ...list[idx], ...args?.data, updatedAt: new Date().toISOString() };
+                    return list[idx];
+                  }
+                  return { ...args?.data, id: args?.where?.id };
+                }
+                if (operation === 'delete') {
+                  const idx = list.findIndex((x: any) => x.id === args?.where?.id);
+                  if (idx !== -1) return list.splice(idx, 1)[0];
+                  return { id: args?.where?.id };
+                }
               }
 
-              if (model === 'AnnexureV' && operation === 'findMany') {
-                return REAL_PM_EVIDYA_BUDGET_COMPONENTS[4]?.annexureV || [];
+              if (model === 'AnnexureV') {
+                const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[4]?.annexureV || []) as any[];
+                if (operation === 'findMany') return list;
+                if (operation === 'findUnique' || operation === 'findFirst') {
+                  return list.find((x: any) => x.id === args?.where?.id) || null;
+                }
+                if (operation === 'create') {
+                  const newItem = { id: `av-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+                  list.push(newItem);
+                  return newItem;
+                }
+                if (operation === 'update') {
+                  const idx = list.findIndex((x: any) => x.id === args?.where?.id);
+                  if (idx !== -1) {
+                    list[idx] = { ...list[idx], ...args?.data, updatedAt: new Date().toISOString() };
+                    return list[idx];
+                  }
+                  return { ...args?.data, id: args?.where?.id };
+                }
+                if (operation === 'delete') {
+                  const idx = list.findIndex((x: any) => x.id === args?.where?.id);
+                  if (idx !== -1) return list.splice(idx, 1)[0];
+                  return { id: args?.where?.id };
+                }
               }
 
-              if (model === 'AnnexureVI' && operation === 'findMany') {
-                return REAL_PM_EVIDYA_BUDGET_COMPONENTS[5]?.annexureVI || [];
+              if (model === 'AnnexureVI') {
+                const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[5]?.annexureVI || []) as any[];
+                if (operation === 'findMany') return list;
+                if (operation === 'findUnique' || operation === 'findFirst') {
+                  return list.find((x: any) => x.id === args?.where?.id) || null;
+                }
+                if (operation === 'create') {
+                  const newItem = { id: `avi-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+                  list.push(newItem);
+                  return newItem;
+                }
+                if (operation === 'update') {
+                  const idx = list.findIndex((x: any) => x.id === args?.where?.id);
+                  if (idx !== -1) {
+                    list[idx] = { ...list[idx], ...args?.data, updatedAt: new Date().toISOString() };
+                    return list[idx];
+                  }
+                  return { ...args?.data, id: args?.where?.id };
+                }
+                if (operation === 'delete') {
+                  const idx = list.findIndex((x: any) => x.id === args?.where?.id);
+                  if (idx !== -1) return list.splice(idx, 1)[0];
+                  return { id: args?.where?.id, platform: 'Entry' };
+                }
               }
 
               if (model === 'SME') {
