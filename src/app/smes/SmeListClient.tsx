@@ -277,17 +277,25 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
                           className={styles.actionsGroup}
                           style={{ justifyContent: 'flex-end' }}
                         >
+                          {/* Direct link to SME Document Workflow */}
+                          <Link
+                            href={`/generator/deputation?epicId=${getEpicId(entry.epicSequence || 1)}`}
+                            className={styles.btnEdit}
+                            style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            title="Open SME Document Workflow for this Epic ID"
+                          >
+                            ✉️ Documents
+                          </Link>
+
                           {role === 'ADMIN' ? (
                             <>
-                              {/* Existing Edit Button: Points to exact same route /smes/${entry.smeId} */}
                               <Link
                                 href={`/smes/${entry.smeId}`}
                                 className={styles.btnEdit}
-                                title="Edit SME details and documents"
+                                title="Edit SME details"
                               >
                                 ✏️ Edit
                               </Link>
-                              {/* Existing Delete Button */}
                               <button
                                 onClick={() =>
                                   handleDelete(entry.id, entry.sme?.name, entry.trade)

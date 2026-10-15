@@ -108,6 +108,7 @@ export async function updateSMERecord(smeId: string, entryId: string | undefined
         designation: data.smeDesignation,
         institute: data.smeInst,
         location: data.smePlace,
+        address: data.smeAddress !== undefined ? data.smeAddress : undefined,
       } as any
     });
 

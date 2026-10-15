@@ -972,8 +972,6 @@ export default function DeputationClient({
 
             {/* A4 Printable Page Container */}
             <div className={styles.a4Page} ref={approvalPrintRef}>
-              {!hasSavedDocA && <div className={styles.watermarkDraft}>PREVIEW DRAFT</div>}
-
               {renderOfficialHeader()}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontWeight: 'bold', fontSize: '13px' }}>
@@ -1234,8 +1232,6 @@ export default function DeputationClient({
 
             {/* A4 Printable Page Container */}
             <div className={styles.a4Page} ref={completionPrintRef}>
-              {!hasSavedDocB && <div className={styles.watermarkDraft}>PREVIEW DRAFT</div>}
-
               {renderOfficialHeader()}
 
               <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: '18px', margin: '24px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -1492,93 +1488,66 @@ export default function DeputationClient({
             </div>
 
             {/* A4 Printable Page Container */}
-            <div className={styles.a4Page} ref={remunerationPrintRef}>
-              {!hasSavedDocC && <div className={styles.watermarkDraft}>PREVIEW DRAFT</div>}
-
-              {renderOfficialHeader()}
-
-              <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: '18px', margin: '24px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                SME Remuneration / Sanction Note
-              </h2>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontWeight: 'bold', fontSize: '13px' }}>
+            <div className={styles.a4Page} ref={remunerationPrintRef} style={{ width: '210mm', minHeight: '297mm', background: 'white', padding: '20mm', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
+              <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: '18px', margin: '30px 0' }}>SME REMUNERATION / SANCTION NOTE</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontWeight: 'bold' }}>
                 <div>Submitted</div>
                 <div>{formatDateDot(stageCParams.submissionDate)}</div>
               </div>
-
-              <div style={{ textAlign: 'justify', lineHeight: '1.8', fontSize: '13.5px' }}>
-                Sanction may kindly be accorded for a sum of <strong>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/- (Rupees {stageCParams.amountInWords})</strong> towards the remuneration of <strong>{sme.name || 'Subject Matter Expert'}</strong>, <strong>{sme.designation || 'Designation'}</strong>, <strong>{sme.institute || 'Institute'}, {sme.location || 'Location'}</strong>, who served as the <strong>Guest Expert / Subject Matter Expert (SME)</strong> for the <strong>{stageCParams.programmeName}</strong> for the <strong>{selectedEntry.trade || 'General'}</strong> trade. The <strong>{stageCParams.workTitle}</strong> was successfully conducted and completed at the <strong>{stageCParams.location}</strong>.
+              <div style={{ textAlign: 'justify', lineHeight: '1.8', fontSize: '14px' }}>
+                Sanction may kindly be accorded for a sum of <strong>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/- (Rupees {stageCParams.amountInWords})</strong> towards the remuneration of <strong>{sme.name || 'Subject Matter Expert'}</strong>, <strong>{sme.designation || 'Designation'}</strong>, <strong>{sme.institute || 'Institution'}, {sme.location || 'Location'}</strong>, who served as the <strong>Guest Expert / Subject Matter Expert (SME)</strong> for the <strong>{stageCParams.programmeName}</strong> for the <strong>{selectedEntry.trade || 'General'}</strong> trades. The <strong>{stageCParams.workTitle}</strong> was successfully conducted and completed at the <strong>{stageCParams.location}</strong>.
                 <br /><br />
-
-                <table className={styles.docTable}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', marginBottom: '20px' }}>
                   <thead>
                     <tr>
-                      <th style={{ width: '45px' }}>S.No.</th>
-                      <th>Name & Designation</th>
-                      <th>Trade & Organization</th>
-                      <th style={{ textAlign: 'center' }}>Total Days</th>
-                      <th style={{ textAlign: 'right' }}>Remuneration / Day</th>
-                      <th style={{ textAlign: 'right' }}>Total Amount</th>
+                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>S. No.</th>
+                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Name & Designation</th>
+                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Trade & Organization</th>
+                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>Total No. of Days</th>
+                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Remuneration per Day</th>
+                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Total Amount</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td style={{ textAlign: 'center' }}>1</td>
-                      <td>
-                        <strong>{sme.name || 'Subject Matter Expert'}</strong><br />
-                        {sme.designation || 'Designation'}
-                      </td>
-                      <td>
-                        <strong>{selectedEntry.trade || 'General'}</strong><br />
-                        {sme.institute || 'Institute'}, {sme.location || 'Location'}
-                      </td>
-                      <td style={{ textAlign: 'center' }}>{stageCParams.totalDays} Days</td>
-                      <td style={{ textAlign: 'right' }}>Rs. {stageCParams.ratePerDay}/-</td>
-                      <td style={{ textAlign: 'right' }}>Rs. {stageCParams.grossAmount.toLocaleString('en-IN')}/-</td>
+                      <td style={{ border: '1px solid #000', padding: '8px' }}>1</td>
+                      <td style={{ border: '1px solid #000', padding: '8px' }}><strong>{sme.name || 'Subject Matter Expert'}</strong><br />{sme.designation || 'Designation'}</td>
+                      <td style={{ border: '1px solid #000', padding: '8px' }}><strong>{selectedEntry.trade || 'General'}</strong> &ndash; {sme.institute || 'Institution'}, {sme.location || 'Location'}</td>
+                      <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>{stageCParams.totalDays} Days</td>
+                      <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Rs. {stageCParams.ratePerDay}/-</td>
+                      <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Rs. {stageCParams.grossAmount.toLocaleString('en-IN')}/-</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={3} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Subtotal (Remuneration):</td>
+                      <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{stageCParams.totalDays} Days</td>
+                      <td style={{ border: '1px solid #000', padding: '8px' }}></td>
+                      <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Rs. {stageCParams.grossAmount.toLocaleString('en-IN')}/-</td>
                     </tr>
                     {stageCParams.taAmount > 0 && (
                       <tr>
-                        <td colSpan={5} style={{ textAlign: 'right', fontWeight: 'bold' }}>Travelling Allowance (TA Reimbursement):</td>
-                        <td style={{ textAlign: 'right', fontWeight: 'bold' }}>Rs. {stageCParams.taAmount.toLocaleString('en-IN')}/-</td>
+                        <td colSpan={5} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Travelling Allowance (TA):</td>
+                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Rs. {stageCParams.taAmount.toLocaleString('en-IN')}/-</td>
                       </tr>
                     )}
                     {stageCParams.otherAmount > 0 && (
                       <tr>
-                        <td colSpan={5} style={{ textAlign: 'right', fontWeight: 'bold' }}>Other Approved Charges:</td>
-                        <td style={{ textAlign: 'right', fontWeight: 'bold' }}>Rs. {stageCParams.otherAmount.toLocaleString('en-IN')}/-</td>
+                        <td colSpan={5} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Other Charges:</td>
+                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Rs. {stageCParams.otherAmount.toLocaleString('en-IN')}/-</td>
                       </tr>
                     )}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ background: '#f1f5f9' }}>
-                      <td colSpan={3} style={{ textAlign: 'right', fontWeight: 'bold' }}>Grand Total Sanction Amount:</td>
-                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{stageCParams.totalDays} Days</td>
-                      <td style={{ textAlign: 'right' }}></td>
-                      <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#166534' }}>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/-</td>
+                    <tr>
+                      <td colSpan={5} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Grand Total:</td>
+                      <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/-</td>
                     </tr>
                   </tfoot>
                 </table>
-
-                <div style={{ marginTop: '16px' }}>
-                  If approved, payment of <strong>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/- (Rupees {stageCParams.amountInWords})</strong> may be released to the above Subject Matter Expert from the PM e-Vidya Funds as per the prevailing NCERT norms. The SME engagement approval letter, Work Completion Certificate, and other supporting documents are enclosed separately for kind perusal.
-                  <br /><br />
-                  Submitted for kind approval, please.
-                </div>
+                <br />
+                If approved, payment of <strong>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/- (Rupees {stageCParams.amountInWords})</strong> may be released to the above Subject Matter Expert from the PM e-Vidya Funds as per the prevailing NCERT norms. The SME engagement approval letter, Work Completion Certificate, and other supporting documents are enclosed separately for kind perusal.
+                <br /><br />
+                Submitted for kind approval, please.
               </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '70px', fontSize: '13px' }}>
-                <div style={{ textAlign: 'center' }}>
-                  <p style={{ margin: 0 }}>Prepared By / Verified By</p>
-                  <p style={{ marginTop: '40px', fontWeight: 'bold' }}>(PM e-Vidya Content Team)</p>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <p style={{ margin: 0 }}>Recommended & Approved</p>
-                  <p style={{ marginTop: '40px', fontWeight: 'bold' }}>{stageCParams.verifierName}</p>
-                  <p style={{ margin: 0 }}>{stageCParams.verifierDesignation}</p>
-                </div>
-              </div>
-
-              {renderOfficialFooter()}
             </div>
           </div>
         </div>
