@@ -1498,7 +1498,7 @@ export default function DeputationClient({
             <div className={styles.fieldGroup}>
               <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>Assigned Trade(s)</span>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>Supports multiple trades</span>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>Supports multiple trades (comma-separated)</span>
               </label>
               <input
                 type="text"
@@ -1508,6 +1508,37 @@ export default function DeputationClient({
                 onChange={e => handleStageCChange('trade', e.target.value)}
                 placeholder="e.g. AI Programming Assistant, Electrician"
               />
+              {(isEditingC || !hasSavedDocC) && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', color: '#64748b' }}>Quick add:</span>
+                  {['AI Programming Assistant', 'Electrician', 'Fitter', 'Welder', 'COPA', 'Electronic Mechanic'].map(tName => (
+                    <button
+                      key={tName}
+                      type="button"
+                      onClick={() => {
+                        const cur = (stageCParams.trade ?? selectedEntry.trade ?? '').trim();
+                        if (!cur) {
+                          handleStageCChange('trade', tName);
+                        } else if (!cur.toLowerCase().includes(tName.toLowerCase())) {
+                          handleStageCChange('trade', `${cur}, ${tName}`);
+                        }
+                      }}
+                      style={{
+                        fontSize: '11px',
+                        background: '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '12px',
+                        padding: '2px 8px',
+                        cursor: 'pointer',
+                        color: '#334155',
+                        fontWeight: 500
+                      }}
+                    >
+                      + {tName}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Attendance Date Slots (Multiple Entries for breaks/holidays) */}
@@ -1717,7 +1748,8 @@ export default function DeputationClient({
             {/* A4 Printable Page Container */}
             {(() => {
               const currentTrade = (stageCParams.trade || selectedEntry.trade || 'General').trim();
-              const isMultipleTrades = /[,/&;]|\band\b/i.test(currentTrade);
+              const tradesList = currentTrade.split(/[,;\n]+/).map((t: string) => t.trim()).filter(Boolean);
+              const isMultipleTrades = tradesList.length > 1 || /[,/&;]|\band\b/i.test(currentTrade);
 
               return (
                 <div className={styles.a4Page} ref={remunerationPrintRef} style={{ width: '210mm', minHeight: '297mm', background: 'white', padding: '20mm', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
@@ -1732,50 +1764,84 @@ export default function DeputationClient({
                     <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', marginBottom: '20px' }}>
                       <thead>
                         <tr>
-                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>S. No.</th>
-                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Name &amp; Designation</th>
-                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Trade &amp; Organization</th>
-                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>Total No. of Days</th>
-                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Remuneration per Day</th>
-                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Total Amount</th>
+                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '5%' }}>S. No.</th>
+                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', width: '23%' }}>Name &amp; Designation</th>
+                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', width: '20%' }}>Trade</th>
+                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '22%' }}>Attendance Date</th>
+                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '10%' }}>Total No. of Days</th>
+                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', width: '10%' }}>Remuneration per Day</th>
+                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', width: '10%' }}>Total Amount</th>
                         </tr>
                       </thead>
                       <tbody>
                         <tr>
-                          <td style={{ border: '1px solid #000', padding: '8px' }}>1</td>
+                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>1</td>
                           <td style={{ border: '1px solid #000', padding: '8px' }}>
                             <strong>{sme.name || 'Subject Matter Expert'}</strong><br />
-                            {sme.designation || 'Designation'}
-                          </td>
-                          <td style={{ border: '1px solid #000', padding: '8px' }}>
-                            <strong>{currentTrade}</strong> &ndash; {sme.institute || 'Institution'}, {sme.location || 'Location'}
-                          </td>
-                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>
-                            <div style={{ fontWeight: 700 }}>{stageCParams.totalDays} Days</div>
-                            {stageCParams.attendanceSlots && stageCParams.attendanceSlots.length > 0 && (
-                              <div style={{ fontSize: '11px', color: '#475569', marginTop: '4px', lineHeight: '1.4' }}>
-                                {stageCParams.attendanceSlots.map((slot, idx) => (
-                                  <div key={idx}>
-                                    {formatDateDot(slot.startDate)} &ndash; {formatDateDot(slot.endDate)} ({calculateSlotDays(slot.startDate, slot.endDate)}d)
-                                  </div>
-                                ))}
+                            <span>{sme.designation || 'Designation'}</span>
+                            {(sme.institute || sme.location) && (
+                              <div style={{ fontSize: '11.5px', color: '#475569', marginTop: '3px' }}>
+                                {sme.institute}{sme.location ? `, ${sme.location}` : ''}
                               </div>
                             )}
                           </td>
-                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Rs. {stageCParams.ratePerDay}/-</td>
-                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Rs. {stageCParams.grossAmount.toLocaleString('en-IN')}/-</td>
+                          <td style={{ border: '1px solid #000', padding: '8px' }}>
+                            {tradesList.length > 1 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                {tradesList.map((t: string, idx: number) => (
+                                  <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
+                                    <span style={{ color: '#000', fontWeight: 'bold' }}>•</span>
+                                    <span style={{ fontWeight: 600 }}>{t}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <strong>{currentTrade}</strong>
+                            )}
+                          </td>
+                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px' }}>
+                            {stageCParams.attendanceSlots && stageCParams.attendanceSlots.length > 0 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {stageCParams.attendanceSlots.map((slot, idx) => (
+                                  <div key={idx} style={{ whiteSpace: 'nowrap' }}>
+                                    <span>{formatDateDot(slot.startDate)} to {formatDateDot(slot.endDate)}</span>
+                                    {stageCParams.attendanceSlots && stageCParams.attendanceSlots.length > 1 && (
+                                      <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '4px' }}>
+                                        ({calculateSlotDays(slot.startDate, slot.endDate)}d)
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : selectedEntry.startDate && selectedEntry.endDate ? (
+                              <div style={{ whiteSpace: 'nowrap' }}>
+                                {formatDateDot(selectedEntry.startDate)} to {formatDateDot(selectedEntry.endDate)}
+                              </div>
+                            ) : (
+                              <span>-</span>
+                            )}
+                          </td>
+                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>
+                            {stageCParams.totalDays} Days
+                          </td>
+                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            Rs. {stageCParams.ratePerDay}/-
+                          </td>
+                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                            Rs. {stageCParams.grossAmount.toLocaleString('en-IN')}/-
+                          </td>
                         </tr>
                       </tbody>
                       <tfoot>
                         <tr>
-                          <td colSpan={3} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Subtotal (Remuneration):</td>
+                          <td colSpan={4} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Subtotal (Remuneration):</td>
                           <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{stageCParams.totalDays} Days</td>
                           <td style={{ border: '1px solid #000', padding: '8px' }}></td>
-                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Rs. {stageCParams.grossAmount.toLocaleString('en-IN')}/-</td>
+                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Rs. {stageCParams.grossAmount.toLocaleString('en-IN')}/-</td>
                         </tr>
                         <tr>
-                          <td colSpan={5} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Grand Total:</td>
-                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/-</td>
+                          <td colSpan={6} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Grand Total:</td>
+                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/-</td>
                         </tr>
                       </tfoot>
                     </table>

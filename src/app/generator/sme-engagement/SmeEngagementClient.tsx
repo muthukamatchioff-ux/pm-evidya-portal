@@ -390,38 +390,47 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
                 <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', marginBottom: '20px' }}>
                   <thead>
                     <tr>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>S. No.</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Name & Designation</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Trade & Organization</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>Total No. of Days</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Remuneration per Day</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Total Amount</th>
+                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '5%' }}>S. No.</th>
+                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', width: '23%' }}>Name &amp; Designation</th>
+                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', width: '20%' }}>Trade</th>
+                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '22%' }}>Attendance Date</th>
+                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '10%' }}>Total No. of Days</th>
+                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', width: '10%' }}>Remuneration per Day</th>
+                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', width: '10%' }}>Total Amount</th>
                     </tr>
                   </thead>
                   <tbody>
                     {trades.map((t, idx) => (
                       <tr key={t.id}>
-                        <td style={{ border: '1px solid #000', padding: '8px' }}>{idx + 1}</td>
+                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>{idx + 1}</td>
                         <td style={{ border: '1px solid #000', padding: '8px' }}>
                           <strong>{sme.name}</strong><br />
-                          {sme.designation}
+                          <span>{sme.designation}</span>
+                          {(sme.institution || sme.city) && (
+                            <div style={{ fontSize: '11.5px', color: '#475569', marginTop: '3px' }}>
+                              {sme.institution}{sme.city ? `, ${sme.city}` : ''}
+                            </div>
+                          )}
                         </td>
                         <td style={{ border: '1px solid #000', padding: '8px' }}>
-                          <strong>{t.tradeName}</strong> &ndash; {sme.institution}, {sme.city}
+                          <strong>{t.tradeName}</strong>
                         </td>
-                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>{t.totalDays} Days</td>
-                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Rs. {t.remunerationPerDay}/-</td>
-                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>Rs. {t.totalAmount}/-</td>
+                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px' }}>
+                          {t.startDate && t.endDate ? `${formatDate(t.startDate)} to ${formatDate(t.endDate)}` : '-'}
+                        </td>
+                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{t.totalDays} Days</td>
+                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', whiteSpace: 'nowrap' }}>Rs. {t.remunerationPerDay}/-</td>
+                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Rs. {t.totalAmount}/-</td>
                       </tr>
                     ))}
                   </tbody>
                   {trades.length > 1 && (
                     <tfoot>
                       <tr>
-                        <td colSpan={3} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Grand Total:</td>
+                        <td colSpan={4} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Grand Total:</td>
                         <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{grandTotalDays} Days</td>
                         <td style={{ border: '1px solid #000', padding: '8px' }}></td>
-                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Rs. {grandTotalAmount}/-</td>
+                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Rs. {grandTotalAmount}/-</td>
                       </tr>
                     </tfoot>
                   )}
