@@ -286,7 +286,12 @@ export default function AccountsClient({ initialData }: AccountsClientProps) {
                 const isUploading = uploadingState[`${selectedEntry.id}-${docDef.type}`];
                 const uploadedDoc = findDocument(selectedEntry.documents, docDef.type);
                 const hasDoc = !!uploadedDoc;
-                const fileDownloadUrl = uploadedDoc?.filePath || (uploadedDoc?.id ? `/api/documents/${uploadedDoc.id}` : '#');
+                const filePreviewUrl = uploadedDoc?.filePath?.startsWith('data:')
+                  ? uploadedDoc.filePath
+                  : (uploadedDoc?.id ? `/api/documents/${uploadedDoc.id}` : '#');
+                const fileDownloadUrl = uploadedDoc?.filePath?.startsWith('data:')
+                  ? uploadedDoc.filePath
+                  : (uploadedDoc?.id ? `/api/documents/${uploadedDoc.id}?download=1` : '#');
 
                 return (
                   <div
@@ -359,7 +364,8 @@ export default function AccountsClient({ initialData }: AccountsClientProps) {
                                   title: docDef.title,
                                   epicId: getEpicId(selectedEntry.epicSequence || 1),
                                   smeName: selectedEntry.sme?.name,
-                                  url: fileDownloadUrl
+                                  url: filePreviewUrl,
+                                  downloadUrl: fileDownloadUrl
                                 })
                               }
                             >
@@ -519,7 +525,7 @@ export default function AccountsClient({ initialData }: AccountsClientProps) {
 
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
               <a
-                href={previewDoc.url}
+                href={previewDoc.downloadUrl || previewDoc.url}
                 download={previewDoc.name}
                 className={styles.registryLink}
                 target="_blank"

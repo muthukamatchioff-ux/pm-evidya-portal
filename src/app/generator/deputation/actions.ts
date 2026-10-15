@@ -25,6 +25,7 @@ export interface AttendanceSlot {
   startDate: string;
   endDate: string;
   days?: number;
+  trade?: string;
 }
 
 export interface StageBParameters {

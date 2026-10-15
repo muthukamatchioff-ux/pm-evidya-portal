@@ -223,7 +223,12 @@ export default function DeputationClient({
           const endDate = selectedEntry.attendanceTo
             ? new Date(selectedEntry.attendanceTo).toISOString().split('T')[0]
             : startDate;
-          parsed.attendanceSlots = [{ id: 'slot-1', startDate, endDate }];
+          parsed.attendanceSlots = [{ id: 'slot-1', startDate, endDate, trade: parsed.trade || selectedEntry.trade || '' }];
+        } else {
+          parsed.attendanceSlots = parsed.attendanceSlots.map((s: any) => ({
+            ...s,
+            trade: s.trade || parsed.trade || selectedEntry.trade || ''
+          }));
         }
         if (!parsed.trade) {
           parsed.trade = selectedEntry.trade || '';
@@ -309,7 +314,7 @@ export default function DeputationClient({
       : startDate;
 
     const initialSlots: AttendanceSlot[] = [
-      { id: 'slot-1', startDate, endDate }
+      { id: 'slot-1', startDate, endDate, trade: entry.trade || '' }
     ];
 
     const slotDays = calculateSlotDays(startDate, endDate);
@@ -353,7 +358,8 @@ export default function DeputationClient({
       const newSlot: AttendanceSlot = {
         id: `slot-${Date.now()}`,
         startDate: nextStart,
-        endDate: nextStart
+        endDate: nextStart,
+        trade: lastSlot?.trade || prev.trade || selectedEntry?.trade || 'General'
       };
       const updatedSlots = [...currentSlots, newSlot];
       const sumDays = updatedSlots.reduce((acc, s) => acc + calculateSlotDays(s.startDate, s.endDate), 0);
@@ -367,6 +373,20 @@ export default function DeputationClient({
         grossAmount: gross,
         totalAmount: gross,
         amountInWords: numberToWords(gross)
+      };
+    });
+  };
+
+  const handleSlotTradeChange = (index: number, trade: string) => {
+    setStageCParams(prev => {
+      const currentSlots = [...(prev.attendanceSlots || [])];
+      if (!currentSlots[index]) return prev;
+      currentSlots[index] = { ...currentSlots[index], trade };
+      const distinctTrades = Array.from(new Set(currentSlots.map(s => (s.trade || '').trim()).filter(Boolean)));
+      return {
+        ...prev,
+        attendanceSlots: currentSlots,
+        trade: distinctTrades.length > 0 ? distinctTrades.join(', ') : prev.trade
       };
     });
   };
@@ -1628,6 +1648,46 @@ export default function DeputationClient({
                         </div>
                       </div>
 
+                      {/* Slot Trade Field */}
+                      <div>
+                        <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
+                          <span>Trade for this Slot</span>
+                          <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>Multi-trade support</span>
+                        </label>
+                        <input
+                          type="text"
+                          className={styles.inputField}
+                          style={{ padding: '6px 8px', fontSize: '12.5px', marginBottom: '6px' }}
+                          placeholder="e.g. AI Programming Assistant, Electrician"
+                          disabled={!isEditingC && hasSavedDocC}
+                          value={slot.trade ?? stageCParams.trade ?? selectedEntry?.trade ?? ''}
+                          onChange={e => handleSlotTradeChange(index, e.target.value)}
+                        />
+                        {(isEditingC || !hasSavedDocC) && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '6px', alignItems: 'center' }}>
+                            <span style={{ fontSize: '10px', color: '#64748b' }}>Quick add:</span>
+                            {['AI Programming Assistant', 'Electrician', 'Fitter', 'Welder', 'COPA', 'Electronic Mechanic'].map(tName => (
+                              <button
+                                key={tName}
+                                type="button"
+                                onClick={() => handleSlotTradeChange(index, tName)}
+                                style={{
+                                  fontSize: '10px',
+                                  background: '#ffffff',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '10px',
+                                  padding: '1px 6px',
+                                  cursor: 'pointer',
+                                  color: '#334155'
+                                }}
+                              >
+                                + {tName}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                         <div>
                           <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
@@ -1748,8 +1808,15 @@ export default function DeputationClient({
             {/* A4 Printable Page Container */}
             {(() => {
               const currentTrade = (stageCParams.trade || selectedEntry.trade || 'General').trim();
-              const tradesList = currentTrade.split(/[,;\n]+/).map((t: string) => t.trim()).filter(Boolean);
-              const isMultipleTrades = tradesList.length > 1 || /[,/&;]|\band\b/i.test(currentTrade);
+              const slots = stageCParams.attendanceSlots && stageCParams.attendanceSlots.length > 0
+                ? stageCParams.attendanceSlots
+                : [{ id: 'slot-default', startDate: selectedEntry.attendanceFrom ? new Date(selectedEntry.attendanceFrom).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], endDate: selectedEntry.attendanceTo ? new Date(selectedEntry.attendanceTo).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], trade: currentTrade }];
+
+              const distinctTrades = Array.from(new Set(
+                slots.map(s => (s.trade || currentTrade || 'General').trim()).filter(Boolean)
+              ));
+              const displayedTrades = distinctTrades.length > 0 ? distinctTrades.join(', ') : currentTrade;
+              const isMultipleTrades = distinctTrades.length > 1;
 
               return (
                 <div className={styles.a4Page} ref={remunerationPrintRef} style={{ width: '210mm', minHeight: '297mm', background: 'white', padding: '20mm', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
@@ -1759,7 +1826,7 @@ export default function DeputationClient({
                     <div>{formatDateDot(stageCParams.submissionDate)}</div>
                   </div>
                   <div style={{ textAlign: 'justify', lineHeight: '1.8', fontSize: '14px' }}>
-                    Sanction may kindly be accorded for a sum of <strong>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/- (Rupees {stageCParams.amountInWords})</strong> towards the remuneration of <strong>{sme.name || 'Subject Matter Expert'}</strong>, <strong>{sme.designation || 'Designation'}</strong>, <strong>{sme.institute || 'Institution'}, {sme.location || 'Location'}</strong>, who served as the <strong>Guest Expert / Subject Matter Expert (SME)</strong> for the <strong>{stageCParams.programmeName}</strong> for the <strong>{currentTrade}</strong> {isMultipleTrades ? 'trades' : 'trade'}. The <strong>{stageCParams.workTitle}</strong> was successfully conducted and completed at the <strong>{stageCParams.location}</strong>.
+                    Sanction may kindly be accorded for a sum of <strong>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/- (Rupees {stageCParams.amountInWords})</strong> towards the remuneration of <strong>{sme.name || 'Subject Matter Expert'}</strong>, <strong>{sme.designation || 'Designation'}</strong>, <strong>{sme.institute || 'Institution'}, {sme.location || 'Location'}</strong>, who served as the <strong>Guest Expert / Subject Matter Expert (SME)</strong> for the <strong>{stageCParams.programmeName}</strong> for the <strong>{displayedTrades}</strong> {isMultipleTrades ? 'trades' : 'trade'}. The <strong>{stageCParams.workTitle}</strong> was successfully conducted and completed at the <strong>{stageCParams.location}</strong>.
                     <br /><br />
                     <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', marginBottom: '20px' }}>
                       <thead>
@@ -1774,63 +1841,44 @@ export default function DeputationClient({
                         </tr>
                       </thead>
                       <tbody>
-                        <tr>
-                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>1</td>
-                          <td style={{ border: '1px solid #000', padding: '8px' }}>
-                            <strong>{sme.name || 'Subject Matter Expert'}</strong><br />
-                            <span>{sme.designation || 'Designation'}</span>
-                            {(sme.institute || sme.location) && (
-                              <div style={{ fontSize: '11.5px', color: '#475569', marginTop: '3px' }}>
-                                {sme.institute}{sme.location ? `, ${sme.location}` : ''}
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ border: '1px solid #000', padding: '8px' }}>
-                            {tradesList.length > 1 ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                {tradesList.map((t: string, idx: number) => (
-                                  <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
-                                    <span style={{ color: '#000', fontWeight: 'bold' }}>•</span>
-                                    <span style={{ fontWeight: 600 }}>{t}</span>
+                        {slots.map((slot, idx) => {
+                          const slotDays = calculateSlotDays(slot.startDate, slot.endDate);
+                          const daysVal = slotDays > 0 ? slotDays : 1;
+                          const slotTrade = (slot.trade || currentTrade || 'General').trim();
+                          const slotAmount = daysVal * stageCParams.ratePerDay;
+
+                          return (
+                            <tr key={slot.id || idx}>
+                              <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>
+                                {idx + 1}
+                              </td>
+                              <td style={{ border: '1px solid #000', padding: '8px' }}>
+                                <strong>{sme.name || 'Subject Matter Expert'}</strong><br />
+                                <span>{sme.designation || 'Designation'}</span>
+                                {(sme.institute || sme.location) && (
+                                  <div style={{ fontSize: '11.5px', color: '#475569', marginTop: '3px' }}>
+                                    {sme.institute}{sme.location ? `, ${sme.location}` : ''}
                                   </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <strong>{currentTrade}</strong>
-                            )}
-                          </td>
-                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px' }}>
-                            {stageCParams.attendanceSlots && stageCParams.attendanceSlots.length > 0 ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                {stageCParams.attendanceSlots.map((slot, idx) => (
-                                  <div key={idx} style={{ whiteSpace: 'nowrap' }}>
-                                    <span>{formatDateDot(slot.startDate)} to {formatDateDot(slot.endDate)}</span>
-                                    {stageCParams.attendanceSlots && stageCParams.attendanceSlots.length > 1 && (
-                                      <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '4px' }}>
-                                        ({calculateSlotDays(slot.startDate, slot.endDate)}d)
-                                      </span>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : selectedEntry.startDate && selectedEntry.endDate ? (
-                              <div style={{ whiteSpace: 'nowrap' }}>
-                                {formatDateDot(selectedEntry.startDate)} to {formatDateDot(selectedEntry.endDate)}
-                              </div>
-                            ) : (
-                              <span>-</span>
-                            )}
-                          </td>
-                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>
-                            {stageCParams.totalDays} Days
-                          </td>
-                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                            Rs. {stageCParams.ratePerDay}/-
-                          </td>
-                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                            Rs. {stageCParams.grossAmount.toLocaleString('en-IN')}/-
-                          </td>
-                        </tr>
+                                )}
+                              </td>
+                              <td style={{ border: '1px solid #000', padding: '8px' }}>
+                                <strong>{slotTrade}</strong>
+                              </td>
+                              <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px', whiteSpace: 'nowrap' }}>
+                                {formatDateDot(slot.startDate)} to {formatDateDot(slot.endDate)}
+                              </td>
+                              <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>
+                                {daysVal} {daysVal === 1 ? 'Day' : 'Days'}
+                              </td>
+                              <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                Rs. {stageCParams.ratePerDay}/-
+                              </td>
+                              <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                Rs. {slotAmount.toLocaleString('en-IN')}/-
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                       <tfoot>
                         <tr>

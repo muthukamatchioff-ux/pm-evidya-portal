@@ -293,7 +293,7 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
                             style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                             title="Open SME Document Workflow for this Epic ID"
                           >
-                            ✉️ Documents
+                            📄 Generate Document
                           </Link>
 
                           {role === 'ADMIN' ? (

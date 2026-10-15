@@ -17,10 +17,11 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
     `EPIC-2026-PMeVidya ${String(epicSequence || 1).padStart(2, '0')}`;
 
   const getFriendlyDocName = (type: string, name: string) => {
-    if (type === 'APPROVAL_LETTER') return 'Signed Approval Letter';
+    if (type === 'APPROVAL_LETTER' || type === 'STAGE_A_APPROVAL_LETTER') return 'Signed Approval Letter';
     if (type === 'SME_ATTENDANCE' || type === 'TRADE_DETAILS' || type === 'ATTENDANCE')
       return 'SME Attendance PDF';
-    if (type === 'WORK_COMPLETION') return 'Work Completion Certificate';
+    if (type === 'WORK_COMPLETION' || type === 'STAGE_B_WORK_COMPLETION') return 'Work Completion Certificate';
+    if (type === 'PAYMENT_NOTE' || type === 'STAGE_C_REMUNERATION') return 'SME Remuneration Note';
     return (type || 'Document').replace(/_/g, ' ');
   };
 
@@ -102,8 +103,8 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
         d.type === 'ATTENDANCE' ||
         d.type === 'TRADE_DETAILS'
     );
-    const hasApproval = docs.some((d: any) => d.type === 'APPROVAL_LETTER');
-    const hasCompletion = docs.some((d: any) => d.type === 'WORK_COMPLETION');
+    const hasApproval = docs.some((d: any) => d.type === 'APPROVAL_LETTER' || d.type === 'STAGE_A_APPROVAL_LETTER');
+    const hasCompletion = docs.some((d: any) => d.type === 'WORK_COMPLETION' || d.type === 'STAGE_B_WORK_COMPLETION');
     return { hasAttendance, hasApproval, hasCompletion };
   }, [selectedEpicDetails]);
 
@@ -123,6 +124,18 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
             doc.type !== 'ATTENDANCE' &&
             doc.type !== 'TRADE_DETAILS'
           ) {
+            return false;
+          }
+        } else if (selectedDocType === 'APPROVAL_LETTER') {
+          if (doc.type !== 'APPROVAL_LETTER' && doc.type !== 'STAGE_A_APPROVAL_LETTER') {
+            return false;
+          }
+        } else if (selectedDocType === 'WORK_COMPLETION') {
+          if (doc.type !== 'WORK_COMPLETION' && doc.type !== 'STAGE_B_WORK_COMPLETION') {
+            return false;
+          }
+        } else if (selectedDocType === 'PAYMENT_NOTE') {
+          if (doc.type !== 'PAYMENT_NOTE' && doc.type !== 'STAGE_C_REMUNERATION') {
             return false;
           }
         } else if (doc.type !== selectedDocType) {
@@ -274,6 +287,7 @@ export default function DocumentClient({ smes }: DocumentClientProps) {
               <option value="SME_ATTENDANCE">SME Attendance PDF</option>
               <option value="APPROVAL_LETTER">Signed Approval Letter</option>
               <option value="WORK_COMPLETION">Work Completion Certificate</option>
+              <option value="PAYMENT_NOTE">SME Remuneration Note</option>
             </select>
           </div>
 
