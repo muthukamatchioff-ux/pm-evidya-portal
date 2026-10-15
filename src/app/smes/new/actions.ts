@@ -17,8 +17,8 @@ export async function createSMEWithEntry(formData: FormData) {
   const address = formData.get('address') as string;
   
   // Extract Work Entry details
-  const trade = formData.get('trade') as string;
-  const topic = formData.get('topic') as string;
+  const trade = (formData.get('trade') as string) || 'General';
+  const topic = (formData.get('topic') as string) || 'PM e-Vidya Content Development';
   
   const attendanceFromStr = formData.get('attendanceFrom') as string;
   const attendanceToStr = formData.get('attendanceTo') as string;
@@ -69,7 +69,7 @@ export async function createSMEWithEntry(formData: FormData) {
       action: 'CREATE',
       entity: 'SME',
       entityId: newSme.id,
-      newData: `Created SME ${name} with initial Work Entry`,
+      newData: `Created SME ${name} (${trade})`,
       userEmail
     });
 

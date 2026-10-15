@@ -175,8 +175,54 @@ const createPrismaClient = () => {
                 return REAL_PM_EVIDYA_BUDGET_COMPONENTS[5]?.annexureVI || [];
               }
 
-              if (model === 'SME' && operation === 'findMany') {
-                return REAL_PM_EVIDYA_SMES;
+              if (model === 'SME') {
+                if (operation === 'findMany') return REAL_PM_EVIDYA_SMES;
+                if (operation === 'create') {
+                  const newSme = {
+                    id: `sme-${Date.now()}`,
+                    name: args?.data?.name || '',
+                    designation: args?.data?.designation || '',
+                    institute: args?.data?.institute || '',
+                    location: args?.data?.location || '',
+                    address: args?.data?.address || '',
+                    status: 'ACTIVE',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  };
+                  (REAL_PM_EVIDYA_SMES as any[]).push(newSme);
+
+                  if (args?.data?.workEntries?.create) {
+                    const weData = args.data.workEntries.create as any;
+                    const newEntry = {
+                      id: `sme-work-${Date.now()}`,
+                      smeId: newSme.id,
+                      trade: weData.trade || 'General',
+                      topic: weData.topic || 'PM e-Vidya Content Development',
+                      attendanceFrom: weData.attendanceFrom,
+                      attendanceTo: weData.attendanceTo,
+                      days: weData.days || 0,
+                      ratePerDay: weData.ratePerDay || 0,
+                      taAmount: weData.taAmount || 0,
+                      otherAmount: weData.otherAmount || 0,
+                      status: 'INITIATED',
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                      epicSequence: (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).length + 1,
+                      sme: newSme,
+                      payments: [{
+                        id: `pay-${Date.now()}`,
+                        status: 'INITIATED',
+                        grossAmount: (weData.days || 0) * (weData.ratePerDay || 0),
+                        taAmount: weData.taAmount || 0,
+                        otherAmount: weData.otherAmount || 0,
+                        totalAmount: ((weData.days || 0) * (weData.ratePerDay || 0)) + (weData.taAmount || 0) + (weData.otherAmount || 0)
+                      }],
+                      documents: []
+                    };
+                    (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).unshift(newEntry);
+                  }
+                  return newSme;
+                }
               }
 
               if (model === 'Project' && operation === 'findMany') {
