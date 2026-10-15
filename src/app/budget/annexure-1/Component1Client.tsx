@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { addAnnexureIEntry, updateAnnexureIEntry, deleteAnnexureIEntry } from '../actions';
 import styles from '../budget.module.css';
 import { downloadTableAsDocx } from '@/lib/tableToDocx';
@@ -14,6 +15,7 @@ export default function Component1Client({
   budgetComponentId: string;
   entries: any[];
 }) {
+  const router = useRouter();
   const [records, setRecords] = useState(entries);
   useEffect(() => {
     setRecords(entries);
@@ -133,6 +135,7 @@ export default function Component1Client({
       }
 
       handleCancel();
+      router.refresh();
       alert(editingId ? 'Transaction Updated Successfully' : 'Transaction Added Successfully');
     } catch (err: any) {
       console.error(err);
@@ -156,6 +159,7 @@ export default function Component1Client({
       const res = await deleteAnnexureIEntry(entry.id);
       if (res && res.success) {
         setRecords(prev => prev.filter(r => r.id !== entry.id));
+        router.refresh();
         alert('Record deleted successfully.');
       } else {
         alert(res?.error || 'Failed to delete record.');

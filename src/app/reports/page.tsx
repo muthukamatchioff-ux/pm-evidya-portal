@@ -6,6 +6,9 @@ import styles from '@/app/dashboard/dashboard.module.css';
 
 import { getRole, requireAuth } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function ReportsPage() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
   const role = await getRole();

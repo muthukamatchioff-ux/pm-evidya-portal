@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import styles from './video-production.module.css';
 import { 
   getTopicProductionRecords, 
@@ -63,11 +64,18 @@ function cleanReviewComments(reviewComments: string | null | undefined): string 
 }
 
 export default function VideoProductionClient({ initialRecords = [], role = 'VIEWER' }: any) {
+  const router = useRouter();
   const [activeStage, setActiveStage] = useState<'STAGE_1' | 'STAGE_2' | 'STAGE_3'>(
     role === 'EDITOR' ? 'STAGE_2' : 'STAGE_1'
   );
   const [workEntries, setWorkEntries] = useState<any[]>(initialRecords);
   const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    if (initialRecords && initialRecords.length > 0) {
+      setWorkEntries(initialRecords);
+    }
+  }, [initialRecords]);
   
   // Stage 1 Create Form state
   const [selectedEpicId, setSelectedEpicId] = useState('');
@@ -195,6 +203,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       setSuccess(`✅ Video "${videoTitle.trim()}" added to EPIC-${selectedEpic?.epicSequence}! It is automatically ready in Stage 2 (Post-Production). You can now enter the next video topic.`);
       const updatedList = await getTopicProductionRecords();
       if (updatedList.success) setWorkEntries(updatedList.data || []);
+      router.refresh();
       // Clear inputs but KEEP selectedEpicId so user can easily add 4-5 topics one by one
       setVideoTitle('');
       setShootStartDate('');
@@ -219,6 +228,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       setSuccess('✅ Production record updated successfully.');
       const updatedList = await getTopicProductionRecords();
       if (updatedList.success) setWorkEntries(updatedList.data || []);
+      router.refresh();
       setEditingStage1(null);
     } else {
       setError(res.error || 'Failed to update Production record.');
@@ -236,6 +246,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       setSuccess('Production Shoot record deleted successfully.');
       const updatedList = await getTopicProductionRecords();
       if (updatedList.success) setWorkEntries(updatedList.data || []);
+      router.refresh();
     } else {
       setError(res.error || 'Failed to delete production record.');
     }
@@ -254,6 +265,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       );
       const updatedList = await getTopicProductionRecords();
       if (updatedList.success) setWorkEntries(updatedList.data || []);
+      router.refresh();
       setEditingStage2(null);
     } else {
       setError(res.error || 'Failed to update Post-Production record.');
@@ -271,6 +283,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       setSuccess('Post-Production record deleted successfully.');
       const updatedList = await getTopicProductionRecords();
       if (updatedList.success) setWorkEntries(updatedList.data || []);
+      router.refresh();
     } else {
       setError(res.error || 'Failed to delete editor record.');
     }
@@ -286,6 +299,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       setSuccess('✅ Final Video Deliverable details saved successfully.');
       const updatedList = await getTopicProductionRecords();
       if (updatedList.success) setWorkEntries(updatedList.data || []);
+      router.refresh();
       setEditingStage3(null);
     } else {
       setError(res.error || 'Failed to update Final Video record.');
@@ -303,6 +317,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       setSuccess('Final deliverable record deleted successfully.');
       const updatedList = await getTopicProductionRecords();
       if (updatedList.success) setWorkEntries(updatedList.data || []);
+      router.refresh();
     } else {
       setError(res.error || 'Failed to delete deliverable record.');
     }

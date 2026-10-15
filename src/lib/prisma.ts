@@ -59,6 +59,9 @@ const getDbUrl = () => {
 
 const createPrismaClient = () => {
   const dbUrl = getDbUrl();
+  if (dbUrl) {
+    process.env.DATABASE_URL = dbUrl;
+  }
   const client = new PrismaClient({
     log: process.env.NODE_ENV === 'production' ? ['error', 'warn'] : ['query'],
     ...(dbUrl ? { datasources: { db: { url: dbUrl } } } : {})
@@ -265,6 +268,38 @@ const createPrismaClient = () => {
 
               if (model === 'SME') {
                 if (operation === 'findMany') return REAL_PM_EVIDYA_SMES;
+                if (operation === 'findUnique' || operation === 'findFirst') {
+                  const id = args?.where?.id;
+                  if (id) {
+                    return (REAL_PM_EVIDYA_SMES as any[]).find(s => s.id === id) || null;
+                  }
+                  return REAL_PM_EVIDYA_SMES[0] || null;
+                }
+                if (operation === 'update') {
+                  const id = args?.where?.id;
+                  const sme = (REAL_PM_EVIDYA_SMES as any[]).find(s => s.id === id);
+                  if (sme && args?.data) {
+                    Object.assign(sme, args.data);
+                    sme.updatedAt = new Date().toISOString();
+                    // Also synchronize SME information inside SMEWorkEntries
+                    (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).forEach(e => {
+                      if (e.smeId === id || e.sme?.id === id) {
+                        if (!e.sme) e.sme = {};
+                        Object.assign(e.sme, args.data);
+                      }
+                    });
+                    return sme;
+                  }
+                  return sme || { id, ...args?.data };
+                }
+                if (operation === 'delete') {
+                  const id = args?.where?.id;
+                  const idx = (REAL_PM_EVIDYA_SMES as any[]).findIndex(s => s.id === id);
+                  if (idx !== -1) {
+                    return (REAL_PM_EVIDYA_SMES as any[]).splice(idx, 1)[0];
+                  }
+                  return { id };
+                }
                 if (operation === 'create') {
                   const newSme = {
                     id: `sme-${Date.now()}`,
@@ -354,6 +389,15 @@ const createPrismaClient = () => {
                   return entry;
                 }
                 return entry || null;
+              }
+
+              if (model === 'SMEWorkEntry' && operation === 'delete') {
+                const id = args?.where?.id;
+                const idx = (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).findIndex(e => e.id === id);
+                if (idx !== -1) {
+                  return (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).splice(idx, 1)[0];
+                }
+                return { id };
               }
 
               if (model === 'Document') {

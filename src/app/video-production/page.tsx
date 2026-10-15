@@ -8,6 +8,9 @@ export const metadata = {
   title: 'Video Production Tracker - PM e-Vidya',
 };
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function VideoProductionPage() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
   const role = await getRole();

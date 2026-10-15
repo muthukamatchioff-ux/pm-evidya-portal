@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import styles from './smes.module.css';
 import { deleteSMEWorkEntry } from './[id]/actions';
 
@@ -11,11 +12,18 @@ interface SmeListClientProps {
 }
 
 export default function SmeListClient({ initialWorkEntries, role }: SmeListClientProps) {
+  const router = useRouter();
   const [entries, setEntries] = useState(initialWorkEntries);
   const [searchTerm, setSearchTerm] = useState('');
   const [tradeFilter, setTradeFilter] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialWorkEntries) {
+      setEntries(initialWorkEntries);
+    }
+  }, [initialWorkEntries]);
 
   const getEpicId = (epicSequence: number) =>
     `EPIC-2026-PMeVidya ${String(epicSequence).padStart(2, '0')}`;
@@ -69,6 +77,7 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
       const res = await deleteSMEWorkEntry(entryId);
       if (res.success) {
         setEntries(prev => prev.filter(e => e.id !== entryId));
+        router.refresh();
         showToast('SME Work Entry deleted successfully.');
       } else {
         alert('Error deleting entry: ' + (res.error || 'Failed to delete'));

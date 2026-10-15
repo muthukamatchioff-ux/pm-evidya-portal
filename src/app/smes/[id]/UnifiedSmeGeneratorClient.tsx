@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import UploadButton from './UploadButton';
 import { updateSMERecord, deleteSMEWorkEntry } from './actions';
 
 export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any; role?: string }) {
+  const router = useRouter();
   const entry = sme.workEntries?.[0] || {};
   const getEpicId = (epicSequence: number) =>
     `EPIC-2026-PMeVidya ${String(epicSequence || 1).padStart(2, '0')}`;
@@ -21,6 +23,17 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any; rol
   const [smeAddress, setSmeAddress] = useState(sme.address || '');
   const [trade, setTrade] = useState(entry.trade || '');
   const [topic, setTopic] = useState(entry.topic || '');
+
+  useEffect(() => {
+    setSmeName(sme.name || '');
+    setSmeDesignation(sme.designation || '');
+    setSmeInst(sme.institute || '');
+    setSmePlace(sme.location || '');
+    setSmeAddress(sme.address || '');
+    const currentEntry = sme.workEntries?.[0] || {};
+    setTrade(currentEntry.trade || '');
+    setTopic(currentEntry.topic || '');
+  }, [sme]);
 
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -58,7 +71,16 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any; rol
       });
 
       if (res.success) {
+        // Immediately reflect changes in the current model
+        sme.name = smeName;
+        sme.designation = smeDesignation;
+        sme.institute = smeInst;
+        sme.location = smePlace;
+        sme.address = smeAddress;
+        entry.trade = trade;
+        entry.topic = topic;
         showToast('✓ SME Master Record saved successfully!');
+        router.refresh();
       } else {
         alert('Error saving SME record: ' + (res.error || 'Failed to save'));
       }

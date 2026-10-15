@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import styles from './deputation.module.css';
 import {
   saveCommunicationsStage,
@@ -58,7 +59,14 @@ export default function DeputationClient({
   userRole = 'ADMIN',
   preselectedEpicId
 }: DeputationClientProps) {
+  const router = useRouter();
   const [entries, setEntries] = useState<any[]>(initialWorkEntries || []);
+
+  useEffect(() => {
+    if (initialWorkEntries) {
+      setEntries(initialWorkEntries);
+    }
+  }, [initialWorkEntries]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEntryId, setSelectedEntryId] = useState<string>(() => {
     if (preselectedEpicId) {
@@ -440,6 +448,7 @@ export default function DeputationClient({
           const otherDocs = (e.documents || []).filter((d: any) => d.type !== 'STAGE_A_APPROVAL_LETTER');
           return { ...e, documents: [...otherDocs, res.document] };
         }));
+        router.refresh();
         showToast('✓ Stage A: Approval Letter parameters saved successfully!', 'success');
       } else {
         showToast(res.error || 'Failed to save Approval Letter parameters', 'error');
@@ -471,6 +480,7 @@ export default function DeputationClient({
             documents: [...otherDocs, res.document]
           };
         }));
+        router.refresh();
         showToast('✓ Stage B: Work Completion parameters saved successfully!', 'success');
       } else {
         showToast(res.error || 'Failed to save Work Completion parameters', 'error');
@@ -504,6 +514,7 @@ export default function DeputationClient({
             documents: [...otherDocs, res.document]
           };
         }));
+        router.refresh();
         showToast('✓ Stage C: Remuneration parameters saved successfully!', 'success');
       } else {
         showToast(res.error || 'Failed to save Remuneration parameters', 'error');

@@ -10,6 +10,9 @@ export const metadata = {
   description: 'Manage Subject Matter Experts, work assignments, and payment records',
 };
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function SMEsPage() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   const role = await getRole();

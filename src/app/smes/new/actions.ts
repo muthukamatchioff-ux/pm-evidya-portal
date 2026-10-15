@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
@@ -73,6 +74,12 @@ export async function createSMEWithEntry(formData: FormData) {
       userEmail
     });
 
+    revalidatePath('/smes');
+    revalidatePath('/communications');
+    revalidatePath('/generator/deputation');
+    revalidatePath('/dashboard');
+    revalidatePath('/reports');
+    revalidatePath('/video-production');
   } catch (error) {
     console.error('Failed to create SME:', error);
     throw new Error('Failed to create SME');

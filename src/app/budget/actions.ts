@@ -183,7 +183,7 @@ export async function deleteAnnexureIEntry(id: string) {
 }
 
 export async function getComponent1Data() {
-  await requireAuth(['ADMIN', 'TEAM_MEMBER']);
+  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   const comp = await prisma.budgetComponent.findUnique({
     where: { componentNo: 1 },
     include: {
@@ -208,7 +208,7 @@ export async function getComponent1Data() {
 
 // --- Component 2 ---
 export async function getComponent2Data() {
-  await requireAuth(['ADMIN', 'TEAM_MEMBER']);
+  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   const comp = await prisma.budgetComponent.findUnique({
     where: { componentNo: 2 }, include: { annexureII: { orderBy: { createdAt: 'asc' } } }
   });
@@ -342,7 +342,7 @@ export async function deleteAnnexureIIEntry(id: string) {
 
 // --- Component 3 ---
 export async function getComponent3Data() {
-  await requireAuth(['ADMIN', 'TEAM_MEMBER']);
+  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   const comp = await prisma.budgetComponent.findUnique({
     where: { componentNo: 3 }, include: { annexureIII: { orderBy: { createdAt: 'desc' } } }
   });
@@ -400,7 +400,7 @@ export async function addAnnexureIIIEntry(data: any) {
 
 // --- Component 4 ---
 export async function getComponent4Data() {
-  await requireAuth(['ADMIN', 'TEAM_MEMBER']);
+  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   const comp = await prisma.budgetComponent.findUnique({
     where: { componentNo: 4 }, include: { annexureIV: { orderBy: { createdAt: 'desc' } } }
   });
@@ -409,16 +409,22 @@ export async function getComponent4Data() {
   return { ...comp, expenditureIncurred: expenditure, unutilizedBalance: comp.approvedBudget - expenditure, utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00' };
 }
 export async function addAnnexureIVEntry(data: any) {
-  const authCheck = await checkAuth(['ADMIN']);
-  if (!authCheck.success) return authCheck;
-  const total = (Number(data.infrastructureCost) || 0) + (Number(data.bandwidthCost) || 0) + (Number(data.archiveCost) || 0) + (Number(data.otherCharges) || 0);
-  await prisma.annexureIV.create({ data: { ...data, totalExpenditure: total } });
-  revalidatePath('/dashboard'); revalidatePath('/budget/annexure-4');
+  try {
+    const authCheck = await checkAuth(['ADMIN']);
+    if (!authCheck.success) return authCheck;
+    const total = (Number(data.infrastructureCost) || 0) + (Number(data.bandwidthCost) || 0) + (Number(data.archiveCost) || 0) + (Number(data.otherCharges) || 0);
+    const entry = await prisma.annexureIV.create({ data: { ...data, totalExpenditure: total } });
+    revalidatePath('/dashboard'); revalidatePath('/budget/annexure-4');
+    return { success: true, data: entry };
+  } catch (err: any) {
+    console.error('Failed to add Annexure-IV entry:', err);
+    return { success: false, error: err.message || 'Failed to add entry' };
+  }
 }
 
 // --- Component 5 ---
 export async function getComponent5Data() {
-  await requireAuth(['ADMIN', 'TEAM_MEMBER']);
+  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   const comp = await prisma.budgetComponent.findUnique({
     where: { componentNo: 5 }, include: { annexureV: { orderBy: { createdAt: 'desc' } } }
   });
@@ -427,16 +433,22 @@ export async function getComponent5Data() {
   return { ...comp, expenditureIncurred: expenditure, unutilizedBalance: comp.approvedBudget - expenditure, utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00' };
 }
 export async function addAnnexureVEntry(data: any) {
-  const authCheck = await checkAuth(['ADMIN']);
-  if (!authCheck.success) return authCheck;
-  const total = (Number(data.quantity) || 0) * (Number(data.unitCost) || 0) + (Number(data.installationCost) || 0) + (Number(data.transportation) || 0) + (Number(data.otherCharges) || 0);
-  await prisma.annexureV.create({ data: { ...data, totalExpenditure: total } });
-  revalidatePath('/dashboard'); revalidatePath('/budget/annexure-5');
+  try {
+    const authCheck = await checkAuth(['ADMIN']);
+    if (!authCheck.success) return authCheck;
+    const total = (Number(data.quantity) || 0) * (Number(data.unitCost) || 0) + (Number(data.installationCost) || 0) + (Number(data.transportation) || 0) + (Number(data.otherCharges) || 0);
+    const entry = await prisma.annexureV.create({ data: { ...data, totalExpenditure: total } });
+    revalidatePath('/dashboard'); revalidatePath('/budget/annexure-5');
+    return { success: true, data: entry };
+  } catch (err: any) {
+    console.error('Failed to add Annexure-V entry:', err);
+    return { success: false, error: err.message || 'Failed to add entry' };
+  }
 }
 
 // --- Component 6 ---
 export async function getComponent6Data() {
-  await requireAuth(['ADMIN', 'TEAM_MEMBER']);
+  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   const comp = await prisma.budgetComponent.findUnique({
     where: { componentNo: 6 }, include: { annexureVI: { orderBy: { createdAt: 'desc' } } }
   });
@@ -563,18 +575,57 @@ export async function deleteAnnexureIIIEntry(id: string) {
   }
 }
 export async function updateAnnexureIVEntry(id: string, data: any) {
-  const authCheck = await checkAuth(['ADMIN']);
-  if (!authCheck.success) return authCheck;
-  const total = (Number(data.infrastructureCost) || 0) + (Number(data.bandwidthCost) || 0) + (Number(data.archiveCost) || 0) + (Number(data.otherCharges) || 0);
-  await prisma.annexureIV.update({ where: { id }, data: { ...data, totalExpenditure: total } });
-  revalidatePath('/dashboard'); revalidatePath('/budget/annexure-4');
+  try {
+    const authCheck = await checkAuth(['ADMIN']);
+    if (!authCheck.success) return authCheck;
+    const total = (Number(data.infrastructureCost) || 0) + (Number(data.bandwidthCost) || 0) + (Number(data.archiveCost) || 0) + (Number(data.otherCharges) || 0);
+    const entry = await prisma.annexureIV.update({ where: { id }, data: { ...data, totalExpenditure: total } });
+    revalidatePath('/dashboard'); revalidatePath('/budget/annexure-4');
+    return { success: true, data: entry };
+  } catch (err: any) {
+    console.error('Failed to update Annexure-IV entry:', err);
+    return { success: false, error: err.message || 'Failed to update entry' };
+  }
 }
+
+export async function deleteAnnexureIVEntry(id: string) {
+  try {
+    const authCheck = await checkAuth(['ADMIN']);
+    if (!authCheck.success) return authCheck;
+    await prisma.annexureIV.delete({ where: { id } });
+    revalidatePath('/dashboard'); revalidatePath('/budget/annexure-4');
+    return { success: true };
+  } catch (err: any) {
+    console.error('Failed to delete Annexure-IV entry:', err);
+    return { success: false, error: err.message || 'Failed to delete entry' };
+  }
+}
+
 export async function updateAnnexureVEntry(id: string, data: any) {
-  const authCheck = await checkAuth(['ADMIN']);
-  if (!authCheck.success) return authCheck;
-  const total = (Number(data.quantity) || 0) * (Number(data.unitCost) || 0) + (Number(data.installationCost) || 0) + (Number(data.transportation) || 0) + (Number(data.otherCharges) || 0);
-  await prisma.annexureV.update({ where: { id }, data: { ...data, totalExpenditure: total } });
-  revalidatePath('/dashboard'); revalidatePath('/budget/annexure-5');
+  try {
+    const authCheck = await checkAuth(['ADMIN']);
+    if (!authCheck.success) return authCheck;
+    const total = (Number(data.quantity) || 0) * (Number(data.unitCost) || 0) + (Number(data.installationCost) || 0) + (Number(data.transportation) || 0) + (Number(data.otherCharges) || 0);
+    const entry = await prisma.annexureV.update({ where: { id }, data: { ...data, totalExpenditure: total } });
+    revalidatePath('/dashboard'); revalidatePath('/budget/annexure-5');
+    return { success: true, data: entry };
+  } catch (err: any) {
+    console.error('Failed to update Annexure-V entry:', err);
+    return { success: false, error: err.message || 'Failed to update entry' };
+  }
+}
+
+export async function deleteAnnexureVEntry(id: string) {
+  try {
+    const authCheck = await checkAuth(['ADMIN']);
+    if (!authCheck.success) return authCheck;
+    await prisma.annexureV.delete({ where: { id } });
+    revalidatePath('/dashboard'); revalidatePath('/budget/annexure-5');
+    return { success: true };
+  } catch (err: any) {
+    console.error('Failed to delete Annexure-V entry:', err);
+    return { success: false, error: err.message || 'Failed to delete entry' };
+  }
 }
 export async function updateAnnexureVIEntry(id: string, data: any) {
   const authCheck = await checkAuth(['ADMIN']);

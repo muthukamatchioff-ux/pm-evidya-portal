@@ -1,10 +1,17 @@
 'use client';
-import React, { useState } from 'react';
-import { addAnnexureVEntry, updateAnnexureVEntry } from '../actions';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { addAnnexureVEntry, updateAnnexureVEntry, deleteAnnexureVEntry } from '../actions';
 import styles from '../budget.module.css';
 import { downloadTableAsDocx } from '@/lib/tableToDocx';
 
 export default function Component5Client({ role, budgetComponentId, entries }: { role?: string, budgetComponentId: string, entries: any[] }) {
+  const router = useRouter();
+  const [records, setRecords] = useState(entries);
+  useEffect(() => {
+    setRecords(entries);
+  }, [entries]);
+
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({datePeriod: '', school: '', activity: '', equipment: '', quantity: '', unitCost: '', installationCost: '', transportation: '', otherCharges: '', vendor: '', invoiceNo: '', utrNumber: '', remarks: ''});
@@ -21,15 +28,43 @@ export default function Component5Client({ role, budgetComponentId, entries }: {
       dataToSubmit[k] = numFields.includes(k) ? Number((formData as any)[k]) || 0 : (formData as any)[k];
     });
     
+    let res: any;
     if (editingId) {
-      await updateAnnexureVEntry(editingId, dataToSubmit);
+      res = await updateAnnexureVEntry(editingId, dataToSubmit);
     } else {
-      await addAnnexureVEntry(dataToSubmit);
+      res = await addAnnexureVEntry(dataToSubmit);
     }
+
+    if (res?.data) {
+      if (editingId) {
+        setRecords(prev => prev.map(r => r.id === editingId ? res.data : r));
+      } else {
+        setRecords(prev => [res.data, ...prev]);
+      }
+    }
+
     setIsAdding(false);
     setFormData({datePeriod: '', school: '', activity: '', equipment: '', quantity: '', unitCost: '', installationCost: '', transportation: '', otherCharges: '', vendor: '', invoiceNo: '', utrNumber: '', remarks: ''});
+    router.refresh();
     alert(editingId ? "Transaction Updated Successfully" : "Transaction Added Successfully");
     setEditingId(null);
+  };
+
+  const handleDelete = async (id: string, school: string) => {
+    if (!window.confirm(`Are you sure you want to delete the record for "${school || 'this record'}"?`)) return;
+    try {
+      const res = await deleteAnnexureVEntry(id);
+      if (res && res.success) {
+        setRecords(prev => prev.filter(r => r.id !== id));
+        router.refresh();
+        alert('Record deleted successfully');
+      } else {
+        alert(res?.error || 'Failed to delete record');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert('Error deleting record');
+    }
   };
 
   return (
@@ -119,15 +154,20 @@ export default function Component5Client({ role, budgetComponentId, entries }: {
             </tr>
           </thead>
           <tbody>
-            {entries.length === 0 ? (
+            {records.length === 0 ? (
               <tr><td colSpan={10} style={{textAlign:'center'}}>No records found</td></tr>
             ) : (
-              entries.map((entry, idx) => (
+              records.map((entry, idx) => (
                 <tr key={entry.id}>
                   <td>{idx + 1}</td>
                   <td>{entry.datePeriod}</td><td>{entry.school}</td><td>{entry.activity}</td><td>{entry.equipment}</td><td>{entry.quantity}</td><td>{entry.unitCost}</td><td>{entry.installationCost}</td>
                   <td style={{fontWeight: 'bold'}}>₹ {entry.totalExpenditure.toLocaleString('en-IN')}</td>
-                  {role === 'ADMIN' && <td><button onClick={() => { setIsAdding(true); setEditingId(entry.id); Object.keys(entry).forEach(k => { if(entry[k] === null) entry[k] = ''; }); setFormData(entry); }} style={{color: 'blue', textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer'}}>Edit</button></td>}
+                  {role === 'ADMIN' && (
+                    <td>
+                      <button onClick={() => { setIsAdding(true); setEditingId(entry.id); Object.keys(entry).forEach(k => { if(entry[k] === null) entry[k] = ''; }); setFormData(entry); }} style={{color: 'blue', textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer', marginRight: '8px'}}>Edit</button>
+                      <button onClick={() => handleDelete(entry.id, entry.school)} style={{color: 'red', textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer'}}>Delete</button>
+                    </td>
+                  )}
                 </tr>
               ))
             )}

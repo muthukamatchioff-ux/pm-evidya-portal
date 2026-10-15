@@ -6,6 +6,9 @@ import styles from './smeProfile.module.css';
 import UnifiedSmeGeneratorClient from './UnifiedSmeGeneratorClient';
 import { getRole, requireAuth } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function SMEProfilePage(props: { params: Promise<{ id: string }> }) {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   const role = await getRole();

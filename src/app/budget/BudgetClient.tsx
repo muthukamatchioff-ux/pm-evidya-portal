@@ -1,12 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './budget.module.css';
 import { updateComponentBudget } from './actions';
 
 export default function BudgetClient({ role, initialData }: { role?: string, initialData: any[] }) {
+  const router = useRouter();
+  const [data, setData] = useState(initialData);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBudget, setEditBudget] = useState(0);
+
+  useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
 
   const handleEdit = (comp: any) => {
     setEditingId(comp.id);
@@ -16,7 +23,9 @@ export default function BudgetClient({ role, initialData }: { role?: string, ini
   const handleSave = async (id: string) => {
     const res = await updateComponentBudget(id, editBudget) as any;
     if (res && !res.success) { alert(res.error || 'Failed to update budget'); return; }
+    setData(prev => prev.map(c => c.id === id ? { ...c, approvedBudget: editBudget } : c));
     setEditingId(null);
+    router.refresh();
     alert("Approved Budget updated successfully!");
   };
 
@@ -39,7 +48,7 @@ export default function BudgetClient({ role, initialData }: { role?: string, ini
           </tr>
         </thead>
         <tbody>
-          {initialData.map(comp => {
+          {data.map(comp => {
             grandBudget += comp.approvedBudget;
             grandExpenditure += comp.expenditureIncurred;
 

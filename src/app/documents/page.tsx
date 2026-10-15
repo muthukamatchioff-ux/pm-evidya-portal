@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma';
 import DocumentClient from './DocumentClient';
 import { requireAuth } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function DocumentsPage() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   // Fetch all SMEs and eagerly load their work entries, documents, and payments

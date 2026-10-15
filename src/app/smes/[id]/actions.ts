@@ -155,6 +155,11 @@ export async function updateSMERecord(smeId: string, entryId: string | undefined
 
     revalidatePath('/smes');
     revalidatePath(`/smes/${smeId}`);
+    revalidatePath('/communications');
+    revalidatePath('/generator/deputation');
+    revalidatePath('/dashboard');
+    revalidatePath('/reports');
+    revalidatePath('/video-production');
     return { success: true };
   } catch (error) {
     console.error("Failed to update SME:", error);

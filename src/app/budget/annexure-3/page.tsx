@@ -6,6 +6,9 @@ import Component3Client from './Component3Client';
 
 import { getRole } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function Component3Page() {
   const role = await getRole();
   const compData = await getComponent3Data();

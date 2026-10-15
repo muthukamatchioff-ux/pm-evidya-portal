@@ -7,6 +7,9 @@ export const metadata = {
   title: 'Communications — Epic-Based SME Document Workflow | PM e-Vidya'
 };
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function DeputationGeneratorPage({
   searchParams
 }: {

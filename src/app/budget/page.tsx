@@ -4,6 +4,9 @@ import { getBudgetComponents } from './actions';
 import styles from './budget.module.css';
 import { getRole } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function BudgetPage() {
   const components = await getBudgetComponents();
   const role = await getRole();

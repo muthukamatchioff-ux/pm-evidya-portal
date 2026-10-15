@@ -9,6 +9,9 @@ export const metadata = {
   description: 'Upload and manage mandatory SME compliance documents',
 };
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function AccountsPage() {
   await requireAuth(['ADMIN']);
   const data = await prisma.sMEWorkEntry.findMany({

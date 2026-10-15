@@ -9,6 +9,9 @@ export const metadata = {
   title: 'Video Content Library | PM e-Vidya'
 };
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function ContentPage() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
   const videos = await getVideos();

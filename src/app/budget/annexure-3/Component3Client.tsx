@@ -1,10 +1,17 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { addAnnexureIIIEntry, updateAnnexureIIIEntry, deleteAnnexureIIIEntry } from '../actions';
 import styles from '../budget.module.css';
 import { downloadTableAsDocx } from '@/lib/tableToDocx';
 
 export default function Component3Client({ role, budgetComponentId, entries }: { role?: string, budgetComponentId: string, entries: any[] }) {
+  const router = useRouter();
+  const [records, setRecords] = useState(entries);
+  useEffect(() => {
+    setRecords(entries);
+  }, [entries]);
+
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,12 +66,21 @@ export default function Component3Client({ role, budgetComponentId, entries }: {
         return;
       }
 
+      if (res?.data) {
+        if (editingId) {
+          setRecords(prev => prev.map(r => r.id === editingId ? res.data : r));
+        } else {
+          setRecords(prev => [res.data, ...prev]);
+        }
+      }
+
       setIsAdding(false);
       setFormData({
         datePeriod: '', personnelName: '', designation: '', supportType: '', 
         department: '', workPeriod: '', remuneration: '', taDa: '', 
         otherCharges: '', utrNumber: '', remarks: ''
       });
+      router.refresh();
       alert(editingId ? "Transaction Updated Successfully" : "Transaction Added Successfully");
       setEditingId(null);
     } catch (err: any) {
@@ -85,6 +101,8 @@ export default function Component3Client({ role, budgetComponentId, entries }: {
       if (res && !res.success) {
         alert('Error: ' + (res.error || 'Failed to delete'));
       } else {
+        setRecords(prev => prev.filter(r => r.id !== id));
+        router.refresh();
         alert('Entry deleted successfully');
       }
     } catch (err: any) {
@@ -196,10 +214,10 @@ export default function Component3Client({ role, budgetComponentId, entries }: {
             </tr>
           </thead>
           <tbody>
-            {entries.length === 0 ? (
+            {records.length === 0 ? (
               <tr><td colSpan={12} style={{textAlign:'center'}}>No records found</td></tr>
             ) : (
-              entries.map((entry, idx) => (
+              records.map((entry, idx) => (
                 <tr key={entry.id}>
                   <td>{idx + 1}</td>
                   <td>{entry.datePeriod}</td>
