@@ -345,6 +345,113 @@ const createPrismaClient = () => {
                 return REAL_PM_EVIDYA_SME_WORK_ENTRIES[0] || null;
               }
 
+              if (model === 'SMEWorkEntry' && operation === 'update') {
+                const id = args?.where?.id;
+                const entry = (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).find(e => e.id === id);
+                if (entry && args?.data) {
+                  Object.assign(entry, args.data);
+                  entry.updatedAt = new Date().toISOString();
+                  return entry;
+                }
+                return entry || null;
+              }
+
+              if (model === 'Document') {
+                const allDocs: any[] = [];
+                (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).forEach(e => {
+                  if (Array.isArray(e.documents)) allDocs.push(...e.documents);
+                });
+
+                if (operation === 'findFirst' || operation === 'findUnique') {
+                  const id = args?.where?.id;
+                  if (id) return allDocs.find(d => d.id === id) || null;
+                  const { workEntryId, type } = args?.where || {};
+                  return allDocs.find(d => (!workEntryId || d.workEntryId === workEntryId) && (!type || d.type === type)) || null;
+                }
+
+                if (operation === 'findMany') {
+                  const { workEntryId, type } = args?.where || {};
+                  return allDocs.filter(d => (!workEntryId || d.workEntryId === workEntryId) && (!type || d.type === type));
+                }
+
+                if (operation === 'create') {
+                  const newDoc = {
+                    id: `doc-${Date.now()}`,
+                    ...args?.data,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  };
+                  if (args?.data?.workEntryId) {
+                    const entry = (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).find(e => e.id === args.data.workEntryId);
+                    if (entry) {
+                      if (!entry.documents) entry.documents = [];
+                      entry.documents.push(newDoc);
+                    }
+                  }
+                  allDocs.push(newDoc);
+                  return newDoc;
+                }
+
+                if (operation === 'update') {
+                  const id = args?.where?.id;
+                  const doc = allDocs.find(d => d.id === id);
+                  if (doc && args?.data) {
+                    Object.assign(doc, args.data);
+                    doc.updatedAt = new Date().toISOString();
+                    return doc;
+                  }
+                  return doc || null;
+                }
+              }
+
+              if (model === 'Payment') {
+                const allPayments: any[] = [];
+                (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).forEach(e => {
+                  if (Array.isArray(e.payments)) allPayments.push(...e.payments);
+                });
+
+                if (operation === 'findFirst' || operation === 'findUnique') {
+                  const id = args?.where?.id;
+                  if (id) return allPayments.find(p => p.id === id) || null;
+                  const { workEntryId } = args?.where || {};
+                  return allPayments.find(p => !workEntryId || p.workEntryId === workEntryId) || null;
+                }
+
+                if (operation === 'findMany') {
+                  const { workEntryId } = args?.where || {};
+                  return allPayments.filter(p => !workEntryId || p.workEntryId === workEntryId);
+                }
+
+                if (operation === 'create') {
+                  const newPayment = {
+                    id: `pay-${Date.now()}`,
+                    ...args?.data,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  };
+                  if (args?.data?.workEntryId) {
+                    const entry = (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).find(e => e.id === args.data.workEntryId);
+                    if (entry) {
+                      if (!entry.payments) entry.payments = [];
+                      entry.payments.push(newPayment);
+                    }
+                  }
+                  allPayments.push(newPayment);
+                  return newPayment;
+                }
+
+                if (operation === 'update') {
+                  const id = args?.where?.id;
+                  const payment = allPayments.find(p => p.id === id);
+                  if (payment && args?.data) {
+                    Object.assign(payment, args.data);
+                    payment.updatedAt = new Date().toISOString();
+                    return payment;
+                  }
+                  return payment || null;
+                }
+              }
+
               if (model === 'User' && operation === 'findMany') {
                 return [
                   { id: 'user-1', name: 'System Administrator', email: 'admin@pm-evidya.gov.in', role: 'ADMIN', status: 'ACTIVE', department: 'IT', designation: 'Head of IT' },

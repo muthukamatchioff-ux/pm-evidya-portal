@@ -1,26 +1,47 @@
 import React from 'react';
 import DeputationClient from './DeputationClient';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, getRole } from '@/lib/auth';
 
 export const metadata = {
-  title: 'SME Approval / Deputation Letter Generator | PM e-Vidya'
+  title: 'Communications — Epic-Based SME Document Workflow | PM e-Vidya'
 };
 
-export default async function DeputationGeneratorPage() {
+export default async function DeputationGeneratorPage({
+  searchParams
+}: {
+  searchParams?: Promise<{ epicId?: string; smeId?: string }>;
+}) {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
-  // Fetch SMEs and Projects to pre-fill dropdowns in the form
-  const smes = await prisma.sME.findMany({
-    orderBy: { name: 'asc' }
-  });
-  
-  const projects = await prisma.project.findMany({
-    orderBy: { projectCode: 'asc' }
-  });
+  const role = await getRole();
+  const resolvedParams = searchParams ? await searchParams : {};
+
+  let workEntries: any[] = [];
+  try {
+    workEntries = await prisma.sMEWorkEntry.findMany({
+      include: {
+        sme: true,
+        payments: true,
+        documents: true,
+      },
+      orderBy: { epicSequence: 'asc' }
+    });
+  } catch (e) {
+    console.error('Failed to load work entries for Communications:', e);
+  }
+
+  if (!workEntries || workEntries.length === 0) {
+    const { REAL_PM_EVIDYA_SME_WORK_ENTRIES } = await import('@/lib/fallbackData');
+    workEntries = REAL_PM_EVIDYA_SME_WORK_ENTRIES;
+  }
 
   return (
-    <div style={{ padding: '8px' }}>
-      <DeputationClient smes={smes} projects={projects} />
+    <div style={{ padding: '4px' }}>
+      <DeputationClient
+        initialWorkEntries={workEntries}
+        userRole={role}
+        preselectedEpicId={resolvedParams.epicId}
+      />
     </div>
   );
 }
