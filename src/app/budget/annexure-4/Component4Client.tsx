@@ -7,10 +7,19 @@ import { downloadTableAsDocx } from '@/lib/tableToDocx';
 
 export default function Component4Client({ role, budgetComponentId, entries }: { role?: string, budgetComponentId: string, entries: any[] }) {
   const router = useRouter();
-  const [records, setRecords] = useState(entries);
+  const [records, setRecords] = useState(entries || []);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+
   useEffect(() => {
-    setRecords(entries);
-  }, [entries]);
+    if (entries && Array.isArray(entries)) {
+      setRecords(prev => {
+        const filteredIncoming = entries.filter((e: any) => !deletedIds.has(e.id));
+        const incomingMap = new Map(filteredIncoming.map((e: any) => [e.id, e]));
+        const preservedLocals = prev.filter((p: any) => !incomingMap.has(p.id) && !deletedIds.has(p.id));
+        return [...filteredIncoming, ...preservedLocals];
+      });
+    }
+  }, [entries, deletedIds]);
 
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -28,26 +37,35 @@ export default function Component4Client({ role, budgetComponentId, entries }: {
       dataToSubmit[k] = numFields.includes(k) ? Number((formData as any)[k]) || 0 : (formData as any)[k];
     });
     
-    let res: any;
-    if (editingId) {
-      res = await updateAnnexureIVEntry(editingId, dataToSubmit);
-    } else {
-      res = await addAnnexureIVEntry(dataToSubmit);
-    }
-
-    if (res?.data) {
+    try {
+      let res: any;
       if (editingId) {
-        setRecords(prev => prev.map(r => r.id === editingId ? res.data : r));
+        res = await updateAnnexureIVEntry(editingId, dataToSubmit);
       } else {
-        setRecords(prev => [res.data, ...prev]);
+        res = await addAnnexureIVEntry(dataToSubmit);
       }
-    }
 
-    setIsAdding(false);
-    setFormData({datePeriod: '', service: '', description: '', vendor: '', purchaseRef: '', quantity: '', unitCost: '', servicePeriod: '', infrastructureCost: '', bandwidthCost: '', archiveCost: '', otherCharges: '', invoiceNo: '', utrNumber: '', remarks: ''});
-    router.refresh();
-    alert(editingId ? "Transaction Updated Successfully" : "Transaction Added Successfully");
-    setEditingId(null);
+      if (!res || !res.success) {
+        alert(res?.error || 'Operation failed. Please verify the inputs and try again.');
+        return;
+      }
+
+      const savedItem = res.data || { ...dataToSubmit, id: editingId || `aiv-${Date.now()}` };
+      if (editingId) {
+        setRecords(prev => prev.map(r => r.id === editingId ? savedItem : r));
+      } else {
+        setRecords(prev => [savedItem, ...prev]);
+      }
+
+      setIsAdding(false);
+      setFormData({datePeriod: '', service: '', description: '', vendor: '', purchaseRef: '', quantity: '', unitCost: '', servicePeriod: '', infrastructureCost: '', bandwidthCost: '', archiveCost: '', otherCharges: '', invoiceNo: '', utrNumber: '', remarks: ''});
+      router.refresh();
+      alert(editingId ? "Transaction Updated Successfully" : "Transaction Added Successfully");
+      setEditingId(null);
+    } catch (err: any) {
+      console.error(err);
+      alert('Operation failed: ' + (err?.message || 'Please check values and try again.'));
+    }
   };
 
   const handleDelete = async (id: string, vendor: string) => {
@@ -55,6 +73,7 @@ export default function Component4Client({ role, budgetComponentId, entries }: {
     try {
       const res = await deleteAnnexureIVEntry(id);
       if (res && res.success) {
+        setDeletedIds(prev => new Set(prev).add(id));
         setRecords(prev => prev.filter(r => r.id !== id));
         router.refresh();
         alert('Record deleted successfully');
@@ -63,7 +82,7 @@ export default function Component4Client({ role, budgetComponentId, entries }: {
       }
     } catch (err: any) {
       console.error(err);
-      alert('Error deleting record');
+      alert('Error deleting record: ' + (err?.message || 'Please try again.'));
     }
   };
 

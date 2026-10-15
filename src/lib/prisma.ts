@@ -95,6 +95,18 @@ const createPrismaClient = () => {
                 return REAL_PM_EVIDYA_BUDGET_COMPONENTS;
               }
 
+              if (model === 'BudgetComponent' && operation === 'update') {
+                const compNo = args?.where?.componentNo;
+                const id = args?.where?.id;
+                const comp = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find((c: any) => (compNo && c.componentNo === compNo) || (id && c.id === id));
+                if (comp && args?.data) {
+                  Object.assign(comp, args.data);
+                  comp.updatedAt = new Date().toISOString();
+                  return comp;
+                }
+                return { id, ...args?.data };
+              }
+
               if (model === 'BudgetComponent' && (operation === 'findUnique' || operation === 'findFirst')) {
                 const compNo = args?.where?.componentNo;
                 if (compNo) {
@@ -107,8 +119,30 @@ const createPrismaClient = () => {
                 return REAL_PM_EVIDYA_BUDGET_COMPONENTS[0] || null;
               }
 
-              if (model === 'BudgetHead' && operation === 'findMany') {
-                return REAL_PM_EVIDYA_BUDGET_HEADS;
+              if (model === 'BudgetHead') {
+                if (operation === 'findMany') return REAL_PM_EVIDYA_BUDGET_HEADS;
+                if (operation === 'findUnique' || operation === 'findFirst') {
+                  return (REAL_PM_EVIDYA_BUDGET_HEADS as any[]).find(h => h.id === args?.where?.id || h.name === args?.where?.name) || null;
+                }
+                if (operation === 'create') {
+                  const newHead = { id: `bh-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+                  (REAL_PM_EVIDYA_BUDGET_HEADS as any[]).push(newHead);
+                  return newHead;
+                }
+                if (operation === 'update') {
+                  const head = (REAL_PM_EVIDYA_BUDGET_HEADS as any[]).find(h => h.id === args?.where?.id);
+                  if (head && args?.data) {
+                    Object.assign(head, args.data);
+                    head.updatedAt = new Date().toISOString();
+                    return head;
+                  }
+                  return { ...args?.data, id: args?.where?.id };
+                }
+                if (operation === 'delete') {
+                  const idx = (REAL_PM_EVIDYA_BUDGET_HEADS as any[]).findIndex(h => h.id === args?.where?.id);
+                  if (idx !== -1) return (REAL_PM_EVIDYA_BUDGET_HEADS as any[]).splice(idx, 1)[0];
+                  return { id: args?.where?.id };
+                }
               }
 
               if (model === 'AnnexureI') {

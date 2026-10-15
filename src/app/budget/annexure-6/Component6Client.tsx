@@ -9,17 +9,28 @@ import { downloadTableAsDocx } from '@/lib/tableToDocx';
 export default function Component6Client({
   role,
   budgetComponentId,
+  approvedBudget = 500000,
   entries
 }: {
   role?: string;
   budgetComponentId: string;
+  approvedBudget?: number;
   entries: any[];
 }) {
   const router = useRouter();
-  const [records, setRecords] = useState(entries);
+  const [records, setRecords] = useState(entries || []);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+
   useEffect(() => {
-    setRecords(entries);
-  }, [entries]);
+    if (entries && Array.isArray(entries)) {
+      setRecords(prev => {
+        const filteredIncoming = entries.filter((e: any) => !deletedIds.has(e.id));
+        const incomingMap = new Map(filteredIncoming.map((e: any) => [e.id, e]));
+        const preservedLocals = prev.filter((p: any) => !incomingMap.has(p.id) && !deletedIds.has(p.id));
+        return [...filteredIncoming, ...preservedLocals];
+      });
+    }
+  }, [entries, deletedIds]);
 
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -99,28 +110,27 @@ export default function Component6Client({
     };
 
     try {
-      let res;
+      let res: any;
       if (editingId) {
         res = await updateAnnexureVIEntry(editingId, dataToSubmit);
       } else {
         res = await addAnnexureVIEntry(dataToSubmit);
       }
 
-      if (res && !res.success) {
-        alert(res.error || 'Operation failed');
+      if (!res || !res.success) {
+        alert(res?.error || 'Operation failed. Please check the values and try again.');
         return;
       }
 
-      if (res?.data) {
-        if (editingId) {
-          setRecords(prev => prev.map(r => r.id === editingId ? res.data : r));
-        } else {
-          setRecords(prev => [...prev, res.data]);
-        }
+      const savedItem = res.data || { ...dataToSubmit, id: editingId || `avi-${Date.now()}` };
+      if (editingId) {
+        setRecords(prev => prev.map(r => r.id === editingId ? savedItem : r));
+      } else {
+        setRecords(prev => [savedItem, ...prev]);
       }
 
-      router.refresh();
       handleCancel();
+      router.refresh();
       alert(editingId ? 'Transaction Updated Successfully' : 'Transaction Added Successfully');
     } catch (err: any) {
       console.error(err);
@@ -143,15 +153,16 @@ export default function Component6Client({
     try {
       const res = await deleteAnnexureVIEntry(entry.id);
       if (res && res.success) {
+        setDeletedIds(prev => new Set(prev).add(entry.id));
         setRecords(prev => prev.filter(r => r.id !== entry.id));
         router.refresh();
         alert('Record deleted successfully.');
       } else {
         alert(res?.error || 'Failed to delete record.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Error deleting record.');
+      alert('Error deleting record: ' + (err?.message || 'Please try again.'));
     } finally {
       setDeletingId(null);
     }
@@ -161,9 +172,34 @@ export default function Component6Client({
     (sum, e) => sum + (Number(e.totalExpenditure) || 0),
     0
   );
+  const balance = Math.max(0, approvedBudget - calculatedSubtotal);
+  const utilization = approvedBudget > 0 ? ((calculatedSubtotal / approvedBudget) * 100).toFixed(2) : '0.00';
 
   return (
     <div>
+      <div className={styles.summaryCards}>
+        <div className={styles.card}>
+          <div className={styles.cardLabel}>Approved Budget</div>
+          <div className={styles.cardValue}>₹ {approvedBudget.toLocaleString('en-IN')}</div>
+        </div>
+        <div className={styles.card}>
+          <div className={styles.cardLabel}>Expenditure</div>
+          <div className={styles.cardValue} style={{ color: 'var(--error)' }}>
+            ₹ {calculatedSubtotal.toLocaleString('en-IN')}
+          </div>
+        </div>
+        <div className={styles.card}>
+          <div className={styles.cardLabel}>Balance</div>
+          <div className={styles.cardValue} style={{ color: 'var(--success)' }}>
+            ₹ {balance.toLocaleString('en-IN')}
+          </div>
+        </div>
+        <div className={styles.card}>
+          <div className={styles.cardLabel}>Utilization</div>
+          <div className={styles.cardValue}>{utilization}%</div>
+        </div>
+      </div>
+
       <div className={styles.actionsBar} style={{ marginTop: '24px' }}>
         <h3 className={styles.title} style={{ fontSize: '20px', fontWeight: 700 }}>
           Expenditure Entries

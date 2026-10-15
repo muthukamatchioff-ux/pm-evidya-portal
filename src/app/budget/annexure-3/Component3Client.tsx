@@ -7,10 +7,19 @@ import { downloadTableAsDocx } from '@/lib/tableToDocx';
 
 export default function Component3Client({ role, budgetComponentId, entries }: { role?: string, budgetComponentId: string, entries: any[] }) {
   const router = useRouter();
-  const [records, setRecords] = useState(entries);
+  const [records, setRecords] = useState(entries || []);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+
   useEffect(() => {
-    setRecords(entries);
-  }, [entries]);
+    if (entries && Array.isArray(entries)) {
+      setRecords(prev => {
+        const filteredIncoming = entries.filter((e: any) => !deletedIds.has(e.id));
+        const incomingMap = new Map(filteredIncoming.map((e: any) => [e.id, e]));
+        const preservedLocals = prev.filter((p: any) => !incomingMap.has(p.id) && !deletedIds.has(p.id));
+        return [...filteredIncoming, ...preservedLocals];
+      });
+    }
+  }, [entries, deletedIds]);
 
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -61,17 +70,16 @@ export default function Component3Client({ role, budgetComponentId, entries }: {
         res = await addAnnexureIIIEntry(dataToSubmit);
       }
 
-      if (res && !res.success) {
-        alert('Error: ' + (res.error || 'Failed to save entry'));
+      if (!res || !res.success) {
+        alert('Error: ' + (res?.error || 'Failed to save entry. Please verify inputs.'));
         return;
       }
 
-      if (res?.data) {
-        if (editingId) {
-          setRecords(prev => prev.map(r => r.id === editingId ? res.data : r));
-        } else {
-          setRecords(prev => [res.data, ...prev]);
-        }
+      const savedItem = res.data || { ...dataToSubmit, id: editingId || `aiii-${Date.now()}` };
+      if (editingId) {
+        setRecords(prev => prev.map(r => r.id === editingId ? savedItem : r));
+      } else {
+        setRecords(prev => [savedItem, ...prev]);
       }
 
       setIsAdding(false);
@@ -98,12 +106,13 @@ export default function Component3Client({ role, budgetComponentId, entries }: {
     setDeletingId(id);
     try {
       const res = await deleteAnnexureIIIEntry(id);
-      if (res && !res.success) {
-        alert('Error: ' + (res.error || 'Failed to delete'));
-      } else {
+      if (res && res.success) {
+        setDeletedIds(prev => new Set(prev).add(id));
         setRecords(prev => prev.filter(r => r.id !== id));
         router.refresh();
         alert('Entry deleted successfully');
+      } else {
+        alert('Error: ' + (res?.error || 'Failed to delete'));
       }
     } catch (err: any) {
       console.error(err);

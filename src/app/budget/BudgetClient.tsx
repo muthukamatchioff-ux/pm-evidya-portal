@@ -21,12 +21,19 @@ export default function BudgetClient({ role, initialData }: { role?: string, ini
   };
 
   const handleSave = async (id: string) => {
-    const res = await updateComponentBudget(id, editBudget) as any;
-    if (res && !res.success) { alert(res.error || 'Failed to update budget'); return; }
-    setData(prev => prev.map(c => c.id === id ? { ...c, approvedBudget: editBudget } : c));
-    setEditingId(null);
-    router.refresh();
-    alert("Approved Budget updated successfully!");
+    try {
+      const res = await updateComponentBudget(id, editBudget) as any;
+      if (!res || !res.success) {
+        alert(res?.error || 'Failed to update budget');
+        return;
+      }
+      setData(prev => prev.map(c => c.id === id ? { ...c, approvedBudget: editBudget } : c));
+      setEditingId(null);
+      router.refresh();
+      alert("Approved Budget updated successfully!");
+    } catch (err: any) {
+      alert("Failed to update budget: " + (err?.message || "Please try again."));
+    }
   };
 
   let grandBudget = 0;

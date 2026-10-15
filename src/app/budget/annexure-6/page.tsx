@@ -30,30 +30,12 @@ export default async function Component6Page() {
         </div>
       </div>
 
-      <div className={styles.summaryCards}>
-        <div className={styles.card}>
-          <div className={styles.cardLabel}>Approved Budget</div>
-          <div className={styles.cardValue}>₹ {compData.approvedBudget.toLocaleString('en-IN')}</div>
-        </div>
-        <div className={styles.card}>
-          <div className={styles.cardLabel}>Expenditure</div>
-          <div className={styles.cardValue} style={{ color: 'var(--error)' }}>
-            ₹ {compData.expenditureIncurred.toLocaleString('en-IN')}
-          </div>
-        </div>
-        <div className={styles.card}>
-          <div className={styles.cardLabel}>Balance</div>
-          <div className={styles.cardValue} style={{ color: 'var(--success)' }}>
-            ₹ {compData.unutilizedBalance.toLocaleString('en-IN')}
-          </div>
-        </div>
-        <div className={styles.card}>
-          <div className={styles.cardLabel}>Utilization</div>
-          <div className={styles.cardValue}>{compData.utilizationPercent}%</div>
-        </div>
-      </div>
-
-      <Component6Client role={role} budgetComponentId={compData.id} entries={compData.annexureVI} />
+      <Component6Client
+        role={role}
+        budgetComponentId={compData.id}
+        approvedBudget={compData.approvedBudget}
+        entries={compData.annexureVI}
+      />
     </div>
   );
 }

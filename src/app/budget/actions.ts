@@ -108,8 +108,9 @@ export async function addAnnexureIEntry(data: any) {
         verificationStatus: 'DRAFT',
       }
     });
-    revalidatePath('/dashboard');
-    revalidatePath('/budget/annexure-1');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-1', 'page');
     return { success: true, data: entry };
   } catch (err: any) {
     return { success: false, error: err.message || 'Failed to add entry' };
@@ -147,8 +148,9 @@ export async function updateAnnexureIEntry(id: string, data: any) {
       where: { id },
       data: updateData
     });
-    revalidatePath('/dashboard');
-    revalidatePath('/budget/annexure-1');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-1', 'page');
     return { success: true, data: entry };
   } catch (err: any) {
     return { success: false, error: err.message || 'Failed to update entry' };
@@ -173,8 +175,9 @@ export async function deleteAnnexureIEntry(id: string) {
       userEmail
     });
 
-    revalidatePath('/dashboard');
-    revalidatePath('/budget/annexure-1');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-1', 'page');
     return { success: true };
   } catch (err: any) {
     console.error('Failed to delete Annexure-I entry:', err);
@@ -255,8 +258,9 @@ export async function addAnnexureIIEntry(data: any) {
       userEmail
     });
 
-    revalidatePath('/dashboard');
-    revalidatePath('/budget/annexure-2');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-2', 'page');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error('Failed to add Annexure-II entry:', err);
@@ -304,8 +308,9 @@ export async function updateAnnexureIIEntry(id: string, data: any) {
       userEmail
     });
 
-    revalidatePath('/dashboard');
-    revalidatePath('/budget/annexure-2');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-2', 'page');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error('Failed to update Annexure-II entry:', err);
@@ -331,8 +336,9 @@ export async function deleteAnnexureIIEntry(id: string) {
       userEmail
     });
 
-    revalidatePath('/dashboard');
-    revalidatePath('/budget/annexure-2');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-2', 'page');
     return { success: true };
   } catch (err: any) {
     console.error('Failed to delete Annexure-II entry:', err);
@@ -389,8 +395,9 @@ export async function addAnnexureIIIEntry(data: any) {
       userEmail
     });
 
-    revalidatePath('/dashboard');
-    revalidatePath('/budget/annexure-3');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-3', 'page');
     return { success: true, data: entry };
   } catch (error: any) {
     console.error('Failed to add Annexure-III entry:', error);
@@ -414,7 +421,9 @@ export async function addAnnexureIVEntry(data: any) {
     if (!authCheck.success) return authCheck;
     const total = (Number(data.infrastructureCost) || 0) + (Number(data.bandwidthCost) || 0) + (Number(data.archiveCost) || 0) + (Number(data.otherCharges) || 0);
     const entry = await prisma.annexureIV.create({ data: { ...data, totalExpenditure: total } });
-    revalidatePath('/dashboard'); revalidatePath('/budget/annexure-4');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-4', 'page');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error('Failed to add Annexure-IV entry:', err);
@@ -438,7 +447,9 @@ export async function addAnnexureVEntry(data: any) {
     if (!authCheck.success) return authCheck;
     const total = (Number(data.quantity) || 0) * (Number(data.unitCost) || 0) + (Number(data.installationCost) || 0) + (Number(data.transportation) || 0) + (Number(data.otherCharges) || 0);
     const entry = await prisma.annexureV.create({ data: { ...data, totalExpenditure: total } });
-    revalidatePath('/dashboard'); revalidatePath('/budget/annexure-5');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-5', 'page');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error('Failed to add Annexure-V entry:', err);
@@ -490,8 +501,9 @@ export async function addAnnexureVIEntry(data: any) {
       userEmail
     });
 
-    revalidatePath('/dashboard');
-    revalidatePath('/budget/annexure-6');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-6', 'page');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error('Failed to add Annexure-VI entry:', err);
@@ -536,8 +548,9 @@ export async function updateAnnexureIIIEntry(id: string, data: any) {
       userEmail
     });
 
-    revalidatePath('/dashboard');
-    revalidatePath('/budget/annexure-3');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-3', 'page');
     return { success: true, data: entry };
   } catch (error: any) {
     console.error('Failed to update Annexure-III entry:', error);
@@ -566,8 +579,9 @@ export async function deleteAnnexureIIIEntry(id: string) {
       userEmail
     });
 
-    revalidatePath('/dashboard');
-    revalidatePath('/budget/annexure-3');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-3', 'page');
     return { success: true };
   } catch (error: any) {
     console.error('Failed to delete Annexure-III entry:', error);
@@ -580,7 +594,9 @@ export async function updateAnnexureIVEntry(id: string, data: any) {
     if (!authCheck.success) return authCheck;
     const total = (Number(data.infrastructureCost) || 0) + (Number(data.bandwidthCost) || 0) + (Number(data.archiveCost) || 0) + (Number(data.otherCharges) || 0);
     const entry = await prisma.annexureIV.update({ where: { id }, data: { ...data, totalExpenditure: total } });
-    revalidatePath('/dashboard'); revalidatePath('/budget/annexure-4');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-4', 'page');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error('Failed to update Annexure-IV entry:', err);
@@ -593,7 +609,9 @@ export async function deleteAnnexureIVEntry(id: string) {
     const authCheck = await checkAuth(['ADMIN']);
     if (!authCheck.success) return authCheck;
     await prisma.annexureIV.delete({ where: { id } });
-    revalidatePath('/dashboard'); revalidatePath('/budget/annexure-4');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-4', 'page');
     return { success: true };
   } catch (err: any) {
     console.error('Failed to delete Annexure-IV entry:', err);
@@ -607,7 +625,9 @@ export async function updateAnnexureVEntry(id: string, data: any) {
     if (!authCheck.success) return authCheck;
     const total = (Number(data.quantity) || 0) * (Number(data.unitCost) || 0) + (Number(data.installationCost) || 0) + (Number(data.transportation) || 0) + (Number(data.otherCharges) || 0);
     const entry = await prisma.annexureV.update({ where: { id }, data: { ...data, totalExpenditure: total } });
-    revalidatePath('/dashboard'); revalidatePath('/budget/annexure-5');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-5', 'page');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error('Failed to update Annexure-V entry:', err);
@@ -620,7 +640,9 @@ export async function deleteAnnexureVEntry(id: string) {
     const authCheck = await checkAuth(['ADMIN']);
     if (!authCheck.success) return authCheck;
     await prisma.annexureV.delete({ where: { id } });
-    revalidatePath('/dashboard'); revalidatePath('/budget/annexure-5');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-5', 'page');
     return { success: true };
   } catch (err: any) {
     console.error('Failed to delete Annexure-V entry:', err);
@@ -662,8 +684,9 @@ export async function updateAnnexureVIEntry(id: string, data: any) {
       userEmail
     });
 
-    revalidatePath('/dashboard');
-    revalidatePath('/budget/annexure-6');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-6', 'page');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error('Failed to update Annexure-VI entry:', err);
@@ -687,8 +710,9 @@ export async function deleteAnnexureVIEntry(id: string) {
       userEmail
     });
 
-    revalidatePath('/dashboard');
-    revalidatePath('/budget/annexure-6');
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    revalidatePath('/budget/annexure-6', 'page');
     return { success: true };
   } catch (err: any) {
     console.error('Failed to delete Annexure-VI entry:', err);
@@ -714,7 +738,7 @@ export async function updateComponentBudget(id: string, approvedBudget: number) 
     where: { id },
     data: { approvedBudget }
   });
-  revalidatePath('/budget');
-  revalidatePath('/dashboard');
+  revalidatePath('/budget', 'page');
+  revalidatePath('/dashboard', 'page');
   return { success: true };
 }
