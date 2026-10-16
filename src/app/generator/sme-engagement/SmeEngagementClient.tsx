@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styles from '../deputation/deputation.module.css';
 import { saveSMERecord } from './actions';
+import { exportMhtmlWordDocument, getLogoBase64, buildWordOfficialHeader, buildWordOfficialFooter } from '@/lib/mhtmlDocxExport';
 
 // Helper to convert numbers to Indian Rupee words
 function numberToWords(num: number): string {
@@ -147,53 +148,229 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
   };
 
   const generateDOCX = async () => {
-    const element = printRef.current;
-    if (!element) return;
-    
     try {
-      // Save record to DB automatically
       await saveSMERecord(sme, trades);
     } catch (e) {
       console.error("Failed to save record", e);
     }
 
-    let htmlContent = element.innerHTML;
     try {
-      const response = await fetch('/nimi-logo.png');
-      const blobImg = await response.blob();
-      const base64data = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(blobImg);
-      });
-      htmlContent = htmlContent.replace(/src="\/nimi-logo\.png"/g, `src="${base64data}"`);
-    } catch (e) {}
-    
-    const fullHtml = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head><meta charset="utf-8"><title>SME Document</title></head>
-      <body>${htmlContent}</body>
-      </html>`;
-      
-    const blob = new Blob(['\ufeff', fullHtml], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `SME_Engagement_${sme.name.replace(/\s+/g, '_')}.doc`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      const logoBase64 = await getLogoBase64();
+      let bodyHtml = '';
+
+      if (docType === 'both' || docType === 'completion') {
+        const topicLines = (trades[0]?.topics || '').split(/\r?\n/).map(t => t.trim()).filter(Boolean);
+        let topicsHtml = '';
+        if (topicLines.length > 3) {
+          const half = Math.ceil(topicLines.length / 2);
+          const col1 = topicLines.slice(0, half);
+          const col2 = topicLines.slice(half);
+          topicsHtml = `
+            <table style="width: 100%; border: 1pt solid #cbd5e1; background-color: #f8fafc; margin: 4pt 0 6pt 0; padding: 4pt 8pt; font-size: 8.5pt;">
+              <tr>
+                <td style="width: 50%; border: none; vertical-align: top; padding: 2pt 6pt;">
+                  ${col1.map((t: string) => `<div style="margin: 1pt 0;">&bull; ${t}</div>`).join('')}
+                </td>
+                <td style="width: 50%; border: none; vertical-align: top; padding: 2pt 6pt;">
+                  ${col2.map((t: string) => `<div style="margin: 1pt 0;">&bull; ${t}</div>`).join('')}
+                </td>
+              </tr>
+            </table>
+          `;
+        } else {
+          topicsHtml = `
+            <div style="background-color: #f8fafc; border: 1pt solid #cbd5e1; padding: 4pt 8pt; margin: 4pt 0 6pt 0; font-size: 8.5pt;">
+              ${topicLines.map((t: string) => `<div style="margin: 1pt 0;">&bull; ${t}</div>`).join('')}
+            </div>
+          `;
+        }
+
+        bodyHtml += `
+          ${buildWordOfficialHeader()}
+          <h2 style="text-align: center; text-decoration: underline; font-size: 12pt; margin: 8pt 0 6pt 0; text-transform: uppercase;">
+            Work Completion Certificate
+          </h2>
+          <p style="line-height: 1.35; font-size: 9pt; margin-bottom: 5pt;">
+            This is to certify that <strong>${sme.name}</strong>, <strong>${sme.role}</strong>, has successfully completed the <strong>${programme.name}</strong> for the <strong>${trades[0]?.tradeName}</strong> trade at the <strong>${programme.location}</strong>, during the period from <strong>${formatDate(trades[0]?.startDate)}</strong> to <strong>${formatDate(trades[0]?.endDate)}</strong>.
+          </p>
+          <p style="line-height: 1.35; font-size: 9pt; margin-bottom: 5pt;">
+            As the <strong>${sme.role}</strong>, <strong>${sme.name}</strong> effectively delivered the assigned classroom sessions in accordance with the approved curriculum, ensuring technical accuracy, instructional quality, and compliance with the applicable standards for PM e-Vidya digital learning content.
+          </p>
+          <p style="line-height: 1.35; font-size: 9pt; margin-bottom: 3pt;">
+            The following topics were successfully delivered and recorded for integration into the PM e-Vidya Digital Learning Platform:
+          </p>
+          ${topicsHtml}
+          <p style="line-height: 1.35; font-size: 9pt; margin-top: 5pt; margin-bottom: 6pt;">
+            The recorded classroom sessions have been completed satisfactorily and are certified for further processing as per the applicable NIMI norms.
+          </p>
+          <table style="width: 100%; border-collapse: collapse; margin: 5pt 0 8pt 0; font-size: 8.5pt;">
+            <thead>
+              <tr style="background-color: #f1f5f9;">
+                <th style="border: 1pt solid #000; padding: 4pt 6pt; text-align: left;">Trade</th>
+                <th style="border: 1pt solid #000; padding: 4pt 6pt; text-align: left;">Guest Expert (SME)</th>
+                <th style="border: 1pt solid #000; padding: 4pt 6pt; text-align: left;">Work Completed</th>
+                <th style="border: 1pt solid #000; padding: 4pt 6pt; text-align: left;">Date</th>
+                <th style="border: 1pt solid #000; padding: 4pt 6pt; text-align: left;">Amount (Rs.)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="border: 1pt solid #000; padding: 4pt 6pt;"><strong>${trades[0]?.tradeName}</strong></td>
+                <td style="border: 1pt solid #000; padding: 4pt 6pt;">
+                  <strong>${sme.name}</strong><br>
+                  ${sme.designation}, ${sme.institution}, ${sme.city}, ${sme.state}
+                </td>
+                <td style="border: 1pt solid #000; padding: 4pt 6pt;">${programme.workTitle}</td>
+                <td style="border: 1pt solid #000; padding: 4pt 6pt;">${formatDate(trades[0]?.startDate)} - ${formatDate(trades[0]?.endDate)}</td>
+                <td style="border: 1pt solid #000; padding: 4pt 6pt;">₹${trades[0]?.remunerationPerDay}/- (per Day)</td>
+              </tr>
+            </tbody>
+          </table>
+          <table style="width: 100%; border: none; margin-top: 8pt; font-size: 8pt; line-height: 1.25;">
+            <tr>
+              <td style="width: 50%; vertical-align: top; padding-right: 10pt; border: none;">
+                <div style="font-weight: bold; text-decoration: underline; margin-bottom: 3pt;">SME DECLARATION</div>
+                <div>I, <strong>${sme.name}</strong>, <strong>${sme.role}</strong>, hereby declare that I have successfully completed the <strong>${programme.name}</strong> for the <strong>${trades[0]?.tradeName}</strong> trade during the period from <strong>${formatDate(trades[0]?.startDate)}</strong> to <strong>${formatDate(trades[0]?.endDate)}</strong>.</div>
+                <div style="margin-top: 3pt;">I certify that the assigned topics were delivered as per the approved curriculum and that the work has been completed satisfactorily for processing of honorarium as per applicable NIMI norms.</div>
+                <br><br><br>
+                Signature of Guest Expert:<br>
+                Designation: ${sme.designation}, ${sme.institution}, ${sme.city}, ${sme.state}<br>
+                Date: ${formatDate(approval.submittedDate)}
+              </td>
+              <td style="width: 50%; vertical-align: top; padding-left: 10pt; border: none; border-left: 1pt dashed #94a3b8;">
+                <div style="font-weight: bold; text-decoration: underline; margin-bottom: 3pt;">NIMI VERIFICATION</div>
+                <div>Certified that the above work has been completed satisfactorily and verified as per the requirements of the National Instructional Media Institute (NIMI).</div>
+                <br><br><br><br>
+                Signature<br>
+                Name: <strong>${verification.verifierName}</strong><br>
+                Designation: ${verification.verifierDesignation}<br>
+                Organisation: ${verification.verifierOrganisation}<br>
+                Date: ${formatDate(verification.verificationDate)}
+              </td>
+            </tr>
+          </table>
+          ${buildWordOfficialFooter()}
+        `;
+      }
+
+      if (docType === 'both') {
+        bodyHtml += `<div style="page-break-before: always; mso-break-type: section-break; margin-top: 20pt;"></div>`;
+      }
+
+      if (docType === 'both' || docType === 'remuneration') {
+        const slotRowsHtml = trades.map((t, idx) => `
+          <tr>
+            <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center;">${idx + 1}</td>
+            <td style="border: 1pt solid #000; padding: 4pt 6pt;">
+              <strong>${sme.name}</strong><br>
+              <span>${sme.designation}</span>
+              ${(sme.institution || sme.city) ? `<div style="font-size: 8pt; color: #475569; margin-top: 1pt;">${sme.institution}, ${sme.city}</div>` : ''}
+            </td>
+            <td style="border: 1pt solid #000; padding: 4pt 6pt;"><strong>${t.tradeName}</strong></td>
+            <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center; white-space: nowrap;">${t.startDate && t.endDate ? `${formatDate(t.startDate)} to ${formatDate(t.endDate)}` : '-'}</td>
+            <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center; font-weight: bold;">${t.totalDays} Days</td>
+            <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: right; white-space: nowrap;">Rs. ${t.remunerationPerDay}/-</td>
+            <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: right; font-weight: bold; white-space: nowrap;">Rs. ${t.totalAmount.toLocaleString('en-IN')}/-</td>
+          </tr>
+        `).join('');
+
+        bodyHtml += `
+          ${buildWordOfficialHeader()}
+          <h2 style="text-align: center; text-decoration: underline; font-size: 12pt; margin: 8pt 0 6pt 0;">
+            SME REMUNERATION / SANCTION NOTE
+          </h2>
+          <table style="width: 100%; border: none; margin-bottom: 6pt; font-family: 'Times New Roman', serif; font-size: 9.5pt; font-weight: bold;">
+            <tr>
+              <td align="left" style="border: none;">Submitted</td>
+              <td align="right" style="border: none;">${formatDate(approval.submittedDate)}</td>
+            </tr>
+          </table>
+          <p style="line-height: 1.35; font-size: 9pt; margin-bottom: 6pt;">
+            Sanction may kindly be accorded for a sum of <strong>Rs. ${grandTotalAmount.toLocaleString('en-IN')}/- (Rupees ${amountInWords})</strong> towards the remuneration of <strong>${sme.name}</strong>, <strong>${sme.designation}</strong>, <strong>${sme.institution}, ${sme.city}</strong>, who served as the <strong>${sme.role}</strong> for the <strong>${programme.name}</strong> for the <strong>${trades.map(t => t.tradeName).join(' and ')}</strong> trades. The <strong>${programme.workTitle}</strong> was successfully conducted and completed at the <strong>${programme.location}</strong>.
+          </p>
+          <table style="width: 100%; border-collapse: collapse; margin: 6pt 0; font-size: 8.5pt;">
+            <thead>
+              <tr style="background-color: #f1f5f9;">
+                <th style="border: 1pt solid #000; padding: 4pt 5pt; text-align: center; width: 6%;">S. No.</th>
+                <th style="border: 1pt solid #000; padding: 4pt 5pt; text-align: left; width: 24%;">Name &amp; Designation</th>
+                <th style="border: 1pt solid #000; padding: 4pt 5pt; text-align: left; width: 20%;">Trade</th>
+                <th style="border: 1pt solid #000; padding: 4pt 5pt; text-align: center; width: 21%;">Attendance Date</th>
+                <th style="border: 1pt solid #000; padding: 4pt 5pt; text-align: center; width: 11%;">Total No. of Days</th>
+                <th style="border: 1pt solid #000; padding: 4pt 5pt; text-align: right; width: 9%;">Remuneration per Day</th>
+                <th style="border: 1pt solid #000; padding: 4pt 5pt; text-align: right; width: 9%;">Total Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${slotRowsHtml}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="4" style="border: 1pt solid #000; padding: 4pt 5pt; text-align: right; font-weight: bold;">Subtotal (Remuneration):</td>
+                <td style="border: 1pt solid #000; padding: 4pt 5pt; text-align: center; font-weight: bold;">${grandTotalDays} Days</td>
+                <td style="border: 1pt solid #000; padding: 4pt 5pt;"></td>
+                <td style="border: 1pt solid #000; padding: 4pt 5pt; text-align: right; font-weight: bold; white-space: nowrap;">Rs. ${grandTotalAmount.toLocaleString('en-IN')}/-</td>
+              </tr>
+              <tr>
+                <td colspan="6" style="border: 1pt solid #000; padding: 4pt 5pt; text-align: right; font-weight: bold;">Grand Total:</td>
+                <td style="border: 1pt solid #000; padding: 4pt 5pt; text-align: right; font-weight: bold; white-space: nowrap;">Rs. ${grandTotalAmount.toLocaleString('en-IN')}/-</td>
+              </tr>
+            </tfoot>
+          </table>
+          <p style="line-height: 1.35; font-size: 9pt; margin-top: 6pt; margin-bottom: 5pt;">
+            If approved, payment of <strong>Rs. ${grandTotalAmount.toLocaleString('en-IN')}/- (Rupees ${amountInWords})</strong> may be released to the above Subject Matter Expert from the PM e-Vidya Funds as per the prevailing NCERT norms. The SME engagement approval letter, Work Completion Certificate, and other supporting documents are enclosed separately for kind perusal.
+          </p>
+          <p style="line-height: 1.35; font-size: 9pt; margin-bottom: 12pt;">
+            Submitted for kind approval, please.
+          </p>
+          <table style="width: 100%; border: none; margin-top: 14pt; margin-bottom: 8pt; font-size: 9pt;">
+            <tr>
+              <td style="width: 50%; text-align: left; border: none;">
+                <div style="font-weight: bold;">Prepared By / Verified By</div>
+                <br><br><br>
+                <div style="font-size: 8pt; color: #475569;">Dealing Assistant / Consultant</div>
+              </td>
+              <td style="width: 50%; text-align: right; border: none;">
+                <div style="font-weight: bold;">${verification.verifierName}</div>
+                <br><br><br>
+                <div style="font-size: 8pt; color: #475569;">${verification.verifierDesignation}, NIMI Chennai</div>
+              </td>
+            </tr>
+          </table>
+          ${buildWordOfficialFooter()}
+        `;
+      }
+
+      const filename = `SME_Engagement_${sme.name.replace(/\s+/g, '_')}_${docType}.doc`;
+      exportMhtmlWordDocument(bodyHtml, filename, logoBase64);
+    } catch (err) {
+      console.error("Error generating Word DOC:", err);
+      alert("Failed to export Word document.");
+    }
   };
 
   const renderHeader = () => (
-    <div className={styles.header} style={{ position: 'relative', textAlign: 'center', borderBottom: '2px solid #000080', paddingBottom: '10px', marginBottom: '20px', color: '#000080' }}>
-      <h1 style={{ fontSize: '22px', margin: 0, fontWeight: 'bold' }}>NATIONAL INSTRUCTIONAL MEDIA INSTITUTE</h1>
-      <img src="/nimi-logo.png" alt="NIMI Logo" style={{ position: 'absolute', top: '28px', right: '0px', width: '140px', height: 'auto' }} />
-      <p style={{ margin: 0, fontSize: '16px' }}>(AN AUTONOMOUS INSTITUTION)</p>
-      <p style={{ margin: 0, fontSize: '14px' }}>Ministry of Skill Development & Entrepreneurship</p>
-      <p style={{ margin: 0, fontSize: '14px' }}>Government of India</p>
-      <p style={{ margin: 0, fontSize: '12px' }}>Post Box No.3142, CTI Campus, Guindy Industrial Estate, Guindy, Chennai - 600 032.</p>
+    <div className={styles.header} style={{ position: 'relative', textAlign: 'center', borderBottom: '2px solid #000080', paddingBottom: '6px', marginBottom: '14px', color: '#000080' }}>
+      <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>NATIONAL INSTRUCTIONAL MEDIA INSTITUTE</h1>
+      <img src="/nimi-logo.png" alt="NIMI Logo" width="120" style={{ position: 'absolute', top: '4px', right: '0px', width: '120px', height: 'auto' }} />
+      <p style={{ margin: '2px 0', fontSize: '12.5px', fontWeight: 'bold' }}>(AN AUTONOMOUS INSTITUTION)</p>
+      <p style={{ margin: '1px 0', fontSize: '11px' }}>Ministry of Skill Development &amp; Entrepreneurship, Government of India</p>
+      <p style={{ margin: '1px 0', fontSize: '9.5px' }}>Post Box No.3142, CTI Campus, Guindy Industrial Estate, Guindy, Chennai - 600 032.</p>
+    </div>
+  );
+
+  const renderFooter = () => (
+    <div style={{
+      marginTop: 'auto',
+      paddingTop: '6px',
+      borderTop: '1px solid #000080',
+      textAlign: 'center',
+      fontSize: '8.5px',
+      lineHeight: '1.3',
+      color: '#334155'
+    }}>
+      <div>पो. बा. संख्या 3142, सीटीआई कैम्पस, गिंडी इंडस्ट्रियल एस्टेट, गिंडी, चेन्नई-600032./Post Box No. 3142, CTI Campus,</div>
+      <div>Guindy Industrial Estate, Guindy, Chennai – 600032. <strong>कार्यालय/Office:</strong> 044-2250 0657, 044-22500248,</div>
+      <div><strong>निदेशक /Director-</strong> 044-2250 0256. <strong>ई-मेल/E-mail :</strong> <u>chennai-nimi@nic.in</u></div>
     </div>
   );
 
@@ -301,157 +478,217 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
       <div className={styles.previewArea}>
         <div ref={printRef} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '40px' }}>
           
-          {(docType === 'both' || docType === 'completion') && (
-            <div className={styles.a4Page} style={{ pageBreakAfter: 'always' }}>
-              {renderHeader()}
-              
-              <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: '18px', margin: '30px 0' }}>Work Completion certificate</h2>
-              
-              <div style={{ textAlign: 'justify', lineHeight: '1.6', fontSize: '14px' }}>
-                This is to certify that <strong>{sme.name}</strong>, <strong>{sme.role}</strong>, has successfully completed the <strong>{programme.name}</strong> for the <strong>{trades[0]?.tradeName}</strong> trade at the <strong>{programme.location}</strong>, during the period from <strong>{formatDate(trades[0]?.startDate)}</strong> to <strong>{formatDate(trades[0]?.endDate)}</strong>.
-                <br /><br />
-                As the <strong>{sme.role}</strong>, <strong>{sme.name}</strong> effectively delivered the assigned classroom sessions in accordance with the approved curriculum, ensuring technical accuracy, instructional quality, and compliance with the applicable standards for PM e-Vidya digital learning content.
-                <br /><br />
-                The following topics were successfully delivered and recorded for integration into the PM e-Vidya Digital Learning Platform:
-                <div style={{ paddingLeft: '20px', marginTop: '10px', marginBottom: '10px', whiteSpace: 'pre-wrap' }}>
-                  {trades[0]?.topics || ''}
-                </div>
-                The recorded classroom sessions have been completed satisfactorily and are certified for further processing as per the applicable NIMI norms.
-                <br /><br />
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', marginBottom: '20px', fontSize: '13px' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Trade</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Guest Expert (SME)</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Work Completed</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Date</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left' }}>Amount (Rs.)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style={{ border: '1px solid #000', padding: '8px' }}>{trades[0]?.tradeName}</td>
-                      <td style={{ border: '1px solid #000', padding: '8px' }}>
-                        <strong>{sme.name}</strong><br />
-                        {sme.designation}, {sme.institution}, {sme.city}, {sme.state}
-                      </td>
-                      <td style={{ border: '1px solid #000', padding: '8px' }}>{programme.workTitle}</td>
-                      <td style={{ border: '1px solid #000', padding: '8px' }}>{formatDate(trades[0]?.startDate)} - {formatDate(trades[0]?.endDate)}</td>
-                      <td style={{ border: '1px solid #000', padding: '8px' }}>₹{trades[0]?.remunerationPerDay}/- ( per Day )</td>
-                    </tr>
-                  </tbody>
-                </table>
+          {(docType === 'both' || docType === 'completion') && (() => {
+            const topicLines = (trades[0]?.topics || '').split(/\r?\n/).map(t => t.trim()).filter(Boolean);
+            const isDenseTopics = topicLines.length > 3;
+            const isVeryDenseTopics = topicLines.length > 7;
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '30px', fontWeight: 'bold' }}>
-                  <div style={{ textDecoration: 'underline' }}>SME DECLARATION</div>
-                  <div style={{ textDecoration: 'underline' }}>NIMI VERIFICATION</div>
-                </div>
+            return (
+              <div className={styles.a4Page} style={{ pageBreakAfter: 'always' }}>
+                {renderHeader()}
                 
-                <div style={{ display: 'flex', gap: '20px', marginTop: '10px', fontSize: '13px' }}>
-                  <div style={{ flex: 1 }}>
-                    I, <strong>{sme.name}</strong>, <strong>{sme.role}</strong>, hereby declares that I have successfully completed the <strong>{programme.name}</strong> for the <strong>{trades[0]?.tradeName}</strong> trade during the period from <strong>{formatDate(trades[0]?.startDate)}</strong> to <strong>{formatDate(trades[0]?.endDate)}</strong>.
-                    <br /><br />
-                    I certify that the assigned topics were delivered as per the approved curriculum and that the work has been completed satisfactorily for processing of the honorarium as per applicable NIMI norms.
-                    <br /><br /><br /><br />
-                    Signature of Guest Expert:<br />
-                    Designation: {sme.designation}, {sme.institution},<br />
-                    {sme.city}, {sme.state}<br />
-                    Date: {formatDate(approval.submittedDate)}
+                <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: '16px', margin: isDenseTopics ? '10px 0 6px 0' : '16px 0 10px 0' }}>
+                  Work Completion certificate
+                </h2>
+                
+                <div style={{ textAlign: 'justify', lineHeight: isDenseTopics ? '1.38' : '1.45', fontSize: isDenseTopics ? '12px' : '12.5px' }}>
+                  <p style={{ margin: '0 0 6px 0' }}>
+                    This is to certify that <strong>{sme.name}</strong>, <strong>{sme.role}</strong>, has successfully completed the <strong>{programme.name}</strong> for the <strong>{trades[0]?.tradeName}</strong> trade at the <strong>{programme.location}</strong>, during the period from <strong>{formatDate(trades[0]?.startDate)}</strong> to <strong>{formatDate(trades[0]?.endDate)}</strong>.
+                  </p>
+                  <p style={{ margin: '0 0 6px 0' }}>
+                    As the <strong>{sme.role}</strong>, <strong>{sme.name}</strong> effectively delivered the assigned classroom sessions in accordance with the approved curriculum, ensuring technical accuracy, instructional quality, and compliance with the applicable standards for PM e-Vidya digital learning content.
+                  </p>
+                  <p style={{ margin: '0 0 3px 0' }}>
+                    The following topics were successfully delivered and recorded for integration into the PM e-Vidya Digital Learning Platform:
+                  </p>
+                  {topicLines.length > 3 ? (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      columnGap: '16px',
+                      rowGap: '2px',
+                      marginTop: '4px',
+                      marginBottom: '6px',
+                      fontSize: isVeryDenseTopics ? '10px' : '11px',
+                      background: '#f8fafc',
+                      padding: '5px 10px',
+                      borderRadius: '4px',
+                      border: '1px solid #e2e8f0',
+                      lineHeight: '1.25'
+                    }}>
+                      {topicLines.map((t, idx) => (
+                        <div key={idx} style={{ display: 'flex', gap: '5px' }}>
+                          <span style={{ color: '#000080', fontWeight: 700 }}>•</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{
+                      padding: '5px 10px',
+                      marginTop: '4px',
+                      marginBottom: '6px',
+                      fontSize: '11.5px',
+                      background: '#f8fafc',
+                      borderRadius: '4px',
+                      border: '1px solid #e2e8f0',
+                      lineHeight: '1.35'
+                    }}>
+                      {topicLines.map((t, idx) => (
+                        <div key={idx}>• {t}</div>
+                      ))}
+                    </div>
+                  )}
+                  <p style={{ margin: '4px 0 6px 0' }}>
+                    The recorded classroom sessions have been completed satisfactorily and are certified for further processing as per the applicable NIMI norms.
+                  </p>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '6px', marginBottom: '10px', fontSize: isDenseTopics ? '11px' : '12px' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc' }}>
+                        <th style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px', textAlign: 'left' }}>Trade</th>
+                        <th style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px', textAlign: 'left' }}>Guest Expert (SME)</th>
+                        <th style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px', textAlign: 'left' }}>Work Completed</th>
+                        <th style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px', textAlign: 'left' }}>Date</th>
+                        <th style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px', textAlign: 'left' }}>Amount (Rs.)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px' }}><strong>{trades[0]?.tradeName}</strong></td>
+                        <td style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>
+                          <strong>{sme.name}</strong><br />
+                          {sme.designation}, {sme.institution}, {sme.city}, {sme.state}
+                        </td>
+                        <td style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>{programme.workTitle}</td>
+                        <td style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>{formatDate(trades[0]?.startDate)} - {formatDate(trades[0]?.endDate)}</td>
+                        <td style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>₹{trades[0]?.remunerationPerDay}/- ( per Day )</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: isDenseTopics ? '10px' : '16px', fontWeight: 'bold', fontSize: isDenseTopics ? '11.5px' : '12.5px' }}>
+                    <div style={{ textDecoration: 'underline' }}>SME DECLARATION</div>
+                    <div style={{ textDecoration: 'underline' }}>NIMI VERIFICATION</div>
                   </div>
                   
-                  <div style={{ flex: 1, paddingLeft: '20px' }}>
-                    Certified that the above work has been completed satisfactorily and verified as per the requirements of the National Instructional Media Institute (NIMI).
-                    <br /><br /><br /><br /><br /><br />
-                    Signature<br />
-                    Name: Shri. Ashfaq Ahmed<br />
-                    Designation: Assistant Manager<br />
-                    Organisation: National Instructional Media Institute (NIMI), Chennai<br />
-                    Date: {formatDate(approval.submittedDate)}
+                  <div style={{ display: 'flex', gap: '20px', marginTop: '6px', fontSize: isDenseTopics ? '11px' : '11.5px', lineHeight: '1.3' }}>
+                    <div style={{ flex: 1 }}>
+                      I, <strong>{sme.name}</strong>, <strong>{sme.role}</strong>, hereby declare that I have successfully completed the <strong>{programme.name}</strong> for the <strong>{trades[0]?.tradeName}</strong> trade during the period from <strong>{formatDate(trades[0]?.startDate)}</strong> to <strong>{formatDate(trades[0]?.endDate)}</strong>.
+                      <br /><br />
+                      I certify that the assigned topics were delivered as per the approved curriculum and that the work has been completed satisfactorily for processing of the honorarium as per applicable NIMI norms.
+                      <br /><br /><br />
+                      Signature of Guest Expert:<br />
+                      Designation: {sme.designation}, {sme.institution},<br />
+                      {sme.city}, {sme.state}<br />
+                      Date: {formatDate(approval.submittedDate)}
+                    </div>
+                    
+                    <div style={{ flex: 1, paddingLeft: '14px', borderLeft: '1px dashed #cbd5e1' }}>
+                      Certified that the above work has been completed satisfactorily and verified as per the requirements of the National Instructional Media Institute (NIMI).
+                      <br /><br /><br /><br />
+                      Signature<br />
+                      Name: <strong>{verification.verifierName}</strong><br />
+                      Designation: {verification.verifierDesignation}<br />
+                      Organisation: {verification.verifierOrganisation}<br />
+                      Date: {formatDate(verification.verificationDate)}
+                    </div>
                   </div>
                 </div>
+                {renderFooter()}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
-          {(docType === 'both' || docType === 'remuneration') && (
-            <div className={styles.a4Page}>
-              {renderHeader()}
-              
-              <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: '18px', margin: '30px 0' }}>SME REMUNERATION / SANCTION NOTE</h2>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontWeight: 'bold' }}>
-                <div>Submitted</div>
-                <div>{formatDate(approval.submittedDate)}</div>
-              </div>
+          {(docType === 'both' || docType === 'remuneration') && (() => {
+            const isDenseSlots = trades.length >= 2;
+            const isVeryDenseSlots = trades.length >= 4;
 
-              <div style={{ textAlign: 'justify', lineHeight: '1.8', fontSize: '14px' }}>
-                Sanction may kindly be accorded for a sum of <strong>Rs. {grandTotalAmount}/- (Rupees {amountInWords})</strong> towards the remuneration of <strong>{sme.name}</strong>, <strong>{sme.designation}</strong>, <strong>{sme.institution}, {sme.city}</strong>, who served as the <strong>{sme.role}</strong> for the <strong>{programme.name}</strong> for the <strong>{trades.map(t => t.tradeName).join(' and ')}</strong> trades. The <strong>{programme.workTitle}</strong> was successfully conducted and completed at the <strong>{programme.location}</strong>.
-                <br /><br />
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', marginBottom: '20px' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '5%' }}>S. No.</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', width: '23%' }}>Name &amp; Designation</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', width: '20%' }}>Trade</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '22%' }}>Attendance Date</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '10%' }}>Total No. of Days</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', width: '10%' }}>Remuneration per Day</th>
-                      <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', width: '10%' }}>Total Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {trades.map((t, idx) => (
-                      <tr key={t.id}>
-                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>{idx + 1}</td>
-                        <td style={{ border: '1px solid #000', padding: '8px' }}>
-                          <strong>{sme.name}</strong><br />
-                          <span>{sme.designation}</span>
-                          {(sme.institution || sme.city) && (
-                            <div style={{ fontSize: '11.5px', color: '#475569', marginTop: '3px' }}>
-                              {sme.institution}{sme.city ? `, ${sme.city}` : ''}
-                            </div>
-                          )}
-                        </td>
-                        <td style={{ border: '1px solid #000', padding: '8px' }}>
-                          <strong>{t.tradeName}</strong>
-                        </td>
-                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px' }}>
-                          {t.startDate && t.endDate ? `${formatDate(t.startDate)} to ${formatDate(t.endDate)}` : '-'}
-                        </td>
-                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{t.totalDays} Days</td>
-                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', whiteSpace: 'nowrap' }}>Rs. {t.remunerationPerDay}/-</td>
-                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Rs. {t.totalAmount}/-</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  {trades.length > 1 && (
-                    <tfoot>
-                      <tr>
-                        <td colSpan={4} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Grand Total:</td>
-                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{grandTotalDays} Days</td>
-                        <td style={{ border: '1px solid #000', padding: '8px' }}></td>
-                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Rs. {grandTotalAmount}/-</td>
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-                <br />
-                If approved, payment of <strong>Rs. {grandTotalAmount}/- (Rupees {amountInWords})</strong> may be released to the above Subject Matter Expert from the PM e-Vidya Funds as per the prevailing NCERT norms. The SME engagement approval letter, Work Completion Certificate, and other supporting documents are enclosed separately for kind perusal.
-                <br /><br />
-                Submitted for kind approval, please.
-              </div>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '80px' }}>
-                <div style={{ textAlign: 'center' }}>
-                  <p>Prepared By / Verified By</p>
+            return (
+              <div className={styles.a4Page}>
+                {renderHeader()}
+                
+                <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: isDenseSlots ? '15px' : '16px', margin: isDenseSlots ? '10px 0 8px 0' : '14px 0 10px 0' }}>
+                  SME REMUNERATION / SANCTION NOTE
+                </h2>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: isDenseSlots ? '8px' : '12px', fontWeight: 'bold', fontSize: isDenseSlots ? '12px' : '13px' }}>
+                  <div>Submitted</div>
+                  <div>{formatDate(approval.submittedDate)}</div>
                 </div>
-                <div style={{ textAlign: 'center' }}>
-                  <p><strong>{verification.verifierName}</strong></p>
-                  <p>{verification.verifierDesignation}</p>
+
+                <div style={{ textAlign: 'justify', lineHeight: isDenseSlots ? '1.38' : '1.45', fontSize: isDenseSlots ? '11.5px' : '12.5px' }}>
+                  Sanction may kindly be accorded for a sum of <strong>Rs. {grandTotalAmount.toLocaleString('en-IN')}/- (Rupees {amountInWords})</strong> towards the remuneration of <strong>{sme.name}</strong>, <strong>{sme.designation}</strong>, <strong>{sme.institution}, {sme.city}</strong>, who served as the <strong>{sme.role}</strong> for the <strong>{programme.name}</strong> for the <strong>{trades.map(t => t.tradeName).join(' and ')}</strong> trades. The <strong>{programme.workTitle}</strong> was successfully conducted and completed at the <strong>{programme.location}</strong>.
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: isDenseSlots ? '6px' : '8px', marginBottom: isDenseSlots ? '8px' : '12px', fontSize: isVeryDenseSlots ? '10px' : isDenseSlots ? '11px' : '12px' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc' }}>
+                        <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'center', width: '5%' }}>S. No.</th>
+                        <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'left', width: '23%' }}>Name &amp; Designation</th>
+                        <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'left', width: '20%' }}>Trade</th>
+                        <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'center', width: '22%' }}>Attendance Date</th>
+                        <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'center', width: '10%' }}>Total No. of Days</th>
+                        <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'right', width: '10%' }}>Remuneration per Day</th>
+                        <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'right', width: '10%' }}>Total Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {trades.map((t, idx) => (
+                        <tr key={t.id}>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'center' }}>{idx + 1}</td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px' }}>
+                            <strong>{sme.name}</strong><br />
+                            <span>{sme.designation}</span>
+                            {(sme.institution || sme.city) && (
+                              <div style={{ fontSize: '10.5px', color: '#475569', marginTop: '2px' }}>
+                                {sme.institution}{sme.city ? `, ${sme.city}` : ''}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px' }}>
+                            <strong>{t.tradeName}</strong>
+                          </td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'center', fontSize: isDenseSlots ? '10.5px' : '11.5px', whiteSpace: 'nowrap' }}>
+                            {t.startDate && t.endDate ? `${formatDate(t.startDate)} to ${formatDate(t.endDate)}` : '-'}
+                          </td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'center', fontWeight: 'bold' }}>{t.totalDays} Days</td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'right', whiteSpace: 'nowrap' }}>Rs. {t.remunerationPerDay}/-</td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Rs. {t.totalAmount.toLocaleString('en-IN')}/-</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {trades.length > 1 && (
+                      <tfoot>
+                        <tr>
+                          <td colSpan={4} style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'right', fontWeight: 'bold' }}>Grand Total:</td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'center', fontWeight: 'bold' }}>{grandTotalDays} Days</td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px' }}></td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Rs. {grandTotalAmount.toLocaleString('en-IN')}/-</td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                  <p style={{ margin: isDenseSlots ? '4px 0' : '6px 0' }}>
+                    If approved, payment of <strong>Rs. {grandTotalAmount.toLocaleString('en-IN')}/- (Rupees {amountInWords})</strong> may be released to the above Subject Matter Expert from the PM e-Vidya Funds as per the prevailing NCERT norms. The SME engagement approval letter, Work Completion Certificate, and other supporting documents are enclosed separately for kind perusal.
+                  </p>
+                  <p style={{ margin: isDenseSlots ? '4px 0' : '6px 0' }}>
+                    Submitted for kind approval, please.
+                  </p>
                 </div>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: isDenseSlots ? '16px' : '24px', fontSize: isDenseSlots ? '11px' : '12px' }}>
+                  <div>
+                    <div style={{ fontWeight: 'bold' }}>Prepared By / Verified By</div>
+                    <div style={{ marginTop: '24px', fontSize: '11px', color: '#475569' }}>Dealing Assistant / Consultant</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 'bold' }}>{verification.verifierName}</div>
+                    <div style={{ marginTop: '24px', fontSize: '11px', color: '#475569' }}>{verification.verifierDesignation}, NIMI Chennai</div>
+                  </div>
+                </div>
+
+                {renderFooter()}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
         </div>
       </div>

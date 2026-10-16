@@ -11,6 +11,13 @@ import {
   StageCParameters,
   AttendanceSlot
 } from './actions';
+import {
+  getLogoBase64,
+  exportMhtmlWordDocument,
+  buildApprovalLetterWordHtml,
+  buildWorkCompletionWordHtml,
+  buildRemunerationWordHtml
+} from '@/lib/mhtmlDocxExport';
 
 interface DeputationClientProps {
   initialWorkEntries: any[];
@@ -546,7 +553,7 @@ export default function DeputationClient({
     }
   };
 
-  // Export PDF Handler
+  // Export PDF Handler - Strictly 1-page A4 Portrait
   const generatePDF = async (ref: React.RefObject<HTMLDivElement | null>, docTypeLabel: string) => {
     if (!selectedEntry) return;
     const element = ref.current;
@@ -563,8 +570,9 @@ export default function DeputationClient({
         margin: 0,
         filename,
         image: { type: 'jpeg', quality: 1.0 },
-        html2canvas: { scale: 3.5, useCORS: true, letterRendering: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        html2canvas: { scale: 3.5, useCORS: true, letterRendering: true, scrollY: 0 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
 
       await html2pdf().from(element).set(opt).save();
@@ -577,62 +585,29 @@ export default function DeputationClient({
     }
   };
 
-  // Export DOCX Handler
+  // Export DOCX Handler - Native Word MHTML with Embedded NIMI Logo & Preview-Faithful Structure
   const generateDOCX = async (ref: React.RefObject<HTMLDivElement | null>, docTypeLabel: string) => {
     if (!selectedEntry) return;
-    const element = ref.current;
-    if (!element) return;
 
     try {
-      let htmlContent = element.innerHTML;
-
-      // Embed logo as base64 for Word compatibility
-      try {
-        const response = await fetch('/nimi-logo.png');
-        const blobImg = await response.blob();
-        const base64data = await new Promise<string>(resolve => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(blobImg);
-        });
-        htmlContent = htmlContent.replace(/src="\/nimi-logo\.png"/g, `src="${base64data}"`);
-      } catch (e) {
-        console.warn('Failed to embed logo in DOCX', e);
-      }
-
+      showToast('Preparing Word document with embedded logo...', 'info');
+      const logoBase64 = await getLogoBase64();
       const epicClean = getEpicId(selectedEntry.epicSequence).replace(/\s+/g, '_');
       const smeClean = (selectedEntry.sme?.name || 'SME').replace(/[^a-zA-Z0-9]/g, '_');
       const filename = `${docTypeLabel}_${epicClean}_${smeClean}.doc`;
 
-      const fullHtml = `
-        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-        <head>
-          <meta charset="utf-8">
-          <title>${docTypeLabel}</title>
-          <style>
-            body { font-family: 'Times New Roman', serif; font-size: 11pt; color: #000; line-height: 1.5; padding: 20mm; }
-            table { border-collapse: collapse; width: 100%; margin: 15px 0; }
-            th, td { border: 1px solid #000; padding: 6px 8px; font-size: 10.5pt; vertical-align: top; }
-            th { background-color: #f1f5f9; }
-            .officialHeader { text-align: center; border-bottom: 2px solid #000080; padding-bottom: 10px; margin-bottom: 20px; color: #000080; }
-            .officialFooter { text-align: center; border-top: 1px dashed #000; padding-top: 10px; margin-top: 30px; font-size: 9pt; }
-          </style>
-        </head>
-        <body>
-          ${htmlContent}
-        </body>
-        </html>
-      `;
+      let docHtml = '';
+      if (docTypeLabel === 'Approval_Letter') {
+        docHtml = buildApprovalLetterWordHtml(stageAParams, sme, selectedEntry);
+      } else if (docTypeLabel === 'Work_Completion') {
+        docHtml = buildWorkCompletionWordHtml(stageBParams, sme, selectedEntry);
+      } else if (docTypeLabel === 'Remuneration_Note') {
+        docHtml = buildRemunerationWordHtml(stageCParams, sme, selectedEntry);
+      } else if (ref?.current) {
+        docHtml = ref.current.innerHTML;
+      }
 
-      const blob = new Blob(['\ufeff', fullHtml], { type: 'application/msword' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      exportMhtmlWordDocument(docHtml, filename, logoBase64);
       showToast(`✓ Downloaded ${filename} successfully!`, 'success');
     } catch (e: any) {
       console.error('Error generating DOCX:', e);
@@ -642,14 +617,20 @@ export default function DeputationClient({
 
   const renderOfficialHeader = () => (
     <div className={styles.officialHeader}>
-      <h1>NATIONAL INSTRUCTIONAL MEDIA INSTITUTE</h1>
+      <h1 style={{ fontSize: '19px', margin: 0, fontWeight: 'bold' }}>NATIONAL INSTRUCTIONAL MEDIA INSTITUTE</h1>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/nimi-logo.png" alt="NIMI Logo" className={styles.logoImage} />
-      <p style={{ fontWeight: 600 }}>(AN AUTONOMOUS INSTITUTION)</p>
-      <p>Ministry of Skill Development & Entrepreneurship</p>
-      <p>Government of India</p>
-      <p className={styles.subText}>Post Box No.3142, CTI Campus, Guindy Industrial Estate, Guindy, Chennai - 600 032.</p>
-      <p className={styles.subText} style={{ fontWeight: 'bold' }}>
+      <img
+        src="/nimi-logo.png"
+        alt="NIMI Logo"
+        className={styles.logoImage}
+        width="120"
+        style={{ position: 'absolute', top: '14px', right: '0px', width: '120px', maxHeight: '52px', objectFit: 'contain' }}
+      />
+      <p style={{ fontWeight: 600, fontSize: '13px', margin: '2px 0 1px 0' }}>(AN AUTONOMOUS INSTITUTION)</p>
+      <p style={{ fontSize: '12px', margin: '1px 0' }}>Ministry of Skill Development &amp; Entrepreneurship</p>
+      <p style={{ fontSize: '12px', margin: '1px 0' }}>Government of India</p>
+      <p className={styles.subText} style={{ fontSize: '10.5px', margin: '2px 0 1px 0' }}>Post Box No.3142, CTI Campus, Guindy Industrial Estate, Guindy, Chennai - 600 032.</p>
+      <p className={styles.subText} style={{ fontWeight: 'bold', fontSize: '10.5px', margin: '1px 0' }}>
         Office: 044-2250 0657, 044-2250 0248 | Director: 044-2250 0256 | E-mail: <span style={{ textDecoration: 'underline' }}>chennai-nimi@nic.in</span>
       </p>
     </div>
@@ -1126,50 +1107,50 @@ export default function DeputationClient({
             <div className={styles.a4Page} ref={approvalPrintRef}>
               {renderOfficialHeader()}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontWeight: 'bold', fontSize: '13px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontWeight: 'bold', fontSize: '12.5px' }}>
                 <div>{stageAParams.refNoPrefix}{stageAParams.year}</div>
                 <div>Date: {formatDateDot(stageAParams.letterDate)}</div>
               </div>
 
-              <div style={{ marginBottom: '20px', fontSize: '13.5px', lineHeight: '1.6' }}>
+              <div style={{ marginBottom: '12px', fontSize: '13px', lineHeight: '1.45' }}>
                 To,<br />
                 {stageAParams.recipientDesignation || 'The Principal'},<br />
                 {stageAParams.recipientInst || sme.institute || 'Institution'},<br />
                 {stageAParams.recipientLoc || sme.location || 'Location'}
               </div>
 
-              <div style={{ marginBottom: '18px', display: 'flex', gap: '8px', fontSize: '13.5px' }}>
+              <div style={{ marginBottom: '12px', display: 'flex', gap: '8px', fontSize: '13px' }}>
                 <strong style={{ whiteSpace: 'nowrap' }}>Sub:</strong>
                 <div style={{ fontWeight: 'bold', textAlign: 'justify' }}>
                   Invitation &mdash; as Subject Matter Expert (SME) to take Classroom shooting for the PM e-Vidya channel for the trade {selectedEntry.trade || 'General'} &mdash; Reg.
                 </div>
               </div>
 
-              <div style={{ textAlign: 'justify', marginBottom: '14px', fontSize: '13px', lineHeight: '1.6', textIndent: '30px' }}>
-                The National Instructional Media Institute (NIMI), functioning under the Ministry of Skill Development & Entrepreneurship, Government of India, is the nodal agency engaged in the development of e-Learning content for various trades offered through Industrial Training Institutes (ITIs) and other skill development programmes.
+              <div style={{ textAlign: 'justify', marginBottom: '7px', fontSize: '12.5px', lineHeight: '1.4', textIndent: '24px' }}>
+                The National Instructional Media Institute (NIMI), functioning under the Ministry of Skill Development &amp; Entrepreneurship, Government of India, is the nodal agency engaged in the development of e-Learning content for various trades offered through Industrial Training Institutes (ITIs) and other skill development programmes.
               </div>
 
-              <div style={{ textAlign: 'justify', marginBottom: '14px', fontSize: '13px', lineHeight: '1.6', textIndent: '30px' }}>
+              <div style={{ textAlign: 'justify', marginBottom: '7px', fontSize: '12.5px', lineHeight: '1.4', textIndent: '24px' }}>
                 In this connection, approval is hereby accorded for the Visit of <strong>{sme.name || 'Subject Matter Expert'}, {sme.designation || 'Designation'}, {sme.institute || 'Institute'}, {sme.location || 'Location'}</strong> to participate as a <strong>Subject Matter Expert (SME)</strong> for the <strong>PM e-Vidya Classroom Teaching Shoot</strong> for the trade <strong>&ldquo;{selectedEntry.trade || 'General'}&rdquo;</strong> for {stageAParams.duration} from <strong>{formatDateDot(stageAParams.startDate)}</strong>
                 {stageAParams.isExtension && ` due to ${stageAParams.reasonForExtension} the deputation period was requested to be extended till ${stageAParams.extensionDate || 'the completion date'} based on the confirmation of the SME.`}
                 {!stageAParams.isExtension && '.'}
               </div>
 
-              <div style={{ textAlign: 'justify', marginBottom: '14px', fontSize: '13px', lineHeight: '1.6', textIndent: '30px' }}>
+              <div style={{ textAlign: 'justify', marginBottom: '7px', fontSize: '12.5px', lineHeight: '1.4', textIndent: '24px' }}>
                 The Subject Matter Expert shall extend academic and technical support for the classroom teaching session, including content delivery, validation of instructional materials, and other activities required for the successful production of the <strong>PM e-Vidya programme</strong>. He/She is requested to coordinate closely with the concerned PM e-Vidya and NIMI officials regarding the content, presentation methodology, reporting schedule, and other technical requirements for the classroom teaching shoot.
               </div>
 
-              <div style={{ textAlign: 'justify', marginBottom: '14px', fontSize: '13px', lineHeight: '1.6', textIndent: '30px' }}>
-                The <strong>remuneration / honorarium</strong> for the assignment, along with reimbursement of <strong>Travelling Allowance (TA)</strong>, shall be paid by NIMI as per the prevailing NCERT norms based on the SME designation and eligibility, subject to submission of original travel tickets, boarding passes, and other supporting documents, wherever applicable <strong>(Balmer Lawrie & Company Limited, Ashok Travels & Tours, Indian Railway Catering and Tourism Corporation Ltd - IRCTC)</strong>.
+              <div style={{ textAlign: 'justify', marginBottom: '7px', fontSize: '12.5px', lineHeight: '1.4', textIndent: '24px' }}>
+                The <strong>remuneration / honorarium</strong> for the assignment, along with reimbursement of <strong>Travelling Allowance (TA)</strong>, shall be paid by NIMI as per the prevailing NCERT norms based on the SME designation and eligibility, subject to submission of original travel tickets, boarding passes, and other supporting documents, wherever applicable <strong>(Balmer Lawrie &amp; Company Limited, Ashok Travels &amp; Tours, Indian Railway Catering and Tourism Corporation Ltd - IRCTC)</strong>.
               </div>
 
-              <div style={{ textAlign: 'justify', marginBottom: '35px', fontSize: '13px', lineHeight: '1.6', textIndent: '30px' }}>
+              <div style={{ textAlign: 'justify', marginBottom: '14px', fontSize: '12.5px', lineHeight: '1.4', textIndent: '24px' }}>
                 Your kind cooperation and valuable support towards the development of quality e-content for the Skill Development ecosystem will be highly solicited.
               </div>
 
-              <div style={{ textAlign: 'right', marginTop: '30px', marginBottom: '10px', fontSize: '13.5px' }}>
+              <div style={{ textAlign: 'right', marginTop: '14px', marginBottom: '8px', fontSize: '13px' }}>
                 Regards,
-                <br /><br /><br /><br />
+                <br /><br /><br />
                 <strong>{stageAParams.signatory}</strong>
               </div>
 
@@ -1386,7 +1367,7 @@ export default function DeputationClient({
             <div className={styles.a4Page} ref={completionPrintRef}>
               {renderOfficialHeader()}
 
-              <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: '18px', margin: '24px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: '16px', margin: '14px 0 10px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Work Completion Certificate
               </h2>
 
@@ -1394,62 +1375,111 @@ export default function DeputationClient({
                 const bTrade = (stageBParams.trade || selectedEntry.trade || 'General').trim();
                 const isBMultipleTrades = /[,/&;]|\band\b/i.test(bTrade);
 
-                return (
-                  <div style={{ textAlign: 'justify', lineHeight: '1.6', fontSize: '13px' }}>
-                    This is to certify that <strong>{sme.name || 'Subject Matter Expert'}</strong>, <strong>Guest Expert / Subject Matter Expert (SME)</strong>, has successfully completed the <strong>{stageBParams.programmeName}</strong> for the <strong>{bTrade}</strong> {isBMultipleTrades ? 'trades' : 'trade'} at the <strong>{stageBParams.location}</strong>, during the period from <strong>{formatDateDot(stageBParams.startDate)}</strong> to <strong>{formatDateDot(stageBParams.endDate)}</strong>.
-                    <br /><br />
-                    As the <strong>Guest Expert / Subject Matter Expert (SME)</strong>, <strong>{sme.name || 'the SME'}</strong> effectively delivered the assigned classroom sessions in accordance with the approved curriculum, ensuring technical accuracy, instructional quality, and compliance with the applicable standards for PM e-Vidya digital learning content.
-                    <br /><br />
-                    The following topics were successfully delivered and recorded for integration into the PM e-Vidya Digital Learning Platform:
-                    <div style={{ paddingLeft: '20px', marginTop: '8px', marginBottom: '12px', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '12px', background: '#f8fafc', padding: '10px 14px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
-                      {stageBParams.topicsCovered || 'E-Content Video Production Topics'}
-                    </div>
-                    The recorded classroom sessions have been completed satisfactorily and are certified for further processing as per the applicable NIMI norms.
-                    <br /><br />
+                const rawTopics = (stageBParams.topicsCovered || selectedEntry.topic || 'E-Content Video Production Topics').trim();
+                const topicLines = rawTopics.split(/\r?\n/).map((l: string) => l.trim()).filter(Boolean);
+                const isDenseTopics = topicLines.length > 3;
+                const isVeryDenseTopics = topicLines.length > 7;
 
-                    <table className={styles.docTable}>
+                return (
+                  <div style={{ textAlign: 'justify', lineHeight: isDenseTopics ? '1.38' : '1.45', fontSize: isDenseTopics ? '12px' : '12.5px' }}>
+                    <p style={{ margin: '0 0 6px 0' }}>
+                      This is to certify that <strong>{sme.name || 'Subject Matter Expert'}</strong>, <strong>Guest Expert / Subject Matter Expert (SME)</strong>, has successfully completed the <strong>{stageBParams.programmeName}</strong> for the <strong>{bTrade}</strong> {isBMultipleTrades ? 'trades' : 'trade'} at the <strong>{stageBParams.location}</strong>, during the period from <strong>{formatDateDot(stageBParams.startDate)}</strong> to <strong>{formatDateDot(stageBParams.endDate)}</strong>.
+                    </p>
+                    
+                    <p style={{ margin: '0 0 6px 0' }}>
+                      As the <strong>Guest Expert / Subject Matter Expert (SME)</strong>, <strong>{sme.name || 'the SME'}</strong> effectively delivered the assigned classroom sessions in accordance with the approved curriculum, ensuring technical accuracy, instructional quality, and compliance with the applicable standards for PM e-Vidya digital learning content.
+                    </p>
+                    
+                    <p style={{ margin: '0 0 3px 0' }}>
+                      The following topics were successfully delivered and recorded for integration into the PM e-Vidya Digital Learning Platform:
+                    </p>
+
+                    {topicLines.length > 3 ? (
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        columnGap: '16px',
+                        rowGap: '2px',
+                        marginTop: '4px',
+                        marginBottom: '6px',
+                        fontSize: isVeryDenseTopics ? '10px' : '11px',
+                        background: '#f8fafc',
+                        padding: '5px 10px',
+                        borderRadius: '4px',
+                        border: '1px solid #e2e8f0',
+                        lineHeight: '1.25'
+                      }}>
+                        {topicLines.map((t: string, idx: number) => (
+                          <div key={idx} style={{ display: 'flex', gap: '5px' }}>
+                            <span style={{ color: '#000080', fontWeight: 700 }}>•</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{
+                        padding: '5px 10px',
+                        marginTop: '4px',
+                        marginBottom: '6px',
+                        fontSize: '11.5px',
+                        background: '#f8fafc',
+                        borderRadius: '4px',
+                        border: '1px solid #e2e8f0',
+                        lineHeight: '1.35'
+                      }}>
+                        {topicLines.map((t: string, idx: number) => (
+                          <div key={idx}>• {t}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    <p style={{ margin: '4px 0 6px 0' }}>
+                      The recorded classroom sessions have been completed satisfactorily and are certified for further processing as per the applicable NIMI norms.
+                    </p>
+
+                    <table className={styles.docTable} style={{ margin: isDenseTopics ? '6px 0 8px 0' : '8px 0 12px 0', fontSize: isDenseTopics ? '11px' : '12px' }}>
                       <thead>
                         <tr>
-                          <th>Trade(s)</th>
-                          <th>Guest Expert (SME)</th>
-                          <th>Work Completed</th>
-                          <th>Date</th>
-                          <th>Amount (Rs.)</th>
+                          <th style={{ padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>Trade(s)</th>
+                          <th style={{ padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>Guest Expert (SME)</th>
+                          <th style={{ padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>Work Completed</th>
+                          <th style={{ padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>Date</th>
+                          <th style={{ padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>Amount (Rs.)</th>
                         </tr>
                       </thead>
                       <tbody>
                         <tr>
-                          <td><strong>{bTrade}</strong></td>
-                          <td>
+                          <td style={{ padding: isDenseTopics ? '4px 6px' : '6px 8px' }}><strong>{bTrade}</strong></td>
+                          <td style={{ padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>
                             <strong>{sme.name || 'Subject Matter Expert'}</strong><br />
                             {sme.designation || 'Designation'}, {sme.institute || 'Institute'}, {sme.location || 'Location'}
                           </td>
-                          <td>{stageBParams.workTitle}</td>
-                          <td>{formatDateDot(stageBParams.startDate)} &ndash; {formatDateDot(stageBParams.endDate)}</td>
-                          <td>₹{selectedEntry.ratePerDay || 1500}/- (per Day)</td>
+                          <td style={{ padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>{stageBParams.workTitle}</td>
+                          <td style={{ padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>{formatDateDot(stageBParams.startDate)} &ndash; {formatDateDot(stageBParams.endDate)}</td>
+                          <td style={{ padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>₹{selectedEntry.ratePerDay || 1500}/- (per Day)</td>
                         </tr>
                       </tbody>
                     </table>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', fontWeight: 'bold', fontSize: '13px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: isDenseTopics ? '10px' : '16px', fontWeight: 'bold', fontSize: isDenseTopics ? '11.5px' : '12.5px' }}>
                       <div style={{ textDecoration: 'underline' }}>SME DECLARATION</div>
                       <div style={{ textDecoration: 'underline' }}>NIMI VERIFICATION</div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '24px', marginTop: '10px', fontSize: '12.5px' }}>
+                    <div style={{ display: 'flex', gap: '20px', marginTop: '6px', fontSize: isDenseTopics ? '11px' : '11.5px', lineHeight: '1.3' }}>
                       <div style={{ flex: 1 }}>
                         I, <strong>{sme.name || 'Subject Matter Expert'}</strong>, hereby declare that I have successfully completed the <strong>{stageBParams.programmeName}</strong> for the <strong>{bTrade}</strong> {isBMultipleTrades ? 'trades' : 'trade'} during the period from <strong>{formatDateDot(stageBParams.startDate)}</strong> to <strong>{formatDateDot(stageBParams.endDate)}</strong>.
                         <br /><br />
                         I certify that the assigned topics were delivered as per the approved curriculum and that the work has been completed satisfactorily for processing of honorarium as per applicable NIMI norms.
-                        <br /><br /><br /><br />
+                        <br /><br /><br />
                         Signature of Guest Expert:<br />
                         Designation: {sme.designation || 'Designation'}, {sme.institute || 'Institute'}<br />
                         Date: {formatDateDot(stageBParams.submissionDate)}
                       </div>
 
-                      <div style={{ flex: 1, paddingLeft: '16px', borderLeft: '1px dashed #cbd5e1' }}>
+                      <div style={{ flex: 1, paddingLeft: '14px', borderLeft: '1px dashed #cbd5e1' }}>
                         Certified that the above work has been completed satisfactorily and verified as per the requirements of the National Instructional Media Institute (NIMI).
-                        <br /><br /><br /><br /><br /><br />
+                        <br /><br /><br /><br />
                         Signature<br />
                         Name: <strong>{stageBParams.verifierName}</strong><br />
                         Designation: {stageBParams.verifierDesignation}<br />
@@ -1817,27 +1847,31 @@ export default function DeputationClient({
               ));
               const displayedTrades = distinctTrades.length > 0 ? distinctTrades.join(', ') : currentTrade;
               const isMultipleTrades = distinctTrades.length > 1;
+              const isDenseSlots = slots.length >= 2;
+              const isVeryDenseSlots = slots.length >= 4;
 
               return (
-                <div className={styles.a4Page} ref={remunerationPrintRef} style={{ width: '210mm', minHeight: '297mm', background: 'white', padding: '20mm', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
-                  <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: '18px', margin: '30px 0' }}>SME REMUNERATION / SANCTION NOTE</h2>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontWeight: 'bold' }}>
+                <div className={styles.a4Page} ref={remunerationPrintRef}>
+                  {renderOfficialHeader()}
+                  <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: isDenseSlots ? '15px' : '16px', margin: isDenseSlots ? '10px 0 8px 0' : '14px 0 10px 0' }}>
+                    SME REMUNERATION / SANCTION NOTE
+                  </h2>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: isDenseSlots ? '8px' : '12px', fontWeight: 'bold', fontSize: isDenseSlots ? '12px' : '13px' }}>
                     <div>Submitted</div>
                     <div>{formatDateDot(stageCParams.submissionDate)}</div>
                   </div>
-                  <div style={{ textAlign: 'justify', lineHeight: '1.8', fontSize: '14px' }}>
+                  <div style={{ textAlign: 'justify', lineHeight: isDenseSlots ? '1.38' : '1.45', fontSize: isDenseSlots ? '11.5px' : '12.5px' }}>
                     Sanction may kindly be accorded for a sum of <strong>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/- (Rupees {stageCParams.amountInWords})</strong> towards the remuneration of <strong>{sme.name || 'Subject Matter Expert'}</strong>, <strong>{sme.designation || 'Designation'}</strong>, <strong>{sme.institute || 'Institution'}, {sme.location || 'Location'}</strong>, who served as the <strong>Guest Expert / Subject Matter Expert (SME)</strong> for the <strong>{stageCParams.programmeName}</strong> for the <strong>{displayedTrades}</strong> {isMultipleTrades ? 'trades' : 'trade'}. The <strong>{stageCParams.workTitle}</strong> was successfully conducted and completed at the <strong>{stageCParams.location}</strong>.
-                    <br /><br />
-                    <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', marginBottom: '20px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: isDenseSlots ? '6px' : '8px', marginBottom: isDenseSlots ? '8px' : '12px', fontSize: isVeryDenseSlots ? '10px' : isDenseSlots ? '11px' : '12px' }}>
                       <thead>
-                        <tr>
-                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '5%' }}>S. No.</th>
-                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', width: '23%' }}>Name &amp; Designation</th>
-                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', width: '20%' }}>Trade</th>
-                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '22%' }}>Attendance Date</th>
-                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', width: '10%' }}>Total No. of Days</th>
-                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', width: '10%' }}>Remuneration per Day</th>
-                          <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', width: '10%' }}>Total Amount</th>
+                        <tr style={{ background: '#f8fafc' }}>
+                          <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'center', width: '5%' }}>S. No.</th>
+                          <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'left', width: '23%' }}>Name &amp; Designation</th>
+                          <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'left', width: '20%' }}>Trade</th>
+                          <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'center', width: '22%' }}>Attendance Date</th>
+                          <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'center', width: '10%' }}>Total No. of Days</th>
+                          <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'right', width: '10%' }}>Remuneration per Day</th>
+                          <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'right', width: '10%' }}>Total Amount</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1849,31 +1883,31 @@ export default function DeputationClient({
 
                           return (
                             <tr key={slot.id || idx}>
-                              <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>
+                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'center' }}>
                                 {idx + 1}
                               </td>
-                              <td style={{ border: '1px solid #000', padding: '8px' }}>
+                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px' }}>
                                 <strong>{sme.name || 'Subject Matter Expert'}</strong><br />
                                 <span>{sme.designation || 'Designation'}</span>
                                 {(sme.institute || sme.location) && (
-                                  <div style={{ fontSize: '11.5px', color: '#475569', marginTop: '3px' }}>
+                                  <div style={{ fontSize: '10.5px', color: '#475569', marginTop: '2px' }}>
                                     {sme.institute}{sme.location ? `, ${sme.location}` : ''}
                                   </div>
                                 )}
                               </td>
-                              <td style={{ border: '1px solid #000', padding: '8px' }}>
+                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px' }}>
                                 <strong>{slotTrade}</strong>
                               </td>
-                              <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontSize: '12px', whiteSpace: 'nowrap' }}>
+                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'center', fontSize: isDenseSlots ? '10.5px' : '11.5px', whiteSpace: 'nowrap' }}>
                                 {formatDateDot(slot.startDate)} to {formatDateDot(slot.endDate)}
                               </td>
-                              <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>
+                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'center', fontWeight: 'bold' }}>
                                 {daysVal} {daysVal === 1 ? 'Day' : 'Days'}
                               </td>
-                              <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                 Rs. {stageCParams.ratePerDay}/-
                               </td>
-                              <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                                 Rs. {slotAmount.toLocaleString('en-IN')}/-
                               </td>
                             </tr>
@@ -1882,22 +1916,36 @@ export default function DeputationClient({
                       </tbody>
                       <tfoot>
                         <tr>
-                          <td colSpan={4} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Subtotal (Remuneration):</td>
-                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>{stageCParams.totalDays} Days</td>
-                          <td style={{ border: '1px solid #000', padding: '8px' }}></td>
-                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Rs. {stageCParams.grossAmount.toLocaleString('en-IN')}/-</td>
+                          <td colSpan={4} style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'right', fontWeight: 'bold' }}>Subtotal (Remuneration):</td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'center', fontWeight: 'bold' }}>{stageCParams.totalDays} Days</td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px' }}></td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Rs. {stageCParams.grossAmount.toLocaleString('en-IN')}/-</td>
                         </tr>
                         <tr>
-                          <td colSpan={6} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Grand Total:</td>
-                          <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/-</td>
+                          <td colSpan={6} style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'right', fontWeight: 'bold' }}>Grand Total:</td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/-</td>
                         </tr>
                       </tfoot>
                     </table>
-                    <br />
-                    If approved, payment of <strong>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/- (Rupees {stageCParams.amountInWords})</strong> may be released to the above Subject Matter Expert from the PM e-Vidya Funds as per the prevailing NCERT norms. The SME engagement approval letter, Work Completion Certificate, and other supporting documents are enclosed separately for kind perusal.
-                    <br /><br />
-                    Submitted for kind approval, please.
+                    <p style={{ margin: isDenseSlots ? '4px 0' : '6px 0' }}>
+                      If approved, payment of <strong>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/- (Rupees {stageCParams.amountInWords})</strong> may be released to the above Subject Matter Expert from the PM e-Vidya Funds as per the prevailing NCERT norms. The SME engagement approval letter, Work Completion Certificate, and other supporting documents are enclosed separately for kind perusal.
+                    </p>
+                    <p style={{ margin: isDenseSlots ? '4px 0' : '6px 0' }}>
+                      Submitted for kind approval, please.
+                    </p>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: isDenseSlots ? '16px' : '24px', fontSize: isDenseSlots ? '11px' : '12px' }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold' }}>Prepared By / Verified By</div>
+                        <div style={{ marginTop: '24px', fontSize: '11px', color: '#475569' }}>Dealing Assistant / Consultant</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontWeight: 'bold' }}>Joint Director / HOO</div>
+                        <div style={{ marginTop: '24px', fontSize: '11px', color: '#475569' }}>Head of Office, NIMI Chennai</div>
+                      </div>
+                    </div>
                   </div>
+                  {renderOfficialFooter()}
                 </div>
               );
             })()}
