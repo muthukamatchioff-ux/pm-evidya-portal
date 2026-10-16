@@ -22,23 +22,24 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
     }
 
     // Check if Component 1 has old stale records
+    // Check if Component 1 has old stale records (only if force is explicitly passed)
     const comp1NeedsSync = force ||
-      comp1.annexureI.length !== 8 ||
+      (comp1.annexureI.length === 0) ||
       comp1.annexureI.some((r: any) =>
         r.expertName?.includes('CANTEEN') ||
         r.expertName?.includes('Migrated') ||
         r.voucherNo === 'CN2/001756/26-27'
       ) ||
-      comp1.annexureI.reduce((sum: number, r: any) => sum + (r.totalExpenditure || 0), 0) === 150347;
+      (comp1.annexureI.reduce((sum: number, r: any) => sum + (r.totalExpenditure || 0), 0) === 150347 && comp1.annexureI.length === 2);
 
-    // Check if Component 2 has old stale records
+    // Check if Component 2 has old stale records (only if force is explicitly passed)
     const comp2NeedsSync = force ||
-      comp2.annexureII.length !== 23 ||
+      (comp2.annexureII.length === 0) ||
       comp2.annexureII.some((r: any) =>
         r.remarks?.includes('Legacy Import') ||
-        r.participant?.includes('PRIYA.S')
+        (r.participant?.includes('PRIYA.S') && r.travelAllowance === 29245)
       ) ||
-      comp2.annexureII.reduce((sum: number, r: any) => sum + (r.totalExpenditure || 0), 0) === 252117;
+      (comp2.annexureII.reduce((sum: number, r: any) => sum + (r.totalExpenditure || 0), 0) === 252117 && comp2.annexureII.length === 30);
 
     if (!comp1NeedsSync && !comp2NeedsSync) {
       return {

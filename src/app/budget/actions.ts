@@ -9,7 +9,7 @@ import { syncAnnexuresIfNeeded } from '@/lib/syncAnnexures';
 export async function getBudgetComponents() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   try {
-    let components = await prisma.budgetComponent.findMany({
+    const components = await prisma.budgetComponent.findMany({
       include: {
         annexureI: { orderBy: { createdAt: 'asc' } },
         annexureII: { orderBy: { createdAt: 'asc' } },
@@ -20,36 +20,6 @@ export async function getBudgetComponents() {
       },
       orderBy: { componentNo: 'asc' },
     });
-
-    const comp1 = components.find((c: any) => c.componentNo === 1);
-    const comp2 = components.find((c: any) => c.componentNo === 2);
-
-    const comp1Stale = comp1 && (
-      comp1.annexureI.length !== 8 ||
-      comp1.annexureI.some((r: any) => r.expertName?.includes('CANTEEN') || r.voucherNo === 'CN2/001756/26-27') ||
-      comp1.annexureI.reduce((s: number, r: any) => s + (r.totalExpenditure || 0), 0) === 150347
-    );
-
-    const comp2Stale = comp2 && (
-      comp2.annexureII.length !== 23 ||
-      comp2.annexureII.some((r: any) => r.remarks?.includes('Legacy Import') || r.participant?.includes('PRIYA.S')) ||
-      comp2.annexureII.reduce((s: number, r: any) => s + (r.totalExpenditure || 0), 0) === 252117
-    );
-
-    if (comp1Stale || comp2Stale) {
-      await syncAnnexuresIfNeeded(prisma, true);
-      components = await prisma.budgetComponent.findMany({
-        include: {
-          annexureI: { orderBy: { createdAt: 'asc' } },
-          annexureII: { orderBy: { createdAt: 'asc' } },
-          annexureIII: { orderBy: { createdAt: 'desc' } },
-          annexureIV: { orderBy: { createdAt: 'desc' } },
-          annexureV: { orderBy: { createdAt: 'desc' } },
-          annexureVI: { orderBy: { createdAt: 'desc' } },
-        },
-        orderBy: { componentNo: 'asc' },
-      });
-    }
 
     // Calculate dynamic expenditures
     return components.map((comp: any) => {
@@ -218,7 +188,7 @@ export async function deleteAnnexureIEntry(id: string) {
 
 export async function getComponent1Data() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
-  let comp = await prisma.budgetComponent.findUnique({
+  const comp = await prisma.budgetComponent.findUnique({
     where: { componentNo: 1 },
     include: {
       annexureI: {
@@ -226,24 +196,6 @@ export async function getComponent1Data() {
       }
     }
   });
-
-  if (!comp) return null;
-
-  const isStale = comp.annexureI.length !== 8 ||
-    comp.annexureI.some((r: any) => r.expertName?.includes('CANTEEN') || r.voucherNo === 'CN2/001756/26-27') ||
-    comp.annexureI.reduce((s: number, r: any) => s + (r.totalExpenditure || 0), 0) === 150347;
-
-  if (isStale) {
-    await syncAnnexuresIfNeeded(prisma, true);
-    comp = await prisma.budgetComponent.findUnique({
-      where: { componentNo: 1 },
-      include: {
-        annexureI: {
-          orderBy: { createdAt: 'asc' }
-        }
-      }
-    });
-  }
 
   if (!comp) return null;
 
@@ -261,24 +213,10 @@ export async function getComponent1Data() {
 // --- Component 2 ---
 export async function getComponent2Data() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
-  let comp = await prisma.budgetComponent.findUnique({
+  const comp = await prisma.budgetComponent.findUnique({
     where: { componentNo: 2 },
     include: { annexureII: { orderBy: { createdAt: 'asc' } } }
   });
-
-  if (!comp) return null;
-
-  const isStale = comp.annexureII.length !== 23 ||
-    comp.annexureII.some((r: any) => r.remarks?.includes('Legacy Import') || r.participant?.includes('PRIYA.S')) ||
-    comp.annexureII.reduce((s: number, r: any) => s + (r.totalExpenditure || 0), 0) === 252117;
-
-  if (isStale) {
-    await syncAnnexuresIfNeeded(prisma, true);
-    comp = await prisma.budgetComponent.findUnique({
-      where: { componentNo: 2 },
-      include: { annexureII: { orderBy: { createdAt: 'asc' } } }
-    });
-  }
 
   if (!comp) return null;
 
