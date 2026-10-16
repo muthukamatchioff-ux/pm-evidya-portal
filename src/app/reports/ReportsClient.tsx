@@ -662,10 +662,44 @@ export default function ReportsClient({
       {/* Print View & Infographic Styling */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
-          body * { visibility: hidden !important; }
-          #printable-dashboard, #printable-dashboard * { visibility: visible !important; }
-          #printable-annexures, #printable-annexures * { visibility: visible !important; }
-          #printable-epic-report, #printable-epic-report * { visibility: visible !important; }
+          @page {
+            size: A4 landscape;
+            margin: 4mm 6mm;
+          }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            height: 100% !important;
+            max-height: 100% !important;
+            overflow: hidden !important;
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          aside, header, nav, button, select, input,
+          .no-print,
+          [class*="sectionCard"],
+          [class*="pageHeader"],
+          [class*="quickActions"] {
+            display: none !important;
+            height: 0 !important;
+            max-height: 0 !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          #printable-dashboard, #printable-dashboard * {
+            visibility: visible !important;
+          }
+          #printable-annexures, #printable-annexures * {
+            visibility: visible !important;
+          }
+          #printable-epic-report, #printable-epic-report * {
+            visibility: visible !important;
+          }
           #printable-dashboard, #printable-annexures, #printable-epic-report { 
             position: absolute !important; 
             left: 0 !important; 
@@ -677,7 +711,127 @@ export default function ReportsClient({
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          @page { size: landscape; margin: 6mm 8mm; }
+
+          /* Force A4 1-Page Fixed for Dashboard View */
+          #printable-dashboard {
+            max-height: 198mm !important;
+            height: auto !important;
+            overflow: hidden !important;
+            page-break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-inside: avoid !important;
+            break-after: avoid !important;
+          }
+          #printable-dashboard .dashboard-report-card {
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 8px !important;
+            box-shadow: none !important;
+            max-height: 198mm !important;
+            overflow: hidden !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+          }
+          #printable-dashboard .dashboard-report-header {
+            padding: 8px 16px !important;
+            border-top: 3px solid #0284c7 !important;
+            border-bottom: 1.5px solid #bae6fd !important;
+            gap: 12px !important;
+          }
+          #printable-dashboard .dashboard-report-logo-left {
+            height: 42px !important;
+          }
+          #printable-dashboard .dashboard-report-logo-right {
+            height: 36px !important;
+          }
+          #printable-dashboard .dashboard-report-org-title {
+            font-size: 11px !important;
+          }
+          #printable-dashboard .dashboard-report-org-sub {
+            font-size: 8.5px !important;
+          }
+          #printable-dashboard .dashboard-report-title {
+            font-size: 16px !important;
+            margin: 0 0 2px 0 !important;
+            line-height: 1.1 !important;
+          }
+          #printable-dashboard .dashboard-report-subtitle {
+            font-size: 10.5px !important;
+            margin: 0 0 3px 0 !important;
+          }
+          #printable-dashboard .dashboard-report-date {
+            font-size: 9px !important;
+            padding: 2px 8px !important;
+          }
+          #printable-dashboard .dashboard-report-kpis {
+            padding: 6px 16px 4px 16px !important;
+            gap: 10px !important;
+          }
+          #printable-dashboard .dashboard-report-kpi-card {
+            padding: 6px 12px !important;
+            border-radius: 8px !important;
+            box-shadow: none !important;
+          }
+          #printable-dashboard .dashboard-report-kpi-label {
+            font-size: 9px !important;
+          }
+          #printable-dashboard .dashboard-report-kpi-icon {
+            width: 22px !important;
+            height: 22px !important;
+            font-size: 11px !important;
+          }
+          #printable-dashboard .dashboard-report-kpi-val {
+            font-size: 16px !important;
+            margin-top: 2px !important;
+          }
+          #printable-dashboard .dashboard-report-kpi-sub {
+            font-size: 8.5px !important;
+            margin-top: 2px !important;
+          }
+          #printable-dashboard .dashboard-report-table-section {
+            padding: 4px 16px 6px 16px !important;
+          }
+          #printable-dashboard .dashboard-report-table-title {
+            margin-bottom: 4px !important;
+            padding-bottom: 3px !important;
+          }
+          #printable-dashboard .dashboard-report-table-title h3 {
+            font-size: 12px !important;
+          }
+          #printable-dashboard .dashboard-report-table {
+            font-size: 9.5px !important;
+          }
+          #printable-dashboard .dashboard-report-table th {
+            padding: 4px 8px !important;
+            font-size: 9px !important;
+          }
+          #printable-dashboard .dashboard-report-table td {
+            padding: 3.5px 8px !important;
+            font-size: 9px !important;
+          }
+          #printable-dashboard .dashboard-report-table tfoot td {
+            padding: 4px 8px !important;
+            font-size: 9.5px !important;
+          }
+          #printable-dashboard .dashboard-report-roman {
+            min-width: 18px !important;
+            padding: 1px 3px !important;
+            font-size: 8.5px !important;
+          }
+          #printable-dashboard .dashboard-report-bar-wrap {
+            width: 60px !important;
+            height: 5px !important;
+          }
+          #printable-dashboard .dashboard-report-pill {
+            font-size: 8.5px !important;
+            padding: 0px 4px !important;
+          }
+          #printable-dashboard .dashboard-report-signoff {
+            margin-top: 4px !important;
+            padding-top: 3px !important;
+            font-size: 8.5px !important;
+          }
 
           h1, h2, h3, h4, .print-no-break-after {
             break-after: avoid !important;
@@ -713,7 +867,7 @@ export default function ReportsClient({
         });
 
         const reportContent = (
-          <div style={{
+          <div className="dashboard-report-card" style={{
             background: '#ffffff',
             borderRadius: '16px',
             border: '1px solid #cbd5e1',
@@ -723,7 +877,7 @@ export default function ReportsClient({
             color: '#0f172a'
           }}>
             {/* A. Report Header: NIMI & PM e-Vidya branding, dynamic timestamp, light-blue dashboard theme */}
-            <div style={{
+            <div className="dashboard-report-header" style={{
               background: 'linear-gradient(135deg, #f0f9ff 0%, #ffffff 50%, #f0fdf4 100%)',
               borderTop: '5px solid #0284c7',
               borderBottom: '2px solid #bae6fd',
@@ -738,13 +892,14 @@ export default function ReportsClient({
                 <img 
                   src="/nimi-logo.png" 
                   alt="NIMI Logo" 
+                  className="dashboard-report-logo-left"
                   style={{ height: '82px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.06))' }} 
                 />
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                  <div className="dashboard-report-org-title" style={{ fontSize: '13px', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
                     National Instructional Media Institute
                   </div>
-                  <div style={{ fontSize: '11px', color: '#475569', marginTop: '3px', fontWeight: 500 }}>
+                  <div className="dashboard-report-org-sub" style={{ fontSize: '11px', color: '#475569', marginTop: '3px', fontWeight: 500 }}>
                     Ministry of Skill Development & Entrepreneurship, Govt. of India
                   </div>
                 </div>
@@ -752,7 +907,7 @@ export default function ReportsClient({
 
               {/* Center Title & Metadata */}
               <div style={{ textAlign: 'center', flex: '2 1 0' }}>
-                <h1 style={{ 
+                <h1 className="dashboard-report-title" style={{ 
                   fontSize: '28px', 
                   fontWeight: 800, 
                   color: '#0f2942', 
@@ -762,7 +917,7 @@ export default function ReportsClient({
                 }}>
                   PM e-Vidya Financial Dashboard
                 </h1>
-                <p style={{ 
+                <p className="dashboard-report-subtitle" style={{ 
                   fontSize: '15px', 
                   fontWeight: 600, 
                   color: '#334155', 
@@ -770,7 +925,7 @@ export default function ReportsClient({
                 }}>
                   Approved Budget vs Expenditure — Component-wise Status Report
                 </p>
-                <div style={{
+                <div className="dashboard-report-date" style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
@@ -791,20 +946,21 @@ export default function ReportsClient({
                 <img 
                   src="/pm-evidya-logo.png" 
                   alt="PM e-Vidya Logo" 
+                  className="dashboard-report-logo-right"
                   style={{ height: '70px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.06))' }} 
                 />
               </div>
             </div>
 
             {/* B. Three KPI Cards: Power BI Infographic Style */}
-            <div style={{ 
+            <div className="dashboard-report-kpis" style={{ 
               display: 'grid', 
               gridTemplateColumns: 'repeat(3, 1fr)', 
               gap: '20px', 
               padding: '24px 32px 16px 32px' 
             }}>
               {/* KPI Card 1: Total Approved Budget (Blue Accent) */}
-              <div style={{ 
+              <div className="dashboard-report-kpi-card" style={{ 
                 padding: '20px 24px', 
                 border: '1.5px solid #bfdbfe', 
                 borderLeft: '5px solid #2563eb', 
@@ -813,10 +969,10 @@ export default function ReportsClient({
                 boxShadow: '0 4px 12px rgba(37, 99, 235, 0.06)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                  <span className="dashboard-report-kpi-label" style={{ fontSize: '12px', fontWeight: 800, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
                     Total Approved Budget
                   </span>
-                  <div style={{ 
+                  <div className="dashboard-report-kpi-icon" style={{ 
                     width: '38px', 
                     height: '38px', 
                     borderRadius: '10px', 
@@ -829,16 +985,16 @@ export default function ReportsClient({
                     🏛️
                   </div>
                 </div>
-                <div style={{ color: '#1e3a8a', fontSize: '30px', fontWeight: 800, marginTop: '12px', letterSpacing: '-0.5px' }}>
+                <div className="dashboard-report-kpi-val" style={{ color: '#1e3a8a', fontSize: '30px', fontWeight: 800, marginTop: '12px', letterSpacing: '-0.5px' }}>
                   ₹ {totalBudget.toLocaleString('en-IN')}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#2563eb', fontWeight: 600, marginTop: '8px' }}>
+                <div className="dashboard-report-kpi-sub" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#2563eb', fontWeight: 600, marginTop: '8px' }}>
                   <span>✓</span> 100% Total Sanctioned Allocation (6 Heads)
                 </div>
               </div>
 
               {/* KPI Card 2: Total Expenditure (Purple Accent) */}
-              <div style={{ 
+              <div className="dashboard-report-kpi-card" style={{ 
                 padding: '20px 24px', 
                 border: '1.5px solid #e9d5ff', 
                 borderLeft: '5px solid #7c3aed', 
@@ -847,10 +1003,10 @@ export default function ReportsClient({
                 boxShadow: '0 4px 12px rgba(124, 58, 237, 0.06)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                  <span className="dashboard-report-kpi-label" style={{ fontSize: '12px', fontWeight: 800, color: '#6b21a8', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
                     Total Expenditure
                   </span>
-                  <div style={{ 
+                  <div className="dashboard-report-kpi-icon" style={{ 
                     width: '38px', 
                     height: '38px', 
                     borderRadius: '10px', 
@@ -863,16 +1019,16 @@ export default function ReportsClient({
                     💳
                   </div>
                 </div>
-                <div style={{ color: '#581c87', fontSize: '30px', fontWeight: 800, marginTop: '12px', letterSpacing: '-0.5px' }}>
+                <div className="dashboard-report-kpi-val" style={{ color: '#581c87', fontSize: '30px', fontWeight: 800, marginTop: '12px', letterSpacing: '-0.5px' }}>
                   ₹ {totalExp.toLocaleString('en-IN')}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#7e22ce', fontWeight: 600, marginTop: '8px' }}>
+                <div className="dashboard-report-kpi-sub" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#7e22ce', fontWeight: 600, marginTop: '8px' }}>
                   <span>💼</span> Unutilized Balance: ₹ {unutilized.toLocaleString('en-IN')}
                 </div>
               </div>
 
               {/* KPI Card 3: Overall Utilization (Green Accent) */}
-              <div style={{ 
+              <div className="dashboard-report-kpi-card" style={{ 
                 padding: '20px 24px', 
                 border: '1.5px solid #a7f3d0', 
                 borderLeft: '5px solid #059669', 
@@ -881,10 +1037,10 @@ export default function ReportsClient({
                 boxShadow: '0 4px 12px rgba(5, 150, 105, 0.06)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                  <span className="dashboard-report-kpi-label" style={{ fontSize: '12px', fontWeight: 800, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
                     Overall Utilization
                   </span>
-                  <div style={{ 
+                  <div className="dashboard-report-kpi-icon" style={{ 
                     width: '38px', 
                     height: '38px', 
                     borderRadius: '10px', 
@@ -897,7 +1053,7 @@ export default function ReportsClient({
                     🎯
                   </div>
                 </div>
-                <div style={{ color: '#064e3b', fontSize: '30px', fontWeight: 800, marginTop: '12px', letterSpacing: '-0.5px' }}>
+                <div className="dashboard-report-kpi-val" style={{ color: '#064e3b', fontSize: '30px', fontWeight: 800, marginTop: '12px', letterSpacing: '-0.5px' }}>
                   {utilPercent}%
                 </div>
                 {/* Visual Progress Meter */}
@@ -909,15 +1065,15 @@ export default function ReportsClient({
                     borderRadius: '99px'
                   }} />
                 </div>
-                <div style={{ fontSize: '12px', color: '#047857', fontWeight: 600, marginTop: '6px' }}>
+                <div className="dashboard-report-kpi-sub" style={{ fontSize: '12px', color: '#047857', fontWeight: 600, marginTop: '6px' }}>
                   Target Absorption Performance
                 </div>
               </div>
             </div>
 
             {/* C. Component-wise Breakdown Table */}
-            <div style={{ padding: '8px 32px 32px 32px' }}>
-              <div style={{ 
+            <div className="dashboard-report-table-section" style={{ padding: '8px 32px 32px 32px' }}>
+              <div className="dashboard-report-table-title" style={{ 
                 display: 'flex', 
                 justifyContent: 'space-between', 
                 alignItems: 'center', 
@@ -944,7 +1100,7 @@ export default function ReportsClient({
                 </span>
               </div>
               
-              <table style={{ 
+              <table className="dashboard-report-table" style={{ 
                 width: '100%', 
                 borderCollapse: 'separate', 
                 borderSpacing: 0, 
@@ -983,7 +1139,7 @@ export default function ReportsClient({
                       }}>
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid #e2e8f0' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ 
+                            <span className="dashboard-report-roman" style={{ 
                               display: 'inline-flex', 
                               alignItems: 'center', 
                               justifyContent: 'center',
@@ -1014,7 +1170,7 @@ export default function ReportsClient({
                         </td>
                         <td style={{ padding: '14px 16px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                            <div style={{ background: '#e2e8f0', borderRadius: '99px', width: '110px', height: '8px', overflow: 'hidden' }}>
+                            <div className="dashboard-report-bar-wrap" style={{ background: '#e2e8f0', borderRadius: '99px', width: '110px', height: '8px', overflow: 'hidden' }}>
                               <div style={{ 
                                 background: comp.utilizationPercent > 50 ? 'linear-gradient(90deg, #10b981, #059669)' : 'linear-gradient(90deg, #3b82f6, #7c3aed)', 
                                 height: '100%', 
@@ -1022,7 +1178,7 @@ export default function ReportsClient({
                                 borderRadius: '99px'
                               }} />
                             </div>
-                            <span style={{ 
+                            <span className="dashboard-report-pill" style={{ 
                               fontSize: '12px', 
                               fontWeight: 700, 
                               color: '#334155',
@@ -1070,7 +1226,7 @@ export default function ReportsClient({
               </table>
 
               {/* Official Sign-off & Audit Stamp */}
-              <div style={{ 
+              <div className="dashboard-report-signoff" style={{ 
                 marginTop: '20px', 
                 display: 'flex', 
                 justifyContent: 'space-between', 
@@ -1096,7 +1252,7 @@ export default function ReportsClient({
           <>
             {/* Modal Preview of Report on Screen */}
             {isPreviewOpen && (
-              <div style={{
+              <div className="no-print" style={{
                 position: 'fixed',
                 inset: 0,
                 zIndex: 9999,
@@ -1309,7 +1465,7 @@ export default function ReportsClient({
 
       {/* Modal Preview of Epic Workflow Report */}
       {isEpicModalOpen && epicHistoryData?.workEntry && (
-        <div style={{
+        <div className="no-print" style={{
           position: 'fixed',
           inset: 0,
           zIndex: 9999,
