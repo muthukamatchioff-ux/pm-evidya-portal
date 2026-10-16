@@ -4,7 +4,6 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
-import { syncAnnexuresIfNeeded } from '@/lib/syncAnnexures';
 
 export async function getBudgetComponents() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
