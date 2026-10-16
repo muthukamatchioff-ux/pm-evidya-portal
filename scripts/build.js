@@ -63,6 +63,14 @@ if (process.env.VERCEL_ENV === 'preview') {
   }
 }
 
+// 3b. Verify & sync Annexure I & II if live DB connected
+try {
+  console.log('[Build Runner] Checking Annexure I & II database alignment...');
+  execSync('node scripts/sync-db.js', { stdio: 'inherit', env: process.env });
+} catch (e) {
+  console.warn('[Build Runner] Notice: Build-time sync check skipped safely:', e.message);
+}
+
 // 4. Run Next.js Build
 console.log('[Build Runner] Executing Next.js optimized production build...');
 execSync('npx next build', { stdio: 'inherit', env: process.env });
