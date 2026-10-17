@@ -21,9 +21,8 @@ for (const raw of candidates) {
   }
 }
 
-if (!validDbUrl) {
-  // If candidates were missing or masked (e.g. in Vercel Preview without DB config),
-  // check local .env.bak or set a syntactically valid PostgreSQL dummy URL
+if (!validDbUrl && !process.env.VERCEL) {
+  // If candidates were missing or masked locally, check local .env.bak
   try {
     const fs = require('fs');
     const path = require('path');

@@ -1,5 +1,7 @@
 .env
 .env*
+.env.*
+.env.bak
 .env.local
 .env.preview.local
 .env.production

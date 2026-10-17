@@ -402,31 +402,12 @@ export default function EpicWorkflowReport({
             <div style={{ fontSize: '11px', color: '#334155' }}>
               <strong>Editor:</strong> {editingRecord?.editorName || 'Not Assigned'}
             </div>
-            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '1px' }}>
-              Rough: {editingRecord?.roughCutLink ? '✓' : 'Pending'} • Final: {editingRecord?.finalCutLink ? '✓' : 'Pending'}
-            </div>
           </div>
 
           {/* Stage 3 */}
           <div style={{ padding: '8px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: '#0f2942' }}>3. 2D Animation</span>
-              <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '6px', fontWeight: 700, ...getStatusBadgeStyle(animationStageStatus) }}>
-                {animationStageStatus}
-              </span>
-            </div>
-            <div style={{ fontSize: '11px', color: '#334155' }}>
-              <strong>Animator:</strong> {animationRecord?.animatorName || 'Not Assigned'}
-            </div>
-            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '1px' }}>
-              File: {animationRecord?.finalAnimationFile ? '✓ Attached' : 'None'}
-            </div>
-          </div>
-
-          {/* Stage 4 */}
-          <div style={{ padding: '8px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: '#0f2942' }}>4. Final Video & Telecast</span>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#0f2942' }}>3. Final Video & Telecast</span>
               <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '6px', fontWeight: 700, ...getStatusBadgeStyle(finalStageStatus) }}>
                 {finalStageStatus}
               </span>
@@ -613,25 +594,49 @@ export default function EpicWorkflowReport({
 
         <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px 16px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-            {/* Library Link */}
+            {/* Library Link(s) */}
             <div>
-              <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Authoritative Library Video</span>
-              <div style={{ marginTop: '2px' }}>
-                {primaryLibraryVideo?.videoLink ? (
-                  <a 
-                    href={primaryLibraryVideo.videoLink} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    style={{ fontSize: '12px', fontWeight: 700, color: '#0284c7', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                  >
-                    <span>🔗</span> Watch Final Video
-                  </a>
+              <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>
+                Authoritative Library Video{libraryVideos.length > 1 ? `s (${libraryVideos.length})` : ''}
+              </span>
+              <div style={{ marginTop: '2px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {libraryVideos.length > 0 ? (
+                  libraryVideos.map((v: any, vIdx: number) => (
+                    <div key={v.id || vIdx}>
+                      {v.videoLink ? (
+                        <a 
+                          href={v.videoLink} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          style={{ fontSize: '12px', fontWeight: 700, color: '#0284c7', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <span>🔗</span> Watch Final Video {libraryVideos.length > 1 ? `#${vIdx + 1}` : ''}
+                        </a>
+                      ) : (
+                        <span style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>Pending Delivery</span>
+                      )}
+                      <div style={{ fontSize: '10px', color: '#475569', marginTop: '1px' }}>
+                        {v.title || entry.topic || 'PM e-Vidya Video'}
+                      </div>
+                    </div>
+                  ))
+                ) : primaryFinalVideo?.finalVideoFile ? (
+                  <div>
+                    <a 
+                      href={primaryFinalVideo.finalVideoFile} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      style={{ fontSize: '12px', fontWeight: 700, color: '#0284c7', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <span>🔗</span> Watch Final Video
+                    </a>
+                    <div style={{ fontSize: '10px', color: '#475569', marginTop: '1px' }}>
+                      {entry.topic || 'PM e-Vidya Video'}
+                    </div>
+                  </div>
                 ) : (
                   <span style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>Pending Delivery in Library</span>
                 )}
-              </div>
-              <div style={{ fontSize: '10px', color: '#475569', marginTop: '1px' }}>
-                Title: {primaryLibraryVideo?.title || entry.topic || 'PM e-Vidya Video'}
               </div>
             </div>
 

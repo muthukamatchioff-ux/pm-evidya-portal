@@ -23,7 +23,8 @@ const getDbUrl = () => {
       const clean = raw.trim().replace(/^["']|["']$/g, '');
       if (
         (clean.startsWith('postgresql://') || clean.startsWith('postgres://')) &&
-        !clean.includes('[SENSITIVE]')
+        !clean.includes('[SENSITIVE]') &&
+        (!process.env.VERCEL || (!clean.includes('localhost') && !clean.includes('127.0.0.1')))
       ) {
         return clean.includes('schema=')
           ? clean
@@ -32,8 +33,8 @@ const getDbUrl = () => {
     }
   }
 
-  // Check local .env.bak if present and candidates were missing/masked
-  if (typeof window === 'undefined') {
+  // Check local .env.bak if present and candidates were missing/masked (local environment only)
+  if (typeof window === 'undefined' && !process.env.VERCEL) {
     try {
       const fs = require('fs');
       const path = require('path');

@@ -4,7 +4,7 @@ const path = require('path');
 
 async function main() {
   const dbUrl = process.env.DATABASE_URL;
-  if (!dbUrl || dbUrl.includes('localhost:5432/pm_evidya_preview') || dbUrl.includes('[SENSITIVE]')) {
+  if (!dbUrl || dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1') || dbUrl.includes('[SENSITIVE]')) {
     console.log('[Sync DB Script] Skipping direct DB sync during build: no live database connected.');
     return;
   }
