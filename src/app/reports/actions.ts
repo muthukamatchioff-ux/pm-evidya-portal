@@ -88,7 +88,7 @@ export async function getComprehensiveReportData() {
     }
   }
 
-  const [smes, production, auditLogs, epicWorkEntries] = await Promise.all([
+  const [smes, production, auditLogs, rawEpicEntries] = await Promise.all([
     (role === 'CAMERAMAN' || role === 'EDITOR')
       ? Promise.resolve([])
       : prisma.sME.findMany({
@@ -121,15 +121,20 @@ export async function getComprehensiveReportData() {
         sme: true,
         documents: true,
         payments: (role === 'ADMIN' || role === 'TEAM_MEMBER'),
-        shootingSchedules: true,
-        videoEditorRecords: true,
-        animationRecords: true,
-        finalVideoRecords: true,
         videoLibraries: true,
       },
       orderBy: { epicSequence: 'asc' }
     })
   ]);
+
+  const epicWorkEntries = (rawEpicEntries || []).map((e: any) => ({
+    ...e,
+    shootingSchedules: e.shootingSchedules || [],
+    videoEditorRecords: e.videoEditorRecords || [],
+    animationRecords: e.animationRecords || [],
+    finalVideoRecords: e.finalVideoRecords || [],
+    videoLibraries: e.videoLibraries || []
+  }));
 
   return JSON.parse(JSON.stringify({ smes, production, auditLogs, epicWorkEntries }));
 }
@@ -141,21 +146,26 @@ export async function getEpicCompleteHistory(workEntryId: string) {
   const user = await getCurrentUser();
   
   try {
-    const workEntry = await prisma.sMEWorkEntry.findUnique({
+    const rawWorkEntry = await prisma.sMEWorkEntry.findUnique({
       where: { id: workEntryId },
       include: {
         sme: true,
         documents: { orderBy: { createdAt: 'desc' } },
         payments: (role === 'ADMIN' || role === 'TEAM_MEMBER') ? { orderBy: { createdAt: 'desc' } } : false,
-        shootingSchedules: { orderBy: { createdAt: 'asc' } },
-        videoEditorRecords: { orderBy: { createdAt: 'asc' } },
-        animationRecords: { orderBy: { createdAt: 'asc' } },
-        finalVideoRecords: { orderBy: { createdAt: 'asc' } },
         videoLibraries: { orderBy: { createdAt: 'desc' } },
       }
     });
 
-    if (!workEntry) return { success: false, error: 'Epic record not found.' };
+    if (!rawWorkEntry) return { success: false, error: 'Epic record not found.' };
+
+    const workEntry = {
+      ...rawWorkEntry,
+      shootingSchedules: (rawWorkEntry as any).shootingSchedules || [],
+      videoEditorRecords: (rawWorkEntry as any).videoEditorRecords || [],
+      animationRecords: (rawWorkEntry as any).animationRecords || [],
+      finalVideoRecords: (rawWorkEntry as any).finalVideoRecords || [],
+      videoLibraries: rawWorkEntry.videoLibraries || []
+    };
 
     if (role === 'CAMERAMAN' || role === 'EDITOR') {
       const assigned = parseAssignedEpics(user?.department);

@@ -827,7 +827,6 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                   <th>Shoot Status</th>
                   <th>Video Editor & Dates</th>
                   <th>Editing Status</th>
-                  <th>Rough / Final Cut</th>
                   <th>Final Video File</th>
                   <th>Action</th>
                 </tr>
@@ -898,29 +897,12 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                             </span>
                           </td>
                           <td>
-                            <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              {editorRec.roughCutLink ? (
-                                <a href={editorRec.roughCutLink} target="_blank" rel="noreferrer" style={{ color: '#0284c7' }}>
-                                  🔗 Rough Cut
-                                </a>
-                              ) : <span style={{ color: '#94a3b8' }}>Rough: -</span>}
-                              {editorRec.finalCutLink ? (
-                                <a href={editorRec.finalCutLink} target="_blank" rel="noreferrer" style={{ color: '#16a34a', fontWeight: 'bold' }}>
-                                  🎬 Final Cut
-                                </a>
-                              ) : <span style={{ color: '#94a3b8' }}>Final: -</span>}
-                            </div>
-                          </td>
-                          <td>
                             {editorRec.finalVideoFile ? (
                               <a href={editorRec.finalVideoFile} target="_blank" rel="noreferrer" style={{ color: '#0369a1', fontSize: '12px', fontWeight: 'bold' }}>
                                 📁 Storage File
                               </a>
                             ) : (
                               <span style={{ fontSize: '12px', color: '#94a3b8' }}>-</span>
-                            )}
-                            {editorRec.duration && (
-                              <div style={{ fontSize: '11px', color: '#64748b' }}>Dur: {editorRec.duration}</div>
                             )}
                           </td>
                           <td>
@@ -995,7 +977,6 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                   <th>Epic ID & SME</th>
                   <th>Video Title / Trade</th>
                   <th>Final Video Link / File</th>
-                  <th>Duration</th>
                   <th>Approval Status</th>
                   <th>Telecast Details</th>
                   <th>Telecast Status</th>
@@ -1033,7 +1014,6 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                           <span style={{ color: '#94a3b8' }}>Awaiting File Link</span>
                         )}
                       </td>
-                      <td>{duration}</td>
                       <td>
                         <span className={`${styles.badge} ${getBadgeClass(finalStatus)}`}>
                           {finalStatus}
@@ -1465,52 +1445,15 @@ function Stage2EditModal({ record, loading, onClose, onSave }: any) {
               </div>
             </div>
 
-            <div className={styles.modalGrid}>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Rough Cut Link</label>
-                <input 
-                  type="url" 
-                  className={styles.formInput} 
-                  placeholder="https://..."
-                  value={formData.roughCutLink} 
-                  onChange={e => setFormData({ ...formData, roughCutLink: e.target.value })}
-                />
-              </div>
-
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Final Cut Link</label>
-                <input 
-                  type="url" 
-                  className={styles.formInput} 
-                  placeholder="https://..."
-                  value={formData.finalCutLink} 
-                  onChange={e => setFormData({ ...formData, finalCutLink: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className={styles.modalGrid}>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Final Video Storage File / URL</label>
-                <input 
-                  type="url" 
-                  className={styles.formInput} 
-                  placeholder="Google Drive / Cloud storage link"
-                  value={formData.finalVideoFile} 
-                  onChange={e => setFormData({ ...formData, finalVideoFile: e.target.value })}
-                />
-              </div>
-
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Video Duration</label>
-                <input 
-                  type="text" 
-                  className={styles.formInput} 
-                  placeholder="e.g. 14:35"
-                  value={formData.duration} 
-                  onChange={e => setFormData({ ...formData, duration: e.target.value })}
-                />
-              </div>
+            <div className={styles.formField}>
+              <label className={styles.formLabel}>Final Video Storage File / URL</label>
+              <input 
+                type="url" 
+                className={styles.formInput} 
+                placeholder="Google Drive / Cloud storage link"
+                value={formData.finalVideoFile} 
+                onChange={e => setFormData({ ...formData, finalVideoFile: e.target.value })}
+              />
             </div>
 
             <div className={styles.formField}>
@@ -1572,31 +1515,18 @@ function Stage3EditModal({ record, loading, onClose, onSave }: any) {
 
         <form onSubmit={handleSubmit}>
           <div className={styles.modalBody}>
-            <div className={styles.modalGrid}>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Final Approval Status</label>
-                <select 
-                  className={styles.formSelect} 
-                  value={formData.finalVideoStatus} 
-                  onChange={e => setFormData({ ...formData, finalVideoStatus: e.target.value })}
-                >
-                  <option value="APPROVED">Approved</option>
-                  <option value="PENDING">Pending Approval</option>
-                  <option value="REVISION_REQUIRED">Revision Required</option>
-                  <option value="COMPLETED">Completed</option>
-                </select>
-              </div>
-
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Final Duration</label>
-                <input 
-                  type="text" 
-                  className={styles.formInput} 
-                  placeholder="e.g. 15:00"
-                  value={formData.finalDuration} 
-                  onChange={e => setFormData({ ...formData, finalDuration: e.target.value })}
-                />
-              </div>
+            <div className={styles.formField}>
+              <label className={styles.formLabel}>Final Approval Status</label>
+              <select 
+                className={styles.formSelect} 
+                value={formData.finalVideoStatus} 
+                onChange={e => setFormData({ ...formData, finalVideoStatus: e.target.value })}
+              >
+                <option value="APPROVED">Approved</option>
+                <option value="PENDING">Pending Approval</option>
+                <option value="REVISION_REQUIRED">Revision Required</option>
+                <option value="COMPLETED">Completed</option>
+              </select>
             </div>
 
             <div className={styles.formField}>
