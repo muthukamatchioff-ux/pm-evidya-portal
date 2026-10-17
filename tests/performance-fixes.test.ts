@@ -1,28 +1,11 @@
 import { describe, it, expect } from '@jest/globals';
 
-// Test 1: Equivalence helper implementation tested across Annexure 1-6 clients
-function areRecordsEquivalent(prev: any[], next: any[]): boolean {
-  if (prev === next) return true;
-  if (prev.length !== next.length) return false;
-  for (let i = 0; i < prev.length; i++) {
-    const a = prev[i];
-    const b = next[i];
-    if (a === b) continue;
-    if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
-    const keysA = Object.keys(a);
-    const keysB = Object.keys(b);
-    if (keysA.length !== keysB.length) return false;
-    for (const key of keysA) {
-      if (a[key] !== b[key]) {
-        if (a[key] instanceof Date && b[key] instanceof Date) {
-          if (a[key].getTime() !== b[key].getTime()) return false;
-        } else {
-          return false;
-        }
-      }
-    }
-  }
-  return true;
+// Test 1: Annexure state sync merger tested across Annexure 1-6 clients
+function mergeAnnexureRecords(prev: any[], incoming: any[], deletedIds: Set<string>): any[] {
+  const filteredIncoming = incoming.filter((e: any) => !deletedIds.has(e.id));
+  const incomingMap = new Map(filteredIncoming.map((e: any) => [e.id, e]));
+  const preservedLocals = prev.filter((p: any) => !incomingMap.has(p.id) && !deletedIds.has(p.id));
+  return [...filteredIncoming, ...preservedLocals];
 }
 
 // Test 2: Budget calculation logic tested against Prisma schema and actions contract
@@ -106,41 +89,37 @@ describe('PM e-Vidya Portal — Performance Fixes & Regression Guard', () => {
     });
   });
 
-  describe('B. Annexure Client Equivalence Guard (areRecordsEquivalent)', () => {
+  describe('B. Annexure Client State Synchronization (mergeAnnexureRecords)', () => {
     const baseRecords = [
-      { id: 'rec-1', expertName: 'Expert A', totalExpenditure: 5000, updatedAt: new Date('2026-01-01') },
-      { id: 'rec-2', expertName: 'Expert B', totalExpenditure: 10000, updatedAt: new Date('2026-01-02') },
+      { id: 'rec-1', expertName: 'Expert A', totalExpenditure: 5000 },
+      { id: 'rec-2', expertName: 'Expert B', totalExpenditure: 10000 },
     ];
 
-    it('should return true for identical reference or equal records (bailing out of redundant re-render)', () => {
-      expect(areRecordsEquivalent(baseRecords, baseRecords)).toBe(true);
-
-      const clone = [
-        { id: 'rec-1', expertName: 'Expert A', totalExpenditure: 5000, updatedAt: new Date('2026-01-01') },
-        { id: 'rec-2', expertName: 'Expert B', totalExpenditure: 10000, updatedAt: new Date('2026-01-02') },
-      ];
-      expect(areRecordsEquivalent(baseRecords, clone)).toBe(true);
-    });
-
-    it('should return false when a new record is added (allowing fresh server data to sync)', () => {
-      const added = [
+    it('should immediately include latest records from server without blocking', () => {
+      const incoming = [
         ...baseRecords,
-        { id: 'rec-3', expertName: 'Expert C', totalExpenditure: 7500, updatedAt: new Date('2026-01-03') }
+        { id: 'rec-3', expertName: 'Expert C', totalExpenditure: 7500 }
       ];
-      expect(areRecordsEquivalent(baseRecords, added)).toBe(false);
+      const merged = mergeAnnexureRecords(baseRecords, incoming, new Set());
+      expect(merged.length).toBe(3);
+      expect(merged[2].id).toBe('rec-3');
     });
 
-    it('should return false when a record is deleted', () => {
-      const deleted = [baseRecords[0]];
-      expect(areRecordsEquivalent(baseRecords, deleted)).toBe(false);
+    it('should respect locally deleted record IDs', () => {
+      const deletedIds = new Set(['rec-1']);
+      const merged = mergeAnnexureRecords(baseRecords, baseRecords, deletedIds);
+      expect(merged.length).toBe(1);
+      expect(merged[0].id).toBe('rec-2');
     });
 
-    it('should return false when a record field is edited or updated', () => {
-      const edited = [
-        { ...baseRecords[0], totalExpenditure: 6000 },
+    it('should reflect edited records from server immediately', () => {
+      const incoming = [
+        { id: 'rec-1', expertName: 'Expert A Modified', totalExpenditure: 9000 },
         baseRecords[1]
       ];
-      expect(areRecordsEquivalent(baseRecords, edited)).toBe(false);
+      const merged = mergeAnnexureRecords(baseRecords, incoming, new Set());
+      expect(merged[0].expertName).toBe('Expert A Modified');
+      expect(merged[0].totalExpenditure).toBe(9000);
     });
   });
 

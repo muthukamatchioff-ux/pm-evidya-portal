@@ -5,30 +5,6 @@ import { addAnnexureIVEntry, updateAnnexureIVEntry, deleteAnnexureIVEntry } from
 import styles from '../budget.module.css';
 import { downloadTableAsDocx } from '@/lib/tableToDocx';
 
-function areRecordsEquivalent(prev: any[], next: any[]): boolean {
-  if (prev === next) return true;
-  if (prev.length !== next.length) return false;
-  for (let i = 0; i < prev.length; i++) {
-    const a = prev[i];
-    const b = next[i];
-    if (a === b) continue;
-    if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
-    const keysA = Object.keys(a);
-    const keysB = Object.keys(b);
-    if (keysA.length !== keysB.length) return false;
-    for (const key of keysA) {
-      if (a[key] !== b[key]) {
-        if (a[key] instanceof Date && b[key] instanceof Date) {
-          if (a[key].getTime() !== b[key].getTime()) return false;
-        } else {
-          return false;
-        }
-      }
-    }
-  }
-  return true;
-}
-
 export default function Component4Client({ role, budgetComponentId, entries }: { role?: string, budgetComponentId: string, entries: any[] }) {
   const router = useRouter();
   const [records, setRecords] = useState(entries || []);
@@ -40,8 +16,7 @@ export default function Component4Client({ role, budgetComponentId, entries }: {
         const filteredIncoming = entries.filter((e: any) => !deletedIds.has(e.id));
         const incomingMap = new Map(filteredIncoming.map((e: any) => [e.id, e]));
         const preservedLocals = prev.filter((p: any) => !incomingMap.has(p.id) && !deletedIds.has(p.id));
-        const next = [...filteredIncoming, ...preservedLocals];
-        return areRecordsEquivalent(prev, next) ? prev : next;
+        return [...filteredIncoming, ...preservedLocals];
       });
     }
   }, [entries, deletedIds]);

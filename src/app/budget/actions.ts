@@ -10,12 +10,12 @@ export async function getBudgetComponents() {
   try {
     const components = await prisma.budgetComponent.findMany({
       include: {
-        annexureI: { select: { id: true, totalExpenditure: true }, orderBy: { createdAt: 'asc' } },
-        annexureII: { select: { id: true, totalExpenditure: true }, orderBy: { createdAt: 'asc' } },
-        annexureIII: { select: { id: true, totalExpenditure: true }, orderBy: { createdAt: 'desc' } },
-        annexureIV: { select: { id: true, totalExpenditure: true }, orderBy: { createdAt: 'desc' } },
-        annexureV: { select: { id: true, totalExpenditure: true }, orderBy: { createdAt: 'desc' } },
-        annexureVI: { select: { id: true, totalExpenditure: true }, orderBy: { createdAt: 'desc' } },
+        annexureI: { orderBy: { createdAt: 'asc' } },
+        annexureII: { orderBy: { createdAt: 'asc' } },
+        annexureIII: { orderBy: { createdAt: 'desc' } },
+        annexureIV: { orderBy: { createdAt: 'desc' } },
+        annexureV: { orderBy: { createdAt: 'desc' } },
+        annexureVI: { orderBy: { createdAt: 'desc' } },
       },
       orderBy: { componentNo: 'asc' },
     });
