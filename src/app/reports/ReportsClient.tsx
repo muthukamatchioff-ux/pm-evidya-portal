@@ -255,11 +255,20 @@ export default function ReportsClient({
 
   const generateProductionReport = () => {
     // Check if we have epicWorkEntries with production data, or fall back to legacy production records
-    const epicData = allEpicEntries.map((entry: any) => {
+    const epicData = allEpicEntries.flatMap((entry: any) => {
       const schedule = entry.shootingSchedules?.[0];
       const editorRec = entry.videoEditorRecords?.[0];
-      const libraryVideo = entry.videoLibraries?.[0];
       const finalRec = entry.finalVideoRecords?.[0];
+
+      const libraryVideos: any[] = entry.videoLibraries && entry.videoLibraries.length > 0 
+        ? entry.videoLibraries 
+        : (entry.finalVideoRecords && entry.finalVideoRecords.length > 0 ? entry.finalVideoRecords.map((f: any) => ({
+            title: f.title || schedule?.videoTitle || entry.topic || 'PM e-Vidya Video',
+            videoLink: f.finalVideoFile,
+            duration: f.finalDuration,
+            createdAt: f.approvalDate,
+            finalVideoStatus: f.finalVideoStatus
+          })) : [null]);
 
       const prodStart = schedule?.scheduledStart ? new Date(schedule.scheduledStart).toLocaleDateString('en-IN') : (schedule?.shootDate ? new Date(schedule.shootDate).toLocaleDateString('en-IN') : 'TBD');
       const prodEnd = schedule?.scheduledEnd ? new Date(schedule.scheduledEnd).toLocaleDateString('en-IN') : 'TBD';
@@ -268,32 +277,37 @@ export default function ReportsClient({
       const postProdEndRaw = editorRec?.editingEndDate || (editorRec?.reviewComments && editorRec.reviewComments.startsWith('[END:') ? editorRec.reviewComments.match(/^\[END:([^\]]+)\]/)?.[1] : null);
       const postProdEnd = postProdEndRaw ? new Date(postProdEndRaw).toLocaleDateString('en-IN') : 'TBD';
 
-      const videoLink = libraryVideo?.videoLink || finalRec?.finalVideoFile || 'Pending Delivery';
-      const deliveryDate = libraryVideo?.createdAt 
-        ? new Date(libraryVideo.createdAt).toLocaleDateString('en-IN')
-        : (finalRec?.approvalDate ? new Date(finalRec.approvalDate).toLocaleDateString('en-IN') : 'Pending');
+      return libraryVideos.map((libraryVideo: any, vIdx: number) => {
+        const videoLink = libraryVideo?.videoLink || libraryVideo?.finalVideoFile || 'Pending Delivery';
+        const deliveryDate = libraryVideo?.createdAt 
+          ? new Date(libraryVideo.createdAt).toLocaleDateString('en-IN')
+          : (finalRec?.approvalDate ? new Date(finalRec.approvalDate).toLocaleDateString('en-IN') : 'Pending');
 
-      const deliveryStatus = libraryVideo 
-        ? 'DELIVERED & CATALOGUED'
-        : (finalRec?.finalVideoStatus === 'APPROVED' || finalRec?.finalVideoStatus === 'COMPLETED' ? 'APPROVED' : 'PENDING DELIVERY');
+        const deliveryStatus = libraryVideo?.title 
+          ? (libraryVideo.status || 'DELIVERED & CATALOGUED')
+          : (finalRec?.finalVideoStatus === 'APPROVED' || finalRec?.finalVideoStatus === 'COMPLETED' ? 'APPROVED' : 'PENDING DELIVERY');
 
-      return {
-        "EPIC ID": getEpicId(entry.epicSequence || 1),
-        "SME Name": entry.sme?.name || 'Unassigned',
-        "Video Title / Topic": libraryVideo?.title || schedule?.videoTitle || entry.topic || 'PM e-Vidya Video',
-        "Trade": entry.trade || 'General',
-        "Production Start Date": prodStart,
-        "Production End Date": prodEnd,
-        "Production Status": schedule?.status || 'PLANNED',
-        "Post-Production Start Date": postProdStart,
-        "Post-Production End Date": postProdEnd,
-        "Post-Production Status": editorRec?.status || 'NOT_STARTED',
-        "Video Editor": editorRec?.editorName || '-',
-        "Final Video Link (Library)": videoLink,
-        "Delivery Date": deliveryDate,
-        "Delivery Status": deliveryStatus,
-        "Duration": libraryVideo?.duration || editorRec?.duration || '-'
-      };
+        const videoDuration = libraryVideo?.duration || libraryVideo?.finalDuration || editorRec?.duration || 'Duration unavailable';
+
+        return {
+          "EPIC ID": getEpicId(entry.epicSequence || 1),
+          "Video #": libraryVideos.length > 1 ? `Video ${vIdx + 1}` : 'Video 1',
+          "SME Name": entry.sme?.name || 'Unassigned',
+          "Video Title / Topic": libraryVideo?.title || schedule?.videoTitle || entry.topic || 'PM e-Vidya Video',
+          "Trade": entry.trade || 'General',
+          "Production Start Date": prodStart,
+          "Production End Date": prodEnd,
+          "Production Status": schedule?.status || 'PLANNED',
+          "Post-Production Start Date": postProdStart,
+          "Post-Production End Date": postProdEnd,
+          "Post-Production Status": editorRec?.status || 'NOT_STARTED',
+          "Video Editor": editorRec?.editorName || '-',
+          "Final Video Link (Library)": videoLink,
+          "Delivery Date": deliveryDate,
+          "Delivery Status": deliveryStatus,
+          "Duration": videoDuration
+        };
+      });
     });
 
     const data = epicData.length > 0 ? epicData : production.map((prod: any) => ({

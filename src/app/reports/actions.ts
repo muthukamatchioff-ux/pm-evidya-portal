@@ -62,6 +62,132 @@ export async function generateReportData(reportId: string, dateFrom: string, dat
   return JSON.parse(JSON.stringify(data));
 }
 
+function normalizeName(name?: string | null): string {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .replace(/^(mr|ms|mrs|smt|shri|dr)\.?\s+/i, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function matchVideosForEpic(epic: any, allVideos: any[]): any[] {
+  const epicId = epic.id;
+  const eNorm = normalizeName(epic.sme?.name);
+  const eTrade = (epic.trade || '').toLowerCase().trim();
+
+  const directVideos = (epic.videoLibraries || []).filter(Boolean);
+
+  const matched = allVideos.filter((v: any) => {
+    if (v.epicId && v.epicId === epicId) return true;
+    if (v.epicId && v.epicId !== epicId) return false;
+    const vNorm = normalizeName(v.smeName);
+    if (eNorm && vNorm && (eNorm.includes(vNorm) || vNorm.includes(eNorm))) return true;
+    const vTrade = (v.trade || '').toLowerCase().trim();
+    if (vTrade && (eTrade.includes(vTrade) || vTrade.includes(eTrade))) return true;
+    return false;
+  });
+
+  const videoMap = new Map<string, any>();
+  directVideos.forEach((v: any) => videoMap.set(v.id, v));
+  matched.forEach((v: any) => videoMap.set(v.id, v));
+  return Array.from(videoMap.values());
+}
+
+function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
+  const shootingSchedules = combinedVideos.length > 0
+    ? combinedVideos.map((v: any, idx: number) => ({
+        id: `shoot-${v.id || idx}`,
+        workEntryId: entry.id,
+        videoTitle: v.title || entry.topic,
+        shootDate: v.createdAt || entry.attendanceFrom || entry.createdAt,
+        scheduledStart: entry.attendanceFrom || v.createdAt,
+        scheduledEnd: entry.attendanceTo || v.createdAt,
+        location: 'Studio - NIMI Chennai',
+        cameraman: 'Production Team',
+        status: 'COMPLETED',
+        productionNotes: `Trade: ${v.trade || entry.trade} | Topic: ${v.title}`,
+        createdAt: v.createdAt || entry.createdAt,
+        updatedAt: v.updatedAt || entry.updatedAt,
+      }))
+    : [{
+        id: `shoot-${entry.id}`,
+        workEntryId: entry.id,
+        videoTitle: entry.topic,
+        shootDate: entry.attendanceFrom || entry.createdAt,
+        scheduledStart: entry.attendanceFrom || entry.createdAt,
+        scheduledEnd: entry.attendanceTo || entry.createdAt,
+        location: 'Studio - NIMI Chennai',
+        cameraman: 'Production Team',
+        status: entry.status === 'COMPLETED' ? 'COMPLETED' : 'PLANNED',
+        productionNotes: `Trade: ${entry.trade}`,
+        createdAt: entry.createdAt,
+        updatedAt: entry.updatedAt,
+      }];
+
+  const videoEditorRecords = combinedVideos.length > 0
+    ? combinedVideos.map((v: any, idx: number) => ({
+        id: `ed-${v.id || idx}`,
+        workEntryId: entry.id,
+        assignedVideo: v.title || entry.topic,
+        editorName: 'Post-Production Team',
+        editingStartDate: v.createdAt || entry.attendanceFrom,
+        duration: v.duration || null,
+        status: 'COMPLETED',
+        finalVideoFile: v.videoLink || null,
+        createdAt: v.createdAt || entry.createdAt,
+        updatedAt: v.updatedAt || entry.updatedAt,
+      }))
+    : [{
+        id: `ed-${entry.id}`,
+        workEntryId: entry.id,
+        assignedVideo: entry.topic,
+        editorName: 'Post-Production Team',
+        editingStartDate: entry.attendanceFrom || entry.createdAt,
+        duration: null,
+        status: entry.status === 'COMPLETED' ? 'COMPLETED' : 'NOT_STARTED',
+        finalVideoFile: null,
+        createdAt: entry.createdAt,
+        updatedAt: entry.updatedAt,
+      }];
+
+  const finalVideoRecords = combinedVideos.length > 0
+    ? combinedVideos.map((v: any, idx: number) => ({
+        id: `final-${v.id || idx}`,
+        workEntryId: entry.id,
+        finalVideoStatus: 'APPROVED',
+        finalVideoFile: v.videoLink || null,
+        finalDuration: v.duration || null,
+        telecastStatus: 'PENDING',
+        telecastChannel: 'PM eVidya Channel',
+        telecastDate: null,
+        telecastEpisode: `EP-${entry.epicSequence}${combinedVideos.length > 1 ? `.${idx + 1}` : ''}`,
+        createdAt: v.createdAt || entry.createdAt,
+        updatedAt: v.updatedAt || entry.updatedAt,
+      }))
+    : [{
+        id: `final-${entry.id}`,
+        workEntryId: entry.id,
+        finalVideoStatus: entry.status === 'COMPLETED' ? 'APPROVED' : 'PENDING',
+        finalVideoFile: null,
+        finalDuration: null,
+        telecastStatus: 'PENDING',
+        telecastChannel: 'PM eVidya Channel',
+        telecastDate: null,
+        telecastEpisode: `EP-${entry.epicSequence}`,
+        createdAt: entry.createdAt,
+        updatedAt: entry.updatedAt,
+      }];
+
+  return {
+    ...entry,
+    shootingSchedules,
+    videoEditorRecords,
+    animationRecords: [],
+    finalVideoRecords,
+    videoLibraries: combinedVideos
+  };
+}
+
 export async function getComprehensiveReportData() {
   const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
   if (!authCheck.success) return authCheck;
@@ -88,7 +214,7 @@ export async function getComprehensiveReportData() {
     }
   }
 
-  const [smes, production, auditLogs, rawEpicEntries] = await Promise.all([
+  const [smes, production, auditLogs, rawEpicEntries, allVideos] = await Promise.all([
     (role === 'CAMERAMAN' || role === 'EDITOR')
       ? Promise.resolve([])
       : prisma.sME.findMany({
@@ -124,17 +250,17 @@ export async function getComprehensiveReportData() {
         videoLibraries: true,
       },
       orderBy: { epicSequence: 'asc' }
+    }),
+
+    prisma.videoLibrary.findMany({
+      orderBy: { createdAt: 'desc' }
     })
   ]);
 
-  const epicWorkEntries = (rawEpicEntries || []).map((e: any) => ({
-    ...e,
-    shootingSchedules: e.shootingSchedules || [],
-    videoEditorRecords: e.videoEditorRecords || [],
-    animationRecords: e.animationRecords || [],
-    finalVideoRecords: e.finalVideoRecords || [],
-    videoLibraries: e.videoLibraries || []
-  }));
+  const epicWorkEntries = (rawEpicEntries || []).map((e: any) => {
+    const combinedVideos = matchVideosForEpic(e, allVideos);
+    return buildEpicWorkflowRecords(e, combinedVideos);
+  });
 
   return JSON.parse(JSON.stringify({ smes, production, auditLogs, epicWorkEntries }));
 }
@@ -146,26 +272,25 @@ export async function getEpicCompleteHistory(workEntryId: string) {
   const user = await getCurrentUser();
   
   try {
-    const rawWorkEntry = await prisma.sMEWorkEntry.findUnique({
-      where: { id: workEntryId },
-      include: {
-        sme: true,
-        documents: { orderBy: { createdAt: 'desc' } },
-        payments: (role === 'ADMIN' || role === 'TEAM_MEMBER') ? { orderBy: { createdAt: 'desc' } } : false,
-        videoLibraries: { orderBy: { createdAt: 'desc' } },
-      }
-    });
+    const [rawWorkEntry, allVideos] = await Promise.all([
+      prisma.sMEWorkEntry.findUnique({
+        where: { id: workEntryId },
+        include: {
+          sme: true,
+          documents: { orderBy: { createdAt: 'desc' } },
+          payments: (role === 'ADMIN' || role === 'TEAM_MEMBER') ? { orderBy: { createdAt: 'desc' } } : false,
+          videoLibraries: { orderBy: { createdAt: 'desc' } },
+        }
+      }),
+      prisma.videoLibrary.findMany({
+        orderBy: { createdAt: 'desc' }
+      })
+    ]);
 
     if (!rawWorkEntry) return { success: false, error: 'Epic record not found.' };
 
-    const workEntry = {
-      ...rawWorkEntry,
-      shootingSchedules: (rawWorkEntry as any).shootingSchedules || [],
-      videoEditorRecords: (rawWorkEntry as any).videoEditorRecords || [],
-      animationRecords: (rawWorkEntry as any).animationRecords || [],
-      finalVideoRecords: (rawWorkEntry as any).finalVideoRecords || [],
-      videoLibraries: rawWorkEntry.videoLibraries || []
-    };
+    const combinedVideos = matchVideosForEpic(rawWorkEntry, allVideos);
+    const workEntry = buildEpicWorkflowRecords(rawWorkEntry, combinedVideos);
 
     if (role === 'CAMERAMAN' || role === 'EDITOR') {
       const assigned = parseAssignedEpics(user?.department);
@@ -200,4 +325,5 @@ export async function getEpicCompleteHistory(workEntryId: string) {
     return { success: false, error: err.message || 'Failed to fetch Epic complete history.' };
   }
 }
+
 

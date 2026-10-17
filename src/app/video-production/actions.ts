@@ -314,6 +314,7 @@ export async function createShootingSchedule(workEntryId: string, data: any) {
     }
 
     revalidatePath('/video-production');
+    revalidatePath('/reports');
     return { success: true, data: newRecord };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -369,6 +370,7 @@ export async function updateShootingSchedule(id: string, data: any) {
     }
 
     revalidatePath('/video-production');
+    revalidatePath('/reports');
     return { success: true, data: record };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -434,6 +436,7 @@ export async function updateVideoEditorRecord(id: string, data: any, workEntryId
     }
 
     revalidatePath('/video-production');
+    revalidatePath('/reports');
     return { success: true, data: record };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -467,6 +470,7 @@ export async function updateAnimationRecord(id: string, data: any, workEntryId: 
     });
 
     revalidatePath('/video-production');
+    revalidatePath('/reports');
     return { success: true, data: record };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -558,6 +562,7 @@ export async function updateFinalVideoRecord(id: string, data: any, workEntryId:
     }
 
     revalidatePath('/video-production');
+    revalidatePath('/reports');
     return {
       success: true,
       data: {
@@ -582,6 +587,7 @@ export async function deleteShootingSchedule(id: string) {
       where: { id }
     });
     revalidatePath('/video-production');
+    revalidatePath('/reports');
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -597,6 +603,7 @@ export async function deleteVideoEditorRecord(id: string) {
       where: { id }
     });
     revalidatePath('/video-production');
+    revalidatePath('/reports');
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -623,6 +630,7 @@ export async function deleteFinalVideoRecord(id: string) {
     } catch (_) {}
 
     revalidatePath('/video-production');
+    revalidatePath('/reports');
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };

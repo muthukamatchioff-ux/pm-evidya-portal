@@ -357,14 +357,20 @@ export default function EpicWorkflowReport({
             <div style={{ fontSize: '9px', color: '#d97706', marginTop: '1px' }}>Status: {animationStageStatus}</div>
           </div>
 
-          {/* Card 6: Final Video */}
+          {/* Card 6: Final Video & Duration */}
           <div style={{ padding: '8px 10px', borderRadius: '8px', background: 'linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%)', border: '1.5px solid #a7f3d0', borderLeft: '4px solid #059669' }}>
-            <div style={{ fontSize: '9px', fontWeight: 700, color: '#065f46', textTransform: 'uppercase' }}>Final Video & Duration</div>
+            <div style={{ fontSize: '9px', fontWeight: 700, color: '#065f46', textTransform: 'uppercase' }}>Videos & Durations</div>
             <div style={{ fontSize: '14px', fontWeight: 800, color: '#064e3b', marginTop: '2px' }}>
-              {primaryFinalVideo?.finalDuration || (entry.videoLibraries?.[0]?.duration) || 'Not Recorded'}
+              {libraryVideos.length > 0
+                ? (libraryVideos.length === 1
+                    ? (libraryVideos[0].duration || 'Duration unavailable')
+                    : `${libraryVideos.length} Videos Catalogued`)
+                : (primaryFinalVideo?.finalDuration || 'No Video Recorded')}
             </div>
             <div style={{ fontSize: '9px', color: '#059669', marginTop: '1px' }}>
-              Status: {finalStageStatus}
+              {libraryVideos.length > 1
+                ? `${libraryVideos.filter((v: any) => v.duration).length} with verified duration`
+                : `Status: ${finalStageStatus}`}
             </div>
           </div>
         </div>
@@ -513,7 +519,9 @@ export default function EpicWorkflowReport({
                       <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{e.assignedVideo || '-'}</td>
                       <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{e.editingStartDate ? new Date(e.editingStartDate).toLocaleDateString('en-IN') : '-'}</td>
                       <td style={{ padding: '6px 10px', borderBottom: '1px solid #e2e8f0' }}>{endDate ? new Date(endDate).toLocaleDateString('en-IN') : '-'}</td>
-                      <td style={{ padding: '6px 10px', fontWeight: 700, borderBottom: '1px solid #e2e8f0' }}>{e.duration || '-'}</td>
+                      <td style={{ padding: '6px 10px', fontWeight: 700, borderBottom: '1px solid #e2e8f0', color: e.duration ? '#0369a1' : '#94a3b8' }}>
+                        {e.duration ? e.duration : <span style={{ fontStyle: 'italic', fontWeight: 500, fontSize: '10px' }}>Duration unavailable</span>}
+                      </td>
                       <td style={{ padding: '6px 10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
                         <span style={{ padding: '1px 6px', borderRadius: '6px', fontWeight: 700, fontSize: '10px', ...getStatusBadgeStyle(e.status) }}>
                           {e.status || 'NOT_STARTED'}
@@ -583,72 +591,132 @@ export default function EpicWorkflowReport({
         )}
       </div>
 
-      {/* SECTION 7: FINAL VIDEO DELIVERABLE & TELECAST DETAILS */}
+      {/* SECTION 7: FINAL VIDEO DELIVERABLES & INDIVIDUAL VIDEO DURATIONS */}
       <div className="print-avoid-break" style={{ padding: '0 28px 12px 28px', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-        <div className="print-no-break-after" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', breakAfter: 'avoid', pageBreakAfter: 'avoid' }}>
-          <span style={{ fontSize: '14px' }}>📺</span>
-          <h3 style={{ fontSize: '13px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
-            Final Video Deliverable & Video Content Library Link
-          </h3>
+        <div className="print-no-break-after" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', marginBottom: '8px', breakAfter: 'avoid', pageBreakAfter: 'avoid' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '14px' }}>🎬</span>
+            <h3 style={{ fontSize: '13px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
+              Associated Videos & Verified Durations ({libraryVideos.length > 0 ? libraryVideos.length : (primaryFinalVideo?.finalVideoFile ? 1 : 0)})
+            </h3>
+          </div>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: '#0284c7', background: '#e0f2fe', padding: '2px 8px', borderRadius: '6px' }}>
+            {friendlyEpicId}
+          </span>
         </div>
 
-        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px 16px' }}>
+        {libraryVideos.length === 0 && !primaryFinalVideo?.finalVideoFile ? (
+          <div style={{ padding: '12px 16px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '8px', color: '#64748b', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>⏳</span> No final video deliverables linked to this Epic ID yet. Updates in Video Production Tracker will appear here automatically.
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto', marginBottom: '10px' }}>
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+              <thead>
+                <tr style={{ background: '#0f2942', color: '#ffffff' }}>
+                  <th style={{ padding: '8px 10px', textAlign: 'left', width: '5%' }}>Sl.</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left', width: '35%' }}>Video Title / Topic</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left', width: '18%' }}>Deliverable Stage</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left', width: '15%' }}>Video Duration</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '15%' }}>Delivery Status</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '12%' }}>Video File / Link</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(libraryVideos.length > 0 ? libraryVideos : [primaryFinalVideo]).map((v: any, vIdx: number) => {
+                  const title = v.title || entry.topic || `PM e-Vidya Video #${vIdx + 1}`;
+                  const durationVal = v.duration || v.finalDuration || primaryFinalVideo?.finalDuration;
+                  const videoUrl = v.videoLink || v.finalVideoFile;
+                  const isDelivered = Boolean(v.videoLink || v.createdAt);
+
+                  return (
+                    <tr key={v.id || vIdx} style={{ background: vIdx % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #e2e8f0', fontWeight: 700, color: '#64748b' }}>
+                        {vIdx + 1}
+                      </td>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #e2e8f0' }}>
+                        <div style={{ fontWeight: 700, color: '#0f172a' }}>{title}</div>
+                        <div style={{ fontSize: '10px', color: '#64748b' }}>Trade: {v.trade || entry.trade || 'General'}</div>
+                      </td>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 600, color: '#0369a1', background: '#f0f9ff', border: '1px solid #bae6fd', padding: '2px 6px', borderRadius: '4px' }}>
+                          Final Video Deliverable
+                        </span>
+                      </td>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #e2e8f0' }}>
+                        {durationVal && durationVal !== '-' ? (
+                          <span style={{ 
+                            fontSize: '12px', 
+                            fontWeight: 800, 
+                            color: '#0369a1',
+                            background: '#eff6ff',
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid #bfdbfe',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            ⏱️ {durationVal}
+                          </span>
+                        ) : (
+                          <span style={{ 
+                            fontSize: '11px', 
+                            color: '#94a3b8', 
+                            fontStyle: 'italic',
+                            background: '#f8fafc',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            border: '1px solid #e2e8f0'
+                          }}>
+                            Duration unavailable
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                        <span style={{
+                          padding: '2px 8px',
+                          borderRadius: '8px',
+                          fontWeight: 700,
+                          fontSize: '10px',
+                          ...getStatusBadgeStyle(isDelivered ? 'COMPLETED' : (v.finalVideoStatus || 'PENDING'))
+                        }}>
+                          {isDelivered ? 'DELIVERED & CATALOGUED' : (v.finalVideoStatus || 'PENDING DELIVERY')}
+                        </span>
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                        {videoUrl ? (
+                          <a 
+                            href={videoUrl} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            style={{ 
+                              fontSize: '11px', 
+                              fontWeight: 700, 
+                              color: '#0284c7', 
+                              textDecoration: 'underline',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            🎬 Watch Video
+                          </a>
+                        ) : (
+                          <span style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>Pending</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Overview Summary Metadata */}
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 16px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-            {/* Library Link(s) */}
-            <div>
-              <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>
-                Authoritative Library Video{libraryVideos.length > 1 ? `s (${libraryVideos.length})` : ''}
-              </span>
-              <div style={{ marginTop: '2px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {libraryVideos.length > 0 ? (
-                  libraryVideos.map((v: any, vIdx: number) => (
-                    <div key={v.id || vIdx}>
-                      {v.videoLink ? (
-                        <a 
-                          href={v.videoLink} 
-                          target="_blank" 
-                          rel="noreferrer"
-                          style={{ fontSize: '12px', fontWeight: 700, color: '#0284c7', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                        >
-                          <span>🔗</span> Watch Final Video {libraryVideos.length > 1 ? `#${vIdx + 1}` : ''}
-                        </a>
-                      ) : (
-                        <span style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>Pending Delivery</span>
-                      )}
-                      <div style={{ fontSize: '10px', color: '#475569', marginTop: '1px' }}>
-                        {v.title || entry.topic || 'PM e-Vidya Video'}
-                      </div>
-                    </div>
-                  ))
-                ) : primaryFinalVideo?.finalVideoFile ? (
-                  <div>
-                    <a 
-                      href={primaryFinalVideo.finalVideoFile} 
-                      target="_blank" 
-                      rel="noreferrer"
-                      style={{ fontSize: '12px', fontWeight: 700, color: '#0284c7', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                    >
-                      <span>🔗</span> Watch Final Video
-                    </a>
-                    <div style={{ fontSize: '10px', color: '#475569', marginTop: '1px' }}>
-                      {entry.topic || 'PM e-Vidya Video'}
-                    </div>
-                  </div>
-                ) : (
-                  <span style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>Pending Delivery in Library</span>
-                )}
-              </div>
-            </div>
-
-            {/* Duration */}
-            <div>
-              <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Final Duration</span>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: '#0284c7', marginTop: '2px' }}>
-                {primaryLibraryVideo?.duration || primaryFinalVideo?.finalDuration || '-'}
-              </div>
-            </div>
-
-            {/* Delivery Date */}
             <div>
               <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Delivery Date</span>
               <div style={{ fontSize: '12px', fontWeight: 600, color: '#0f172a', marginTop: '2px' }}>
@@ -658,34 +726,13 @@ export default function EpicWorkflowReport({
               </div>
             </div>
 
-            {/* Delivery Status */}
-            <div>
-              <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Delivery Status</span>
-              <div style={{ marginTop: '2px' }}>
-                <span style={{
-                  padding: '2px 8px',
-                  borderRadius: '8px',
-                  fontWeight: 700,
-                  fontSize: '10px',
-                  ...getStatusBadgeStyle(primaryLibraryVideo ? 'COMPLETED' : (primaryFinalVideo?.finalVideoStatus || 'PENDING'))
-                }}>
-                  {primaryLibraryVideo ? 'DELIVERED & CATALOGUED' : (primaryFinalVideo?.finalVideoStatus || 'PENDING DELIVERY')}
-                </span>
-              </div>
-            </div>
-
-            {/* Telecast Details */}
             <div>
               <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Telecast Channel & Episode</span>
               <div style={{ fontSize: '12px', fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>
-                {primaryFinalVideo?.telecastChannel || 'Not Broadcast Yet'} {primaryFinalVideo?.telecastEpisode ? `(Ep: ${primaryFinalVideo.telecastEpisode})` : ''}
-              </div>
-              <div style={{ fontSize: '10px', color: '#64748b' }}>
-                {primaryFinalVideo?.telecastDate ? new Date(primaryFinalVideo.telecastDate).toLocaleDateString('en-IN') : ''}
+                {primaryFinalVideo?.telecastChannel || 'PM eVidya Channel'} {primaryFinalVideo?.telecastEpisode ? `(${primaryFinalVideo.telecastEpisode})` : ''}
               </div>
             </div>
 
-            {/* Remarks */}
             <div>
               <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Remarks</span>
               <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
