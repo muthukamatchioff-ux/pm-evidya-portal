@@ -1852,8 +1852,7 @@ export default function DeputationClient({
 
               return (
                 <div className={styles.a4Page} ref={remunerationPrintRef}>
-                  {renderOfficialHeader()}
-                  <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: isDenseSlots ? '15px' : '16px', margin: isDenseSlots ? '10px 0 8px 0' : '14px 0 10px 0' }}>
+                  <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: isDenseSlots ? '15px' : '16px', margin: isDenseSlots ? '14px 0 8px 0' : '20px 0 10px 0' }}>
                     SME REMUNERATION / SANCTION NOTE
                   </h2>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: isDenseSlots ? '8px' : '12px', fontWeight: 'bold', fontSize: isDenseSlots ? '12px' : '13px' }}>
@@ -1933,19 +1932,7 @@ export default function DeputationClient({
                     <p style={{ margin: isDenseSlots ? '4px 0' : '6px 0' }}>
                       Submitted for kind approval, please.
                     </p>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: isDenseSlots ? '16px' : '24px', fontSize: isDenseSlots ? '11px' : '12px' }}>
-                      <div>
-                        <div style={{ fontWeight: 'bold' }}>Prepared By / Verified By</div>
-                        <div style={{ marginTop: '24px', fontSize: '11px', color: '#475569' }}>Dealing Assistant / Consultant</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 'bold' }}>Joint Director / HOO</div>
-                        <div style={{ marginTop: '24px', fontSize: '11px', color: '#475569' }}>Head of Office, NIMI Chennai</div>
-                      </div>
-                    </div>
                   </div>
-                  {renderOfficialFooter()}
                 </div>
               );
             })()}

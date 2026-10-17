@@ -275,7 +275,6 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
         `).join('');
 
         bodyHtml += `
-          ${buildWordOfficialHeader()}
           <h2 style="text-align: center; text-decoration: underline; font-size: 12pt; margin: 8pt 0 6pt 0;">
             SME REMUNERATION / SANCTION NOTE
           </h2>
@@ -322,21 +321,6 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
           <p style="line-height: 1.35; font-size: 9pt; margin-bottom: 12pt;">
             Submitted for kind approval, please.
           </p>
-          <table style="width: 100%; border: none; margin-top: 14pt; margin-bottom: 8pt; font-size: 9pt;">
-            <tr>
-              <td style="width: 50%; text-align: left; border: none;">
-                <div style="font-weight: bold;">Prepared By / Verified By</div>
-                <br><br><br>
-                <div style="font-size: 8pt; color: #475569;">Dealing Assistant / Consultant</div>
-              </td>
-              <td style="width: 50%; text-align: right; border: none;">
-                <div style="font-weight: bold;">${verification.verifierName}</div>
-                <br><br><br>
-                <div style="font-size: 8pt; color: #475569;">${verification.verifierDesignation}, NIMI Chennai</div>
-              </td>
-            </tr>
-          </table>
-          ${buildWordOfficialFooter()}
         `;
       }
 
@@ -605,8 +589,6 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
 
             return (
               <div className={styles.a4Page}>
-                {renderHeader()}
-                
                 <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: isDenseSlots ? '15px' : '16px', margin: isDenseSlots ? '10px 0 8px 0' : '14px 0 10px 0' }}>
                   SME REMUNERATION / SANCTION NOTE
                 </h2>
@@ -673,19 +655,6 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
                     Submitted for kind approval, please.
                   </p>
                 </div>
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: isDenseSlots ? '16px' : '24px', fontSize: isDenseSlots ? '11px' : '12px' }}>
-                  <div>
-                    <div style={{ fontWeight: 'bold' }}>Prepared By / Verified By</div>
-                    <div style={{ marginTop: '24px', fontSize: '11px', color: '#475569' }}>Dealing Assistant / Consultant</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 'bold' }}>{verification.verifierName}</div>
-                    <div style={{ marginTop: '24px', fontSize: '11px', color: '#475569' }}>{verification.verifierDesignation}, NIMI Chennai</div>
-                  </div>
-                </div>
-
-                {renderFooter()}
               </div>
             );
           })()}

@@ -429,8 +429,6 @@ export function buildRemunerationWordHtml(params: any, sme: any, entry: any): st
   }).join('');
 
   return `
-    ${buildWordOfficialHeader()}
-
     <h2 style="text-align: center; text-decoration: underline; font-size: 12pt; margin: 8pt 0 6pt 0;">
       SME REMUNERATION / SANCTION NOTE
     </h2>
@@ -482,22 +480,5 @@ export function buildRemunerationWordHtml(params: any, sme: any, entry: any): st
     <p style="line-height: 1.35; font-size: 9pt; margin-bottom: 12pt;">
       Submitted for kind approval, please.
     </p>
-
-    <table style="width: 100%; border: none; margin-top: 14pt; margin-bottom: 8pt; font-size: 9pt;">
-      <tr>
-        <td style="width: 50%; text-align: left; border: none;">
-          <div style="font-weight: bold;">Prepared By / Verified By</div>
-          <br><br><br>
-          <div style="font-size: 8pt; color: #475569;">Dealing Assistant / Consultant</div>
-        </td>
-        <td style="width: 50%; text-align: right; border: none;">
-          <div style="font-weight: bold;">Joint Director / HOO</div>
-          <br><br><br>
-          <div style="font-size: 8pt; color: #475569;">Head of Office, NIMI Chennai</div>
-        </td>
-      </tr>
-    </table>
-
-    ${buildWordOfficialFooter()}
   `;
 }
