@@ -179,6 +179,7 @@ export async function getTopicProductionRecords() {
             workEntryId: entry.id,
             finalVideoStatus: 'APPROVED',
             finalVideoFile: combinedVideos[0].videoLink || null,
+            finalDuration: combinedVideos[0].duration || null,
             telecastStatus: 'PENDING',
             telecastChannel: 'PM eVidya Channel',
             telecastDate: null,
@@ -191,6 +192,7 @@ export async function getTopicProductionRecords() {
             workEntryId: entry.id,
             finalVideoStatus: entry.status === 'COMPLETED' ? 'APPROVED' : 'PENDING',
             finalVideoFile: null,
+            finalDuration: null,
             telecastStatus: 'PENDING',
             telecastChannel: 'PM eVidya Channel',
             telecastDate: null,
@@ -476,39 +478,96 @@ export async function updateFinalVideoRecord(id: string, data: any, workEntryId:
   if (!auth.success) return auth;
 
   try {
-    const record = await prisma.finalVideoRecord.upsert({
-      where: { workEntryId }, // Unique constraint
-      update: {
-        finalVideoStatus: data.finalVideoStatus || 'PENDING',
-        finalVideoFile: data.finalVideoFile || null,
-        finalDuration: data.finalDuration || null,
-        finalApproval: data.finalApproval || null,
-        approvalDate: data.approvalDate ? new Date(data.approvalDate) : null,
-        remarks: data.remarks || null,
-        telecastChannel: data.telecastChannel || null,
-        telecastDate: data.telecastDate ? new Date(data.telecastDate) : null,
-        telecastEpisode: data.telecastEpisode || null,
-        telecastStatus: data.telecastStatus || 'PENDING',
-        telecastRemarks: data.telecastRemarks || null
-      },
-      create: {
-        workEntryId,
-        finalVideoStatus: data.finalVideoStatus || 'PENDING',
-        finalVideoFile: data.finalVideoFile || null,
-        finalDuration: data.finalDuration || null,
-        finalApproval: data.finalApproval || null,
-        approvalDate: data.approvalDate ? new Date(data.approvalDate) : null,
-        remarks: data.remarks || null,
-        telecastChannel: data.telecastChannel || null,
-        telecastDate: data.telecastDate ? new Date(data.telecastDate) : null,
-        telecastEpisode: data.telecastEpisode || null,
-        telecastStatus: data.telecastStatus || 'PENDING',
-        telecastRemarks: data.telecastRemarks || null
-      }
+    // 1. Fetch work entry to verify and get SME/trade details
+    const workEntry = await prisma.sMEWorkEntry.findUnique({
+      where: { id: workEntryId },
+      include: { sme: true, videoLibraries: true }
     });
 
+    if (!workEntry) {
+      return { success: false, error: 'Epic work entry not found.' };
+    }
+
+    // 2. Persist to VideoLibrary (the active PostgreSQL table for final deliverable storage and duration)
+    let savedVideo = null;
+    const existingForEpic = await prisma.videoLibrary.findFirst({
+      where: { epicId: workEntryId }
+    });
+
+    if (existingForEpic) {
+      savedVideo = await prisma.videoLibrary.update({
+        where: { id: existingForEpic.id },
+        data: {
+          videoLink: data.finalVideoFile || existingForEpic.videoLink,
+          duration: data.finalDuration !== undefined ? data.finalDuration : existingForEpic.duration
+        }
+      });
+    } else {
+      // Check if there is an existing library video for this SME or trade to link
+      const existingMatch = await prisma.videoLibrary.findFirst({
+        where: {
+          OR: [
+            { videoLink: data.finalVideoFile || undefined },
+            { smeName: { contains: workEntry.sme?.name || '', mode: 'insensitive' } },
+            { trade: { equals: workEntry.trade, mode: 'insensitive' } }
+          ]
+        }
+      });
+
+      if (existingMatch && !existingMatch.epicId) {
+        savedVideo = await prisma.videoLibrary.update({
+          where: { id: existingMatch.id },
+          data: {
+            epicId: workEntryId,
+            videoLink: data.finalVideoFile || existingMatch.videoLink,
+            duration: data.finalDuration !== undefined ? data.finalDuration : existingMatch.duration
+          }
+        });
+      } else {
+        savedVideo = await prisma.videoLibrary.create({
+          data: {
+            epicId: workEntryId,
+            videoLink: data.finalVideoFile || '',
+            duration: data.finalDuration || null,
+            title: workEntry.topic || 'PM eVidya Video Deliverable',
+            smeName: workEntry.sme?.name || 'SME',
+            trade: workEntry.trade || 'General'
+          }
+        });
+      }
+    }
+
+    // 3. Gracefully update FinalVideoRecord if table exists in current database environment
+    try {
+      await prisma.finalVideoRecord.upsert({
+        where: { workEntryId },
+        update: {
+          finalVideoStatus: data.finalVideoStatus || 'APPROVED',
+          finalVideoFile: data.finalVideoFile || null,
+          finalDuration: data.finalDuration || null,
+        },
+        create: {
+          workEntryId,
+          finalVideoStatus: data.finalVideoStatus || 'APPROVED',
+          finalVideoFile: data.finalVideoFile || null,
+          finalDuration: data.finalDuration || null,
+        }
+      });
+    } catch (_) {
+      // Safely ignore if table does not exist in production database
+    }
+
     revalidatePath('/video-production');
-    return { success: true, data: record };
+    return {
+      success: true,
+      data: {
+        id: `final-${workEntryId}`,
+        workEntryId,
+        finalVideoStatus: data.finalVideoStatus || 'APPROVED',
+        finalVideoFile: data.finalVideoFile || savedVideo?.videoLink || null,
+        finalDuration: data.finalDuration !== undefined ? data.finalDuration : savedVideo?.duration || null
+      }
+    };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -549,13 +608,162 @@ export async function deleteFinalVideoRecord(id: string) {
   if (!auth.success) return auth;
 
   try {
-    await prisma.finalVideoRecord.delete({
-      where: { id }
+    const workEntryId = id.startsWith('final-') ? id.replace('final-', '') : id;
+    
+    // Clear VideoLibrary link for this epic
+    await prisma.videoLibrary.updateMany({
+      where: { epicId: workEntryId },
+      data: { epicId: null, videoLink: '', duration: null }
     });
+
+    try {
+      await prisma.finalVideoRecord.deleteMany({
+        where: { OR: [{ id }, { workEntryId }] }
+      });
+    } catch (_) {}
+
     revalidatePath('/video-production');
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 }
+
+// =========================================================================
+// AUTOMATIC VIDEO DURATION DETECTION
+// =========================================================================
+
+function parseMp4DurationFromBuffer(buffer: Buffer): number | null {
+  let offset = 0;
+  while (offset < buffer.length - 8) {
+    const size = buffer.readUInt32BE(offset);
+    const type = buffer.toString('ascii', offset + 4, offset + 8);
+    if (size === 0) break;
+    const atomSize = size === 1 ? Number(buffer.readBigUInt64BE(offset + 8)) : size;
+    
+    if (type === 'moov') {
+      let subOffset = offset + (size === 1 ? 16 : 8);
+      const subEnd = Math.min(offset + atomSize, buffer.length);
+      while (subOffset < subEnd - 8) {
+        const subSize = buffer.readUInt32BE(subOffset);
+        const subType = buffer.toString('ascii', subOffset + 4, subOffset + 8);
+        if (subSize <= 0) break;
+        if (subType === 'mvhd') {
+          const version = buffer.readUInt8(subOffset + 8);
+          let timescale: number, duration: number;
+          if (version === 0) {
+            timescale = buffer.readUInt32BE(subOffset + 20);
+            duration = buffer.readUInt32BE(subOffset + 24);
+          } else if (version === 1) {
+            timescale = buffer.readUInt32BE(subOffset + 28);
+            duration = Number(buffer.readBigUInt64BE(subOffset + 32));
+          } else {
+            break;
+          }
+          if (timescale && duration && timescale > 0) {
+            return duration / timescale;
+          }
+        }
+        subOffset += subSize;
+      }
+    }
+    offset += atomSize;
+  }
+  return null;
+}
+
+function formatDurationString(seconds: number): string {
+  const s = Math.round(seconds);
+  const hrs = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  if (hrs > 0) {
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+export async function detectVideoDuration(url: string): Promise<{ success: boolean; duration?: string; seconds?: number; error?: string }> {
+  if (!url || typeof url !== 'string' || !url.trim()) {
+    return { success: false, error: 'Video URL is required.' };
+  }
+
+  const trimmedUrl = url.trim();
+
+  // Validate URL protocol
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(trimmedUrl);
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      return { success: false, error: 'Only HTTP and HTTPS video URLs are supported.' };
+    }
+  } catch {
+    return { success: false, error: 'Invalid video URL format.' };
+  }
+
+  try {
+    // 1. Check if the URL already exists with verified duration in VideoLibrary
+    const existingLib = await prisma.videoLibrary.findFirst({
+      where: {
+        videoLink: { equals: trimmedUrl, mode: 'insensitive' },
+        duration: { not: null }
+      }
+    });
+
+    if (existingLib && existingLib.duration && existingLib.duration.trim() !== '' && existingLib.duration !== '-') {
+      return {
+        success: true,
+        duration: existingLib.duration.trim()
+      };
+    }
+
+    // 2. Fetch partial media header via HTTP Range request
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+
+    const response = await fetch(trimmedUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) PM-eVidya-Portal/1.0',
+        'Range': 'bytes=0-1048576',
+        'Accept': '*/*'
+      },
+      signal: controller.signal
+    });
+
+    clearTimeout(timeout);
+
+    if (response.ok || response.status === 206) {
+      const arrayBuf = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuf);
+
+      const mp4DurationSec = parseMp4DurationFromBuffer(buffer);
+      if (mp4DurationSec && mp4DurationSec > 0 && isFinite(mp4DurationSec)) {
+        return {
+          success: true,
+          duration: formatDurationString(mp4DurationSec),
+          seconds: mp4DurationSec
+        };
+      }
+    }
+
+    // If stream probing did not yield duration, return without guessing
+    return {
+      success: false,
+      error: 'Could not auto-detect video duration from this source. Please enter duration manually.'
+    };
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      return {
+        success: false,
+        error: 'Video analysis timed out. The storage server did not respond in time.'
+      };
+    }
+    return {
+      success: false,
+      error: 'Could not access the video file. Please check link permissions or enter duration manually.'
+    };
+  }
+}
+
 

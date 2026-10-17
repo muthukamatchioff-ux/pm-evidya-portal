@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import styles from './video-production.module.css';
@@ -13,7 +13,8 @@ import {
   deleteVideoEditorRecord,
   updateAnimationRecord,
   updateFinalVideoRecord,
-  deleteFinalVideoRecord
+  deleteFinalVideoRecord,
+  detectVideoDuration
 } from './actions';
 
 // Safe date helpers
@@ -956,7 +957,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       {activeStage === 'STAGE_3' && (
         <div className={styles.card}>
           <div className={styles.cardHeader}>
-            <h2 className={styles.cardTitle}>📦 Stage 3: Final Video Deliverable (Library & Telecast)</h2>
+            <h2 className={styles.cardTitle}>📦 Stage 3: Final Video Deliverable (Library Integration)</h2>
             <input 
               type="text" 
               className={styles.searchBox} 
@@ -967,7 +968,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
           </div>
 
           <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>
-            Final approved videos automatically integrated with the Video Content Library. Track channel telecast status, broadcast episodes, and approvals.
+            Final approved videos automatically integrated with the Video Content Library and verified duration tracking.
           </p>
 
           <div className={styles.tableContainer}>
@@ -978,8 +979,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                   <th>Video Title / Trade</th>
                   <th>Final Video Link / File</th>
                   <th>Approval Status</th>
-                  <th>Telecast Details</th>
-                  <th>Telecast Status</th>
+                  <th>Final Duration</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -1019,14 +1019,9 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                           {finalStatus}
                         </span>
                       </td>
-                      <td style={{ fontSize: '12px' }}>
-                        <div><strong>Channel:</strong> {finalRec.telecastChannel || 'TBD'}</div>
-                        <div><strong>Date:</strong> {formatDateDisplay(finalRec.telecastDate)}</div>
-                        <div><strong>Episode:</strong> {finalRec.telecastEpisode || 'TBD'}</div>
-                      </td>
                       <td>
-                        <span className={`${styles.badge} ${getBadgeClass(finalRec.telecastStatus || 'PENDING')}`}>
-                          {finalRec.telecastStatus || 'PENDING'}
+                        <span style={{ fontWeight: 600, color: '#334155' }}>
+                          {duration}
                         </span>
                       </td>
                       <td>
@@ -1040,7 +1035,8 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                                 epicSequence: entry.epicSequence,
                                 smeName: entry.sme?.name,
                                 title: primaryLib?.title || entry.topic,
-                                finalVideoFile: videoFileLink
+                                finalVideoFile: videoFileLink,
+                                finalDuration: duration !== '-' ? duration : (finalRec.finalDuration || primaryLib?.duration || '')
                               })}
                             >
                               Edit Details
@@ -1061,7 +1057,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                 })}
                 {filteredEntries.length === 0 && (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
                       No final deliverables found matching search criteria.
                     </td>
                   </tr>
@@ -1483,20 +1479,168 @@ function Stage2EditModal({ record, loading, onClose, onSave }: any) {
 /* =========================================================================
    STAGE 3 EDIT MODAL COMPONENT (FINAL DELIVERABLE)
    ========================================================================= */
+function probeBrowserVideo(url: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') return reject(new Error('Browser environment not available'));
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.src = url;
+
+    let finished = false;
+    const cleanup = () => {
+      video.removeAttribute('src');
+      video.load();
+    };
+
+    const timer = setTimeout(() => {
+      if (!finished) {
+        finished = true;
+        cleanup();
+        reject(new Error('Browser duration detection timed out.'));
+      }
+    }, 6000);
+
+    video.onloadedmetadata = () => {
+      if (!finished) {
+        finished = true;
+        clearTimeout(timer);
+        const dur = video.duration;
+        cleanup();
+        if (dur && !isNaN(dur) && isFinite(dur) && dur > 0) {
+          resolve(dur);
+        } else {
+          reject(new Error('Invalid duration metadata.'));
+        }
+      }
+    };
+
+    video.onerror = () => {
+      if (!finished) {
+        finished = true;
+        clearTimeout(timer);
+        cleanup();
+        reject(new Error('Direct browser loading unavailable for this URL.'));
+      }
+    };
+  });
+}
+
+function formatSecondsToDuration(seconds: number): string {
+  const s = Math.round(seconds);
+  const hrs = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  if (hrs > 0) {
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
 function Stage3EditModal({ record, loading, onClose, onSave }: any) {
   const [formData, setFormData] = useState({
     finalVideoStatus: record.finalVideoStatus || 'APPROVED',
     finalVideoFile: record.finalVideoFile || '',
-    finalDuration: record.finalDuration || '',
-    finalApproval: record.finalApproval || '',
-    approvalDate: formatDateForInput(record.approvalDate),
-    remarks: record.remarks || '',
-    telecastChannel: record.telecastChannel || '',
-    telecastDate: formatDateForInput(record.telecastDate),
-    telecastEpisode: record.telecastEpisode || '',
-    telecastStatus: record.telecastStatus || 'PENDING',
-    telecastRemarks: record.telecastRemarks || ''
+    finalDuration: record.finalDuration || ''
   });
+
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [detectionStatus, setDetectionStatus] = useState<'idle' | 'detecting' | 'success' | 'error' | 'manual'>('idle');
+  const [detectionMessage, setDetectionMessage] = useState<string>('');
+  const lastAnalyzedUrl = useRef<string>(record.finalVideoFile || '');
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const analyzeVideoUrl = async (rawUrl: string) => {
+    const trimmed = (rawUrl || '').trim();
+    if (!trimmed) {
+      lastAnalyzedUrl.current = '';
+      setIsDetecting(false);
+      setDetectionStatus('idle');
+      setDetectionMessage('');
+      setFormData(prev => ({ ...prev, finalDuration: '' }));
+      return;
+    }
+
+    // If same URL and duration is already populated, no need to re-detect
+    if (trimmed === lastAnalyzedUrl.current && formData.finalDuration) {
+      return;
+    }
+
+    lastAnalyzedUrl.current = trimmed;
+    setIsDetecting(true);
+    setDetectionStatus('detecting');
+    setDetectionMessage('Detecting video duration from source metadata...');
+    // Rule 5: Do not invent, estimate, or retain an old duration when the new video cannot be analyzed
+    setFormData(prev => ({ ...prev, finalDuration: '' }));
+
+    // 1. Attempt client-side browser video metadata inspection
+    let detectedSec: number | null = null;
+    try {
+      detectedSec = await probeBrowserVideo(trimmed);
+    } catch {
+      // Browser probe failed or CORS-blocked; will fallback to server-side analysis
+    }
+
+    if (detectedSec && detectedSec > 0) {
+      const formatted = formatSecondsToDuration(detectedSec);
+      setFormData(prev => ({ ...prev, finalDuration: formatted }));
+      setDetectionStatus('success');
+      setDetectionMessage(`✓ Auto-detected duration: ${formatted}`);
+      setIsDetecting(false);
+      return;
+    }
+
+    // 2. Fallback to server-side header & storage analysis
+    try {
+      const serverRes = await detectVideoDuration(trimmed);
+      if (serverRes.success && serverRes.duration) {
+        setFormData(prev => ({ ...prev, finalDuration: serverRes.duration }));
+        setDetectionStatus('success');
+        setDetectionMessage(`✓ Auto-detected duration: ${serverRes.duration}`);
+      } else {
+        setDetectionStatus('error');
+        setDetectionMessage(serverRes.error || '⚠️ Could not auto-detect duration. You can enter it manually below.');
+      }
+    } catch {
+      setDetectionStatus('error');
+      setDetectionMessage('⚠️ Inaccessible video link or restricted permissions. Please enter duration manually below.');
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
+  const handleUrlChange = (newUrl: string) => {
+    setFormData(prev => ({ ...prev, finalVideoFile: newUrl }));
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+
+    const trimmed = newUrl.trim();
+    if (!trimmed) {
+      lastAnalyzedUrl.current = '';
+      setIsDetecting(false);
+      setDetectionStatus('idle');
+      setDetectionMessage('');
+      setFormData(prev => ({ ...prev, finalDuration: '' }));
+      return;
+    }
+
+    // Reset duration immediately when URL changes so old duration is not retained
+    if (trimmed !== lastAnalyzedUrl.current) {
+      setFormData(prev => ({ ...prev, finalDuration: '' }));
+      setDetectionStatus('detecting');
+      setDetectionMessage('Analyzing video duration...');
+    }
+
+    debounceTimer.current = setTimeout(() => {
+      analyzeVideoUrl(trimmed);
+    }, 600);
+  };
+
+  const handleUrlBlur = () => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    const trimmed = formData.finalVideoFile.trim();
+    if (trimmed && trimmed !== lastAnalyzedUrl.current) {
+      analyzeVideoUrl(trimmed);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1508,7 +1652,7 @@ function Stage3EditModal({ record, loading, onClose, onSave }: any) {
       <div className={styles.modalContent}>
         <div className={styles.modalHeader}>
           <h3 className={styles.modalTitle}>
-            📦 Final Deliverable & Telecast: EPIC-{record.epicSequence} ({record.title})
+            📦 Final Deliverable: EPIC-{record.epicSequence} ({record.title})
           </h3>
           <button className={styles.modalCloseBtn} onClick={onClose}>✕</button>
         </div>
@@ -1530,77 +1674,121 @@ function Stage3EditModal({ record, loading, onClose, onSave }: any) {
             </div>
 
             <div className={styles.formField}>
-              <label className={styles.formLabel}>Final Video File / Storage Link</label>
-              <input 
-                type="url" 
-                className={styles.formInput} 
-                value={formData.finalVideoFile} 
-                onChange={e => setFormData({ ...formData, finalVideoFile: e.target.value })}
-              />
-            </div>
-
-            <div className={styles.modalGrid}>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Telecast Channel</label>
+              <label className={styles.formLabel}>
+                Final Video File / Storage Link
+                {isDetecting && (
+                  <span style={{ marginLeft: '10px', fontSize: '12px', color: '#0284c7', fontWeight: 'normal' }}>
+                    ⏳ Analyzing duration...
+                  </span>
+                )}
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
                 <input 
-                  type="text" 
+                  type="url" 
                   className={styles.formInput} 
-                  placeholder="e.g. PM e-Vidya Channel 1 - DTH"
-                  value={formData.telecastChannel} 
-                  onChange={e => setFormData({ ...formData, telecastChannel: e.target.value })}
+                  placeholder="https://... (e.g. MP4, WebM, Vercel Blob, Cloud Storage)"
+                  value={formData.finalVideoFile} 
+                  onChange={e => handleUrlChange(e.target.value)}
+                  onBlur={handleUrlBlur}
                 />
-              </div>
-
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Telecast Broadcast Date</label>
-                <input 
-                  type="date" 
-                  className={styles.formInput} 
-                  value={formData.telecastDate} 
-                  onChange={e => setFormData({ ...formData, telecastDate: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className={styles.modalGrid}>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Telecast Episode #</label>
-                <input 
-                  type="text" 
-                  className={styles.formInput} 
-                  placeholder="e.g. EP-104"
-                  value={formData.telecastEpisode} 
-                  onChange={e => setFormData({ ...formData, telecastEpisode: e.target.value })}
-                />
-              </div>
-
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Telecast Status</label>
-                <select 
-                  className={styles.formSelect} 
-                  value={formData.telecastStatus} 
-                  onChange={e => setFormData({ ...formData, telecastStatus: e.target.value })}
+                <button
+                  type="button"
+                  onClick={() => analyzeVideoUrl(formData.finalVideoFile)}
+                  disabled={isDetecting || !formData.finalVideoFile.trim()}
+                  style={{
+                    padding: '8px 14px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    background: isDetecting ? '#f1f5f9' : '#ffffff',
+                    color: '#1e293b',
+                    cursor: isDetecting || !formData.finalVideoFile.trim() ? 'not-allowed' : 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title="Detect duration from video URL"
                 >
-                  <option value="PENDING">Pending Broadcast</option>
-                  <option value="TELECASTED">Telecasted / Aired</option>
-                </select>
+                  {isDetecting ? 'Detecting...' : '🔍 Detect'}
+                </button>
               </div>
             </div>
 
             <div className={styles.formField}>
-              <label className={styles.formLabel}>Remarks / Broadcast Log</label>
-              <textarea 
+              <label className={styles.formLabel}>
+                Final Duration
+                <span style={{ marginLeft: '8px', fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>
+                  (Auto-detected from video; manual entry/correction allowed as fallback)
+                </span>
+              </label>
+              <input 
+                type="text" 
                 className={styles.formInput} 
-                rows={2}
-                value={formData.remarks} 
-                onChange={e => setFormData({ ...formData, remarks: e.target.value })}
+                placeholder="e.g. 05:30, 01:15:00, or auto-detected"
+                value={formData.finalDuration} 
+                onChange={e => {
+                  setFormData({ ...formData, finalDuration: e.target.value });
+                  setDetectionStatus('manual');
+                  setDetectionMessage('Manual entry / correction');
+                }}
               />
             </div>
+
+            {/* Real-time duration detection feedback */}
+            {isDetecting && (
+              <div style={{
+                padding: '10px 14px',
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: '8px',
+                fontSize: '13px',
+                color: '#1d4ed8',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+              }}>
+                <span style={{ fontSize: '16px' }}>⏳</span>
+                <span><strong>Analyzing video:</strong> Retrieving duration metadata from source...</span>
+              </div>
+            )}
+
+            {!isDetecting && detectionStatus === 'success' && (
+              <div style={{
+                padding: '10px 14px',
+                background: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                borderRadius: '8px',
+                fontSize: '13px',
+                color: '#15803d',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <span style={{ fontSize: '16px' }}>✓</span>
+                <span>{detectionMessage}</span>
+              </div>
+            )}
+
+            {!isDetecting && detectionStatus === 'error' && (
+              <div style={{
+                padding: '10px 14px',
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                borderRadius: '8px',
+                fontSize: '13px',
+                color: '#92400e',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <span style={{ fontSize: '16px' }}>⚠️</span>
+                <span>{detectionMessage}</span>
+              </div>
+            )}
           </div>
 
           <div className={styles.modalFooter}>
             <button type="button" className={styles.btnCancel} onClick={onClose}>Cancel</button>
-            <button type="submit" className={styles.btnSave} disabled={loading}>
+            <button type="submit" className={styles.btnSave} disabled={loading || isDetecting}>
               {loading ? 'Saving...' : 'Save Deliverable'}
             </button>
           </div>
