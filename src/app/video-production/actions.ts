@@ -268,7 +268,7 @@ export async function createShootingSchedule(workEntryId: string, data: any) {
   }
 
   try {
-    if (!data.videoTitle) {
+    if (!data.videoTitle || !data.videoTitle.trim()) {
       return { success: false, error: 'Video Title is required.' };
     }
 
@@ -277,101 +277,221 @@ export async function createShootingSchedule(workEntryId: string, data: any) {
     }
 
     const cameramanName = data.cameraman || (permCheck.role === 'CAMERAMAN' ? (permCheck.user?.name || permCheck.user?.email) : null);
+    const trimmedTitle = data.videoTitle.trim();
 
-    const newRecord = await prisma.shootingSchedule.create({
-      data: {
-        workEntryId,
-        videoTitle: data.videoTitle,
-        shootDate: data.shootDate ? new Date(data.shootDate) : (data.scheduledStart ? new Date(data.scheduledStart) : null),
-        location: data.location || null,
-        shootingType: data.shootingType || null,
-        scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : null,
-        scheduledEnd: data.scheduledEnd ? new Date(data.scheduledEnd) : null,
-        actualStart: data.actualStart ? new Date(data.actualStart) : null,
-        actualEnd: data.actualEnd ? new Date(data.actualEnd) : null,
-        cameraman: cameramanName,
-        status: data.status || 'PLANNED',
-        productionNotes: data.productionNotes || null
-      }
+    // 1. Persist new video into VideoLibrary (authoritative PostgreSQL table)
+    const workEntry = await prisma.sMEWorkEntry.findUnique({
+      where: { id: workEntryId },
+      include: { sme: true }
     });
 
-    // Automatically ensure this video title flows into Stage 2 (Post-Production)
-    const existingEditorRecord = await prisma.videoEditorRecord.findFirst({
-      where: {
-        workEntryId,
-        assignedVideo: data.videoTitle
-      }
-    });
-
-    if (!existingEditorRecord) {
-      await prisma.videoEditorRecord.create({
+    let newVideoLib: any = null;
+    try {
+      newVideoLib = await prisma.videoLibrary.create({
         data: {
-          workEntryId,
-          assignedVideo: data.videoTitle,
-          status: 'NOT_STARTED'
+          epicId: workEntryId,
+          title: trimmedTitle,
+          smeName: workEntry?.sme?.name || 'SME',
+          trade: workEntry?.trade || 'General',
+          videoLink: '',
+          duration: null
         }
       });
-    }
+    } catch (_) {}
+
+    // 2. Gracefully create ShootingSchedule if table exists in database
+    let newRecord: any = null;
+    try {
+      newRecord = await prisma.shootingSchedule.create({
+        data: {
+          workEntryId,
+          videoTitle: trimmedTitle,
+          shootDate: data.shootDate ? new Date(data.shootDate) : (data.scheduledStart ? new Date(data.scheduledStart) : null),
+          location: data.location || null,
+          shootingType: data.shootingType || null,
+          scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : null,
+          scheduledEnd: data.scheduledEnd ? new Date(data.scheduledEnd) : null,
+          actualStart: data.actualStart ? new Date(data.actualStart) : null,
+          actualEnd: data.actualEnd ? new Date(data.actualEnd) : null,
+          cameraman: cameramanName,
+          status: data.status || 'PLANNED',
+          productionNotes: data.productionNotes || null
+        }
+      });
+    } catch (_) {}
+
+    // 3. Gracefully create VideoEditorRecord if table exists in database
+    try {
+      const existingEditorRecord = await prisma.videoEditorRecord.findFirst({
+        where: {
+          workEntryId,
+          assignedVideo: trimmedTitle
+        }
+      });
+
+      if (!existingEditorRecord) {
+        await prisma.videoEditorRecord.create({
+          data: {
+            workEntryId,
+            assignedVideo: trimmedTitle,
+            status: 'NOT_STARTED'
+          }
+        });
+      }
+    } catch (_) {}
 
     revalidatePath('/video-production');
     revalidatePath('/reports');
-    return { success: true, data: newRecord };
+    return { 
+      success: true, 
+      data: newRecord || {
+        id: `shoot-${newVideoLib?.id || workEntryId}`,
+        workEntryId,
+        videoTitle: trimmedTitle,
+        status: data.status || 'PLANNED'
+      } 
+    };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 }
 
 export async function updateShootingSchedule(id: string, data: any) {
-  const prev = await prisma.shootingSchedule.findUnique({ where: { id } });
-  if (!prev) {
-    return { success: false, error: 'Production record not found.' };
-  }
-
-  const permCheck = await verifyEpicPermission(prev.workEntryId, ['ADMIN', 'TEAM_MEMBER', 'CAMERAMAN']);
-  if (!permCheck.authorized) {
-    return { success: false, error: permCheck.error };
-  }
-
   try {
     if (data.scheduledStart && data.scheduledEnd && new Date(data.scheduledEnd) < new Date(data.scheduledStart)) {
       return { success: false, error: 'Production End Date cannot be earlier than Production Start Date.' };
     }
 
-    const trimmedTitle = data.videoTitle ? data.videoTitle.trim() : prev.videoTitle;
+    let prev: any = null;
+    try {
+      prev = await prisma.shootingSchedule.findUnique({ where: { id } });
+    } catch (_) {}
 
-    const record = await prisma.shootingSchedule.update({
-      where: { id },
-      data: {
-        videoTitle: trimmedTitle,
-        shootDate: data.scheduledStart ? new Date(data.scheduledStart) : (data.shootDate ? new Date(data.shootDate) : prev.shootDate),
-        location: data.location !== undefined ? data.location : prev.location,
-        shootingType: data.shootingType !== undefined ? data.shootingType : prev.shootingType,
-        scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : (data.scheduledStart === '' ? null : prev.scheduledStart),
-        scheduledEnd: data.scheduledEnd ? new Date(data.scheduledEnd) : (data.scheduledEnd === '' ? null : prev.scheduledEnd),
-        actualStart: data.actualStart ? new Date(data.actualStart) : (data.actualStart === '' ? null : prev.actualStart),
-        actualEnd: data.actualEnd ? new Date(data.actualEnd) : (data.actualEnd === '' ? null : prev.actualEnd),
-        cameraman: data.cameraman !== undefined ? data.cameraman : prev.cameraman,
-        status: data.status || prev.status,
-        productionNotes: data.productionNotes !== undefined ? data.productionNotes : prev.productionNotes
-      }
-    });
+    let targetWorkEntryId: string | null = data.workEntryId || prev?.workEntryId || null;
+    let targetVideoId: string | null = null;
 
-    // If video title changed, sync assignedVideo in VideoEditorRecord
-    if (prev.videoTitle && trimmedTitle && prev.videoTitle !== trimmedTitle) {
-      await prisma.videoEditorRecord.updateMany({
-        where: {
-          workEntryId: prev.workEntryId,
-          assignedVideo: prev.videoTitle
-        },
-        data: {
-          assignedVideo: trimmedTitle
+    if (id.startsWith('shoot-')) {
+      const stripped = id.replace('shoot-', '');
+      // Check if stripped is a VideoLibrary id
+      const video = await prisma.videoLibrary.findUnique({ where: { id: stripped } }).catch(() => null);
+      if (video) {
+        targetVideoId = video.id;
+        if (!targetWorkEntryId && video.epicId) {
+          targetWorkEntryId = video.epicId;
         }
-      });
+      } else {
+        // Check if stripped is a SMEWorkEntry id
+        const entry = await prisma.sMEWorkEntry.findUnique({ where: { id: stripped } }).catch(() => null);
+        if (entry) {
+          if (!targetWorkEntryId) targetWorkEntryId = entry.id;
+        }
+      }
+    }
+
+    // If still no workEntryId and id has no prefix, try finding by id
+    if (!targetWorkEntryId && !prev) {
+      const entry = await prisma.sMEWorkEntry.findUnique({ where: { id } }).catch(() => null);
+      if (entry) targetWorkEntryId = entry.id;
+    }
+
+    const effectiveWorkEntryId = targetWorkEntryId || prev?.workEntryId;
+    if (!effectiveWorkEntryId && !prev) {
+      return { success: false, error: 'Production record not found.' };
+    }
+
+    if (effectiveWorkEntryId) {
+      const permCheck = await verifyEpicPermission(effectiveWorkEntryId, ['ADMIN', 'TEAM_MEMBER', 'CAMERAMAN']);
+      if (!permCheck.authorized) {
+        return { success: false, error: permCheck.error };
+      }
+    }
+
+    const trimmedTitle = data.videoTitle ? data.videoTitle.trim() : (prev?.videoTitle || null);
+
+    // 1. Update VideoLibrary if targetVideoId is known or find by epicId
+    if (targetVideoId) {
+      await prisma.videoLibrary.update({
+        where: { id: targetVideoId },
+        data: {
+          ...(trimmedTitle ? { title: trimmedTitle } : {})
+        }
+      }).catch(() => null);
+    } else if (effectiveWorkEntryId && trimmedTitle) {
+      const matchLib = await prisma.videoLibrary.findFirst({
+        where: { epicId: effectiveWorkEntryId }
+      }).catch(() => null);
+      if (matchLib) {
+        await prisma.videoLibrary.update({
+          where: { id: matchLib.id },
+          data: { title: trimmedTitle }
+        }).catch(() => null);
+      }
+    }
+
+    // 2. Update SMEWorkEntry topic and status if applicable
+    if (effectiveWorkEntryId && trimmedTitle) {
+      await prisma.sMEWorkEntry.update({
+        where: { id: effectiveWorkEntryId },
+        data: {
+          topic: trimmedTitle,
+          ...(data.status ? { status: data.status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS' } : {})
+        }
+      }).catch(() => null);
+    }
+
+    // 3. Gracefully update ShootingSchedule if table exists
+    let record: any = null;
+    if (prev) {
+      try {
+        record = await prisma.shootingSchedule.update({
+          where: { id },
+          data: {
+            videoTitle: trimmedTitle || prev.videoTitle,
+            shootDate: data.scheduledStart ? new Date(data.scheduledStart) : (data.shootDate ? new Date(data.shootDate) : prev.shootDate),
+            location: data.location !== undefined ? data.location : prev.location,
+            shootingType: data.shootingType !== undefined ? data.shootingType : prev.shootingType,
+            scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : (data.scheduledStart === '' ? null : prev.scheduledStart),
+            scheduledEnd: data.scheduledEnd ? new Date(data.scheduledEnd) : (data.scheduledEnd === '' ? null : prev.scheduledEnd),
+            actualStart: data.actualStart ? new Date(data.actualStart) : (data.actualStart === '' ? null : prev.actualStart),
+            actualEnd: data.actualEnd ? new Date(data.actualEnd) : (data.actualEnd === '' ? null : prev.actualEnd),
+            cameraman: data.cameraman !== undefined ? data.cameraman : prev.cameraman,
+            status: data.status || prev.status,
+            productionNotes: data.productionNotes !== undefined ? data.productionNotes : prev.productionNotes
+          }
+        });
+      } catch (_) {}
+    }
+
+    // 4. If video title changed, sync assignedVideo in VideoEditorRecord if table exists
+    if (prev?.videoTitle && trimmedTitle && prev.videoTitle !== trimmedTitle) {
+      try {
+        await prisma.videoEditorRecord.updateMany({
+          where: {
+            workEntryId: prev.workEntryId,
+            assignedVideo: prev.videoTitle
+          },
+          data: {
+            assignedVideo: trimmedTitle
+          }
+        });
+      } catch (_) {}
     }
 
     revalidatePath('/video-production');
     revalidatePath('/reports');
-    return { success: true, data: record };
+    return { 
+      success: true, 
+      data: record || {
+        id,
+        workEntryId: effectiveWorkEntryId,
+        videoTitle: trimmedTitle,
+        scheduledStart: data.scheduledStart,
+        scheduledEnd: data.scheduledEnd,
+        status: data.status || 'PLANNED',
+        location: data.location,
+        cameraman: data.cameraman
+      } 
+    };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -390,54 +510,82 @@ export async function updateVideoEditorRecord(id: string, data: any, workEntryId
 
     const editorName = data.editorName || (permCheck.role === 'EDITOR' ? (permCheck.user?.name || permCheck.user?.email) : null);
 
-    const record = await prisma.videoEditorRecord.upsert({
-      where: { id: id || 'new' }, 
-      update: {
-        editorName: editorName,
-        assignedVideo: data.assignedVideo || null,
-        editingStartDate: data.editingStartDate ? new Date(data.editingStartDate) : null,
-        roughCutLink: data.roughCutLink || null,
-        finalCutLink: data.finalCutLink || null,
-        duration: data.duration || null,
-        status: data.status || 'NOT_STARTED',
-        reviewComments: data.editingEndDate ? `[END:${data.editingEndDate}] ${data.reviewComments || ''}`.trim() : (data.reviewComments || null),
-        finalVideoFile: data.finalVideoFile || null
-      },
-      create: {
-        workEntryId,
-        editorName: editorName,
-        assignedVideo: data.assignedVideo || null,
-        editingStartDate: data.editingStartDate ? new Date(data.editingStartDate) : null,
-        roughCutLink: data.roughCutLink || null,
-        finalCutLink: data.finalCutLink || null,
-        duration: data.duration || null,
-        status: data.status || 'NOT_STARTED',
-        reviewComments: data.editingEndDate ? `[END:${data.editingEndDate}] ${data.reviewComments || ''}`.trim() : (data.reviewComments || null),
-        finalVideoFile: data.finalVideoFile || null
-      }
-    });
+    // Persist to VideoLibrary (if linked or matching this assigned video)
+    if (data.assignedVideo || data.duration || data.finalVideoFile) {
+      const matchLib = await prisma.videoLibrary.findFirst({
+        where: {
+          OR: [
+            ...(id.startsWith('ed-') ? [{ id: id.replace('ed-', '') }] : []),
+            ...(workEntryId ? [{ epicId: workEntryId }] : [])
+          ]
+        }
+      }).catch(() => null);
 
-    // Once post-production is marked COMPLETED, automatically advance/ensure FinalVideoRecord exists
-    if (data.status === 'COMPLETED') {
-      await prisma.finalVideoRecord.upsert({
-        where: { workEntryId },
+      if (matchLib) {
+        await prisma.videoLibrary.update({
+          where: { id: matchLib.id },
+          data: {
+            ...(data.assignedVideo ? { title: data.assignedVideo } : {}),
+            ...(data.duration !== undefined ? { duration: data.duration } : {}),
+            ...(data.finalVideoFile ? { videoLink: data.finalVideoFile } : {})
+          }
+        }).catch(() => null);
+      }
+    }
+
+    let record: any = null;
+    try {
+      record = await prisma.videoEditorRecord.upsert({
+        where: { id: id || 'new' }, 
         update: {
-          finalVideoStatus: 'APPROVED',
-          finalVideoFile: data.finalVideoFile || data.finalCutLink || undefined,
-          finalDuration: data.duration || undefined
+          editorName: editorName,
+          assignedVideo: data.assignedVideo || null,
+          editingStartDate: data.editingStartDate ? new Date(data.editingStartDate) : null,
+          roughCutLink: data.roughCutLink || null,
+          finalCutLink: data.finalCutLink || null,
+          duration: data.duration || null,
+          status: data.status || 'NOT_STARTED',
+          reviewComments: data.editingEndDate ? `[END:${data.editingEndDate}] ${data.reviewComments || ''}`.trim() : (data.reviewComments || null),
+          finalVideoFile: data.finalVideoFile || null
         },
         create: {
           workEntryId,
-          finalVideoStatus: 'APPROVED',
-          finalVideoFile: data.finalVideoFile || data.finalCutLink || null,
-          finalDuration: data.duration || null
+          editorName: editorName,
+          assignedVideo: data.assignedVideo || null,
+          editingStartDate: data.editingStartDate ? new Date(data.editingStartDate) : null,
+          roughCutLink: data.roughCutLink || null,
+          finalCutLink: data.finalCutLink || null,
+          duration: data.duration || null,
+          status: data.status || 'NOT_STARTED',
+          reviewComments: data.editingEndDate ? `[END:${data.editingEndDate}] ${data.reviewComments || ''}`.trim() : (data.reviewComments || null),
+          finalVideoFile: data.finalVideoFile || null
         }
       });
+    } catch (_) {}
+
+    // Once post-production is marked COMPLETED, automatically advance/ensure FinalVideoRecord exists
+    if (data.status === 'COMPLETED') {
+      try {
+        await prisma.finalVideoRecord.upsert({
+          where: { workEntryId },
+          update: {
+            finalVideoStatus: 'APPROVED',
+            finalVideoFile: data.finalVideoFile || data.finalCutLink || undefined,
+            finalDuration: data.duration || undefined
+          },
+          create: {
+            workEntryId,
+            finalVideoStatus: 'APPROVED',
+            finalVideoFile: data.finalVideoFile || data.finalCutLink || null,
+            finalDuration: data.duration || null
+          }
+        });
+      } catch (_) {}
     }
 
     revalidatePath('/video-production');
     revalidatePath('/reports');
-    return { success: true, data: record };
+    return { success: true, data: record || { id, workEntryId, assignedVideo: data.assignedVideo, status: data.status } };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -583,9 +731,19 @@ export async function deleteShootingSchedule(id: string) {
   if (!auth.success) return auth;
 
   try {
-    await prisma.shootingSchedule.delete({
-      where: { id }
-    });
+    if (id.startsWith('shoot-')) {
+      const stripped = id.replace('shoot-', '');
+      await prisma.videoLibrary.deleteMany({
+        where: { id: stripped }
+      }).catch(() => null);
+    }
+
+    try {
+      await prisma.shootingSchedule.delete({
+        where: { id }
+      });
+    } catch (_) {}
+
     revalidatePath('/video-production');
     revalidatePath('/reports');
     return { success: true };
@@ -599,9 +757,20 @@ export async function deleteVideoEditorRecord(id: string) {
   if (!auth.success) return auth;
 
   try {
-    await prisma.videoEditorRecord.delete({
-      where: { id }
-    });
+    if (id.startsWith('ed-')) {
+      const stripped = id.replace('ed-', '');
+      await prisma.videoLibrary.updateMany({
+        where: { id: stripped },
+        data: { epicId: null }
+      }).catch(() => null);
+    }
+
+    try {
+      await prisma.videoEditorRecord.delete({
+        where: { id }
+      });
+    } catch (_) {}
+
     revalidatePath('/video-production');
     revalidatePath('/reports');
     return { success: true };

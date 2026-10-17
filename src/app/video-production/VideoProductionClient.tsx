@@ -1180,7 +1180,8 @@ function Stage1EditModal({ record, loading, onClose, onSave }: any) {
     onSave(record.id, {
       ...formData,
       location: finalLocation,
-      cameraman: finalCameraman
+      cameraman: finalCameraman,
+      workEntryId: record.workEntryId
     });
   };
 
