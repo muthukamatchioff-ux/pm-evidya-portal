@@ -13,7 +13,7 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any; rol
     `EPIC-2026-PMeVidya ${String(epicSequence || 1).padStart(2, '0')}`;
 
   const currentEpicId = getEpicId(entry.epicSequence || 1);
-  const isViewer = role === 'VIEWER';
+  const isViewer = role === 'VIEWER' || role === 'HIGHER_OFFICIAL_VIEWER';
 
   // Form State for SME Master Identity
   const [smeName, setSmeName] = useState(sme.name || '');

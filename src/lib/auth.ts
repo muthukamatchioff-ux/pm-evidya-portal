@@ -44,7 +44,7 @@ export async function login(email: string, password: string): Promise<{ success:
       where: { email: normalizedEmail }
     });
 
-    if (dbUser && (dbUser.role === 'ADMIN' || dbUser.role === 'TEAM_MEMBER' || dbUser.role === 'VIEWER' || dbUser.role === 'CAMERAMAN' || dbUser.role === 'EDITOR')) {
+    if (dbUser && (dbUser.role === 'ADMIN' || dbUser.role === 'TEAM_MEMBER' || dbUser.role === 'VIEWER' || dbUser.role === 'CAMERAMAN' || dbUser.role === 'EDITOR' || dbUser.role === 'HIGHER_OFFICIAL_VIEWER')) {
       if (dbUser.status !== 'ACTIVE' && !isAdminEmail(normalizedEmail)) {
         return { success: false, error: 'Account is deactivated.' };
       }
@@ -224,7 +224,12 @@ export async function requireAuth(allowedRoles: string[]) {
     redirect('/login');
   }
 
-  if (!allowedRoles.includes(role)) {
+  // HIGHER_OFFICIAL_VIEWER is granted view-access wherever VIEWER is allowed
+  const effectiveAllowed = allowedRoles.includes('VIEWER')
+    ? [...allowedRoles, 'HIGHER_OFFICIAL_VIEWER']
+    : allowedRoles;
+
+  if (!effectiveAllowed.includes(role)) {
     redirect('/dashboard?error=forbidden');
   }
 }

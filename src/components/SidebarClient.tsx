@@ -15,21 +15,21 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
-  { name: 'Dashboard', path: '/dashboard', icon: '📊', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER'] },
+  { name: 'Dashboard', path: '/dashboard', icon: '📊', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   
-  { isHeader: true, name: 'Core Modules', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR'] },
-  { name: 'SME Records', path: '/smes', icon: '👨‍🏫', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER'] },
-  { name: 'Video Production Tracker', path: '/video-production', icon: '🎬', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR'] },
-  { name: 'Video Content Library', path: '/content', icon: '📼', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR'] },
-  { name: 'Document Management', path: '/accounts', icon: '📁', allowedRoles: ['ADMIN'] },
-  { name: 'Document Registry', path: '/documents', icon: '📄', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER'] },
+  { isHeader: true, name: 'Core Modules', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR', 'HIGHER_OFFICIAL_VIEWER'] },
+  { name: 'SME Records', path: '/smes', icon: '👨‍🏫', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
+  { name: 'Video Production Tracker', path: '/video-production', icon: '🎬', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR', 'HIGHER_OFFICIAL_VIEWER'] },
+  { name: 'Video Content Library', path: '/content', icon: '📼', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR', 'HIGHER_OFFICIAL_VIEWER'] },
+  { name: 'Document Management', path: '/accounts', icon: '📁', allowedRoles: ['ADMIN', 'HIGHER_OFFICIAL_VIEWER'] },
+  { name: 'Document Registry', path: '/documents', icon: '📄', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   
-  { isHeader: true, name: 'Communications', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER'] },
-  { name: 'SME Document Workflow', path: '/generator/deputation', icon: '✉️', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER'] },
+  { isHeader: true, name: 'Communications', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
+  { name: 'SME Document Workflow', path: '/generator/deputation', icon: '✉️', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   
-  { isHeader: true, name: 'System', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR'] },
-  { name: 'Reports', path: '/reports', icon: '📈', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR'] },
-  { name: 'Legacy Data', path: '/legacy', icon: '🗄️', allowedRoles: ['ADMIN'] },
+  { isHeader: true, name: 'System', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR', 'HIGHER_OFFICIAL_VIEWER'] },
+  { name: 'Reports', path: '/reports', icon: '📈', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR', 'HIGHER_OFFICIAL_VIEWER'] },
+  { name: 'Legacy Data', path: '/legacy', icon: '🗄️', allowedRoles: ['ADMIN', 'HIGHER_OFFICIAL_VIEWER'] },
   { name: 'Settings', path: '/settings', icon: '⚙️', allowedRoles: ['ADMIN'] }
 ];
 

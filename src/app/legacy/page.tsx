@@ -7,10 +7,11 @@ export const metadata = {
   title: 'Legacy Data Repository | PM e-Vidya'
 };
 
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, getRole } from '@/lib/auth';
 
 export default async function LegacyDataPage() {
-  await requireAuth(['ADMIN']);
+  await requireAuth(['ADMIN', 'HIGHER_OFFICIAL_VIEWER']);
+  const role = await getRole();
   const legacyRecords = await prisma.legacyRecord.findMany({
     take: 50,
     include: {
@@ -27,9 +28,11 @@ export default async function LegacyDataPage() {
     <div className={styles.container}>
       <div className={styles.header}>
         <h1 className={styles.title}>Legacy Data Repository</h1>
-        <Link href="/legacy/import" className="btn-primary">
-          <span>⬇️</span> Import New Batch
-        </Link>
+        {role === 'ADMIN' && (
+          <Link href="/legacy/import" className="btn-primary">
+            <span>⬇️</span> Import New Batch
+          </Link>
+        )}
       </div>
 
       <div className={styles.card}>

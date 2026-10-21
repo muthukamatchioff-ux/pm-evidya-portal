@@ -5,7 +5,7 @@ import { requireAuth, checkAuth, getCurrentUser } from '@/lib/auth';
 import { parseAssignedEpics } from '@/lib/epicHelpers';
 
 export async function generateReportData(reportId: string, dateFrom: string, dateTo: string) {
-  const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER']);
+  const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER', 'HIGHER_OFFICIAL_VIEWER']);
   if (!authCheck.success) return authCheck;
   let data: any[] = [];
   
@@ -303,7 +303,7 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
 }
 
 export async function getComprehensiveReportData() {
-  const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
+  const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR', 'HIGHER_OFFICIAL_VIEWER']);
   if (!authCheck.success) return authCheck;
   const role = authCheck.role || 'VIEWER';
   const user = await getCurrentUser();
@@ -382,7 +382,7 @@ export async function getComprehensiveReportData() {
 }
 
 export async function getEpicCompleteHistory(workEntryId: string) {
-  const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
+  const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR', 'HIGHER_OFFICIAL_VIEWER']);
   if (!authCheck.success) return { success: false, error: authCheck.error };
   const role = authCheck.role || 'VIEWER';
   const user = await getCurrentUser();

@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
     
-    const validRoles = ['ADMIN', 'CAMERAMAN', 'EDITOR', 'VIEWER', 'TEAM_MEMBER'];
+    const validRoles = ['ADMIN', 'CAMERAMAN', 'EDITOR', 'VIEWER', 'TEAM_MEMBER', 'HIGHER_OFFICIAL_VIEWER'];
     const assignedRole = validRoles.includes(userRole) ? userRole : 'VIEWER';
 
     const normalizedEmail = email.toLowerCase().trim();

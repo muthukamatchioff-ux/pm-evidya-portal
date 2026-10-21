@@ -7,9 +7,11 @@ import styles from './accounts.module.css';
 interface AccountsClientProps {
   initialData: any[];
   initialHrSalaries?: any[];
+  role?: string;
 }
 
-export default function AccountsClient({ initialData }: AccountsClientProps) {
+export default function AccountsClient({ initialData, role = 'ADMIN' }: AccountsClientProps) {
+  const isReadOnly = role === 'HIGHER_OFFICIAL_VIEWER' || role === 'VIEWER';
   const [entries, setEntries] = useState<any[]>(initialData || []);
   const [selectedEntryId, setSelectedEntryId] = useState<string>(
     initialData && initialData.length > 0 ? initialData[0].id : ''
@@ -387,7 +389,13 @@ export default function AccountsClient({ initialData }: AccountsClientProps) {
 
                     {/* Bottom Actions Area */}
                     <div>
-                      {hasDoc ? (
+                      {isReadOnly ? (
+                        !hasDoc && (
+                          <div style={{ padding: '8px', fontSize: '12px', color: '#64748b', fontStyle: 'italic', textAlign: 'center' }}>
+                            📄 Document pending upload
+                          </div>
+                        )
+                      ) : hasDoc ? (
                         /* RE-UPLOAD OPTION ONLY AT THE BOTTOM (reupload option onli down la ah kamikkanum) */
                         <div className={styles.reuploadContainer}>
                           <label

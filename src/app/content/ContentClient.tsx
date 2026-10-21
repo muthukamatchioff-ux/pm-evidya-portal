@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { addVideo, updateVideo, detectVideoDuration, autoAnalyzeSingleVideo, autoAnalyzeAllVideos } from './actions';
 import styles from '../budget/budget.module.css'; // Reuse table styles
 
-export default function ContentClient({ initialData, epics = [] }: { initialData: any[], epics?: any[] }) {
+export default function ContentClient({ initialData, epics = [], role = 'VIEWER' }: { initialData: any[], epics?: any[], role?: string }) {
   const router = useRouter();
+  const canModify = role === 'ADMIN' || role === 'TEAM_MEMBER';
   const [videos, setVideos] = useState<any[]>(initialData);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -201,22 +202,26 @@ export default function ContentClient({ initialData, epics = [] }: { initialData
               <span>⏱️</span>
               <span>Overall Duration: {totalDurationStr}</span>
             </div>
-            <button 
-              className="btn-primary" 
-              onClick={handleAutoAnalyzeAll}
-              disabled={isAnalyzingAll}
-              style={{ background: '#7c3aed', borderColor: '#7c3aed', display: 'flex', alignItems: 'center', gap: '6px' }}
-              title="Automatically detect and update duration for all videos"
-            >
-              <span>{isAnalyzingAll ? '⏳' : '⚡'}</span>
-              <span>{isAnalyzingAll ? 'Analyzing All...' : 'Auto-Analyze Durations'}</span>
-            </button>
-            <button 
-              className="btn-primary" 
-              onClick={() => { setIsAdding(!isAdding); if(isAdding) setEditingId(null); }}
-            >
-              {isAdding ? 'Cancel' : '+ Add New Video'}
-            </button>
+            {canModify && (
+              <>
+                <button 
+                  className="btn-primary" 
+                  onClick={handleAutoAnalyzeAll}
+                  disabled={isAnalyzingAll}
+                  style={{ background: '#7c3aed', borderColor: '#7c3aed', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  title="Automatically detect and update duration for all videos"
+                >
+                  <span>{isAnalyzingAll ? '⏳' : '⚡'}</span>
+                  <span>{isAnalyzingAll ? 'Analyzing All...' : 'Auto-Analyze Durations'}</span>
+                </button>
+                <button 
+                  className="btn-primary" 
+                  onClick={() => { setIsAdding(!isAdding); if(isAdding) setEditingId(null); }}
+                >
+                  {isAdding ? 'Cancel' : '+ Add New Video'}
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -228,7 +233,7 @@ export default function ContentClient({ initialData, epics = [] }: { initialData
         )}
 
         {/* Notice banner if uncalculated records exist */}
-        {uncalculatedCount > 0 && !isAnalyzingAll && (
+        {uncalculatedCount > 0 && !isAnalyzingAll && canModify && (
           <div style={{ margin: '0 16px 16px 16px', padding: '12px 18px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1e40af', fontSize: '14px' }}>
               <span style={{ fontSize: '18px' }}>⚡</span>
@@ -315,13 +320,13 @@ export default function ContentClient({ initialData, epics = [] }: { initialData
                 <th>Title</th>
                 <th>Duration</th>
                 <th>Video Link</th>
-                <th>Actions</th>
+                {canModify && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
               {filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '24px' }}>No video records found</td>
+                  <td colSpan={canModify ? 8 : 7} style={{ textAlign: 'center', padding: '24px' }}>No video records found</td>
                 </tr>
               ) : (
                 filteredData.map((v, idx) => {
@@ -337,23 +342,25 @@ export default function ContentClient({ initialData, epics = [] }: { initialData
                         {hasZeroDuration ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '13px' }}>0:00:00</span>
-                            <button
-                              onClick={() => handleAutoAnalyzeSingle(v.id)}
-                              disabled={analyzingVideoId === v.id}
-                              style={{ 
-                                fontSize: '11px', 
-                                padding: '2px 8px', 
-                                borderRadius: '4px', 
-                                background: '#eff6ff', 
-                                color: '#1d4ed8', 
-                                border: '1px solid #bfdbfe', 
-                                cursor: 'pointer', 
-                                fontWeight: 700 
-                              }}
-                              title="Click to auto-detect duration"
-                            >
-                              {analyzingVideoId === v.id ? 'Analyzing...' : '⚡ Auto-Analyze'}
-                            </button>
+                            {canModify && (
+                              <button
+                                onClick={() => handleAutoAnalyzeSingle(v.id)}
+                                disabled={analyzingVideoId === v.id}
+                                style={{ 
+                                  fontSize: '11px', 
+                                  padding: '2px 8px', 
+                                  borderRadius: '4px', 
+                                  background: '#eff6ff', 
+                                  color: '#1d4ed8', 
+                                  border: '1px solid #bfdbfe', 
+                                  cursor: 'pointer', 
+                                  fontWeight: 700 
+                                }}
+                                title="Click to auto-detect duration"
+                              >
+                                {analyzingVideoId === v.id ? 'Analyzing...' : '⚡ Auto-Analyze'}
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <span style={{ 
@@ -376,34 +383,36 @@ export default function ContentClient({ initialData, epics = [] }: { initialData
                           Watch Video
                         </a>
                       </td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <button 
-                            onClick={() => handleEdit(v)} 
-                            style={{ color: '#2563eb', textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 600 }}
-                          >
-                            Edit
-                          </button>
-                          <button 
-                            onClick={() => handleAutoAnalyzeSingle(v.id)}
-                            disabled={analyzingVideoId === v.id}
-                            style={{ 
-                              color: '#7c3aed', 
-                              border: 'none', 
-                              background: 'none', 
-                              cursor: 'pointer', 
-                              fontWeight: 600, 
-                              fontSize: '12px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '2px'
-                            }}
-                            title="Auto-analyze duration"
-                          >
-                            {analyzingVideoId === v.id ? '⏳' : '⚡'} Analyze
-                          </button>
-                        </div>
-                      </td>
+                      {canModify && (
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <button 
+                              onClick={() => handleEdit(v)} 
+                              style={{ color: '#2563eb', textDecoration: 'underline', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 600 }}
+                            >
+                              Edit
+                            </button>
+                            <button 
+                              onClick={() => handleAutoAnalyzeSingle(v.id)}
+                              disabled={analyzingVideoId === v.id}
+                              style={{ 
+                                color: '#7c3aed', 
+                                border: 'none', 
+                                background: 'none', 
+                                cursor: 'pointer', 
+                                fontWeight: 600, 
+                                fontSize: '12px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '2px'
+                              }}
+                              title="Auto-analyze duration"
+                            >
+                              {analyzingVideoId === v.id ? '⏳' : '⚡'} Analyze
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })

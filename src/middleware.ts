@@ -57,14 +57,17 @@ export async function middleware(request: NextRequest) {
   }
 
   // 4. Admin-only check (if any routes require STRICTLY 'ADMIN' and not just logged in)
-  const strictAdminRoutes = [
-    '/accounts', 
-    '/legacy', 
-    '/settings'
-  ];
-  const isStrictAdminRoute = strictAdminRoutes.some(route => pathname.startsWith(route));
   const normalizedRole = (role || '').toUpperCase().trim();
-  if (isStrictAdminRoute && normalizedRole !== 'ADMIN') {
+
+  // Settings and legacy import are strictly ADMIN-only
+  if ((pathname.startsWith('/settings') || pathname.startsWith('/legacy/import')) && normalizedRole !== 'ADMIN') {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
+  // Accounts (Document Management) and Legacy Data allow ADMIN and HIGHER_OFFICIAL_VIEWER
+  const officialReviewRoutes = ['/accounts', '/legacy'];
+  const isOfficialReviewRoute = officialReviewRoutes.some(route => pathname.startsWith(route));
+  if (isOfficialReviewRoute && normalizedRole !== 'ADMIN' && normalizedRole !== 'HIGHER_OFFICIAL_VIEWER') {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 

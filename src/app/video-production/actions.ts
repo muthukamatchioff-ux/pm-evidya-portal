@@ -380,7 +380,7 @@ export async function getTopicProductionRecords() {
       };
     });
 
-    if (role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'VIEWER') {
+    if (role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'VIEWER' || role === 'HIGHER_OFFICIAL_VIEWER') {
       return { success: true, data: allRecords };
     }
 

@@ -67,6 +67,7 @@ export default function DeputationClient({
   preselectedEpicId
 }: DeputationClientProps) {
   const router = useRouter();
+  const isReadOnly = userRole === 'VIEWER' || userRole === 'HIGHER_OFFICIAL_VIEWER';
   const [entries, setEntries] = useState<any[]>(initialWorkEntries || []);
 
   useEffect(() => {
@@ -919,7 +920,7 @@ export default function DeputationClient({
                     type="button"
                     className={styles.btnSecondary}
                     onClick={() => setIsEditingA(true)}
-                    disabled={userRole === 'VIEWER'}
+                    disabled={isReadOnly}
                   >
                     ✏️ Edit Parameters
                   </button>
@@ -928,7 +929,7 @@ export default function DeputationClient({
                     type="button"
                     className={styles.btnSuccess}
                     onClick={handleSaveStageA}
-                    disabled={isSavingA || userRole === 'VIEWER'}
+                    disabled={isSavingA || isReadOnly}
                   >
                     {isSavingA ? 'Saving...' : '💾 Save Parameters'}
                   </button>
@@ -1210,7 +1211,7 @@ export default function DeputationClient({
                     type="button"
                     className={styles.btnSecondary}
                     onClick={() => setIsEditingB(true)}
-                    disabled={userRole === 'VIEWER'}
+                    disabled={isReadOnly}
                   >
                     ✏️ Edit Parameters
                   </button>
@@ -1219,7 +1220,7 @@ export default function DeputationClient({
                     type="button"
                     className={styles.btnSuccess}
                     onClick={handleSaveStageB}
-                    disabled={isSavingB || userRole === 'VIEWER'}
+                    disabled={isSavingB || isReadOnly}
                   >
                     {isSavingB ? 'Saving...' : '💾 Save Parameters'}
                   </button>
@@ -1603,7 +1604,7 @@ export default function DeputationClient({
                     type="button"
                     className={styles.btnSecondary}
                     onClick={() => setIsEditingC(true)}
-                    disabled={userRole === 'VIEWER'}
+                    disabled={isReadOnly}
                   >
                     ✏️ Edit Parameters
                   </button>
@@ -1612,7 +1613,7 @@ export default function DeputationClient({
                     type="button"
                     className={styles.btnSuccess}
                     onClick={handleSaveStageC}
-                    disabled={isSavingC || userRole === 'VIEWER'}
+                    disabled={isSavingC || isReadOnly}
                   >
                     {isSavingC ? 'Saving...' : '💾 Save Parameters'}
                   </button>
