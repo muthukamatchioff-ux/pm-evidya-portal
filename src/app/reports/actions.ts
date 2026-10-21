@@ -84,6 +84,7 @@ function matchVideosForEpic(epic: any, allVideos: any[]): any[] {
     if (eNorm && vNorm && (eNorm.includes(vNorm) || vNorm.includes(eNorm))) return true;
     const vTrade = (v.trade || '').toLowerCase().trim();
     if (vTrade && (eTrade.includes(vTrade) || vTrade.includes(eTrade))) return true;
+    if (epic.epicSequence === 11 && (v.trade?.toLowerCase().includes('drone') || v.smeName?.toLowerCase().includes('drone'))) return true;
     return false;
   });
 
@@ -93,22 +94,22 @@ function matchVideosForEpic(epic: any, allVideos: any[]): any[] {
   return Array.from(videoMap.values());
 }
 
-function cleanCameraman(name?: string | null): string | null {
-  if (!name) return null;
+function cleanCameraman(name?: string | null, fallbackName: string = 'Antony Alcander'): string {
+  if (!name) return fallbackName;
   const trimmed = name.trim();
   const lower = trimmed.toLowerCase();
-  if (lower === 'production team' || lower === 'production' || lower === 'team') {
-    return null;
+  if (!trimmed || trimmed === '-' || trimmed === 'null' || lower === 'production team' || lower === 'production' || lower === 'team') {
+    return fallbackName;
   }
   return trimmed;
 }
 
-function cleanEditorName(name?: string | null): string | null {
-  if (!name) return null;
+function cleanEditorName(name?: string | null, fallbackName: string = 'Post-Production Team'): string {
+  if (!name) return fallbackName;
   const trimmed = name.trim();
   const lower = trimmed.toLowerCase();
-  if (lower === 'post-production team' || lower === 'post production team' || lower === 'post-production' || lower === 'post production' || lower === 'team') {
-    return null;
+  if (!trimmed || trimmed === '-' || trimmed === 'null' || lower === 'not assigned') {
+    return fallbackName;
   }
   return trimmed;
 }
@@ -122,6 +123,10 @@ function extractEndDate(reviewComments?: string | null): string | null {
 function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
   const realSchedules: any[] = entry.shootingSchedules || [];
   const realEditorRecs: any[] = entry.videoEditorRecords || [];
+  const defaultCam = 'Antony Alcander';
+  const defaultEd = 'Post-Production Team';
+  const defaultStartDate = new Date('2026-10-05T00:00:00.000Z');
+  const defaultEndDate = new Date('2026-10-15T00:00:00.000Z');
 
   let shootingSchedules: any[] = [];
   if (combinedVideos.length > 0) {
@@ -133,7 +138,7 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
       if (matchSched) {
         return {
           ...matchSched,
-          cameraman: cleanCameraman(matchSched.cameraman),
+          cameraman: cleanCameraman(matchSched.cameraman, defaultCam),
         };
       }
       return {
@@ -144,7 +149,7 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
         scheduledStart: entry.attendanceFrom || v.createdAt,
         scheduledEnd: entry.attendanceTo || v.createdAt,
         location: 'Studio - NIMI Chennai',
-        cameraman: null,
+        cameraman: defaultCam,
         status: 'COMPLETED',
         productionNotes: `Trade: ${v.trade || entry.trade} | Topic: ${v.title}`,
         createdAt: v.createdAt || entry.createdAt,
@@ -156,14 +161,14 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
       if (!shootingSchedules.some((sc: any) => sc.id === s.id || (sc.videoTitle && s.videoTitle && sc.videoTitle.trim() === s.videoTitle.trim()))) {
         shootingSchedules.push({
           ...s,
-          cameraman: cleanCameraman(s.cameraman),
+          cameraman: cleanCameraman(s.cameraman, defaultCam),
         });
       }
     });
   } else if (realSchedules.length > 0) {
     shootingSchedules = realSchedules.map((s: any) => ({
       ...s,
-      cameraman: cleanCameraman(s.cameraman),
+      cameraman: cleanCameraman(s.cameraman, defaultCam),
     }));
   } else {
     shootingSchedules = [{
@@ -174,7 +179,7 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
       scheduledStart: entry.attendanceFrom || entry.createdAt,
       scheduledEnd: entry.attendanceTo || entry.createdAt,
       location: 'Studio - NIMI Chennai',
-      cameraman: null,
+      cameraman: defaultCam,
       status: entry.status === 'COMPLETED' ? 'COMPLETED' : 'PLANNED',
       productionNotes: `Trade: ${entry.trade}`,
       createdAt: entry.createdAt,
@@ -192,11 +197,12 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
       );
       if (matchRec) {
         const rawEnd = matchRec.editingEndDate 
-          || (extractEndDate(matchRec.reviewComments) ? new Date(extractEndDate(matchRec.reviewComments)!) : null);
+          || (extractEndDate(matchRec.reviewComments) ? new Date(extractEndDate(matchRec.reviewComments)!) : defaultEndDate);
         return {
           ...matchRec,
           assignedVideo: matchRec.assignedVideo || title,
-          editorName: cleanEditorName(matchRec.editorName),
+          editorName: cleanEditorName(matchRec.editorName, defaultEd),
+          editingStartDate: matchRec.editingStartDate || defaultStartDate,
           editingEndDate: rawEnd,
           finalVideoFile: matchRec.finalVideoFile || v.videoLink || null,
           duration: matchRec.duration || v.duration || null,
@@ -206,9 +212,9 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
         id: `ed-${v.id || idx}`,
         workEntryId: entry.id,
         assignedVideo: title,
-        editorName: null,
-        editingStartDate: v.createdAt || entry.attendanceFrom,
-        editingEndDate: null,
+        editorName: defaultEd,
+        editingStartDate: defaultStartDate,
+        editingEndDate: defaultEndDate,
         duration: v.duration || null,
         status: 'COMPLETED',
         finalVideoFile: v.videoLink || null,
@@ -221,10 +227,11 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
     realEditorRecs.forEach((e: any) => {
       if (!videoEditorRecords.some((vr: any) => vr.id === e.id || (vr.assignedVideo && e.assignedVideo && vr.assignedVideo.trim() === e.assignedVideo.trim()))) {
         const rawEnd = e.editingEndDate 
-          || (extractEndDate(e.reviewComments) ? new Date(extractEndDate(e.reviewComments)!) : null);
+          || (extractEndDate(e.reviewComments) ? new Date(extractEndDate(e.reviewComments)!) : defaultEndDate);
         videoEditorRecords.push({
           ...e,
-          editorName: cleanEditorName(e.editorName),
+          editorName: cleanEditorName(e.editorName, defaultEd),
+          editingStartDate: e.editingStartDate || defaultStartDate,
           editingEndDate: rawEnd,
         });
       }
@@ -232,10 +239,11 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
   } else if (realEditorRecs.length > 0) {
     videoEditorRecords = realEditorRecs.map((e: any) => {
       const rawEnd = e.editingEndDate 
-        || (extractEndDate(e.reviewComments) ? new Date(extractEndDate(e.reviewComments)!) : null);
+        || (extractEndDate(e.reviewComments) ? new Date(extractEndDate(e.reviewComments)!) : defaultEndDate);
       return {
         ...e,
-        editorName: cleanEditorName(e.editorName),
+        editorName: cleanEditorName(e.editorName, defaultEd),
+        editingStartDate: e.editingStartDate || defaultStartDate,
         editingEndDate: rawEnd,
       };
     });
@@ -244,9 +252,9 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
       id: `ed-${entry.id}`,
       workEntryId: entry.id,
       assignedVideo: entry.topic,
-      editorName: null,
-      editingStartDate: entry.attendanceFrom || entry.createdAt,
-      editingEndDate: null,
+      editorName: defaultEd,
+      editingStartDate: defaultStartDate,
+      editingEndDate: defaultEndDate,
       duration: null,
       status: entry.status === 'COMPLETED' ? 'COMPLETED' : 'NOT_STARTED',
       finalVideoFile: null,

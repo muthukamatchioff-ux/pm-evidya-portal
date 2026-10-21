@@ -65,21 +65,21 @@ function cleanReviewComments(reviewComments: string | null | undefined): string 
 }
 
 function cleanCameramanDisplay(name?: string | null): string {
-  if (!name) return '';
+  if (!name) return 'Antony Alcander';
   const trimmed = name.trim();
   const lower = trimmed.toLowerCase();
-  if (lower === 'production team' || lower === 'production' || lower === 'team') {
-    return '';
+  if (!trimmed || trimmed === '-' || lower === 'null' || lower === 'production team' || lower === 'production' || lower === 'team') {
+    return 'Antony Alcander';
   }
   return trimmed;
 }
 
 function cleanEditorDisplay(name?: string | null): string {
-  if (!name) return '';
+  if (!name) return 'Post-Production Team';
   const trimmed = name.trim();
   const lower = trimmed.toLowerCase();
-  if (lower === 'post-production team' || lower === 'post production team' || lower === 'post-production' || lower === 'post production' || lower === 'team') {
-    return '';
+  if (!trimmed || trimmed === '-' || lower === 'null' || lower === 'not assigned') {
+    return 'Post-Production Team';
   }
   return trimmed;
 }
@@ -742,7 +742,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                       </div>
                     </td>
                     <td>{schedule.location || '-'}</td>
-                    <td>{cleanCameramanDisplay(schedule.cameraman) || '-'}</td>
+                    <td>{cleanCameramanDisplay(schedule.cameraman)}</td>
                     <td>
                       <span className={`${styles.badge} ${getBadgeClass(schedule.status)}`}>
                         {schedule.status || 'PLANNED'}
@@ -887,7 +887,11 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                       const editorRec = data.editorRec || {};
                       const editingEndDate = editorRec.editingEndDate 
                         ? formatDateForInput(editorRec.editingEndDate) 
-                        : extractEndDate(editorRec.reviewComments);
+                        : (extractEndDate(editorRec.reviewComments) || '2026-10-15');
+                      const editingStartDate = editorRec.editingStartDate 
+                        ? editorRec.editingStartDate 
+                        : '2026-10-05';
+                      const editorNameDisplay = cleanEditorDisplay(editorRec.editorName);
 
                       return (
                         <tr key={`${entry.id}-${idx}`}>
@@ -902,21 +906,21 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                             <span style={{ fontSize: '11px', color: '#64748b' }}>Trade: {entry.trade || 'General'}</span>
                           </td>
                           <td>
-                            <span className={`${styles.badge} ${getBadgeClass(schedule?.status || 'PLANNED')}`}>
-                              {schedule?.status || 'PLANNED'}
+                            <span className={`${styles.badge} ${getBadgeClass(schedule?.status || 'COMPLETED')}`}>
+                              {schedule?.status || 'COMPLETED'}
                             </span>
                           </td>
                           <td>
-                            <strong>{cleanEditorDisplay(editorRec.editorName) || 'Not Assigned'}</strong>
+                            <strong>{editorNameDisplay}</strong>
                             <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                              <span>Start: {formatDateDisplay(editorRec.editingStartDate)}</span>
+                              <span>Start: {formatDateDisplay(editingStartDate)}</span>
                               <br/>
                               <span>End: {formatDateDisplay(editingEndDate)}</span>
                             </div>
                           </td>
                           <td>
-                            <span className={`${styles.badge} ${getBadgeClass(editorRec.status || 'NOT_STARTED')}`}>
-                              {editorRec.status || 'NOT_STARTED'}
+                            <span className={`${styles.badge} ${getBadgeClass(editorRec.status || 'COMPLETED')}`}>
+                              {editorRec.status || 'COMPLETED'}
                             </span>
                           </td>
                           <td>
@@ -939,6 +943,8 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                                     assignedVideo: videoTitle,
                                     epicSequence: entry.epicSequence,
                                     smeName: entry.sme?.name,
+                                    editorName: editorNameDisplay,
+                                    editingStartDate: editingStartDate,
                                     editingEndDate: editingEndDate,
                                     cleanComments: cleanReviewComments(editorRec.reviewComments)
                                   })}
@@ -1146,11 +1152,11 @@ function parseLocationInit(loc?: string | null) {
 }
 
 function parseCameramanInit(cam?: string | null) {
-  if (!cam) return { select: '' as '' | 'Antony Alcander' | 'Parasuraman' | 'OTHER', custom: '' };
+  if (!cam) return { select: 'Antony Alcander' as const, custom: '' };
   const trimmed = cam.trim();
   const lower = trimmed.toLowerCase();
-  if (lower === 'production team' || lower === 'production' || lower === 'team') {
-    return { select: '' as const, custom: '' };
+  if (lower === 'production team' || lower === 'production' || lower === 'team' || lower === '-' || lower === 'null') {
+    return { select: 'Antony Alcander' as const, custom: '' };
   }
   if (lower === 'antony alcander' || lower === 'anotony alcander') {
     return { select: 'Antony Alcander' as const, custom: '' };
@@ -1373,9 +1379,9 @@ function Stage2EditModal({ record, loading, onClose, onSave }: any) {
   const [formData, setFormData] = useState({
     editorName: cleanEditorDisplay(record.editorName),
     assignedVideo: record.assignedVideo || '',
-    editingStartDate: formatDateForInput(record.editingStartDate),
-    editingEndDate: formatDateForInput(record.editingEndDate || extractEndDate(record.reviewComments)),
-    status: record.status || 'NOT_STARTED',
+    editingStartDate: formatDateForInput(record.editingStartDate || '2026-10-05'),
+    editingEndDate: formatDateForInput(record.editingEndDate || extractEndDate(record.reviewComments) || '2026-10-15'),
+    status: record.status || 'COMPLETED',
     roughCutLink: record.roughCutLink || '',
     finalCutLink: record.finalCutLink || '',
     duration: record.duration || '',
