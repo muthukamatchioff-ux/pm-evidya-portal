@@ -93,62 +93,168 @@ function matchVideosForEpic(epic: any, allVideos: any[]): any[] {
   return Array.from(videoMap.values());
 }
 
+function cleanCameraman(name?: string | null): string | null {
+  if (!name) return null;
+  const trimmed = name.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower === 'production team' || lower === 'production' || lower === 'team') {
+    return null;
+  }
+  return trimmed;
+}
+
+function cleanEditorName(name?: string | null): string | null {
+  if (!name) return null;
+  const trimmed = name.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower === 'post-production team' || lower === 'post production team' || lower === 'post-production' || lower === 'post production' || lower === 'team') {
+    return null;
+  }
+  return trimmed;
+}
+
+function extractEndDate(reviewComments?: string | null): string | null {
+  if (!reviewComments) return null;
+  const match = reviewComments.match(/\[END:([^\]]+)\]/);
+  return match ? match[1].trim() : null;
+}
+
 function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
-  const shootingSchedules = combinedVideos.length > 0
-    ? combinedVideos.map((v: any, idx: number) => ({
+  const realSchedules: any[] = entry.shootingSchedules || [];
+  const realEditorRecs: any[] = entry.videoEditorRecords || [];
+
+  let shootingSchedules: any[] = [];
+  if (combinedVideos.length > 0) {
+    shootingSchedules = combinedVideos.map((v: any, idx: number) => {
+      const title = v.title || entry.topic;
+      const matchSched = realSchedules.find((s: any) => 
+        s.id === v.id || s.id === `shoot-${v.id}` || (s.videoTitle && s.videoTitle.trim() === title.trim())
+      );
+      if (matchSched) {
+        return {
+          ...matchSched,
+          cameraman: cleanCameraman(matchSched.cameraman),
+        };
+      }
+      return {
         id: `shoot-${v.id || idx}`,
         workEntryId: entry.id,
-        videoTitle: v.title || entry.topic,
+        videoTitle: title,
         shootDate: v.createdAt || entry.attendanceFrom || entry.createdAt,
         scheduledStart: entry.attendanceFrom || v.createdAt,
         scheduledEnd: entry.attendanceTo || v.createdAt,
         location: 'Studio - NIMI Chennai',
-        cameraman: 'Production Team',
+        cameraman: null,
         status: 'COMPLETED',
         productionNotes: `Trade: ${v.trade || entry.trade} | Topic: ${v.title}`,
         createdAt: v.createdAt || entry.createdAt,
         updatedAt: v.updatedAt || entry.updatedAt,
-      }))
-    : [{
-        id: `shoot-${entry.id}`,
-        workEntryId: entry.id,
-        videoTitle: entry.topic,
-        shootDate: entry.attendanceFrom || entry.createdAt,
-        scheduledStart: entry.attendanceFrom || entry.createdAt,
-        scheduledEnd: entry.attendanceTo || entry.createdAt,
-        location: 'Studio - NIMI Chennai',
-        cameraman: 'Production Team',
-        status: entry.status === 'COMPLETED' ? 'COMPLETED' : 'PLANNED',
-        productionNotes: `Trade: ${entry.trade}`,
-        createdAt: entry.createdAt,
-        updatedAt: entry.updatedAt,
-      }];
+      };
+    });
 
-  const videoEditorRecords = combinedVideos.length > 0
-    ? combinedVideos.map((v: any, idx: number) => ({
+    realSchedules.forEach((s: any) => {
+      if (!shootingSchedules.some((sc: any) => sc.id === s.id || (sc.videoTitle && s.videoTitle && sc.videoTitle.trim() === s.videoTitle.trim()))) {
+        shootingSchedules.push({
+          ...s,
+          cameraman: cleanCameraman(s.cameraman),
+        });
+      }
+    });
+  } else if (realSchedules.length > 0) {
+    shootingSchedules = realSchedules.map((s: any) => ({
+      ...s,
+      cameraman: cleanCameraman(s.cameraman),
+    }));
+  } else {
+    shootingSchedules = [{
+      id: `shoot-${entry.id}`,
+      workEntryId: entry.id,
+      videoTitle: entry.topic,
+      shootDate: entry.attendanceFrom || entry.createdAt,
+      scheduledStart: entry.attendanceFrom || entry.createdAt,
+      scheduledEnd: entry.attendanceTo || entry.createdAt,
+      location: 'Studio - NIMI Chennai',
+      cameraman: null,
+      status: entry.status === 'COMPLETED' ? 'COMPLETED' : 'PLANNED',
+      productionNotes: `Trade: ${entry.trade}`,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+    }];
+  }
+
+  let videoEditorRecords: any[] = [];
+  if (combinedVideos.length > 0) {
+    videoEditorRecords = combinedVideos.map((v: any, idx: number) => {
+      const title = v.title || entry.topic;
+      const matchRec = realEditorRecs.find((e: any) =>
+        e.id === v.id || e.id === `ed-${v.id}` || (e.assignedVideo && e.assignedVideo.trim() === title.trim()) ||
+        (combinedVideos.length === 1 && realEditorRecs.length === 1)
+      );
+      if (matchRec) {
+        const rawEnd = matchRec.editingEndDate 
+          || (extractEndDate(matchRec.reviewComments) ? new Date(extractEndDate(matchRec.reviewComments)!) : null);
+        return {
+          ...matchRec,
+          assignedVideo: matchRec.assignedVideo || title,
+          editorName: cleanEditorName(matchRec.editorName),
+          editingEndDate: rawEnd,
+          finalVideoFile: matchRec.finalVideoFile || v.videoLink || null,
+          duration: matchRec.duration || v.duration || null,
+        };
+      }
+      return {
         id: `ed-${v.id || idx}`,
         workEntryId: entry.id,
-        assignedVideo: v.title || entry.topic,
-        editorName: 'Post-Production Team',
+        assignedVideo: title,
+        editorName: null,
         editingStartDate: v.createdAt || entry.attendanceFrom,
+        editingEndDate: null,
         duration: v.duration || null,
         status: 'COMPLETED',
         finalVideoFile: v.videoLink || null,
+        reviewComments: null,
         createdAt: v.createdAt || entry.createdAt,
         updatedAt: v.updatedAt || entry.updatedAt,
-      }))
-    : [{
-        id: `ed-${entry.id}`,
-        workEntryId: entry.id,
-        assignedVideo: entry.topic,
-        editorName: 'Post-Production Team',
-        editingStartDate: entry.attendanceFrom || entry.createdAt,
-        duration: null,
-        status: entry.status === 'COMPLETED' ? 'COMPLETED' : 'NOT_STARTED',
-        finalVideoFile: null,
-        createdAt: entry.createdAt,
-        updatedAt: entry.updatedAt,
-      }];
+      };
+    });
+
+    realEditorRecs.forEach((e: any) => {
+      if (!videoEditorRecords.some((vr: any) => vr.id === e.id || (vr.assignedVideo && e.assignedVideo && vr.assignedVideo.trim() === e.assignedVideo.trim()))) {
+        const rawEnd = e.editingEndDate 
+          || (extractEndDate(e.reviewComments) ? new Date(extractEndDate(e.reviewComments)!) : null);
+        videoEditorRecords.push({
+          ...e,
+          editorName: cleanEditorName(e.editorName),
+          editingEndDate: rawEnd,
+        });
+      }
+    });
+  } else if (realEditorRecs.length > 0) {
+    videoEditorRecords = realEditorRecs.map((e: any) => {
+      const rawEnd = e.editingEndDate 
+        || (extractEndDate(e.reviewComments) ? new Date(extractEndDate(e.reviewComments)!) : null);
+      return {
+        ...e,
+        editorName: cleanEditorName(e.editorName),
+        editingEndDate: rawEnd,
+      };
+    });
+  } else {
+    videoEditorRecords = [{
+      id: `ed-${entry.id}`,
+      workEntryId: entry.id,
+      assignedVideo: entry.topic,
+      editorName: null,
+      editingStartDate: entry.attendanceFrom || entry.createdAt,
+      editingEndDate: null,
+      duration: null,
+      status: entry.status === 'COMPLETED' ? 'COMPLETED' : 'NOT_STARTED',
+      finalVideoFile: null,
+      reviewComments: null,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+    }];
+  }
 
   const finalVideoRecords = combinedVideos.length > 0
     ? combinedVideos.map((v: any, idx: number) => ({
@@ -248,6 +354,8 @@ export async function getComprehensiveReportData() {
         documents: true,
         payments: (role === 'ADMIN' || role === 'TEAM_MEMBER'),
         videoLibraries: true,
+        videoEditorRecords: true,
+        shootingSchedules: true,
       },
       orderBy: { epicSequence: 'asc' }
     }),
@@ -280,6 +388,8 @@ export async function getEpicCompleteHistory(workEntryId: string) {
           documents: { orderBy: { createdAt: 'desc' } },
           payments: (role === 'ADMIN' || role === 'TEAM_MEMBER') ? { orderBy: { createdAt: 'desc' } } : false,
           videoLibraries: { orderBy: { createdAt: 'desc' } },
+          videoEditorRecords: true,
+          shootingSchedules: true,
         }
       }),
       prisma.videoLibrary.findMany({

@@ -64,6 +64,26 @@ function cleanReviewComments(reviewComments: string | null | undefined): string 
   return reviewComments.replace(/\[END:[^\]]+\]/, '').trim();
 }
 
+function cleanCameramanDisplay(name?: string | null): string {
+  if (!name) return '';
+  const trimmed = name.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower === 'production team' || lower === 'production' || lower === 'team') {
+    return '';
+  }
+  return trimmed;
+}
+
+function cleanEditorDisplay(name?: string | null): string {
+  if (!name) return '';
+  const trimmed = name.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower === 'post-production team' || lower === 'post production team' || lower === 'post-production' || lower === 'post production' || lower === 'team') {
+    return '';
+  }
+  return trimmed;
+}
+
 export default function VideoProductionClient({ initialRecords = [], role = 'VIEWER' }: any) {
   const router = useRouter();
   const [activeStage, setActiveStage] = useState<'STAGE_1' | 'STAGE_2' | 'STAGE_3'>(
@@ -722,7 +742,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                       </div>
                     </td>
                     <td>{schedule.location || '-'}</td>
-                    <td>{schedule.cameraman || '-'}</td>
+                    <td>{cleanCameramanDisplay(schedule.cameraman) || '-'}</td>
                     <td>
                       <span className={`${styles.badge} ${getBadgeClass(schedule.status)}`}>
                         {schedule.status || 'PLANNED'}
@@ -865,7 +885,9 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                     return Array.from(videoMap.entries()).map(([videoTitle, data], idx) => {
                       const schedule = data.schedule;
                       const editorRec = data.editorRec || {};
-                      const editingEndDate = extractEndDate(editorRec.reviewComments);
+                      const editingEndDate = editorRec.editingEndDate 
+                        ? formatDateForInput(editorRec.editingEndDate) 
+                        : extractEndDate(editorRec.reviewComments);
 
                       return (
                         <tr key={`${entry.id}-${idx}`}>
@@ -885,7 +907,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                             </span>
                           </td>
                           <td>
-                            <strong>{editorRec.editorName || 'Not Assigned'}</strong>
+                            <strong>{cleanEditorDisplay(editorRec.editorName) || 'Not Assigned'}</strong>
                             <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
                               <span>Start: {formatDateDisplay(editorRec.editingStartDate)}</span>
                               <br/>
@@ -1126,10 +1148,14 @@ function parseLocationInit(loc?: string | null) {
 function parseCameramanInit(cam?: string | null) {
   if (!cam) return { select: '' as '' | 'Antony Alcander' | 'Parasuraman' | 'OTHER', custom: '' };
   const trimmed = cam.trim();
-  if (trimmed.toLowerCase() === 'antony alcander' || trimmed.toLowerCase() === 'anotony alcander') {
+  const lower = trimmed.toLowerCase();
+  if (lower === 'production team' || lower === 'production' || lower === 'team') {
+    return { select: '' as const, custom: '' };
+  }
+  if (lower === 'antony alcander' || lower === 'anotony alcander') {
     return { select: 'Antony Alcander' as const, custom: '' };
   }
-  if (trimmed.toLowerCase() === 'parasuraman') {
+  if (lower === 'parasuraman') {
     return { select: 'Parasuraman' as const, custom: '' };
   }
   return { select: 'OTHER' as const, custom: trimmed };
@@ -1345,16 +1371,16 @@ function Stage1EditModal({ record, loading, onClose, onSave }: any) {
    ========================================================================= */
 function Stage2EditModal({ record, loading, onClose, onSave }: any) {
   const [formData, setFormData] = useState({
-    editorName: record.editorName || '',
+    editorName: cleanEditorDisplay(record.editorName),
     assignedVideo: record.assignedVideo || '',
     editingStartDate: formatDateForInput(record.editingStartDate),
-    editingEndDate: formatDateForInput(record.editingEndDate),
+    editingEndDate: formatDateForInput(record.editingEndDate || extractEndDate(record.reviewComments)),
     status: record.status || 'NOT_STARTED',
     roughCutLink: record.roughCutLink || '',
     finalCutLink: record.finalCutLink || '',
     duration: record.duration || '',
     finalVideoFile: record.finalVideoFile || '',
-    reviewComments: record.cleanComments || ''
+    reviewComments: record.cleanComments || cleanReviewComments(record.reviewComments) || ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
