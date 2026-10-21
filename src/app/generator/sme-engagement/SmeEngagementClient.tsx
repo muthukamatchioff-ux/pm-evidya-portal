@@ -121,20 +121,28 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
   
   const generatePDF = async () => {
     setIsGenerating(true);
+    const element = printRef.current;
+    if (!element) {
+      setIsGenerating(false);
+      return;
+    }
+    const prevShadow = element.style.boxShadow;
+    const prevBorder = element.style.border;
+    element.style.boxShadow = 'none';
+    element.style.border = 'none';
     try {
       // Save record to DB automatically
       await saveSMERecord(sme, trades);
 
       const html2pdf = (await import('html2pdf.js')).default;
-      const element = printRef.current;
-      if (!element) return;
       
       const opt: any = {
         margin:       0,
         filename:     `SME_Engagement_${sme.name.replace(/\s+/g, '_')}.pdf`,
         image:        { type: 'jpeg', quality: 1.0 },
-        html2canvas:  { scale: 4, useCORS: true, letterRendering: true },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        html2canvas:  { scale: 3.5, useCORS: true, letterRendering: true, scrollY: 0 },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
       };
       
       await html2pdf().from(element).set(opt).save();
@@ -143,6 +151,8 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
       console.error(error);
       alert("Error generating PDF or saving record.");
     } finally {
+      element.style.boxShadow = prevShadow;
+      element.style.border = prevBorder;
       setIsGenerating(false);
     }
   };
@@ -343,15 +353,7 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
   );
 
   const renderFooter = () => (
-    <div style={{
-      marginTop: 'auto',
-      paddingTop: '6px',
-      borderTop: '1px solid #000080',
-      textAlign: 'center',
-      fontSize: '8.5px',
-      lineHeight: '1.3',
-      color: '#334155'
-    }}>
+    <div className={styles.officialDocFooter}>
       <div>पो. बा. संख्या 3142, सीटीआई कैम्पस, गिंडी इंडस्ट्रियल एस्टेट, गिंडी, चेन्नई-600032./Post Box No. 3142, CTI Campus,</div>
       <div>Guindy Industrial Estate, Guindy, Chennai – 600032. <strong>कार्यालय/Office:</strong> 044-2250 0657, 044-22500248,</div>
       <div><strong>निदेशक /Director-</strong> 044-2250 0256. <strong>ई-मेल/E-mail :</strong> <u>chennai-nimi@nic.in</u></div>
@@ -463,113 +465,168 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
         <div ref={printRef} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '40px' }}>
           
           {(docType === 'both' || docType === 'completion') && (() => {
-            const topicLines = (trades[0]?.topics || '').split(/\r?\n/).map(t => t.trim()).filter(Boolean);
-            const isDenseTopics = topicLines.length > 3;
-            const isVeryDenseTopics = topicLines.length > 7;
+            const rawTopics = trades[0]?.topics || '';
+            let topicLines = rawTopics.split(/\r?\n/).map((t: string) => t.trim()).filter(Boolean);
+            if (topicLines.length === 1 && rawTopics.includes(';') && !rawTopics.includes('\n')) {
+              topicLines = rawTopics.split(';').map((t: string) => t.trim()).filter(Boolean);
+            }
+            const topicCount = topicLines.length;
+
+            const isShort = topicCount <= 2;
+            const isMedium = topicCount >= 3 && topicCount <= 4;
+            const isDense = topicCount >= 5 && topicCount <= 7;
+            const isVeryDense = topicCount >= 8;
+
+            const titleMargin = isVeryDense ? '4px 0 3px 0' : isDense ? '6px 0 4px 0' : isMedium ? '8px 0 6px 0' : '10px 0 8px 0';
+            const titleFontSize = isVeryDense ? '14px' : isDense ? '14.5px' : isMedium ? '15px' : '15.5px';
+
+            const bodyFontSize = isVeryDense ? '10.5px' : isDense ? '11px' : isMedium ? '11.5px' : '12px';
+            const bodyLineHeight = isVeryDense ? '1.26' : isDense ? '1.32' : isMedium ? '1.38' : '1.42';
+            const paraMargin = isVeryDense ? '0 0 3px 0' : isDense ? '0 0 4px 0' : isMedium ? '0 0 5px 0' : '0 0 6px 0';
+
+            const topicsFontSize = isVeryDense ? '9.5px' : isDense ? '10px' : isMedium ? '10.5px' : '11.5px';
+            const topicsLineHeight = isVeryDense ? '1.22' : isDense ? '1.26' : isMedium ? '1.3' : '1.36';
+            const topicsBoxPadding = isVeryDense ? '3px 8px' : isDense ? '4px 8px' : isMedium ? '5px 10px' : '6px 12px';
+            const topicsBoxMargin = isVeryDense ? '3px 0 4px 0' : isDense ? '4px 0 5px 0' : isMedium ? '5px 0 6px 0' : '6px 0 8px 0';
+
+            const tableMargin = isVeryDense ? '4px 0 5px 0' : isDense ? '5px 0 7px 0' : isMedium ? '6px 0 8px 0' : '8px 0 10px 0';
+            const tableFontSize = isVeryDense ? '9.5px' : isDense ? '10px' : isMedium ? '10.5px' : '11.5px';
+            const tableCellPadding = isVeryDense ? '2.5px 5px' : isDense ? '3.5px 6px' : isMedium ? '4px 6px' : '5px 8px';
+
+            const declTitleMarginTop = isVeryDense ? '6px' : isDense ? '8px' : isMedium ? '10px' : '12px';
+            const declTitleFontSize = isVeryDense ? '10.5px' : isDense ? '11px' : isMedium ? '11.5px' : '12px';
+            const declFontSize = isVeryDense ? '9.5px' : isDense ? '10px' : isMedium ? '10.5px' : '11px';
+            const declLineHeight = isVeryDense ? '1.22' : isDense ? '1.25' : isMedium ? '1.28' : '1.32';
+            const signatureGap = isVeryDense ? 10 : isDense ? 14 : isMedium ? 18 : 24;
 
             return (
-              <div className={styles.a4Page} style={{ pageBreakAfter: 'always' }}>
+              <div className={styles.officialDocPage} style={{ pageBreakAfter: docType === 'both' ? 'always' : 'avoid' }}>
                 {renderHeader()}
                 
-                <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: '16px', margin: isDenseTopics ? '10px 0 6px 0' : '16px 0 10px 0' }}>
-                  Work Completion certificate
+                <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: titleFontSize, margin: titleMargin, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Work Completion Certificate
                 </h2>
                 
-                <div style={{ textAlign: 'justify', lineHeight: isDenseTopics ? '1.38' : '1.45', fontSize: isDenseTopics ? '12px' : '12.5px' }}>
-                  <p style={{ margin: '0 0 6px 0' }}>
+                <div style={{ textAlign: 'justify', lineHeight: bodyLineHeight, fontSize: bodyFontSize }}>
+                  <p style={{ margin: paraMargin }}>
                     This is to certify that <strong>{sme.name}</strong>, <strong>{sme.role}</strong>, has successfully completed the <strong>{programme.name}</strong> for the <strong>{trades[0]?.tradeName}</strong> trade at the <strong>{programme.location}</strong>, during the period from <strong>{formatDate(trades[0]?.startDate)}</strong> to <strong>{formatDate(trades[0]?.endDate)}</strong>.
                   </p>
-                  <p style={{ margin: '0 0 6px 0' }}>
+                  <p style={{ margin: paraMargin }}>
                     As the <strong>{sme.role}</strong>, <strong>{sme.name}</strong> effectively delivered the assigned classroom sessions in accordance with the approved curriculum, ensuring technical accuracy, instructional quality, and compliance with the applicable standards for PM e-Vidya digital learning content.
                   </p>
-                  <p style={{ margin: '0 0 3px 0' }}>
+                  <p style={{ margin: isVeryDense ? '0 0 2px 0' : '0 0 3px 0' }}>
                     The following topics were successfully delivered and recorded for integration into the PM e-Vidya Digital Learning Platform:
                   </p>
-                  {topicLines.length > 3 ? (
+
+                  {topicCount <= 2 ? (
+                    <div style={{
+                      padding: topicsBoxPadding,
+                      margin: topicsBoxMargin,
+                      fontSize: topicsFontSize,
+                      background: '#f8fafc',
+                      borderRadius: '4px',
+                      border: '1px solid #e2e8f0',
+                      lineHeight: topicsLineHeight
+                    }}>
+                      {topicLines.map((t: string, idx: number) => (
+                        <div key={idx} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', margin: '2px 0' }}>
+                          <span style={{ color: '#000080', fontWeight: 700, flexShrink: 0 }}>•</span>
+                          <span style={{ wordBreak: 'break-word', overflowWrap: 'break-word', minWidth: 0, whiteSpace: 'normal' }}>{t}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : topicCount <= 10 ? (
                     <div style={{
                       display: 'grid',
                       gridTemplateColumns: '1fr 1fr',
-                      columnGap: '16px',
-                      rowGap: '2px',
-                      marginTop: '4px',
-                      marginBottom: '6px',
-                      fontSize: isVeryDenseTopics ? '10px' : '11px',
+                      columnGap: isVeryDense ? '10px' : '14px',
+                      rowGap: isVeryDense ? '2px' : '3px',
+                      padding: topicsBoxPadding,
+                      margin: topicsBoxMargin,
+                      fontSize: topicsFontSize,
                       background: '#f8fafc',
-                      padding: '5px 10px',
                       borderRadius: '4px',
                       border: '1px solid #e2e8f0',
-                      lineHeight: '1.25'
+                      lineHeight: topicsLineHeight
                     }}>
-                      {topicLines.map((t, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '5px' }}>
-                          <span style={{ color: '#000080', fontWeight: 700 }}>•</span>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t}</span>
+                      {topicLines.map((t: string, idx: number) => (
+                        <div key={idx} style={{ display: 'flex', gap: '5px', alignItems: 'flex-start', minWidth: 0 }}>
+                          <span style={{ color: '#000080', fontWeight: 700, flexShrink: 0 }}>•</span>
+                          <span style={{ wordBreak: 'break-word', overflowWrap: 'break-word', minWidth: 0, whiteSpace: 'normal' }}>{t}</span>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div style={{
-                      padding: '5px 10px',
-                      marginTop: '4px',
-                      marginBottom: '6px',
-                      fontSize: '11.5px',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr 1fr',
+                      columnGap: '8px',
+                      rowGap: '2px',
+                      padding: topicsBoxPadding,
+                      margin: topicsBoxMargin,
+                      fontSize: topicsFontSize,
                       background: '#f8fafc',
                       borderRadius: '4px',
                       border: '1px solid #e2e8f0',
-                      lineHeight: '1.35'
+                      lineHeight: topicsLineHeight
                     }}>
-                      {topicLines.map((t, idx) => (
-                        <div key={idx}>• {t}</div>
+                      {topicLines.map((t: string, idx: number) => (
+                        <div key={idx} style={{ display: 'flex', gap: '4px', alignItems: 'flex-start', minWidth: 0 }}>
+                          <span style={{ color: '#000080', fontWeight: 700, flexShrink: 0 }}>•</span>
+                          <span style={{ wordBreak: 'break-word', overflowWrap: 'break-word', minWidth: 0, whiteSpace: 'normal' }}>{t}</span>
+                        </div>
                       ))}
                     </div>
                   )}
-                  <p style={{ margin: '4px 0 6px 0' }}>
+
+                  <p style={{ margin: paraMargin }}>
                     The recorded classroom sessions have been completed satisfactorily and are certified for further processing as per the applicable NIMI norms.
                   </p>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '6px', marginBottom: '10px', fontSize: isDenseTopics ? '11px' : '12px' }}>
+
+                  <table style={{ width: '100%', borderCollapse: 'collapse', margin: tableMargin, fontSize: tableFontSize }}>
                     <thead>
                       <tr style={{ background: '#f8fafc' }}>
-                        <th style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px', textAlign: 'left' }}>Trade</th>
-                        <th style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px', textAlign: 'left' }}>Guest Expert (SME)</th>
-                        <th style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px', textAlign: 'left' }}>Work Completed</th>
-                        <th style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px', textAlign: 'left' }}>Date</th>
-                        <th style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px', textAlign: 'left' }}>Amount (Rs.)</th>
+                        <th style={{ border: '1px solid #000', padding: tableCellPadding, textAlign: 'left', width: '16%' }}>Trade</th>
+                        <th style={{ border: '1px solid #000', padding: tableCellPadding, textAlign: 'left', width: '28%' }}>Guest Expert (SME)</th>
+                        <th style={{ border: '1px solid #000', padding: tableCellPadding, textAlign: 'left', width: '24%' }}>Work Completed</th>
+                        <th style={{ border: '1px solid #000', padding: tableCellPadding, textAlign: 'center', width: '18%' }}>Date</th>
+                        <th style={{ border: '1px solid #000', padding: tableCellPadding, textAlign: 'right', width: '14%' }}>Amount (Rs.)</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr>
-                        <td style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px' }}><strong>{trades[0]?.tradeName}</strong></td>
-                        <td style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>
+                        <td style={{ border: '1px solid #000', padding: tableCellPadding }}><strong>{trades[0]?.tradeName}</strong></td>
+                        <td style={{ border: '1px solid #000', padding: tableCellPadding, wordBreak: 'break-word' }}>
                           <strong>{sme.name}</strong><br />
-                          {sme.designation}, {sme.institution}, {sme.city}, {sme.state}
+                          <span>{sme.designation}, {sme.institution}, {sme.city}, {sme.state}</span>
                         </td>
-                        <td style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>{programme.workTitle}</td>
-                        <td style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>{formatDate(trades[0]?.startDate)} - {formatDate(trades[0]?.endDate)}</td>
-                        <td style={{ border: '1px solid #000', padding: isDenseTopics ? '4px 6px' : '6px 8px' }}>₹{trades[0]?.remunerationPerDay}/- ( per Day )</td>
+                        <td style={{ border: '1px solid #000', padding: tableCellPadding, wordBreak: 'break-word' }}>{programme.workTitle}</td>
+                        <td style={{ border: '1px solid #000', padding: tableCellPadding, textAlign: 'center', whiteSpace: 'nowrap' }}>{formatDate(trades[0]?.startDate)} - {formatDate(trades[0]?.endDate)}</td>
+                        <td style={{ border: '1px solid #000', padding: tableCellPadding, textAlign: 'right', whiteSpace: 'nowrap' }}>₹{trades[0]?.remunerationPerDay}/- ( per Day )</td>
                       </tr>
                     </tbody>
                   </table>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: isDenseTopics ? '10px' : '16px', fontWeight: 'bold', fontSize: isDenseTopics ? '11.5px' : '12.5px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: declTitleMarginTop, fontWeight: 'bold', fontSize: declTitleFontSize }}>
                     <div style={{ textDecoration: 'underline' }}>SME DECLARATION</div>
                     <div style={{ textDecoration: 'underline' }}>NIMI VERIFICATION</div>
                   </div>
                   
-                  <div style={{ display: 'flex', gap: '20px', marginTop: '6px', fontSize: isDenseTopics ? '11px' : '11.5px', lineHeight: '1.3' }}>
+                  <div style={{ display: 'flex', gap: isVeryDense ? '12px' : '16px', marginTop: '4px', fontSize: declFontSize, lineHeight: declLineHeight }}>
                     <div style={{ flex: 1 }}>
                       I, <strong>{sme.name}</strong>, <strong>{sme.role}</strong>, hereby declare that I have successfully completed the <strong>{programme.name}</strong> for the <strong>{trades[0]?.tradeName}</strong> trade during the period from <strong>{formatDate(trades[0]?.startDate)}</strong> to <strong>{formatDate(trades[0]?.endDate)}</strong>.
                       <br /><br />
                       I certify that the assigned topics were delivered as per the approved curriculum and that the work has been completed satisfactorily for processing of the honorarium as per applicable NIMI norms.
-                      <br /><br /><br />
+                      <div style={{ height: `${signatureGap}px` }} />
                       Signature of Guest Expert:<br />
                       Designation: {sme.designation}, {sme.institution},<br />
                       {sme.city}, {sme.state}<br />
                       Date: {formatDate(approval.submittedDate)}
                     </div>
                     
-                    <div style={{ flex: 1, paddingLeft: '14px', borderLeft: '1px dashed #cbd5e1' }}>
+                    <div style={{ flex: 1, paddingLeft: isVeryDense ? '10px' : '14px', borderLeft: '1px dashed #cbd5e1' }}>
                       Certified that the above work has been completed satisfactorily and verified as per the requirements of the National Instructional Media Institute (NIMI).
-                      <br /><br /><br /><br />
+                      <div style={{ height: `${signatureGap + 8}px` }} />
                       Signature<br />
                       Name: <strong>{verification.verifierName}</strong><br />
                       Designation: {verification.verifierDesignation}<br />
