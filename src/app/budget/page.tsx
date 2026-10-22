@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export default async function BudgetPage() {
-  const components = await getBudgetComponents();
+  const components = await getBudgetComponents({ summaryOnly: true });
   const role = await getRole();
 
   return (

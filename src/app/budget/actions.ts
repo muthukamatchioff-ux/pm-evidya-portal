@@ -5,11 +5,19 @@ import { revalidatePath } from 'next/cache';
 import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 
-export async function getBudgetComponents() {
+export async function getBudgetComponents(options?: { summaryOnly?: boolean }) {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   try {
+    const isSummary = options?.summaryOnly ?? false;
     const components = await prisma.budgetComponent.findMany({
-      include: {
+      include: isSummary ? {
+        annexureI: { select: { id: true, totalExpenditure: true } },
+        annexureII: { select: { id: true, totalExpenditure: true } },
+        annexureIII: { select: { id: true, totalExpenditure: true } },
+        annexureIV: { select: { id: true, totalExpenditure: true } },
+        annexureV: { select: { id: true, totalExpenditure: true } },
+        annexureVI: { select: { id: true, totalExpenditure: true } },
+      } : {
         annexureI: { orderBy: { createdAt: 'asc' } },
         annexureII: { orderBy: { createdAt: 'asc' } },
         annexureIII: { orderBy: { createdAt: 'desc' } },

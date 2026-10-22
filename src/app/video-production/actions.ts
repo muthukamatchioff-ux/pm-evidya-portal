@@ -162,26 +162,22 @@ export async function getTopicProductionRecords() {
   const email = await getEmail();
 
   try {
-    // 1. Fetch real, authentic database entries directly from PostgreSQL
-    const allEntries = await prisma.sMEWorkEntry.findMany({
-      include: {
-        sme: true,
-        videoLibraries: true,
-        videoEditorRecords: true,
-        shootingSchedules: true,
-      },
-      orderBy: {
-        epicSequence: 'desc'
-      }
-    });
-
-    // 2. Fetch all authentic VideoLibrary records from PostgreSQL
-    const allVideos = await prisma.videoLibrary.findMany({
-      orderBy: { createdAt: 'desc' }
-    });
-
-    // 3. Fetch active Cameramen and Editors to map assigned staff
-    const [cameramen, editors] = await Promise.all([
+    // Concurrently fetch work entries, videos, and staff mapping in a single parallel batch
+    const [allEntries, allVideos, cameramen, editors] = await Promise.all([
+      prisma.sMEWorkEntry.findMany({
+        include: {
+          sme: true,
+          videoLibraries: true,
+          videoEditorRecords: true,
+          shootingSchedules: true,
+        },
+        orderBy: {
+          epicSequence: 'desc'
+        }
+      }),
+      prisma.videoLibrary.findMany({
+        orderBy: { createdAt: 'desc' }
+      }),
       prisma.user.findMany({
         where: { role: 'CAMERAMAN', status: 'ACTIVE' },
         select: { name: true, email: true, department: true }

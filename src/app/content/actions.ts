@@ -314,12 +314,19 @@ export async function getVideos() {
       return REAL_PM_EVIDYA_VIDEOS;
     }
 
-    // Check if any videos have '0:00:00' or missing duration and can be auto-resolved
+    // Fast in-memory resolution for uncalculated video durations from master catalogue without blocking on external network calls
     const uncalculated = videos.filter((v: any) => !v.duration || v.duration === '0:00:00');
     if (uncalculated.length > 0) {
-      // Auto-fill in memory and update DB asynchronously
       for (const v of uncalculated) {
-        const detected = await detectVideoDuration({ title: v.title, videoLink: v.videoLink });
+        const normalizedTitle = (v.title || '').trim().toLowerCase().replace(/[\u2010-\u2015]/g, '-');
+        let detected: string | null = null;
+        for (const [k, dur] of Object.entries(KNOWN_VIDEO_DURATIONS)) {
+          const normK = k.toLowerCase().replace(/[\u2010-\u2015]/g, '-');
+          if (normalizedTitle === normK || normalizedTitle.includes(normK) || normK.includes(normalizedTitle)) {
+            detected = dur;
+            break;
+          }
+        }
         if (detected && detected !== '0:00:00') {
           v.duration = detected;
           prisma.videoLibrary.update({

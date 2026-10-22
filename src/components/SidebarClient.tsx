@@ -126,6 +126,7 @@ export default function SidebarClient({ role, email }: { role: string, email: st
               <Link 
                 key={item.path} 
                 href={item.path!} 
+                prefetch={true}
                 onClick={closeMobile}
                 className={`${styles.navLink} ${isActive ? styles.active : ''}`}
               >

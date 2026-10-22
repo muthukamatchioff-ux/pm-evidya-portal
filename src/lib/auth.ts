@@ -2,6 +2,7 @@
 
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { cache } from 'react';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 
@@ -244,14 +245,18 @@ export async function logout() {
   revalidatePath('/');
 }
 
-export async function getEmail() {
+const getCachedEmail = cache(async () => {
   const cookieStore = await cookies();
   const token = cookieStore.get('session_token')?.value;
   const session = await verifySession(token);
   return session ? session.email : null;
+});
+
+export async function getEmail() {
+  return await getCachedEmail();
 }
 
-export async function getRole() {
+const getCachedRole = cache(async () => {
   const cookieStore = await cookies();
   const token = cookieStore.get('session_token')?.value;
   const session = await verifySession(token);
@@ -262,6 +267,10 @@ export async function getRole() {
   }
 
   return 'VISITOR';
+});
+
+export async function getRole() {
+  return await getCachedRole();
 }
 
 import { redirect } from 'next/navigation';
@@ -300,12 +309,16 @@ export async function requireAuth(allowedRoles: string[]) {
   }
 }
 
-export async function getCurrentUser() {
+const getCachedCurrentUser = cache(async () => {
   const email = await getEmail();
   if (!email) return null;
   return await prisma.user.findUnique({
     where: { email: email.toLowerCase().trim() }
   });
+});
+
+export async function getCurrentUser() {
+  return await getCachedCurrentUser();
 }
 
 import { parseAssignedEpics as parseEpicsSync } from './epicHelpers';
