@@ -74,6 +74,50 @@ async function main() {
     }
   });
 
+  // 4. Higher Official Viewer: Ashfaq
+  await prisma.user.upsert({
+    where: { email: 'ashfaq.nimi@gmail.com' },
+    update: {
+      role: 'HIGHER_OFFICIAL_VIEWER',
+      status: 'ACTIVE',
+      designation: 'Higher Official Viewer',
+      department: 'Review Authority',
+      name: 'Ashfaq'
+    },
+    create: {
+      email: 'ashfaq.nimi@gmail.com',
+      role: 'HIGHER_OFFICIAL_VIEWER',
+      status: 'ACTIVE',
+      designation: 'Higher Official Viewer',
+      department: 'Review Authority',
+      name: 'Ashfaq',
+      password: hash,
+      createdBy: 'System Admin'
+    }
+  });
+
+  // 5. Higher Official Viewer: Rajeswari M
+  await prisma.user.upsert({
+    where: { email: 'rajeswari.m41@gov.in' },
+    update: {
+      role: 'HIGHER_OFFICIAL_VIEWER',
+      status: 'ACTIVE',
+      designation: 'Higher Official Viewer',
+      department: 'Review Authority',
+      name: 'Rajeswari M'
+    },
+    create: {
+      email: 'rajeswari.m41@gov.in',
+      role: 'HIGHER_OFFICIAL_VIEWER',
+      status: 'ACTIVE',
+      designation: 'Higher Official Viewer',
+      department: 'Review Authority',
+      name: 'Rajeswari M',
+      password: hash,
+      createdBy: 'System Admin'
+    }
+  });
+
   console.log('Successfully restored users!');
   const allUsers = await prisma.user.findMany({
     select: {

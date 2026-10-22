@@ -11,6 +11,32 @@ const ADMIN_EMAILS = [
   'harshitharamannimi@gmail.com'
 ];
 
+interface HigherOfficialConfig {
+  email: string;
+  name: string;
+  designation: string;
+  department: string;
+}
+
+const HIGHER_OFFICIAL_ACCOUNTS: HigherOfficialConfig[] = [
+  {
+    email: 'ashfaq.nimi@gmail.com',
+    name: 'Ashfaq',
+    designation: 'Higher Official Viewer',
+    department: 'Review Authority'
+  },
+  {
+    email: 'rajeswari.m41@gov.in',
+    name: 'Rajeswari M',
+    designation: 'Higher Official Viewer',
+    department: 'Review Authority'
+  }
+];
+
+function getHigherOfficialConfig(email: string): HigherOfficialConfig | undefined {
+  return HIGHER_OFFICIAL_ACCOUNTS.find(a => a.email.toLowerCase().trim() === email.toLowerCase().trim());
+}
+
 import { signSession, verifySession } from './session';
 
 function isAdminEmail(email: string) {
@@ -37,15 +63,16 @@ async function createSession(email: string, role: string) {
 
 export async function login(email: string, password: string): Promise<{ success: boolean; error?: string }> {
   const normalizedEmail = email.toLowerCase().trim();
+  const officialConfig = getHigherOfficialConfig(normalizedEmail);
 
-  // First, always check DB for users (including admins)
+  // First, always check DB for users (including admins and higher officials)
   try {
     const dbUser = await prisma.user.findUnique({
       where: { email: normalizedEmail }
     });
 
     if (dbUser && (dbUser.role === 'ADMIN' || dbUser.role === 'TEAM_MEMBER' || dbUser.role === 'VIEWER' || dbUser.role === 'CAMERAMAN' || dbUser.role === 'EDITOR' || dbUser.role === 'HIGHER_OFFICIAL_VIEWER')) {
-      if (dbUser.status !== 'ACTIVE' && !isAdminEmail(normalizedEmail)) {
+      if (dbUser.status !== 'ACTIVE' && !isAdminEmail(normalizedEmail) && !officialConfig) {
         return { success: false, error: 'Account is deactivated.' };
       }
       // If DB user has a password, verify against it
@@ -58,7 +85,8 @@ export async function login(email: string, password: string): Promise<{ success:
               where: { id: dbUser.id },
               data: { 
                 lastLogin: new Date(),
-                ...(isAdminEmail(normalizedEmail) ? { status: 'ACTIVE', role: 'ADMIN' } : {})
+                ...(isAdminEmail(normalizedEmail) ? { status: 'ACTIVE', role: 'ADMIN' } : {}),
+                ...(officialConfig ? { status: 'ACTIVE', role: 'HIGHER_OFFICIAL_VIEWER' } : {})
               }
             });
           } catch(e) {
@@ -66,15 +94,47 @@ export async function login(email: string, password: string): Promise<{ success:
           }
           return await createSession(normalizedEmail, isAdminEmail(normalizedEmail) ? 'ADMIN' : dbUser.role);
         }
-        // If DB password check fails, and it's NOT an admin email, return immediately.
-        // If it IS an admin email, we let it fall through to check the .env fallback.
-        if (!isAdminEmail(normalizedEmail)) {
+        // If DB password check fails, allow admin or higher official fallback to check
+        if (!isAdminEmail(normalizedEmail) && !officialConfig) {
           return { success: false, error: 'Invalid credentials.' };
         }
       }
     }
   } catch (error) {
-    console.warn('Database query failed during login, falling back to ENV if admin', error);
+    console.warn('Database query failed during login, falling back to ENV/official config', error);
+  }
+
+  // Higher Official Account Verification & Self-Healing Provisioning
+  if (officialConfig) {
+    const expectedPassword = process.env.HIGHER_OFFICIAL_PASSWORD || 'Nimi@2026';
+    if (password === expectedPassword) {
+      try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await prisma.user.upsert({
+          where: { email: normalizedEmail },
+          update: {
+            role: 'HIGHER_OFFICIAL_VIEWER',
+            status: 'ACTIVE',
+            lastLogin: new Date(),
+            password: hashedPassword
+          },
+          create: {
+            email: normalizedEmail,
+            name: officialConfig.name,
+            role: 'HIGHER_OFFICIAL_VIEWER',
+            status: 'ACTIVE',
+            designation: officialConfig.designation,
+            department: officialConfig.department,
+            password: hashedPassword,
+            lastLogin: new Date(),
+            createdBy: 'System Provisioning'
+          }
+        });
+      } catch (e) {
+        console.warn('Failed to upsert higher official user in DB, proceeding with session', e);
+      }
+      return await createSession(normalizedEmail, 'HIGHER_OFFICIAL_VIEWER');
+    }
   }
 
   // Fallback: If DB check failed or password was wrong, and this is an Admin Email, check the .env hash
@@ -211,7 +271,13 @@ export async function checkAuth(allowedRoles: string[]): Promise<{ success: true
   if (role === 'VISITOR') {
     return { success: false, error: 'Authentication required.', status: 401, role };
   }
-  if (!allowedRoles.includes(role)) {
+
+  // HIGHER_OFFICIAL_VIEWER is granted view-access wherever VIEWER is allowed
+  const effectiveAllowed = allowedRoles.includes('VIEWER')
+    ? [...allowedRoles, 'HIGHER_OFFICIAL_VIEWER']
+    : allowedRoles;
+
+  if (!effectiveAllowed.includes(role)) {
     return { success: false, error: 'You are not authorized to perform this action.', status: 403, role };
   }
   return { success: true, role };

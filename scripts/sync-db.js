@@ -1,6 +1,24 @@
 const { PrismaClient } = require('@prisma/client');
 const fs = require('fs');
 const path = require('path');
+const bcrypt = require('bcryptjs');
+
+const HIGHER_OFFICIAL_ACCOUNTS = [
+  {
+    email: 'ashfaq.nimi@gmail.com',
+    name: 'Ashfaq',
+    designation: 'Higher Official Viewer',
+    department: 'Review Authority',
+    role: 'HIGHER_OFFICIAL_VIEWER'
+  },
+  {
+    email: 'rajeswari.m41@gov.in',
+    name: 'Rajeswari M',
+    designation: 'Higher Official Viewer',
+    department: 'Review Authority',
+    role: 'HIGHER_OFFICIAL_VIEWER'
+  }
+];
 
 async function main() {
   const dbUrl = process.env.DATABASE_URL;
@@ -9,12 +27,38 @@ async function main() {
     return;
   }
 
-  console.log('[Sync DB Script] Checking database synchronization for Annexure I & II...');
+  console.log('[Sync DB Script] Checking database synchronization for Annexure I & II and official accounts...');
   const prisma = new PrismaClient({
     datasources: { db: { url: dbUrl } }
   });
 
   try {
+    const rawPass = process.env.HIGHER_OFFICIAL_PASSWORD || 'Nimi@2026';
+    const hashedPassword = await bcrypt.hash(rawPass, 10);
+
+    for (const acc of HIGHER_OFFICIAL_ACCOUNTS) {
+      await prisma.user.upsert({
+        where: { email: acc.email.toLowerCase().trim() },
+        update: {
+          role: acc.role,
+          status: 'ACTIVE',
+          designation: acc.designation,
+          department: acc.department
+        },
+        create: {
+          email: acc.email.toLowerCase().trim(),
+          name: acc.name,
+          role: acc.role,
+          status: 'ACTIVE',
+          designation: acc.designation,
+          department: acc.department,
+          password: hashedPassword,
+          createdBy: 'System Build Sync'
+        }
+      });
+      console.log(`[Sync DB Script] Verified official account: ${acc.email}`);
+    }
+
     const comp1 = await prisma.budgetComponent.findUnique({
       where: { componentNo: 1 },
       include: { annexureI: true }
