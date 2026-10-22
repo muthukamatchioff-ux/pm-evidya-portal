@@ -119,6 +119,40 @@ function extractEndDate(reviewComments?: string | null): string | null {
   return match ? match[1].trim() : null;
 }
 
+function safeParseDate(val: any): Date | null {
+  if (!val || val === '') return null;
+  if (val instanceof Date) {
+    return isNaN(val.getTime()) ? null : val;
+  }
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed) return null;
+    const dmy = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (dmy) {
+      const d = parseInt(dmy[1], 10);
+      const m = parseInt(dmy[2], 10);
+      const y = parseInt(dmy[3], 10);
+      const dateObj = new Date(Date.UTC(y, m - 1, d));
+      return isNaN(dateObj.getTime()) ? null : dateObj;
+    }
+    const ymd = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (ymd) {
+      const y = parseInt(ymd[1], 10);
+      const m = parseInt(ymd[2], 10);
+      const d = parseInt(ymd[3], 10);
+      const dateObj = new Date(Date.UTC(y, m - 1, d));
+      return isNaN(dateObj.getTime()) ? null : dateObj;
+    }
+    const parsed = new Date(trimmed);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+  if (typeof val === 'number') {
+    const parsed = new Date(val);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}
+
 export async function getEpicWorkEntries() {
   return await getTopicProductionRecords();
 }
@@ -203,7 +237,8 @@ export async function getTopicProductionRecords() {
         shootingSchedules = combinedVideos.map((v: any, idx: number) => {
           const title = v.title || entry.topic;
           const matchSched = realSchedules.find((s: any) => 
-            s.id === v.id || s.id === `shoot-${v.id}` || (s.videoTitle && s.videoTitle.trim() === title.trim())
+            s.id === v.id || s.id === `shoot-${v.id}` || 
+            (s.videoTitle && title && s.videoTitle.trim().toLowerCase() === title.trim().toLowerCase())
           );
           if (matchSched) {
             return {
@@ -229,7 +264,7 @@ export async function getTopicProductionRecords() {
 
         // Add any standalone real schedules not matching combinedVideos
         realSchedules.forEach((s: any) => {
-          if (!shootingSchedules.some((sc: any) => sc.id === s.id || (sc.videoTitle && s.videoTitle && sc.videoTitle.trim() === s.videoTitle.trim()))) {
+          if (!shootingSchedules.some((sc: any) => sc.id === s.id || (sc.videoTitle && s.videoTitle && sc.videoTitle.trim().toLowerCase() === s.videoTitle.trim().toLowerCase()))) {
             shootingSchedules.push({
               ...s,
               cameraman: cleanCameraman(s.cameraman, assignedCam),
@@ -441,7 +476,9 @@ export async function createShootingSchedule(workEntryId: string, data: any) {
       return { success: false, error: 'Video Title is required.' };
     }
 
-    if (data.scheduledStart && data.scheduledEnd && new Date(data.scheduledEnd) < new Date(data.scheduledStart)) {
+    const schedStart = safeParseDate(data.scheduledStart);
+    const schedEnd = safeParseDate(data.scheduledEnd);
+    if (schedStart && schedEnd && schedEnd < schedStart) {
       return { success: false, error: 'Production End Date cannot be earlier than Production Start Date.' };
     }
 
@@ -475,13 +512,13 @@ export async function createShootingSchedule(workEntryId: string, data: any) {
         data: {
           workEntryId,
           videoTitle: trimmedTitle,
-          shootDate: data.shootDate ? new Date(data.shootDate) : (data.scheduledStart ? new Date(data.scheduledStart) : null),
+          shootDate: safeParseDate(data.shootDate || data.scheduledStart),
           location: data.location || null,
           shootingType: data.shootingType || null,
-          scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : null,
-          scheduledEnd: data.scheduledEnd ? new Date(data.scheduledEnd) : null,
-          actualStart: data.actualStart ? new Date(data.actualStart) : null,
-          actualEnd: data.actualEnd ? new Date(data.actualEnd) : null,
+          scheduledStart: schedStart,
+          scheduledEnd: schedEnd,
+          actualStart: safeParseDate(data.actualStart),
+          actualEnd: safeParseDate(data.actualEnd),
           cameraman: cameramanName,
           status: data.status || 'PLANNED',
           productionNotes: data.productionNotes || null
@@ -527,22 +564,31 @@ export async function createShootingSchedule(workEntryId: string, data: any) {
 
 export async function updateShootingSchedule(id: string, data: any) {
   try {
-    if (data.scheduledStart && data.scheduledEnd && new Date(data.scheduledEnd) < new Date(data.scheduledStart)) {
+    const schedStartVal = safeParseDate(data.scheduledStart);
+    const schedEndVal = safeParseDate(data.scheduledEnd);
+    const shootDateVal = safeParseDate(data.scheduledStart || data.shootDate);
+    const actualStartVal = safeParseDate(data.actualStart);
+    const actualEndVal = safeParseDate(data.actualEnd);
+
+    if (schedStartVal && schedEndVal && schedEndVal < schedStartVal) {
       return { success: false, error: 'Production End Date cannot be earlier than Production Start Date.' };
     }
 
     let prev: any = null;
-    try {
-      prev = await prisma.shootingSchedule.findUnique({ where: { id } });
-    } catch (_) {}
+    if (id) {
+      try {
+        prev = await prisma.shootingSchedule.findUnique({ where: { id } });
+      } catch (_) {}
+    }
 
     let targetWorkEntryId: string | null = data.workEntryId || prev?.workEntryId || null;
     let targetVideoId: string | null = null;
+    let strippedId: string | null = null;
 
-    if (id.startsWith('shoot-')) {
-      const stripped = id.replace('shoot-', '');
+    if (id && id.startsWith('shoot-')) {
+      strippedId = id.replace('shoot-', '');
       // Check if stripped is a VideoLibrary id
-      const video = await prisma.videoLibrary.findUnique({ where: { id: stripped } }).catch(() => null);
+      const video = await prisma.videoLibrary.findUnique({ where: { id: strippedId } }).catch(() => null);
       if (video) {
         targetVideoId = video.id;
         if (!targetWorkEntryId && video.epicId) {
@@ -550,22 +596,29 @@ export async function updateShootingSchedule(id: string, data: any) {
         }
       } else {
         // Check if stripped is a SMEWorkEntry id
-        const entry = await prisma.sMEWorkEntry.findUnique({ where: { id: stripped } }).catch(() => null);
+        const entry = await prisma.sMEWorkEntry.findUnique({ where: { id: strippedId } }).catch(() => null);
         if (entry) {
           if (!targetWorkEntryId) targetWorkEntryId = entry.id;
+        } else {
+          // Check if stripped was an existing ShootingSchedule id
+          const s = await prisma.shootingSchedule.findUnique({ where: { id: strippedId } }).catch(() => null);
+          if (s) {
+            prev = s;
+            if (!targetWorkEntryId) targetWorkEntryId = s.workEntryId;
+          }
         }
       }
     }
 
     // If still no workEntryId and id has no prefix, try finding by id
-    if (!targetWorkEntryId && !prev) {
+    if (!targetWorkEntryId && !prev && id) {
       const entry = await prisma.sMEWorkEntry.findUnique({ where: { id } }).catch(() => null);
       if (entry) targetWorkEntryId = entry.id;
     }
 
     const effectiveWorkEntryId = targetWorkEntryId || prev?.workEntryId;
     if (!effectiveWorkEntryId && !prev) {
-      return { success: false, error: 'Production record not found.' };
+      return { success: false, error: 'Production record not found: Epic ID could not be identified.' };
     }
 
     if (effectiveWorkEntryId) {
@@ -576,28 +629,40 @@ export async function updateShootingSchedule(id: string, data: any) {
     }
 
     const trimmedTitle = data.videoTitle ? data.videoTitle.trim() : (prev?.videoTitle || null);
+    const rawCam = data.cameraman !== undefined ? data.cameraman : prev?.cameraman;
+    const finalCam = cleanCameraman(rawCam);
 
-    // 1. Update VideoLibrary if targetVideoId is known or find by epicId
+    // 1. Sync VideoLibrary (both title and ensure epicId is linked)
     if (targetVideoId) {
       await prisma.videoLibrary.update({
         where: { id: targetVideoId },
         data: {
-          ...(trimmedTitle ? { title: trimmedTitle } : {})
+          ...(trimmedTitle ? { title: trimmedTitle } : {}),
+          ...(effectiveWorkEntryId ? { epicId: effectiveWorkEntryId } : {})
         }
       }).catch(() => null);
     } else if (effectiveWorkEntryId && trimmedTitle) {
       const matchLib = await prisma.videoLibrary.findFirst({
-        where: { epicId: effectiveWorkEntryId }
+        where: {
+          OR: [
+            { epicId: effectiveWorkEntryId },
+            ...(prev?.videoTitle ? [{ title: prev.videoTitle }] : []),
+            { title: trimmedTitle }
+          ]
+        }
       }).catch(() => null);
       if (matchLib) {
         await prisma.videoLibrary.update({
           where: { id: matchLib.id },
-          data: { title: trimmedTitle }
+          data: {
+            title: trimmedTitle,
+            ...(effectiveWorkEntryId ? { epicId: effectiveWorkEntryId } : {})
+          }
         }).catch(() => null);
       }
     }
 
-    // 2. Update SMEWorkEntry topic and status if applicable
+    // 2. Sync SMEWorkEntry topic and status
     if (effectiveWorkEntryId && trimmedTitle) {
       await prisma.sMEWorkEntry.update({
         where: { id: effectiveWorkEntryId },
@@ -610,102 +675,84 @@ export async function updateShootingSchedule(id: string, data: any) {
 
     // 3. Gracefully update or create ShootingSchedule
     let record: any = null;
-    const shootDateVal = data.scheduledStart 
-      ? new Date(data.scheduledStart) 
-      : (data.shootDate ? new Date(data.shootDate) : (prev?.shootDate || null));
-    const schedStartVal = data.scheduledStart 
-      ? new Date(data.scheduledStart) 
-      : (data.scheduledStart === '' ? null : (prev?.scheduledStart || null));
-    const schedEndVal = data.scheduledEnd 
-      ? new Date(data.scheduledEnd) 
-      : (data.scheduledEnd === '' ? null : (prev?.scheduledEnd || null));
-    const actualStartVal = data.actualStart 
-      ? new Date(data.actualStart) 
-      : (data.actualStart === '' ? null : (prev?.actualStart || null));
-    const actualEndVal = data.actualEnd 
-      ? new Date(data.actualEnd) 
-      : (data.actualEnd === '' ? null : (prev?.actualEnd || null));
-    const rawCam = data.cameraman !== undefined ? data.cameraman : prev?.cameraman;
-    const finalCam = cleanCameraman(rawCam);
 
     if (prev) {
-      try {
+      record = await prisma.shootingSchedule.update({
+        where: { id: prev.id },
+        data: {
+          videoTitle: trimmedTitle || prev.videoTitle,
+          shootDate: shootDateVal || prev.shootDate,
+          location: data.location !== undefined ? data.location : prev.location,
+          shootingType: data.shootingType !== undefined ? data.shootingType : prev.shootingType,
+          scheduledStart: schedStartVal !== undefined ? schedStartVal : prev.scheduledStart,
+          scheduledEnd: schedEndVal !== undefined ? schedEndVal : prev.scheduledEnd,
+          actualStart: actualStartVal !== undefined ? actualStartVal : prev.actualStart,
+          actualEnd: actualEndVal !== undefined ? actualEndVal : prev.actualEnd,
+          cameraman: finalCam,
+          status: data.status || prev.status,
+          productionNotes: data.productionNotes !== undefined ? data.productionNotes : prev.productionNotes
+        }
+      });
+    } else if (effectiveWorkEntryId) {
+      // Find existing ShootingSchedule under this Epic:
+      // Try matching by previous title, or new title, or if strippedId matches a schedule
+      const existingShoot = await prisma.shootingSchedule.findFirst({
+        where: {
+          workEntryId: effectiveWorkEntryId,
+          OR: [
+            ...(strippedId ? [{ id: strippedId }] : []),
+            ...(trimmedTitle ? [{ videoTitle: { equals: trimmedTitle, mode: 'insensitive' as const } }] : [])
+          ]
+        }
+      }).catch(() => null);
+
+      if (existingShoot) {
         record = await prisma.shootingSchedule.update({
-          where: { id: prev.id },
+          where: { id: existingShoot.id },
           data: {
-            videoTitle: trimmedTitle || prev.videoTitle,
+            videoTitle: trimmedTitle || existingShoot.videoTitle,
+            shootDate: shootDateVal || existingShoot.shootDate,
+            location: data.location !== undefined ? data.location : existingShoot.location,
+            shootingType: data.shootingType !== undefined ? data.shootingType : existingShoot.shootingType,
+            scheduledStart: schedStartVal !== undefined ? schedStartVal : existingShoot.scheduledStart,
+            scheduledEnd: schedEndVal !== undefined ? schedEndVal : existingShoot.scheduledEnd,
+            actualStart: actualStartVal !== undefined ? actualStartVal : existingShoot.actualStart,
+            actualEnd: actualEndVal !== undefined ? actualEndVal : existingShoot.actualEnd,
+            cameraman: finalCam !== undefined ? finalCam : existingShoot.cameraman,
+            status: data.status || existingShoot.status,
+            productionNotes: data.productionNotes !== undefined ? data.productionNotes : existingShoot.productionNotes
+          }
+        });
+      } else {
+        record = await prisma.shootingSchedule.create({
+          data: {
+            workEntryId: effectiveWorkEntryId,
+            videoTitle: trimmedTitle,
             shootDate: shootDateVal,
-            location: data.location !== undefined ? data.location : prev.location,
-            shootingType: data.shootingType !== undefined ? data.shootingType : prev.shootingType,
+            location: data.location || null,
+            shootingType: data.shootingType || null,
             scheduledStart: schedStartVal,
             scheduledEnd: schedEndVal,
             actualStart: actualStartVal,
             actualEnd: actualEndVal,
             cameraman: finalCam,
-            status: data.status || prev.status,
-            productionNotes: data.productionNotes !== undefined ? data.productionNotes : prev.productionNotes
+            status: data.status || 'PLANNED',
+            productionNotes: data.productionNotes || null
           }
         });
-      } catch (_) {}
-    } else if (effectiveWorkEntryId) {
-      // Find existing ShootingSchedule by workEntryId and trimmedTitle if it exists
-      const existingShoot = trimmedTitle
-        ? await prisma.shootingSchedule.findFirst({
-            where: {
-              workEntryId: effectiveWorkEntryId,
-              videoTitle: trimmedTitle
-            }
-          }).catch(() => null)
-        : null;
-
-      if (existingShoot) {
-        try {
-          record = await prisma.shootingSchedule.update({
-            where: { id: existingShoot.id },
-            data: {
-              videoTitle: trimmedTitle || existingShoot.videoTitle,
-              shootDate: shootDateVal || existingShoot.shootDate,
-              location: data.location !== undefined ? data.location : existingShoot.location,
-              shootingType: data.shootingType !== undefined ? data.shootingType : existingShoot.shootingType,
-              scheduledStart: schedStartVal !== undefined ? schedStartVal : existingShoot.scheduledStart,
-              scheduledEnd: schedEndVal !== undefined ? schedEndVal : existingShoot.scheduledEnd,
-              actualStart: actualStartVal !== undefined ? actualStartVal : existingShoot.actualStart,
-              actualEnd: actualEndVal !== undefined ? actualEndVal : existingShoot.actualEnd,
-              cameraman: finalCam !== undefined ? finalCam : existingShoot.cameraman,
-              status: data.status || existingShoot.status,
-              productionNotes: data.productionNotes !== undefined ? data.productionNotes : existingShoot.productionNotes
-            }
-          });
-        } catch (_) {}
-      } else {
-        // Create a new real ShootingSchedule in PostgreSQL!
-        try {
-          record = await prisma.shootingSchedule.create({
-            data: {
-              workEntryId: effectiveWorkEntryId,
-              videoTitle: trimmedTitle,
-              shootDate: shootDateVal,
-              location: data.location || null,
-              shootingType: data.shootingType || null,
-              scheduledStart: schedStartVal,
-              scheduledEnd: schedEndVal,
-              actualStart: actualStartVal,
-              actualEnd: actualEndVal,
-              cameraman: finalCam,
-              status: data.status || 'PLANNED',
-              productionNotes: data.productionNotes || null
-            }
-          });
-        } catch (_) {}
       }
     }
 
-    // 4. If video title changed, sync assignedVideo in VideoEditorRecord if table exists
+    if (!record) {
+      return { success: false, error: 'Failed to save Production record to database.' };
+    }
+
+    // 4. Sync VideoEditorRecord if title changed
     if (prev?.videoTitle && trimmedTitle && prev.videoTitle !== trimmedTitle) {
       try {
         await prisma.videoEditorRecord.updateMany({
           where: {
-            workEntryId: prev.workEntryId,
+            workEntryId: effectiveWorkEntryId,
             assignedVideo: prev.videoTitle
           },
           data: {
@@ -719,19 +766,11 @@ export async function updateShootingSchedule(id: string, data: any) {
     revalidatePath('/reports');
     return { 
       success: true, 
-      data: record || {
-        id: record?.id || id,
-        workEntryId: effectiveWorkEntryId,
-        videoTitle: trimmedTitle,
-        scheduledStart: data.scheduledStart,
-        scheduledEnd: data.scheduledEnd,
-        status: data.status || 'PLANNED',
-        location: data.location,
-        cameraman: finalCam
-      } 
+      data: record
     };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('Error in updateShootingSchedule:', error);
+    return { success: false, error: error.message || 'Database update failed.' };
   }
 }
 

@@ -21,8 +21,17 @@ import {
 function formatDateForInput(dateVal: any): string {
   if (!dateVal) return '';
   if (typeof dateVal === 'string') {
-    if (dateVal.includes('T')) return dateVal.split('T')[0];
-    return dateVal;
+    const trimmed = dateVal.trim();
+    if (trimmed.includes('T')) return trimmed.split('T')[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+    const dmy = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (dmy) {
+      const d = dmy[1].padStart(2, '0');
+      const m = dmy[2].padStart(2, '0');
+      const y = dmy[3];
+      return `${y}-${m}-${d}`;
+    }
+    return trimmed;
   }
   if (dateVal instanceof Date) {
     try {
@@ -248,9 +257,11 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     if (res.success) {
       setSuccess('✅ Production record updated successfully.');
       const updatedList = await getTopicProductionRecords();
-      if (updatedList.success) setWorkEntries(updatedList.data || []);
-      router.refresh();
+      if (updatedList.success && updatedList.data) {
+        setWorkEntries(updatedList.data);
+      }
       setEditingStage1(null);
+      router.refresh();
     } else {
       setError(res.error || 'Failed to update Production record.');
     }
@@ -552,6 +563,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                                 }
                                 setEditingStage1({
                                   ...s,
+                                  workEntryId: s.workEntryId || selectedEpic.id,
                                   epicSequence: selectedEpic.epicSequence,
                                   smeName: selectedEpic.sme?.name,
                                   trade: selectedEpic.trade
@@ -758,6 +770,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                             className={styles.btnEdit} 
                             onClick={() => setEditingStage1({
                               ...schedule,
+                              workEntryId: schedule.workEntryId || entry.id,
                               epicSequence: entry.epicSequence,
                               smeName: entry.sme?.name,
                               trade: entry.trade
@@ -1103,7 +1116,8 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         <Stage1EditModal 
           record={editingStage1}
           loading={loading}
-          onClose={() => setEditingStage1(null)}
+          errorMessage={error}
+          onClose={() => { setEditingStage1(null); setError(null); }}
           onSave={handleSaveStage1Edit}
         />
       )}
@@ -1167,7 +1181,7 @@ function parseCameramanInit(cam?: string | null) {
   return { select: 'OTHER' as const, custom: trimmed };
 }
 
-function Stage1EditModal({ record, loading, onClose, onSave }: any) {
+function Stage1EditModal({ record, loading, errorMessage, onClose, onSave }: any) {
   const initLoc = parseLocationInit(record.location);
   const initCam = parseCameramanInit(record.cameraman);
 
@@ -1213,7 +1227,7 @@ function Stage1EditModal({ record, loading, onClose, onSave }: any) {
       ...formData,
       location: finalLocation,
       cameraman: finalCameraman,
-      workEntryId: record.workEntryId
+      workEntryId: record.workEntryId || record.epicId
     });
   };
 
@@ -1229,6 +1243,11 @@ function Stage1EditModal({ record, loading, onClose, onSave }: any) {
 
         <form onSubmit={handleSubmit}>
           <div className={styles.modalBody}>
+            {errorMessage && (
+              <div style={{ background: '#fee2e2', border: '1px solid #f87171', color: '#b91c1c', padding: '10px 14px', borderRadius: '6px', fontSize: '13px', marginBottom: '14px' }}>
+                ⚠️ {errorMessage}
+              </div>
+            )}
             <div className={styles.formField}>
               <label className={styles.formLabel}>Video Title / Topic *</label>
               <input 
