@@ -269,28 +269,50 @@ export function buildWorkCompletionWordHtml(params: any, sme: any, entry: any): 
   const topicLines = rawTopics.split(/\r?\n/).map((l: string) => l.trim()).filter(Boolean);
 
   let topicsHtml = '';
-  if (topicLines.length > 3) {
+  if (topicLines.length > 8) {
+    // 3-column table for dense topics
+    const oneThird = Math.ceil(topicLines.length / 3);
+    const col1 = topicLines.slice(0, oneThird);
+    const col2 = topicLines.slice(oneThird, oneThird * 2);
+    const col3 = topicLines.slice(oneThird * 2);
+
+    topicsHtml = `
+      <table style="width: 100%; border: 1pt solid #cbd5e1; background-color: #f8fafc; margin: 4pt 0 6pt 0; padding: 4pt 6pt; font-size: 8pt;">
+        <tr>
+          <td style="width: 33.3%; border: none; vertical-align: top; padding: 1pt 4pt;">
+            ${col1.map((t: string) => `<div style="margin: 1pt 0;">&bull; ${t}</div>`).join('')}
+          </td>
+          <td style="width: 33.3%; border: none; vertical-align: top; padding: 1pt 4pt;">
+            ${col2.map((t: string) => `<div style="margin: 1pt 0;">&bull; ${t}</div>`).join('')}
+          </td>
+          <td style="width: 33.3%; border: none; vertical-align: top; padding: 1pt 4pt;">
+            ${col3.map((t: string) => `<div style="margin: 1pt 0;">&bull; ${t}</div>`).join('')}
+          </td>
+        </tr>
+      </table>
+    `;
+  } else if (topicLines.length > 2) {
     // 2-column table for topics
     const half = Math.ceil(topicLines.length / 2);
     const col1 = topicLines.slice(0, half);
     const col2 = topicLines.slice(half);
 
     topicsHtml = `
-      <table style="width: 100%; border: 1pt solid #cbd5e1; background-color: #f8fafc; margin: 4pt 0 6pt 0; padding: 4pt 8pt; font-size: 8.5pt;">
+      <table style="width: 100%; border: 1pt solid #cbd5e1; background-color: #f8fafc; margin: 5pt 0 8pt 0; padding: 5pt 8pt; font-size: 8.5pt;">
         <tr>
           <td style="width: 50%; border: none; vertical-align: top; padding: 2pt 6pt;">
-            ${col1.map((t: string) => `<div style="margin: 1pt 0;">&bull; ${t}</div>`).join('')}
+            ${col1.map((t: string) => `<div style="margin: 1.5pt 0;">&bull; ${t}</div>`).join('')}
           </td>
           <td style="width: 50%; border: none; vertical-align: top; padding: 2pt 6pt;">
-            ${col2.map((t: string) => `<div style="margin: 1pt 0;">&bull; ${t}</div>`).join('')}
+            ${col2.map((t: string) => `<div style="margin: 1.5pt 0;">&bull; ${t}</div>`).join('')}
           </td>
         </tr>
       </table>
     `;
   } else {
     topicsHtml = `
-      <div style="background-color: #f8fafc; border: 1pt solid #cbd5e1; padding: 4pt 8pt; margin: 4pt 0 6pt 0; font-size: 8.5pt;">
-        ${topicLines.map((t: string) => `<div style="margin: 1pt 0;">&bull; ${t}</div>`).join('')}
+      <div style="background-color: #f8fafc; border: 1pt solid #cbd5e1; padding: 6pt 10pt; margin: 6pt 0 10pt 0; font-size: 9pt;">
+        ${topicLines.map((t: string) => `<div style="margin: 2pt 0;">&bull; ${t}</div>`).join('')}
       </div>
     `;
   }

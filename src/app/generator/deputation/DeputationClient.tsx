@@ -1400,38 +1400,150 @@ export default function DeputationClient({
                 }
                 const topicCount = topicLines.length;
 
-                // 4 Adaptive Density Tiers
-                const isShort = topicCount <= 2;
-                const isMedium = topicCount >= 3 && topicCount <= 4;
-                const isDense = topicCount >= 5 && topicCount <= 7;
-                const isVeryDense = topicCount >= 8;
+                // 5 Adaptive Density Tiers based on actual content
+                const cols = topicCount <= 2 ? 1 : topicCount <= 8 ? 2 : 3;
 
-                // Dynamic typography & spacing tokens
-                const titleMargin = isVeryDense ? '4px 0 3px 0' : isDense ? '6px 0 4px 0' : isMedium ? '8px 0 6px 0' : '10px 0 8px 0';
-                const titleFontSize = isVeryDense ? '14px' : isDense ? '14.5px' : isMedium ? '15px' : '15.5px';
+                // Dynamic typography & proportional spacing tokens
+                let titleFontSize = '16.5px';
+                let titleMargin = '14px 0 14px 0';
+                let bodyFontSize = '12.5px';
+                let bodyLineHeight = '1.52';
+                let paraMargin = '0 0 12px 0';
+                let leadInMargin = '0 0 8px 0';
 
-                const bodyFontSize = isVeryDense ? '10.5px' : isDense ? '11px' : isMedium ? '11.5px' : '12px';
-                const bodyLineHeight = isVeryDense ? '1.26' : isDense ? '1.32' : isMedium ? '1.38' : '1.42';
-                const paraMargin = isVeryDense ? '0 0 3px 0' : isDense ? '0 0 4px 0' : isMedium ? '0 0 5px 0' : '0 0 6px 0';
+                let topicsFontSize = '11.5px';
+                let topicsLineHeight = '1.42';
+                let topicsBoxPadding = '10px 14px';
+                let topicsBoxMargin = '8px 0 14px 0';
+                let topicRowGap = '5px';
 
-                const topicsFontSize = isVeryDense ? '9.5px' : isDense ? '10px' : isMedium ? '10.5px' : '11.5px';
-                const topicsLineHeight = isVeryDense ? '1.22' : isDense ? '1.26' : isMedium ? '1.3' : '1.36';
-                const topicsBoxPadding = isVeryDense ? '3px 8px' : isDense ? '4px 8px' : isMedium ? '5px 10px' : '6px 12px';
-                const topicsBoxMargin = isVeryDense ? '3px 0 4px 0' : isDense ? '4px 0 5px 0' : isMedium ? '5px 0 6px 0' : '6px 0 8px 0';
+                let completionParaMargin = '0 0 14px 0';
 
-                const tableMargin = isVeryDense ? '4px 0 5px 0' : isDense ? '5px 0 7px 0' : isMedium ? '6px 0 8px 0' : '8px 0 10px 0';
-                const tableFontSize = isVeryDense ? '9.5px' : isDense ? '10px' : isMedium ? '10.5px' : '11.5px';
-                const tableCellPadding = isVeryDense ? '2.5px 5px' : isDense ? '3.5px 6px' : isMedium ? '4px 6px' : '5px 8px';
+                let tableFontSize = '12px';
+                let tableCellPadding = '8px 10px';
+                let tableMargin = '14px 0 18px 0';
 
-                const declTitleMarginTop = isVeryDense ? '6px' : isDense ? '8px' : isMedium ? '10px' : '12px';
-                const declTitleFontSize = isVeryDense ? '10.5px' : isDense ? '11px' : isMedium ? '11.5px' : '12px';
-                const declFontSize = isVeryDense ? '9.5px' : isDense ? '10px' : isMedium ? '10.5px' : '11px';
-                const declLineHeight = isVeryDense ? '1.22' : isDense ? '1.25' : isMedium ? '1.28' : '1.32';
-                const signatureGap = isVeryDense ? 10 : isDense ? 14 : isMedium ? 18 : 24;
+                let declTitleMarginTop = '18px';
+                let declTitleFontSize = '12.5px';
+                let declFontSize = '11.5px';
+                let declLineHeight = '1.42';
+                let signatureGap = 48;
+
+                if (topicCount <= 2) {
+                  // Tier 1: 1-2 topics
+                  titleFontSize = '17px';
+                  titleMargin = '16px 0 16px 0';
+                  bodyFontSize = '13px';
+                  bodyLineHeight = '1.58';
+                  paraMargin = '0 0 16px 0';
+                  leadInMargin = '0 0 10px 0';
+                  topicsFontSize = '12.5px';
+                  topicsLineHeight = '1.5';
+                  topicsBoxPadding = '12px 16px';
+                  topicsBoxMargin = '10px 0 18px 0';
+                  topicRowGap = '8px';
+                  completionParaMargin = '0 0 18px 0';
+                  tableFontSize = '12.5px';
+                  tableCellPadding = '10px 12px';
+                  tableMargin = '16px 0 22px 0';
+                  declTitleMarginTop = '24px';
+                  declTitleFontSize = '13px';
+                  declFontSize = '12px';
+                  declLineHeight = '1.5';
+                  signatureGap = 56;
+                } else if (topicCount <= 5) {
+                  // Tier 2: 3-5 topics
+                  titleFontSize = '16.5px';
+                  titleMargin = '14px 0 14px 0';
+                  bodyFontSize = '12.5px';
+                  bodyLineHeight = '1.54';
+                  paraMargin = '0 0 14px 0';
+                  leadInMargin = '0 0 8px 0';
+                  topicsFontSize = '12px';
+                  topicsLineHeight = '1.45';
+                  topicsBoxPadding = '10px 14px';
+                  topicsBoxMargin = '8px 0 16px 0';
+                  topicRowGap = '6px';
+                  completionParaMargin = '0 0 16px 0';
+                  tableFontSize = '12px';
+                  tableCellPadding = '9px 11px';
+                  tableMargin = '14px 0 20px 0';
+                  declTitleMarginTop = '20px';
+                  declTitleFontSize = '12.5px';
+                  declFontSize = '11.5px';
+                  declLineHeight = '1.45';
+                  signatureGap = 50;
+                } else if (topicCount <= 8) {
+                  // Tier 3: 6-8 topics
+                  titleFontSize = '16px';
+                  titleMargin = '12px 0 12px 0';
+                  bodyFontSize = '12px';
+                  bodyLineHeight = '1.48';
+                  paraMargin = '0 0 11px 0';
+                  leadInMargin = '0 0 7px 0';
+                  topicsFontSize = '11px';
+                  topicsLineHeight = '1.38';
+                  topicsBoxPadding = '9px 12px';
+                  topicsBoxMargin = '7px 0 13px 0';
+                  topicRowGap = '5px';
+                  completionParaMargin = '0 0 13px 0';
+                  tableFontSize = '11.5px';
+                  tableCellPadding = '7.5px 9px';
+                  tableMargin = '12px 0 16px 0';
+                  declTitleMarginTop = '18px';
+                  declTitleFontSize = '12px';
+                  declFontSize = '11px';
+                  declLineHeight = '1.4';
+                  signatureGap = 44;
+                } else if (topicCount <= 14) {
+                  // Tier 4: 9-14 topics (Shri M Mayapandi has 13 topics)
+                  titleFontSize = '16px';
+                  titleMargin = '12px 0 11px 0';
+                  bodyFontSize = '12px';
+                  bodyLineHeight = '1.45';
+                  paraMargin = '0 0 10px 0';
+                  leadInMargin = '0 0 6px 0';
+                  topicsFontSize = '10.5px';
+                  topicsLineHeight = '1.34';
+                  topicsBoxPadding = '8px 12px';
+                  topicsBoxMargin = '6px 0 11px 0';
+                  topicRowGap = '4px';
+                  completionParaMargin = '0 0 11px 0';
+                  tableFontSize = '11.5px';
+                  tableCellPadding = '6.5px 8.5px';
+                  tableMargin = '11px 0 14px 0';
+                  declTitleMarginTop = '15px';
+                  declTitleFontSize = '12px';
+                  declFontSize = '11px';
+                  declLineHeight = '1.36';
+                  signatureGap = 40;
+                } else {
+                  // Tier 5: 15+ topics
+                  titleFontSize = '15.5px';
+                  titleMargin = '9px 0 8px 0';
+                  bodyFontSize = '11.5px';
+                  bodyLineHeight = '1.36';
+                  paraMargin = '0 0 7px 0';
+                  leadInMargin = '0 0 4px 0';
+                  topicsFontSize = '10px';
+                  topicsLineHeight = '1.26';
+                  topicsBoxPadding = '6px 10px';
+                  topicsBoxMargin = '5px 0 8px 0';
+                  topicRowGap = '3px';
+                  completionParaMargin = '0 0 8px 0';
+                  tableFontSize = '10.5px';
+                  tableCellPadding = '5px 7px';
+                  tableMargin = '8px 0 10px 0';
+                  declTitleMarginTop = '12px';
+                  declTitleFontSize = '11.5px';
+                  declFontSize = '10.5px';
+                  declLineHeight = '1.3';
+                  signatureGap = 30;
+                }
 
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-                    <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: titleFontSize, margin: titleMargin, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: titleFontSize, margin: titleMargin, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 'bold', color: '#000' }}>
                       Work Completion Certificate
                     </h2>
 
@@ -1444,13 +1556,16 @@ export default function DeputationClient({
                         As the <strong>Guest Expert / Subject Matter Expert (SME)</strong>, <strong>{sme.name || 'the SME'}</strong> effectively delivered the assigned classroom sessions in accordance with the approved curriculum, ensuring technical accuracy, instructional quality, and compliance with the applicable standards for PM e-Vidya digital learning content.
                       </p>
                       
-                      <p style={{ margin: isVeryDense ? '0 0 2px 0' : '0 0 3px 0' }}>
+                      <p style={{ margin: leadInMargin }}>
                         The following topics were successfully delivered and recorded for integration into the PM e-Vidya Digital Learning Platform:
                       </p>
 
-                      {/* Adaptive Topics Box with Word-Wrapping and Guaranteed Zero Truncation */}
-                      {topicCount <= 2 ? (
+                      {/* Content-Aware Adaptive Topics Container */}
+                      {cols === 1 ? (
                         <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: topicRowGap,
                           padding: topicsBoxPadding,
                           margin: topicsBoxMargin,
                           fontSize: topicsFontSize,
@@ -1466,12 +1581,12 @@ export default function DeputationClient({
                             </div>
                           ))}
                         </div>
-                      ) : topicCount <= 10 ? (
+                      ) : cols === 2 ? (
                         <div style={{
                           display: 'grid',
                           gridTemplateColumns: '1fr 1fr',
-                          columnGap: isVeryDense ? '10px' : '14px',
-                          rowGap: isVeryDense ? '2px' : '3px',
+                          columnGap: '14px',
+                          rowGap: topicRowGap,
                           padding: topicsBoxPadding,
                           margin: topicsBoxMargin,
                           fontSize: topicsFontSize,
@@ -1491,8 +1606,8 @@ export default function DeputationClient({
                         <div style={{
                           display: 'grid',
                           gridTemplateColumns: '1fr 1fr 1fr',
-                          columnGap: '8px',
-                          rowGap: '2px',
+                          columnGap: '9px',
+                          rowGap: topicRowGap,
                           padding: topicsBoxPadding,
                           margin: topicsBoxMargin,
                           fontSize: topicsFontSize,
@@ -1502,7 +1617,7 @@ export default function DeputationClient({
                           lineHeight: topicsLineHeight
                         }}>
                           {topicLines.map((t: string, idx: number) => (
-                            <div key={idx} style={{ display: 'flex', gap: '4px', alignItems: 'flex-start', minWidth: 0 }}>
+                            <div key={idx} style={{ display: 'flex', gap: '5px', alignItems: 'flex-start', minWidth: 0 }}>
                               <span style={{ color: '#000080', fontWeight: 700, flexShrink: 0 }}>•</span>
                               <span style={{ wordBreak: 'break-word', overflowWrap: 'break-word', minWidth: 0, whiteSpace: 'normal' }}>{t}</span>
                             </div>
@@ -1510,7 +1625,7 @@ export default function DeputationClient({
                         </div>
                       )}
 
-                      <p style={{ margin: paraMargin }}>
+                      <p style={{ margin: completionParaMargin }}>
                         The recorded classroom sessions have been completed satisfactorily and are certified for further processing as per the applicable NIMI norms.
                       </p>
 
@@ -1543,7 +1658,7 @@ export default function DeputationClient({
                         <div style={{ textDecoration: 'underline' }}>NIMI VERIFICATION</div>
                       </div>
 
-                      <div style={{ display: 'flex', gap: isVeryDense ? '12px' : '16px', marginTop: '4px', fontSize: declFontSize, lineHeight: declLineHeight }}>
+                      <div style={{ display: 'flex', gap: '16px', marginTop: '6px', fontSize: declFontSize, lineHeight: declLineHeight }}>
                         <div style={{ flex: 1 }}>
                           I, <strong>{sme.name || 'Subject Matter Expert'}</strong>, hereby declare that I have successfully completed the <strong>{stageBParams.programmeName}</strong> for the <strong>{bTrade}</strong> {isBMultipleTrades ? 'trades' : 'trade'} during the period from <strong>{formatDateDot(stageBParams.startDate)}</strong> to <strong>{formatDateDot(stageBParams.endDate)}</strong>.
                           <br /><br />
@@ -1554,7 +1669,7 @@ export default function DeputationClient({
                           Date: {formatDateDot(stageBParams.submissionDate)}
                         </div>
 
-                        <div style={{ flex: 1, paddingLeft: isVeryDense ? '10px' : '14px', borderLeft: '1px dashed #cbd5e1' }}>
+                        <div style={{ flex: 1, paddingLeft: '14px', borderLeft: '1px dashed #cbd5e1' }}>
                           Certified that the above work has been completed satisfactorily and verified as per the requirements of the National Instructional Media Institute (NIMI).
                           <div style={{ height: `${signatureGap + 8}px` }} />
                           Signature<br />
