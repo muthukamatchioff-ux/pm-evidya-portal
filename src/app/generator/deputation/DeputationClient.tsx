@@ -111,6 +111,9 @@ export default function DeputationClient({
             topic: prev.topic || newEntry.topic,
             attendanceFrom: prev.attendanceFrom || newEntry.attendanceFrom,
             attendanceTo: prev.attendanceTo || newEntry.attendanceTo,
+            trade: prev.trade || newEntry.trade,
+            days: prev.days || newEntry.days,
+            ratePerDay: (prev.ratePerDay && prev.ratePerDay !== 1500) ? prev.ratePerDay : (newEntry.ratePerDay || prev.ratePerDay || 1500),
             documents: mergedDocs
           };
         });
@@ -188,6 +191,7 @@ export default function DeputationClient({
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
     topicsCovered: '',
+    ratePerDay: 1500,
     submissionDate: new Date().toISOString().split('T')[0],
     verifierName: 'Shri. Ashfaq Ahmed',
     verifierDesignation: 'Assistant Manager',
@@ -220,6 +224,11 @@ export default function DeputationClient({
   const [hasSavedDocC, setHasSavedDocC] = useState(false);
   const [docCLastSavedAt, setDocCLastSavedAt] = useState<string | null>(null);
 
+  // Unified Honorarium Rate per Day (ensures Stage B Work Completion Certificate always shows Remuneration rate, e.g. 2500)
+  const effectiveRatePerDay = useMemo(() => {
+    return stageBParams.ratePerDay || stageCParams.ratePerDay || selectedEntry?.ratePerDay || 1500;
+  }, [stageBParams.ratePerDay, stageCParams.ratePerDay, selectedEntry?.ratePerDay]);
+
   // Synchronize state when selectedEntry changes (switching SME)
   useEffect(() => {
     if (!selectedEntry) return;
@@ -235,9 +244,14 @@ export default function DeputationClient({
     const payments = selectedEntry.payments || [];
     const payment = payments[0] || {};
 
-    // 1. Stage A initialization (localStorage cache first, then DB doc, then default)
+    // 1. Stage A initialization (localStorage cache first, then DB doc with filePath, then companion doc, then default)
     const savedA = getSavedParams('STAGE_A', selectedEntry.id);
-    const docA = docs.find((d: any) => d.type === 'STAGE_A_APPROVAL_LETTER');
+    const docA =
+      docs.find((d: any) => d.type === 'STAGE_A_APPROVAL_LETTER' && d.filePath) ||
+      docs.find((d: any) => d.type === 'APPROVAL_LETTER' && d.filePath) ||
+      docs.find((d: any) => d.type === 'STAGE_A_APPROVAL_LETTER') ||
+      docs.find((d: any) => d.type === 'APPROVAL_LETTER');
+
     if (savedA) {
       setStageAParams(savedA);
       setHasSavedDocA(true);
@@ -250,6 +264,7 @@ export default function DeputationClient({
         setHasSavedDocA(true);
         setIsEditingA(false);
         setDocALastSavedAt(docA.updatedAt || docA.createdAt);
+        persistSavedParams('STAGE_A', selectedEntry.id, parsed);
       } catch {
         initDefaultStageA(selectedEntry, sme);
       }
@@ -257,32 +272,17 @@ export default function DeputationClient({
       initDefaultStageA(selectedEntry, sme);
     }
 
-    // 2. Stage B initialization (localStorage cache first, then DB doc, then default)
-    const savedB = getSavedParams('STAGE_B', selectedEntry.id);
-    const docB = docs.find((d: any) => d.type === 'STAGE_B_WORK_COMPLETION' || d.type === 'WORK_COMPLETION');
-    if (savedB) {
-      setStageBParams(savedB);
-      setHasSavedDocB(true);
-      setIsEditingB(false);
-      setDocBLastSavedAt(docB?.updatedAt || docB?.createdAt || new Date().toISOString());
-    } else if (docB?.filePath) {
-      try {
-        const parsed = JSON.parse(docB.filePath);
-        setStageBParams(parsed);
-        setHasSavedDocB(true);
-        setIsEditingB(false);
-        setDocBLastSavedAt(docB.updatedAt || docB.createdAt);
-      } catch {
-        initDefaultStageB(selectedEntry);
-      }
-    } else {
-      initDefaultStageB(selectedEntry);
-    }
-
-    // 3. Stage C initialization (localStorage cache first, then DB doc, then default)
+    // 3. Stage C initialization first to determine accurate Remuneration rate
     const savedC = getSavedParams('STAGE_C', selectedEntry.id);
-    const docC = docs.find((d: any) => d.type === 'STAGE_C_REMUNERATION' || d.type === 'PAYMENT_NOTE');
+    const docC =
+      docs.find((d: any) => d.type === 'STAGE_C_REMUNERATION' && d.filePath) ||
+      docs.find((d: any) => d.type === 'PAYMENT_NOTE' && d.filePath) ||
+      docs.find((d: any) => d.type === 'STAGE_C_REMUNERATION') ||
+      docs.find((d: any) => d.type === 'PAYMENT_NOTE');
+
+    let loadedStageCRate = selectedEntry.ratePerDay || 1500;
     if (savedC) {
+      if (savedC.ratePerDay) loadedStageCRate = Number(savedC.ratePerDay);
       setStageCParams(savedC);
       setHasSavedDocC(true);
       setIsEditingC(false);
@@ -311,20 +311,57 @@ export default function DeputationClient({
         parsed.otherAmount = 0;
         const sumDays = parsed.attendanceSlots.reduce((acc: number, s: any) => acc + calculateSlotDays(s.startDate, s.endDate), 0);
         parsed.totalDays = sumDays > 0 ? sumDays : (Number(parsed.totalDays) || 4);
-        const rate = Number(parsed.ratePerDay) || 1500;
+        const rate = Number(parsed.ratePerDay) || Number(selectedEntry.ratePerDay) || 1500;
+        parsed.ratePerDay = rate;
+        loadedStageCRate = rate;
         parsed.grossAmount = parsed.totalDays * rate;
         parsed.totalAmount = parsed.grossAmount;
         parsed.amountInWords = numberToWords(parsed.totalAmount);
 
+        persistSavedParams('STAGE_C', selectedEntry.id, parsed);
         setStageCParams(parsed);
         setHasSavedDocC(true);
         setIsEditingC(false);
         setDocCLastSavedAt(docC.updatedAt || docC.createdAt);
       } catch {
-        initDefaultStageC(selectedEntry, payment);
+        initDefaultStageC(selectedEntry, payment, loadedStageCRate);
       }
     } else {
-      initDefaultStageC(selectedEntry, payment);
+      initDefaultStageC(selectedEntry, payment, loadedStageCRate);
+    }
+
+    // 2. Stage B initialization (always prioritize valid filePath to prevent resetting to defaults)
+    const savedB = getSavedParams('STAGE_B', selectedEntry.id);
+    const docB =
+      docs.find((d: any) => d.type === 'STAGE_B_WORK_COMPLETION' && d.filePath) ||
+      docs.find((d: any) => d.type === 'WORK_COMPLETION' && d.filePath) ||
+      docs.find((d: any) => d.type === 'STAGE_B_WORK_COMPLETION') ||
+      docs.find((d: any) => d.type === 'WORK_COMPLETION');
+
+    if (savedB) {
+      if (!savedB.ratePerDay || (loadedStageCRate && loadedStageCRate !== 1500 && savedB.ratePerDay === 1500)) {
+        savedB.ratePerDay = loadedStageCRate;
+      }
+      setStageBParams(savedB);
+      setHasSavedDocB(true);
+      setIsEditingB(false);
+      setDocBLastSavedAt(docB?.updatedAt || docB?.createdAt || new Date().toISOString());
+    } else if (docB?.filePath) {
+      try {
+        const parsed = JSON.parse(docB.filePath);
+        if (!parsed.ratePerDay || (loadedStageCRate && loadedStageCRate !== 1500 && parsed.ratePerDay === 1500)) {
+          parsed.ratePerDay = loadedStageCRate;
+        }
+        persistSavedParams('STAGE_B', selectedEntry.id, parsed);
+        setStageBParams(parsed);
+        setHasSavedDocB(true);
+        setIsEditingB(false);
+        setDocBLastSavedAt(docB.updatedAt || docB.createdAt);
+      } catch {
+        initDefaultStageB(selectedEntry, loadedStageCRate);
+      }
+    } else {
+      initDefaultStageB(selectedEntry, loadedStageCRate);
     }
   }, [selectedEntryId, entries]);
 
@@ -352,13 +389,14 @@ export default function DeputationClient({
     setDocALastSavedAt(null);
   };
 
-  const initDefaultStageB = (entry: any) => {
+  const initDefaultStageB = (entry: any, defaultRate?: number) => {
     const startDate = entry.attendanceFrom
       ? new Date(entry.attendanceFrom).toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0];
     const endDate = entry.attendanceTo
       ? new Date(entry.attendanceTo).toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0];
+    const rate = defaultRate || entry.ratePerDay || 1500;
 
     setStageBParams({
       programmeName: 'PM e-Vidya Classroom Teaching Video Production',
@@ -367,6 +405,7 @@ export default function DeputationClient({
       startDate,
       endDate,
       topicsCovered: entry.topic || 'Classroom Teaching & E-Content Production for PM e-Vidya',
+      ratePerDay: rate,
       submissionDate: new Date().toISOString().split('T')[0],
       verifierName: 'Shri. Ashfaq Ahmed',
       verifierDesignation: 'Assistant Manager',
@@ -378,8 +417,8 @@ export default function DeputationClient({
     setDocBLastSavedAt(null);
   };
 
-  const initDefaultStageC = (entry: any, payment: any) => {
-    const ratePerDay = entry.ratePerDay || 1500;
+  const initDefaultStageC = (entry: any, payment: any, defaultRate?: number) => {
+    const ratePerDay = defaultRate || entry.ratePerDay || 1500;
     const startDate = entry.attendanceFrom
       ? new Date(entry.attendanceFrom).toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0];
@@ -524,6 +563,10 @@ export default function DeputationClient({
       updated.amountInWords = numberToWords(gross);
       return updated;
     });
+    if (field === 'ratePerDay') {
+      const newRate = Number(value) || 0;
+      setStageBParams(prev => ({ ...prev, ratePerDay: newRate }));
+    }
   };
 
   // Save Handlers
@@ -558,8 +601,26 @@ export default function DeputationClient({
     if (!selectedEntry) return;
     setIsSavingB(true);
     try {
-      persistSavedParams('STAGE_B', selectedEntry.id, stageBParams);
-      const res = await saveCommunicationsStage(selectedEntry.id, 'STAGE_B', stageBParams);
+      const bParamsToSave = { ...stageBParams, ratePerDay: effectiveRatePerDay };
+      persistSavedParams('STAGE_B', selectedEntry.id, bParamsToSave);
+
+      // Keep Stage C cache updated if rate changed
+      const currentC = getSavedParams('STAGE_C', selectedEntry.id) || stageCParams;
+      if (currentC && currentC.ratePerDay !== effectiveRatePerDay) {
+        const totalDays = Number(currentC.totalDays) || 4;
+        const gross = totalDays * effectiveRatePerDay;
+        const updatedC = {
+          ...currentC,
+          ratePerDay: effectiveRatePerDay,
+          grossAmount: gross,
+          totalAmount: gross,
+          amountInWords: numberToWords(gross)
+        };
+        persistSavedParams('STAGE_C', selectedEntry.id, updatedC);
+        setStageCParams(updatedC);
+      }
+
+      const res = await saveCommunicationsStage(selectedEntry.id, 'STAGE_B', bParamsToSave);
       if (res.success && res.document) {
         setHasSavedDocB(true);
         setIsEditingB(false);
@@ -569,6 +630,7 @@ export default function DeputationClient({
           const otherDocs = (e.documents || []).filter((d: any) => d.type !== 'STAGE_B_WORK_COMPLETION' && d.type !== 'WORK_COMPLETION');
           return {
             ...e,
+            ratePerDay: effectiveRatePerDay,
             topic: stageBParams.topicsCovered || e.topic,
             attendanceFrom: stageBParams.startDate ? new Date(stageBParams.startDate) : e.attendanceFrom,
             attendanceTo: stageBParams.endDate ? new Date(stageBParams.endDate) : e.attendanceTo,
@@ -591,6 +653,13 @@ export default function DeputationClient({
     setIsSavingC(true);
     try {
       persistSavedParams('STAGE_C', selectedEntry.id, stageCParams);
+
+      // Keep Stage B in sync with Stage C's ratePerDay
+      const currentB = getSavedParams('STAGE_B', selectedEntry.id) || stageBParams;
+      const updatedB = { ...currentB, ratePerDay: stageCParams.ratePerDay };
+      persistSavedParams('STAGE_B', selectedEntry.id, updatedB);
+      setStageBParams(prev => ({ ...prev, ratePerDay: stageCParams.ratePerDay }));
+
       const res = await saveCommunicationsStage(selectedEntry.id, 'STAGE_C', stageCParams);
       if (res.success && res.document) {
         setHasSavedDocC(true);
@@ -673,7 +742,7 @@ export default function DeputationClient({
       if (docTypeLabel === 'Approval_Letter') {
         docHtml = buildApprovalLetterWordHtml(stageAParams, sme, selectedEntry);
       } else if (docTypeLabel === 'Work_Completion') {
-        docHtml = buildWorkCompletionWordHtml(stageBParams, sme, selectedEntry);
+        docHtml = buildWorkCompletionWordHtml({ ...stageBParams, ratePerDay: effectiveRatePerDay }, sme, { ...selectedEntry, ratePerDay: effectiveRatePerDay });
       } else if (docTypeLabel === 'Remuneration_Note') {
         docHtml = buildRemunerationWordHtml(stageCParams, sme, selectedEntry);
       } else if (ref?.current) {
@@ -1327,8 +1396,8 @@ export default function DeputationClient({
               />
             </div>
 
-            {/* Completion Dates */}
-            <div className={styles.formSectionTitle}>Completion Schedule</div>
+            {/* Completion Dates & Rate */}
+            <div className={styles.formSectionTitle}>Completion Schedule &amp; Rate</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div className={styles.fieldGroup}>
                 <label>Start Date</label>
@@ -1350,6 +1419,20 @@ export default function DeputationClient({
                   onChange={e => setStageBParams({ ...stageBParams, endDate: e.target.value })}
                 />
               </div>
+            </div>
+            <div className={styles.fieldGroup} style={{ marginTop: '10px' }}>
+              <label>Honorarium Rate per Day (₹)</label>
+              <input
+                type="number"
+                className={styles.inputField}
+                disabled={!isEditingB && hasSavedDocB}
+                value={stageBParams.ratePerDay ?? effectiveRatePerDay}
+                onChange={e => {
+                  const val = Number(e.target.value) || 0;
+                  setStageBParams(prev => ({ ...prev, ratePerDay: val }));
+                  handleStageCChange('ratePerDay', val);
+                }}
+              />
             </div>
 
             {/* Topics Covered */}
@@ -1714,7 +1797,7 @@ export default function DeputationClient({
                             </td>
                             <td style={{ padding: tableCellPadding, wordBreak: 'break-word' }}>{stageBParams.workTitle}</td>
                             <td style={{ padding: tableCellPadding, textAlign: 'center', whiteSpace: 'nowrap' }}>{formatDateDot(stageBParams.startDate)} &ndash; {formatDateDot(stageBParams.endDate)}</td>
-                            <td style={{ padding: tableCellPadding, textAlign: 'right', whiteSpace: 'nowrap' }}>₹{selectedEntry.ratePerDay || 1500}/- (per Day)</td>
+                            <td style={{ padding: tableCellPadding, textAlign: 'right', whiteSpace: 'nowrap' }}>₹{effectiveRatePerDay}/- (per Day)</td>
                           </tr>
                         </tbody>
                       </table>

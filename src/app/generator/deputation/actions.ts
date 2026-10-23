@@ -35,6 +35,7 @@ export interface StageBParameters {
   startDate: string;
   endDate: string;
   topicsCovered: string;
+  ratePerDay?: number;
   trade?: string;
   attendanceSlots?: AttendanceSlot[];
   submissionDate: string;
@@ -60,6 +61,21 @@ export interface StageCParameters {
   submissionDate: string;
   verifierName?: string;
   verifierDesignation?: string;
+}
+
+function numberToWords(num: number): string {
+  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  if ((num = num.toString().length > 9 ? parseFloat(num.toString().slice(0, 9)) : num) === 0) return 'Zero Only';
+  const n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+  if (!n) return '';
+  let str = '';
+  str += (Number(n[1]) !== 0) ? (a[Number(n[1])] || b[Number(n[1][0])] + ' ' + a[Number(n[1][1])]) + 'Crore ' : '';
+  str += (Number(n[2]) !== 0) ? (a[Number(n[2])] || b[Number(n[2][0])] + ' ' + a[Number(n[2][1])]) + 'Lakh ' : '';
+  str += (Number(n[3]) !== 0) ? (a[Number(n[3])] || b[Number(n[3][0])] + ' ' + a[Number(n[3][1])]) + 'Thousand ' : '';
+  str += (Number(n[4]) !== 0) ? (a[Number(n[4])] || b[Number(n[4][0])] + ' ' + a[Number(n[4][1])]) + 'Hundred ' : '';
+  str += (Number(n[5]) !== 0) ? ((str !== '') ? 'and ' : '') + (a[Number(n[5])] || b[Number(n[5][0])] + ' ' + a[Number(n[5][1])]) : '';
+  return str.trim() + ' Only';
 }
 
 function getEpicId(epicSequence: number): string {
@@ -349,13 +365,17 @@ export async function saveCommunicationsStage(
 
       // Sync primary fields in SMEWorkEntry without overwriting Stage A or Stage C
       try {
+        const smeWorkBUpdate: any = {
+          topic: parameters.topicsCovered || workEntry.topic,
+          attendanceFrom: parameters.startDate ? new Date(parameters.startDate) : workEntry.attendanceFrom,
+          attendanceTo: parameters.endDate ? new Date(parameters.endDate) : workEntry.attendanceTo,
+        };
+        if (parameters.ratePerDay) {
+          smeWorkBUpdate.ratePerDay = Number(parameters.ratePerDay);
+        }
         await prisma.sMEWorkEntry.update({
           where: { id: actualWorkEntryId },
-          data: {
-            topic: parameters.topicsCovered || workEntry.topic,
-            attendanceFrom: parameters.startDate ? new Date(parameters.startDate) : workEntry.attendanceFrom,
-            attendanceTo: parameters.endDate ? new Date(parameters.endDate) : workEntry.attendanceTo,
-          }
+          data: smeWorkBUpdate
         });
       } catch {}
 
@@ -370,6 +390,28 @@ export async function saveCommunicationsStage(
           });
         }
       } catch {}
+
+      if (parameters.ratePerDay) {
+        try {
+          const stageCDoc = await prisma.document.findFirst({
+            where: { workEntryId: actualWorkEntryId, type: 'STAGE_C_REMUNERATION' }
+          });
+          if (stageCDoc && stageCDoc.filePath) {
+            try {
+              const cParams = JSON.parse(stageCDoc.filePath);
+              cParams.ratePerDay = Number(parameters.ratePerDay);
+              const totalDays = Number(cParams.totalDays) || 4;
+              cParams.grossAmount = totalDays * cParams.ratePerDay;
+              cParams.totalAmount = cParams.grossAmount;
+              cParams.amountInWords = numberToWords(cParams.totalAmount);
+              await prisma.document.update({
+                where: { id: stageCDoc.id },
+                data: { filePath: JSON.stringify(cParams) }
+              });
+            } catch {}
+          }
+        } catch {}
+      }
 
       try {
         await logAudit({
@@ -498,6 +540,36 @@ export async function saveCommunicationsStage(
         }
       } catch {}
 
+      // Keep STAGE_B_WORK_COMPLETION and WORK_COMPLETION ratePerDay synchronized
+      try {
+        const stageBDoc = await prisma.document.findFirst({
+          where: { workEntryId: actualWorkEntryId, type: 'STAGE_B_WORK_COMPLETION' }
+        });
+        if (stageBDoc && stageBDoc.filePath) {
+          try {
+            const bParams = JSON.parse(stageBDoc.filePath);
+            bParams.ratePerDay = ratePerDay;
+            await prisma.document.update({
+              where: { id: stageBDoc.id },
+              data: { filePath: JSON.stringify(bParams) }
+            });
+          } catch {}
+        }
+        const wcDoc = await prisma.document.findFirst({
+          where: { workEntryId: actualWorkEntryId, type: 'WORK_COMPLETION' }
+        });
+        if (wcDoc && wcDoc.filePath) {
+          try {
+            const bParams = JSON.parse(wcDoc.filePath);
+            bParams.ratePerDay = ratePerDay;
+            await prisma.document.update({
+              where: { id: wcDoc.id },
+              data: { filePath: JSON.stringify(bParams) }
+            });
+          } catch {}
+        }
+      } catch {}
+
       try {
         await logAudit({
           action: 'SAVE_STAGE_C_REMUNERATION',
@@ -515,6 +587,7 @@ export async function saveCommunicationsStage(
         fallbackEntry.topic = parameters.topicsCovered || fallbackEntry.topic;
         if (parameters.startDate) fallbackEntry.attendanceFrom = new Date(parameters.startDate).toISOString();
         if (parameters.endDate) fallbackEntry.attendanceTo = new Date(parameters.endDate).toISOString();
+        if (parameters.ratePerDay) fallbackEntry.ratePerDay = Number(parameters.ratePerDay);
       } else if (stage === 'STAGE_C') {
         fallbackEntry.trade = parameters.trade || fallbackEntry.trade;
         fallbackEntry.days = Number(parameters.totalDays) || fallbackEntry.days;

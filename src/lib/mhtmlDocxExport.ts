@@ -361,7 +361,7 @@ export function buildWorkCompletionWordHtml(params: any, sme: any, entry: any): 
           </td>
           <td style="border: 1pt solid #000; padding: 4pt 6pt;">${params.workTitle || 'Classroom Teaching Video Production'}</td>
           <td style="border: 1pt solid #000; padding: 4pt 6pt;">${formatDateDot(params.startDate)} &ndash; ${formatDateDot(params.endDate)}</td>
-          <td style="border: 1pt solid #000; padding: 4pt 6pt;">₹${entry?.ratePerDay || 1500}/- (per Day)</td>
+          <td style="border: 1pt solid #000; padding: 4pt 6pt;">₹${params?.ratePerDay || entry?.ratePerDay || 1500}/- (per Day)</td>
         </tr>
       </tbody>
     </table>
