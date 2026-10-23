@@ -3162,7 +3162,7 @@ export const REAL_PM_EVIDYA_SME_WORK_ENTRIES = [
     "id": "cmus2g11g000v3rxkn7i98yyj",
     "smeId": "cmus2g11g000u3rxk4ado6ium",
     "trade": "Artificial Intelligence Programming Assistant (AIPA)",
-    "topic": "Advanced AI Tools & Machine Learning in ITI Curriculum",
+    "topic": "Module 1: AI Prompt Engineering\nModule 2: Multimodal Neural Networks\nModule 3: Edge AI Deployment",
     "attendanceFrom": "2026-08-04T00:00:00.000Z",
     "attendanceTo": "2026-08-07T00:00:00.000Z",
     "days": 4,

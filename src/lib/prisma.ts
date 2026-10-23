@@ -11,6 +11,47 @@ import {
 
 const globalForPrisma = global as unknown as { prisma: any };
 
+const globalShootingSchedules: any[] = (globalThis as any).__pmShootingSchedules || [
+  {
+    id: 'cmvi2xhig00017y93hp08jspl',
+    workEntryId: 'cmus2g10m00043rxkg89gd1xm',
+    videoTitle: 'Shielded Metal Arc Welding (SMAW) & Workshop Safety Standards',
+    shootDate: '2026-07-20T00:00:00.000Z',
+    location: 'Studio - NIMI Chennai',
+    shootingType: null,
+    scheduledStart: '2026-07-20T00:00:00.000Z',
+    scheduledEnd: '2026-07-24T00:00:00.000Z',
+    actualStart: null,
+    actualEnd: null,
+    cameraman: 'Parasuraman',
+    status: 'COMPLETED',
+    productionNotes: 'Trade: Welder / Fabrication',
+    createdAt: '2026-10-21T12:19:35.272Z',
+    updatedAt: '2026-10-22T04:31:40.039Z'
+  }
+];
+(globalThis as any).__pmShootingSchedules = globalShootingSchedules;
+
+const globalVideoEditorRecords: any[] = (globalThis as any).__pmVideoEditorRecords || [
+  {
+    id: 'ed-cmupe2e700007qg6s8ey5ekry',
+    workEntryId: 'cmus2g10m00043rxkg89gd1xm',
+    editorName: 'Post-Production Team',
+    assignedVideo: 'Face Milling Programming',
+    editingStartDate: '2026-10-05T00:00:00.000Z',
+    editingEndDate: '2026-10-15T00:00:00.000Z',
+    roughCutLink: null,
+    finalCutLink: null,
+    duration: null,
+    status: 'COMPLETED',
+    reviewComments: '[END:2026-10-15] Editing finished and color graded.',
+    finalVideoFile: 'https://drive.google.com/file/d/1GjQ1tOCse5ISo-vc9gPQY2O694PcOoiC/view?usp=drive_link',
+    createdAt: '2026-10-21T05:02:03.023Z',
+    updatedAt: '2026-10-21T05:03:14.981Z'
+  }
+];
+(globalThis as any).__pmVideoEditorRecords = globalVideoEditorRecords;
+
 const getDbUrl = () => {
   const candidates = [
     process.env.DATABASE_URL,
@@ -407,16 +448,73 @@ const createPrismaClient = () => {
                 return REAL_PM_EVIDYA_PRODUCTION_RECORDS;
               }
 
-              if (model === 'VideoLibrary' && operation === 'findMany') {
-                return REAL_PM_EVIDYA_VIDEOS;
-              }
-
-              if (model === 'VideoLibrary' && (operation === 'findUnique' || operation === 'findFirst')) {
-                const id = args?.where?.id;
-                if (id) {
-                  return REAL_PM_EVIDYA_VIDEOS.find((v: any) => v.id === id) || null;
+              if (model === 'VideoLibrary') {
+                if (operation === 'findMany') {
+                  const { epicId } = args?.where || {};
+                  return epicId 
+                    ? (REAL_PM_EVIDYA_VIDEOS as any[]).filter((v: any) => v.epicId === epicId)
+                    : REAL_PM_EVIDYA_VIDEOS;
                 }
-                return REAL_PM_EVIDYA_VIDEOS[0] || null;
+
+                if (operation === 'findUnique' || operation === 'findFirst') {
+                  const anyWhere = (args as any)?.where || {};
+                  const id = typeof anyWhere.id === 'string' ? anyWhere.id : undefined;
+                  if (id) {
+                    return (REAL_PM_EVIDYA_VIDEOS as any[]).find((v: any) => v.id === id) || null;
+                  }
+                  const epicId = typeof anyWhere.epicId === 'string' ? anyWhere.epicId : undefined;
+                  const title = typeof anyWhere.title === 'string' ? anyWhere.title : anyWhere.title?.equals;
+                  if (epicId || title) {
+                    const match = (REAL_PM_EVIDYA_VIDEOS as any[]).find((v: any) => 
+                      (!epicId || v.epicId === epicId) &&
+                      (!title || v.title?.toLowerCase() === title.toLowerCase())
+                    );
+                    if (match) return match;
+                  }
+                  if (Array.isArray(anyWhere.OR)) {
+                    for (const cond of (anyWhere.OR as any[])) {
+                      const cId = cond.epicId || cond.id;
+                      const cTitle = typeof cond.title === 'string' ? cond.title : cond.title?.equals;
+                      const match = (REAL_PM_EVIDYA_VIDEOS as any[]).find((v: any) =>
+                        (cId && (v.id === cId || v.epicId === cId)) ||
+                        (cTitle && v.title?.toLowerCase() === cTitle.toLowerCase())
+                      );
+                      if (match) return match;
+                    }
+                  }
+                  return REAL_PM_EVIDYA_VIDEOS[0] || null;
+                }
+
+                if (operation === 'update') {
+                  const id = args?.where?.id;
+                  const vid = (REAL_PM_EVIDYA_VIDEOS as any[]).find((v: any) => v.id === id);
+                  if (vid && args?.data) {
+                    Object.assign(vid, args.data);
+                    vid.updatedAt = new Date().toISOString();
+                    return vid;
+                  }
+                  return vid || { id, ...args?.data };
+                }
+
+                if (operation === 'create') {
+                  const newVid = {
+                    id: `vid-${Date.now()}`,
+                    ...args?.data,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  };
+                  (REAL_PM_EVIDYA_VIDEOS as any[]).unshift(newVid);
+                  return newVid;
+                }
+
+                if (operation === 'delete' || operation === 'deleteMany') {
+                  const id = args?.where?.id;
+                  if (id) {
+                    const idx = (REAL_PM_EVIDYA_VIDEOS as any[]).findIndex((v: any) => v.id === id);
+                    if (idx !== -1) (REAL_PM_EVIDYA_VIDEOS as any[]).splice(idx, 1);
+                  }
+                  return { count: 1 };
+                }
               }
 
               if (model === 'SMEWorkEntry' && operation === 'findMany') {
@@ -570,6 +668,211 @@ const createPrismaClient = () => {
                     return payment;
                   }
                   return payment || null;
+                }
+              }
+
+              if (model === 'ShootingSchedule') {
+                if (operation === 'findMany') {
+                  const { workEntryId, status } = args?.where || {};
+                  return globalShootingSchedules.filter(s => 
+                    (!workEntryId || s.workEntryId === workEntryId) &&
+                    (!status || s.status === status)
+                  );
+                }
+
+                if (operation === 'findUnique' || operation === 'findFirst') {
+                  const anyWhere = (args as any)?.where || {};
+                  const id = typeof anyWhere.id === 'string' ? anyWhere.id : undefined;
+                  if (id) {
+                    const match = globalShootingSchedules.find(s => s.id === id || s.id === `shoot-${id}` || (typeof id === 'string' && id.startsWith('shoot-') && s.id === id.replace('shoot-', '')));
+                    if (match) return match;
+                  }
+                  const workEntryId = typeof anyWhere.workEntryId === 'string' ? anyWhere.workEntryId : undefined;
+                  const videoTitle = anyWhere.videoTitle;
+                  const titleStr = typeof videoTitle === 'string' ? videoTitle : (videoTitle?.equals ? String(videoTitle.equals) : undefined);
+                  if (workEntryId || titleStr) {
+                    const match = globalShootingSchedules.find(s => 
+                      (!workEntryId || s.workEntryId === workEntryId) &&
+                      (!titleStr || s.videoTitle?.toLowerCase() === titleStr.toLowerCase())
+                    );
+                    if (match) return match;
+                  }
+                  if (Array.isArray(anyWhere.OR)) {
+                    for (const cond of (anyWhere.OR as any[])) {
+                      const cId = cond.id;
+                      const cTitle = typeof cond.videoTitle === 'string' ? cond.videoTitle : (cond.videoTitle?.equals ? String(cond.videoTitle.equals) : undefined);
+                      const match = globalShootingSchedules.find(s => 
+                        (cId && (s.id === cId || s.id === `shoot-${cId}` || (typeof cId === 'string' && cId.startsWith('shoot-') && s.id === cId.replace('shoot-', '')))) ||
+                        (cTitle && s.videoTitle?.toLowerCase() === cTitle.toLowerCase())
+                      );
+                      if (match) return match;
+                    }
+                  }
+                  return null;
+                }
+
+                if (operation === 'create') {
+                  const newSchedule = {
+                    id: args?.data?.id || `shoot-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+                    ...args?.data,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  };
+                  globalShootingSchedules.push(newSchedule);
+                  if (args?.data?.workEntryId) {
+                    const entry = (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).find(e => e.id === args.data.workEntryId);
+                    if (entry) {
+                      if (!entry.shootingSchedules) entry.shootingSchedules = [];
+                      entry.shootingSchedules.push(newSchedule);
+                    }
+                  }
+                  return newSchedule;
+                }
+
+                if (operation === 'update') {
+                  const id = args?.where?.id;
+                  const sched = globalShootingSchedules.find(s => s.id === id || s.id === `shoot-${id}` || (id?.startsWith('shoot-') && s.id === id.replace('shoot-', '')));
+                  if (sched && args?.data) {
+                    Object.assign(sched, args.data);
+                    sched.updatedAt = new Date().toISOString();
+                    return sched;
+                  }
+                  for (const entry of (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[])) {
+                    if (Array.isArray(entry.shootingSchedules)) {
+                      const match = entry.shootingSchedules.find((s: any) => s.id === id || s.id === `shoot-${id}`);
+                      if (match && args?.data) {
+                        Object.assign(match, args.data);
+                        match.updatedAt = new Date().toISOString();
+                        return match;
+                      }
+                    }
+                  }
+                  const created = {
+                    id: id || `shoot-${Date.now()}`,
+                    ...args?.data,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  };
+                  globalShootingSchedules.push(created);
+                  return created;
+                }
+
+                if (operation === 'delete') {
+                  const id = args?.where?.id;
+                  const idx = globalShootingSchedules.findIndex(s => s.id === id || s.id === `shoot-${id}`);
+                  if (idx !== -1) {
+                    return globalShootingSchedules.splice(idx, 1)[0];
+                  }
+                  return { id };
+                }
+              }
+
+              if (model === 'VideoEditorRecord') {
+                if (operation === 'findMany') {
+                  const { workEntryId, status } = args?.where || {};
+                  return globalVideoEditorRecords.filter(e => 
+                    (!workEntryId || e.workEntryId === workEntryId) &&
+                    (!status || e.status === status)
+                  );
+                }
+
+                if (operation === 'findUnique' || operation === 'findFirst') {
+                  const anyWhere = (args as any)?.where || {};
+                  const id = typeof anyWhere.id === 'string' ? anyWhere.id : undefined;
+                  if (id) {
+                    const match = globalVideoEditorRecords.find(e => e.id === id || e.id === `ed-${id}` || (typeof id === 'string' && id.startsWith('ed-') && e.id === id.replace('ed-', '')));
+                    if (match) return match;
+                  }
+                  const workEntryId = typeof anyWhere.workEntryId === 'string' ? anyWhere.workEntryId : undefined;
+                  const assignedVideo = anyWhere.assignedVideo;
+                  const vidStr = typeof assignedVideo === 'string' ? assignedVideo : (assignedVideo?.equals ? String(assignedVideo.equals) : undefined);
+                  if (workEntryId || vidStr) {
+                    const match = globalVideoEditorRecords.find(e => 
+                      (!workEntryId || e.workEntryId === workEntryId) &&
+                      (!vidStr || e.assignedVideo?.toLowerCase() === vidStr.toLowerCase())
+                    );
+                    if (match) return match;
+                  }
+                  if (Array.isArray(anyWhere.OR)) {
+                    for (const cond of (anyWhere.OR as any[])) {
+                      const cId = cond.id;
+                      const cVid = typeof cond.assignedVideo === 'string' ? cond.assignedVideo : (cond.assignedVideo?.equals ? String(cond.assignedVideo.equals) : undefined);
+                      const match = globalVideoEditorRecords.find(e => 
+                        (cId && (e.id === cId || e.id === `ed-${cId}` || (typeof cId === 'string' && cId.startsWith('ed-') && e.id === cId.replace('ed-', '')))) ||
+                        (cVid && e.assignedVideo?.toLowerCase() === cVid.toLowerCase())
+                      );
+                      if (match) return match;
+                    }
+                  }
+                  return null;
+                }
+
+                if (operation === 'create') {
+                  const newEditorRec = {
+                    id: args?.data?.id || `ed-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+                    ...args?.data,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  };
+                  globalVideoEditorRecords.push(newEditorRec);
+                  if (args?.data?.workEntryId) {
+                    const entry = (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).find(e => e.id === args.data.workEntryId);
+                    if (entry) {
+                      if (!entry.videoEditorRecords) entry.videoEditorRecords = [];
+                      entry.videoEditorRecords.push(newEditorRec);
+                    }
+                  }
+                  return newEditorRec;
+                }
+
+                if (operation === 'update') {
+                  const id = args?.where?.id;
+                  const rec = globalVideoEditorRecords.find(e => e.id === id || e.id === `ed-${id}` || (id?.startsWith('ed-') && e.id === id.replace('ed-', '')));
+                  if (rec && args?.data) {
+                    Object.assign(rec, args.data);
+                    rec.updatedAt = new Date().toISOString();
+                    return rec;
+                  }
+                  for (const entry of (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[])) {
+                    if (Array.isArray(entry.videoEditorRecords)) {
+                      const match = entry.videoEditorRecords.find((e: any) => e.id === id || e.id === `ed-${id}`);
+                      if (match && args?.data) {
+                        Object.assign(match, args.data);
+                        match.updatedAt = new Date().toISOString();
+                        return match;
+                      }
+                    }
+                  }
+                  const created = {
+                    id: id || `ed-${Date.now()}`,
+                    ...args?.data,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  };
+                  globalVideoEditorRecords.push(created);
+                  return created;
+                }
+
+                if (operation === 'updateMany') {
+                  const { workEntryId, assignedVideo } = args?.where || {};
+                  let count = 0;
+                  globalVideoEditorRecords.forEach(e => {
+                    if ((!workEntryId || e.workEntryId === workEntryId) && (!assignedVideo || e.assignedVideo === assignedVideo)) {
+                      Object.assign(e, args.data);
+                      e.updatedAt = new Date().toISOString();
+                      count++;
+                    }
+                  });
+                  return { count };
+                }
+
+                if (operation === 'delete') {
+                  const id = args?.where?.id;
+                  const idx = globalVideoEditorRecords.findIndex(e => e.id === id || e.id === `ed-${id}`);
+                  if (idx !== -1) {
+                    return globalVideoEditorRecords.splice(idx, 1)[0];
+                  }
+                  return { id };
                 }
               }
 
