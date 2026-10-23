@@ -2180,17 +2180,116 @@ export default function DeputationClient({
             {/* A4 Printable Page Container */}
             {(() => {
               const currentTrade = (stageCParams.trade || selectedEntry.trade || 'General').trim();
-              const slots = stageCParams.attendanceSlots && stageCParams.attendanceSlots.length > 0
+              const rawSlots = stageCParams.attendanceSlots && stageCParams.attendanceSlots.length > 0
                 ? stageCParams.attendanceSlots
                 : [{ id: 'slot-default', startDate: selectedEntry.attendanceFrom ? new Date(selectedEntry.attendanceFrom).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], endDate: selectedEntry.attendanceTo ? new Date(selectedEntry.attendanceTo).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], trade: currentTrade }];
 
               const distinctTrades = Array.from(new Set(
-                slots.map(s => (s.trade || currentTrade || 'General').trim()).filter(Boolean)
+                rawSlots.map(s => (s.trade || currentTrade || 'General').trim()).filter(Boolean)
               ));
               const displayedTrades = distinctTrades.length > 0 ? distinctTrades.join(', ') : currentTrade;
               const isMultipleTrades = distinctTrades.length > 1;
-              const isDenseSlots = slots.length >= 2;
-              const isVeryDenseSlots = slots.length >= 4;
+              const isDenseSlots = rawSlots.length >= 2;
+              const isVeryDenseSlots = rawSlots.length >= 4;
+
+              // Helper to identify a person for dynamic row grouping
+              const getSlotPerson = (s: any) => {
+                const name = (s.smeName || s.name || sme?.name || 'Subject Matter Expert').trim();
+                const designation = (s.designation || sme?.designation || 'Designation').trim();
+                const institute = (s.institute || sme?.institute || '').trim();
+                const location = (s.location || sme?.location || '').trim();
+                const id = (s.smeId || s.personId || (sme?.id ? String(sme.id) : '') || name).trim();
+                const personKey = id ? `${id}__${name.toLowerCase()}` : name.toLowerCase();
+                return { id, name, designation, institute, location, personKey };
+              };
+
+              // Check if slots are already contiguous by person
+              const isAlreadyContiguous = (() => {
+                const seenPersons = new Set<string>();
+                let lastPerson = '';
+                for (const s of rawSlots) {
+                  const pk = getSlotPerson(s).personKey;
+                  if (pk !== lastPerson) {
+                    if (seenPersons.has(pk)) return false;
+                    seenPersons.add(pk);
+                    lastPerson = pk;
+                  }
+                }
+                return true;
+              })();
+
+              // Group related rows together for the same person if ordering requires minimal adjustment
+              const orderedSlots = isAlreadyContiguous
+                ? rawSlots
+                : (() => {
+                    const groups = new Map<string, any[]>();
+                    for (const s of rawSlots) {
+                      const pk = getSlotPerson(s).personKey;
+                      if (!groups.has(pk)) groups.set(pk, []);
+                      groups.get(pk)!.push(s);
+                    }
+                    const flattened: any[] = [];
+                    for (const group of groups.values()) {
+                      flattened.push(...group);
+                    }
+                    return flattened;
+                  })();
+
+              // Build grouped row metadata with vertical cell merge span
+              const groupedRows: Array<{
+                slot: any;
+                sNo: number;
+                isFirstOfPerson: boolean;
+                personRowSpan: number;
+                personName: string;
+                personDesignation: string;
+                personInstitute: string;
+                personLocation: string;
+                daysVal: number;
+                slotTrade: string;
+                slotAmount: number;
+              }> = [];
+
+              let slotIdx = 0;
+              while (slotIdx < orderedSlots.length) {
+                const currentSlot = orderedSlots[slotIdx];
+                const person = getSlotPerson(currentSlot);
+
+                // Count consecutive rows for this same person
+                let span = 1;
+                while (slotIdx + span < orderedSlots.length) {
+                  const nextPerson = getSlotPerson(orderedSlots[slotIdx + span]);
+                  if (nextPerson.personKey === person.personKey) {
+                    span++;
+                  } else {
+                    break;
+                  }
+                }
+
+                for (let s = 0; s < span; s++) {
+                  const slot = orderedSlots[slotIdx + s];
+                  const slotDays = calculateSlotDays(slot.startDate, slot.endDate);
+                  const daysVal = slotDays > 0 ? slotDays : 1;
+                  const slotTrade = (slot.trade || currentTrade || 'General').trim();
+                  const slotAmount = daysVal * stageCParams.ratePerDay;
+
+                  groupedRows.push({
+                    slot,
+                    sNo: slotIdx + s + 1,
+                    isFirstOfPerson: s === 0,
+                    personRowSpan: span,
+                    personName: person.name,
+                    personDesignation: person.designation,
+                    personInstitute: person.institute,
+                    personLocation: person.location,
+                    daysVal,
+                    slotTrade,
+                    slotAmount
+                  });
+                }
+
+                slotIdx += span;
+              }
 
               return (
                 <div className={styles.a4Page} ref={remunerationPrintRef}>
@@ -2216,40 +2315,45 @@ export default function DeputationClient({
                         </tr>
                       </thead>
                       <tbody>
-                        {slots.map((slot, idx) => {
-                          const slotDays = calculateSlotDays(slot.startDate, slot.endDate);
-                          const daysVal = slotDays > 0 ? slotDays : 1;
-                          const slotTrade = (slot.trade || currentTrade || 'General').trim();
-                          const slotAmount = daysVal * stageCParams.ratePerDay;
-
+                        {groupedRows.map(row => {
                           return (
-                            <tr key={slot.id || idx}>
+                            <tr key={row.slot.id || row.sNo}>
                               <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'center' }}>
-                                {idx + 1}
+                                {row.sNo}
                               </td>
+                              {row.isFirstOfPerson && (
+                                <td
+                                  rowSpan={row.personRowSpan}
+                                  style={{
+                                    border: '1px solid #000',
+                                    padding: isDenseSlots ? '3px 5px' : '5px 7px',
+                                    verticalAlign: 'middle',
+                                    backgroundColor: '#ffffff'
+                                  }}
+                                >
+                                  <strong>{row.personName}</strong><br />
+                                  <span>{row.personDesignation}</span>
+                                  {(row.personInstitute || row.personLocation) && (
+                                    <div style={{ fontSize: '10.5px', color: '#475569', marginTop: '2px' }}>
+                                      {row.personInstitute}{row.personLocation ? `, ${row.personLocation}` : ''}
+                                    </div>
+                                  )}
+                                </td>
+                              )}
                               <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px' }}>
-                                <strong>{sme.name || 'Subject Matter Expert'}</strong><br />
-                                <span>{sme.designation || 'Designation'}</span>
-                                {(sme.institute || sme.location) && (
-                                  <div style={{ fontSize: '10.5px', color: '#475569', marginTop: '2px' }}>
-                                    {sme.institute}{sme.location ? `, ${sme.location}` : ''}
-                                  </div>
-                                )}
-                              </td>
-                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px' }}>
-                                <strong>{slotTrade}</strong>
+                                <strong>{row.slotTrade}</strong>
                               </td>
                               <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'center', fontSize: isDenseSlots ? '10.5px' : '11.5px', whiteSpace: 'nowrap' }}>
-                                {formatDateDot(slot.startDate)} to {formatDateDot(slot.endDate)}
+                                {formatDateDot(row.slot.startDate)} to {formatDateDot(row.slot.endDate)}
                               </td>
                               <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'center', fontWeight: 'bold' }}>
-                                {daysVal} {daysVal === 1 ? 'Day' : 'Days'}
+                                {row.daysVal} {row.daysVal === 1 ? 'Day' : 'Days'}
                               </td>
                               <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                 Rs. {stageCParams.ratePerDay}/-
                               </td>
                               <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                                Rs. {slotAmount.toLocaleString('en-IN')}/-
+                                Rs. {row.slotAmount.toLocaleString('en-IN')}/-
                               </td>
                             </tr>
                           );

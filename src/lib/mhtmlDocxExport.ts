@@ -417,35 +417,129 @@ export function buildRemunerationWordHtml(params: any, sme: any, entry: any): st
   };
 
   const currentTrade = (params.trade || entry?.trade || 'General').trim();
-  const slots = params.attendanceSlots && params.attendanceSlots.length > 0
+  const rawSlots = params.attendanceSlots && params.attendanceSlots.length > 0
     ? params.attendanceSlots
     : [{ id: 'slot-default', startDate: entry?.attendanceFrom ? new Date(entry.attendanceFrom).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], endDate: entry?.attendanceTo ? new Date(entry.attendanceTo).toISOString().split('T')[0] : new Date().toISOString().split('T')[0], trade: currentTrade }];
 
   const distinctTrades = Array.from(new Set(
-    slots.map((s: any) => (s.trade || currentTrade || 'General').trim()).filter(Boolean)
+    rawSlots.map((s: any) => (s.trade || currentTrade || 'General').trim()).filter(Boolean)
   ));
   const displayedTrades = distinctTrades.length > 0 ? distinctTrades.join(', ') : currentTrade;
   const isMultiple = distinctTrades.length > 1;
 
-  const slotRowsHtml = slots.map((slot: any, idx: number) => {
-    const slotDays = calculateSlotDays(slot.startDate, slot.endDate);
-    const daysVal = slotDays > 0 ? slotDays : 1;
-    const slotTrade = (slot.trade || currentTrade || 'General').trim();
-    const slotAmount = daysVal * (params.ratePerDay || 1500);
+  // Helper to identify a person for dynamic row grouping
+  const getSlotPerson = (s: any) => {
+    const name = (s.smeName || s.name || sme?.name || 'Subject Matter Expert').trim();
+    const designation = (s.designation || sme?.designation || 'Designation').trim();
+    const institute = (s.institute || sme?.institute || '').trim();
+    const location = (s.location || sme?.location || '').trim();
+    const id = (s.smeId || s.personId || (sme?.id ? String(sme.id) : '') || name).trim();
+    const personKey = id ? `${id}__${name.toLowerCase()}` : name.toLowerCase();
+    return { id, name, designation, institute, location, personKey };
+  };
 
+  // Check if slots are already contiguous by person
+  const isAlreadyContiguous = (() => {
+    const seenPersons = new Set<string>();
+    let lastPerson = '';
+    for (const s of rawSlots) {
+      const pk = getSlotPerson(s).personKey;
+      if (pk !== lastPerson) {
+        if (seenPersons.has(pk)) return false;
+        seenPersons.add(pk);
+        lastPerson = pk;
+      }
+    }
+    return true;
+  })();
+
+  // Group related rows together for the same person if ordering requires minimal adjustment
+  const orderedSlots = isAlreadyContiguous
+    ? rawSlots
+    : (() => {
+        const groups = new Map<string, any[]>();
+        for (const s of rawSlots) {
+          const pk = getSlotPerson(s).personKey;
+          if (!groups.has(pk)) groups.set(pk, []);
+          groups.get(pk)!.push(s);
+        }
+        const flattened: any[] = [];
+        for (const group of groups.values()) {
+          flattened.push(...group);
+        }
+        return flattened;
+      })();
+
+  // Build grouped row metadata with vertical cell merge span
+  const groupedRows: Array<{
+    slot: any;
+    sNo: number;
+    isFirstOfPerson: boolean;
+    personRowSpan: number;
+    personName: string;
+    personDesignation: string;
+    personInstitute: string;
+    personLocation: string;
+    daysVal: number;
+    slotTrade: string;
+    slotAmount: number;
+  }> = [];
+
+  let slotIdx = 0;
+  while (slotIdx < orderedSlots.length) {
+    const currentSlot = orderedSlots[slotIdx];
+    const person = getSlotPerson(currentSlot);
+
+    let span = 1;
+    while (slotIdx + span < orderedSlots.length) {
+      const nextPerson = getSlotPerson(orderedSlots[slotIdx + span]);
+      if (nextPerson.personKey === person.personKey) {
+        span++;
+      } else {
+        break;
+      }
+    }
+
+    for (let s = 0; s < span; s++) {
+      const slot = orderedSlots[slotIdx + s];
+      const slotDays = calculateSlotDays(slot.startDate, slot.endDate);
+      const daysVal = slotDays > 0 ? slotDays : 1;
+      const slotTrade = (slot.trade || currentTrade || 'General').trim();
+      const slotAmount = daysVal * (params.ratePerDay || 1500);
+
+      groupedRows.push({
+        slot,
+        sNo: slotIdx + s + 1,
+        isFirstOfPerson: s === 0,
+        personRowSpan: span,
+        personName: person.name,
+        personDesignation: person.designation,
+        personInstitute: person.institute,
+        personLocation: person.location,
+        daysVal,
+        slotTrade,
+        slotAmount
+      });
+    }
+
+    slotIdx += span;
+  }
+
+  const slotRowsHtml = groupedRows.map((row) => {
     return `
       <tr>
-        <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center;">${idx + 1}</td>
-        <td style="border: 1pt solid #000; padding: 4pt 6pt;">
-          <strong>${sme?.name || 'Subject Matter Expert'}</strong><br>
-          <span>${sme?.designation || 'Designation'}</span>
-          ${(sme?.institute || sme?.location) ? `<div style="font-size: 8pt; color: #475569; margin-top: 1pt;">${sme?.institute || ''}${sme?.location ? `, ${sme.location}` : ''}</div>` : ''}
-        </td>
-        <td style="border: 1pt solid #000; padding: 4pt 6pt;"><strong>${slotTrade}</strong></td>
-        <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center; white-space: nowrap;">${formatDateDot(slot.startDate)} to ${formatDateDot(slot.endDate)}</td>
-        <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center; font-weight: bold;">${daysVal} ${daysVal === 1 ? 'Day' : 'Days'}</td>
+        <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center;">${row.sNo}</td>
+        ${row.isFirstOfPerson ? `
+        <td rowspan="${row.personRowSpan}" style="border: 1pt solid #000; padding: 4pt 6pt; vertical-align: middle;">
+          <strong>${row.personName}</strong><br>
+          <span>${row.personDesignation}</span>
+          ${(row.personInstitute || row.personLocation) ? `<div style="font-size: 8pt; color: #475569; margin-top: 1pt;">${row.personInstitute}${row.personLocation ? `, ${row.personLocation}` : ''}</div>` : ''}
+        </td>` : ''}
+        <td style="border: 1pt solid #000; padding: 4pt 6pt;"><strong>${row.slotTrade}</strong></td>
+        <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center; white-space: nowrap;">${formatDateDot(row.slot.startDate)} to ${formatDateDot(row.slot.endDate)}</td>
+        <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center; font-weight: bold;">${row.daysVal} ${row.daysVal === 1 ? 'Day' : 'Days'}</td>
         <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: right; white-space: nowrap;">Rs. ${params.ratePerDay || 1500}/-</td>
-        <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: right; font-weight: bold; white-space: nowrap;">Rs. ${slotAmount.toLocaleString('en-IN')}/-</td>
+        <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: right; font-weight: bold; white-space: nowrap;">Rs. ${row.slotAmount.toLocaleString('en-IN')}/-</td>
       </tr>
     `;
   }).join('');
