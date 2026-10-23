@@ -470,9 +470,24 @@ const createPrismaClient = () => {
 
                 if (operation === 'findFirst' || operation === 'findUnique') {
                   const id = args?.where?.id;
-                  if (id) return allDocs.find(d => d.id === id) || null;
+                  if (id) {
+                    const match = allDocs.find(d => d.id === id || d.workEntryId === id || (d.name && d.name.includes(id)));
+                    if (match) return match;
+                  }
                   const { workEntryId, type } = args?.where || {};
-                  return allDocs.find(d => (!workEntryId || d.workEntryId === workEntryId) && (!type || d.type === type)) || null;
+                  if (workEntryId || type) {
+                    const match = allDocs.find(d => (!workEntryId || d.workEntryId === workEntryId) && (!type || d.type === type));
+                    if (match) return match;
+                  }
+                  if (Array.isArray(args?.where?.OR)) {
+                    for (const condition of (args.where.OR as any[])) {
+                      const cId = condition.id || condition.workEntryId;
+                      const containsStr = typeof condition.name === 'string' ? condition.name : condition.name?.contains;
+                      const match = allDocs.find(d => d.id === cId || d.workEntryId === cId || (containsStr && d.name?.includes(containsStr)));
+                      if (match) return match;
+                    }
+                  }
+                  return null;
                 }
 
                 if (operation === 'findMany') {

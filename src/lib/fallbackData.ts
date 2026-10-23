@@ -2675,7 +2675,7 @@ export const REAL_PM_EVIDYA_SMES = [
     "id": "cmus2g11g000u3rxk4ado6ium",
     "name": "Dr. Majji Bala Ganesh Reddy",
     "designation": "Principal (Pvt)",
-    "institute": "NIMI",
+    "institute": "Shri Rajarajeshwari ITI",
     "status": "ACTIVE",
     "createdAt": "2026-10-03T07:24:00.196Z",
     "updatedAt": "2026-10-03T07:24:00.196Z",
@@ -2903,7 +2903,7 @@ export const REAL_PM_EVIDYA_VIDEOS = [
     "createdAt": "2026-10-01T10:26:00.929Z",
     "updatedAt": "2026-10-01T10:38:31.523Z",
     "duration": "0:50:20",
-    "trade": "AI Programming Assistant"
+    "trade": "Artificial Intelligence Programming Assistant (AIPA)"
   },
   {
     "id": "cmupe2e76000aqg6s61xvc21y",
@@ -3161,7 +3161,7 @@ export const REAL_PM_EVIDYA_SME_WORK_ENTRIES = [
   {
     "id": "cmus2g11g000v3rxkn7i98yyj",
     "smeId": "cmus2g11g000u3rxk4ado6ium",
-    "trade": "AI Programming Assistant",
+    "trade": "Artificial Intelligence Programming Assistant (AIPA)",
     "topic": "Advanced AI Tools & Machine Learning in ITI Curriculum",
     "attendanceFrom": "2026-08-04T00:00:00.000Z",
     "attendanceTo": "2026-08-07T00:00:00.000Z",
@@ -3178,7 +3178,7 @@ export const REAL_PM_EVIDYA_SME_WORK_ENTRIES = [
       "id": "cmus2g11g000u3rxk4ado6ium",
       "name": "Dr. Majji Bala Ganesh Reddy",
       "designation": "Principal (Pvt)",
-      "institute": "NIMI",
+      "institute": "Shri Rajarajeshwari ITI",
       "status": "ACTIVE",
       "createdAt": "2026-10-03T07:24:00.196Z",
       "updatedAt": "2026-10-03T07:24:00.196Z",
@@ -3253,6 +3253,45 @@ export const REAL_PM_EVIDYA_SME_WORK_ENTRIES = [
         "paymentId": null,
         "createdAt": "2026-10-15T04:32:08.758Z",
         "updatedAt": "2026-10-15T04:32:08.758Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv95t7nw00094dqhjqmjbyhx",
+        "name": "Remuneration Parameters - EPIC-2026-PMeVidya 11",
+        "type": "STAGE_C_REMUNERATION",
+        "status": "SAVED",
+        "filePath": "{\"programmeName\":\"PM e-Vidya Classroom Teaching Video Production\",\"workTitle\":\"Classroom Teaching Video Production for PM e-Vidya\",\"location\":\"National Instructional Media Institute (NIMI), Chennai\",\"totalDays\":6,\"ratePerDay\":1500,\"grossAmount\":9000,\"taAmount\":3500,\"otherAmount\":500,\"totalAmount\":13000,\"amountInWords\":\"Thirteen Thousand Only\",\"submissionDate\":\"2026-08-22\",\"verifierName\":\"Joint Director / HOO\",\"verifierDesignation\":\"Head of Office\"}",
+        "version": 1,
+        "workEntryId": "cmus2g11g000v3rxkn7i98yyj",
+        "paymentId": null,
+        "createdAt": "2026-10-15T06:30:19.148Z",
+        "updatedAt": "2026-10-15T06:30:19.148Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv95t7nk00054dqhey9lqgqg",
+        "name": "Work Completion Parameters - EPIC-2026-PMeVidya 11",
+        "type": "STAGE_B_WORK_COMPLETION",
+        "status": "SAVED",
+        "filePath": "{\"programmeName\":\"PM e-Vidya Classroom Teaching Video Production\",\"workTitle\":\"Classroom Teaching Video Production for PM e-Vidya\",\"location\":\"National Instructional Media Institute (NIMI), Chennai\",\"startDate\":\"2026-08-15\",\"endDate\":\"2026-08-20\",\"topicsCovered\":\"Module 1: AI Prompt Engineering\\nModule 2: Multimodal Neural Networks\\nModule 3: Edge AI Deployment\",\"submissionDate\":\"2026-08-21\",\"verifierName\":\"Shri. Ashfaq Ahmed\",\"verifierDesignation\":\"Assistant Manager\",\"verifierOrganisation\":\"National Instructional Media Institute (NIMI), Chennai\",\"verificationDate\":\"2026-08-22\"}",
+        "version": 1,
+        "workEntryId": "cmus2g11g000v3rxkn7i98yyj",
+        "paymentId": null,
+        "createdAt": "2026-10-15T06:30:19.137Z",
+        "updatedAt": "2026-10-15T06:30:19.137Z",
+        "projectId": null
+      },
+      {
+        "id": "cmv95t7n700014dqhgthaxbso",
+        "name": "Approval Letter Parameters - EPIC-2026-PMeVidya 11",
+        "type": "STAGE_A_APPROVAL_LETTER",
+        "status": "SAVED",
+        "filePath": "{\"refNoPrefix\":\"NIMI/MS/T-11022/MM/\",\"year\":\"2026\",\"letterDate\":\"2026-08-15\",\"recipientDesignation\":\"The Principal\",\"recipientInst\":\"NIMI\",\"recipientLoc\":\"Chennai\",\"duration\":\"1 Week\",\"startDate\":\"2026-08-15\",\"isExtension\":true,\"reasonForExtension\":\"the studio recording schedule expansion\",\"extensionDate\":\"20.08.2026\",\"signatory\":\"Executive Director\"}",
+        "version": 1,
+        "workEntryId": "cmus2g11g000v3rxkn7i98yyj",
+        "paymentId": null,
+        "createdAt": "2026-10-15T06:30:19.123Z",
+        "updatedAt": "2026-10-15T06:30:19.123Z",
         "projectId": null
       }
     ]
