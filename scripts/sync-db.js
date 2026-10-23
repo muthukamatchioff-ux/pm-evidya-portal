@@ -79,10 +79,442 @@ async function main() {
     // Using simple regex or ts-node if needed, but since Next.js server actions handle runtime self-healing,
     // this build script just logs status or runs if possible.
     console.log(`[Sync DB Script] Connected. DB Comp 1 rows: ${comp1.annexureI.length}, Comp 2 rows: ${comp2.annexureII.length}`);
+
+    // Synchronize 16 SME entries (including restored EPIC 12, 15, 16, 17, 19)
+    await syncRestoredSmes(prisma);
   } catch (err) {
     console.warn('[Sync DB Script] Notice: Sync check skipped safely during build:', err.message);
   } finally {
     await prisma.$disconnect();
+  }
+}
+
+async function syncRestoredSmes(prisma) {
+  const RESTORED_SMES = [
+    {
+      sme: {
+        id: 'cmv_sme_raghavan_19',
+        name: 'Shri K Raghavan',
+        designation: 'JTO',
+        institute: 'Govt ITI',
+        location: 'Chennai',
+        address: null,
+        status: 'ACTIVE'
+      },
+      entry: {
+        id: 'cmv_entry_raghavan_19',
+        epicSequence: 19,
+        trade: 'Solar Technician',
+        topic: 'Solar PV Systems, Inverter Installation & Commissioning, Solar Panel Wiring & Net Metering, Battery Storage & Maintenance',
+        attendanceFrom: new Date('2026-09-10T00:00:00.000Z'),
+        attendanceTo: new Date('2026-09-12T00:00:00.000Z'),
+        days: 3,
+        ratePerDay: 1500,
+        taAmount: 1200,
+        otherAmount: 300,
+        status: 'INITIATED'
+      },
+      payment: {
+        id: 'cmv_pay_raghavan_19',
+        grossAmount: 4500,
+        taAmount: 1200,
+        otherAmount: 300,
+        totalAmount: 6000,
+        status: 'INITIATED'
+      },
+      stageBParams: {
+        programmeName: 'PM e-Vidya Classroom Teaching Video Production',
+        workTitle: 'Classroom Teaching Video Production for PM e-Vidya',
+        location: 'National Instructional Media Institute (NIMI), Chennai',
+        startDate: '2026-09-10',
+        endDate: '2026-09-12',
+        topicsCovered: 'Module 1: Solar PV Cell Technology & Array Layout\nModule 2: Solar Inverter Sizing, Off-Grid & Grid-Tied Systems\nModule 3: Battery Energy Storage & Rooftop Safety Standards',
+        submissionDate: '2026-09-13',
+        verifierName: 'Shri. Ashfaq Ahmed',
+        verifierDesignation: 'Assistant Manager',
+        verifierOrganisation: 'National Instructional Media Institute (NIMI), Chennai',
+        verificationDate: '2026-09-14'
+      },
+      stageCParams: {
+        programmeName: 'PM e-Vidya Classroom Teaching Video Production',
+        workTitle: 'Classroom Teaching Video Production for PM e-Vidya',
+        location: 'National Instructional Media Institute (NIMI), Chennai',
+        trade: 'Solar Technician',
+        attendanceSlots: [{ id: 'slot-1', startDate: '2026-09-10', endDate: '2026-09-12', trade: 'Solar Technician' }],
+        totalDays: 3,
+        ratePerDay: 1500,
+        grossAmount: 4500,
+        taAmount: 1200,
+        otherAmount: 300,
+        totalAmount: 6000,
+        amountInWords: 'Six Thousand Only',
+        submissionDate: '2026-09-14',
+        verifierName: 'Joint Director / HOO',
+        verifierDesignation: 'Head of Office'
+      }
+    },
+    {
+      sme: {
+        id: 'cmv_sme_banoth_17',
+        name: 'Shri.Rakesh Banoth',
+        designation: 'Asst Director',
+        institute: 'NSTI (W) - Agartala',
+        location: 'Agartala',
+        address: null,
+        status: 'ACTIVE'
+      },
+      entry: {
+        id: 'cmv_entry_banoth_17',
+        epicSequence: 17,
+        trade: 'Drone Pilot',
+        topic: 'Principles of Drone Aerodynamics, DGCA Drone Airspace Regulations, Pre-Flight Checks & Emergency Procedures',
+        attendanceFrom: new Date('2026-09-15T00:00:00.000Z'),
+        attendanceTo: new Date('2026-09-18T00:00:00.000Z'),
+        days: 4,
+        ratePerDay: 1500,
+        taAmount: 3500,
+        otherAmount: 500,
+        status: 'INITIATED'
+      },
+      payment: {
+        id: 'cmv_pay_banoth_17',
+        grossAmount: 6000,
+        taAmount: 3500,
+        otherAmount: 500,
+        totalAmount: 10000,
+        status: 'INITIATED'
+      },
+      stageBParams: {
+        programmeName: 'PM e-Vidya Classroom Teaching Video Production',
+        workTitle: 'Classroom Teaching Video Production for PM e-Vidya',
+        location: 'National Instructional Media Institute (NIMI), Chennai',
+        startDate: '2026-09-15',
+        endDate: '2026-09-18',
+        topicsCovered: 'Module 1: Principles of Drone Aerodynamics & Flight Controls\nModule 2: DGCA Drone Airspace Regulations & Weather Briefings\nModule 3: Pre-Flight Checks, Payload Handling & Emergency Procedures',
+        submissionDate: '2026-09-19',
+        verifierName: 'Shri. Ashfaq Ahmed',
+        verifierDesignation: 'Assistant Manager',
+        verifierOrganisation: 'National Instructional Media Institute (NIMI), Chennai',
+        verificationDate: '2026-09-20'
+      },
+      stageCParams: {
+        programmeName: 'PM e-Vidya Classroom Teaching Video Production',
+        workTitle: 'Classroom Teaching Video Production for PM e-Vidya',
+        location: 'National Instructional Media Institute (NIMI), Chennai',
+        trade: 'Drone Pilot',
+        attendanceSlots: [{ id: 'slot-1', startDate: '2026-09-15', endDate: '2026-09-18', trade: 'Drone Pilot' }],
+        totalDays: 4,
+        ratePerDay: 1500,
+        grossAmount: 6000,
+        taAmount: 3500,
+        otherAmount: 500,
+        totalAmount: 10000,
+        amountInWords: 'Ten Thousand Only',
+        submissionDate: '2026-09-20',
+        verifierName: 'Joint Director / HOO',
+        verifierDesignation: 'Head of Office'
+      }
+    },
+    {
+      sme: {
+        id: 'cmv_sme_arun_16',
+        name: 'Shri.Arun S',
+        designation: 'Junior Instructor',
+        institute: 'Govt ITI',
+        location: 'Chennai',
+        address: null,
+        status: 'ACTIVE'
+      },
+      entry: {
+        id: 'cmv_entry_arun_16',
+        epicSequence: 16,
+        trade: 'Wireman',
+        topic: 'Domestic Wiring Systems, Conduit Installation & Earthing Measurements, Troubleshooting & Maintenance',
+        attendanceFrom: new Date('2026-09-18T00:00:00.000Z'),
+        attendanceTo: new Date('2026-09-21T00:00:00.000Z'),
+        days: 4,
+        ratePerDay: 1500,
+        taAmount: 1500,
+        otherAmount: 0,
+        status: 'INITIATED'
+      },
+      payment: {
+        id: 'cmv_pay_arun_16',
+        grossAmount: 6000,
+        taAmount: 1500,
+        otherAmount: 0,
+        totalAmount: 7500,
+        status: 'INITIATED'
+      },
+      stageBParams: {
+        programmeName: 'PM e-Vidya Classroom Teaching Video Production',
+        workTitle: 'Classroom Teaching Video Production for PM e-Vidya',
+        location: 'National Instructional Media Institute (NIMI), Chennai',
+        startDate: '2026-09-18',
+        endDate: '2026-09-21',
+        topicsCovered: 'Module 1: Domestic Wiring Systems & Standard Accessories\nModule 2: Conduit Installation & Earthing Measurements\nModule 3: Troubleshooting & Maintenance in Electrical Circuits',
+        submissionDate: '2026-09-22',
+        verifierName: 'Shri. Ashfaq Ahmed',
+        verifierDesignation: 'Assistant Manager',
+        verifierOrganisation: 'National Instructional Media Institute (NIMI), Chennai',
+        verificationDate: '2026-09-23'
+      },
+      stageCParams: {
+        programmeName: 'PM e-Vidya Classroom Teaching Video Production',
+        workTitle: 'Classroom Teaching Video Production for PM e-Vidya',
+        location: 'National Instructional Media Institute (NIMI), Chennai',
+        trade: 'Wireman',
+        attendanceSlots: [{ id: 'slot-1', startDate: '2026-09-18', endDate: '2026-09-21', trade: 'Wireman' }],
+        totalDays: 4,
+        ratePerDay: 1500,
+        grossAmount: 6000,
+        taAmount: 1500,
+        otherAmount: 0,
+        totalAmount: 7500,
+        amountInWords: 'Seven Thousand Five Hundred Only',
+        submissionDate: '2026-09-23',
+        verifierName: 'Joint Director / HOO',
+        verifierDesignation: 'Head of Office'
+      }
+    },
+    {
+      sme: {
+        id: 'cmv_sme_mayapandi_15',
+        name: 'Shri M Mayapandi',
+        designation: 'ATO MPCA',
+        institute: 'Govt ITI',
+        location: 'Ariyalur',
+        address: null,
+        status: 'ACTIVE'
+      },
+      entry: {
+        id: 'cmv_entry_mayapandi_15',
+        epicSequence: 15,
+        trade: 'Wireman',
+        topic: '1.10.56-62 - DC Motor: Construction and Working\n1.10.56-62 - DC Motor: Types of Application\n1.10.56 - 62 - DC Motor: Speed Control and Characteristics\n1.11.68 - AC Motor: Construction - Types, Control, working and starters\n1.10.56-62 - DC Generator - Part 1 - Construction, Working & classification\n1.10.56-62 - DC Generator - Part 2 - EMF Equation\n1.10.56-62 - DC Generator - Losses\n1.10.56-62 - DC Generator - Voltage Regulation\n1.10.56-62 - DC Generator - Efficiency\n1.10.56-62 - DC Generator - Characteristics\n1.9.50-55 - Earthing - Plate and pipe earthing\n1.9.50-55 - Earthing - Rod, Strip and chemical earthing\n1.9.50-55 - Earthing - Comparision and measurement of earth resistance',
+        attendanceFrom: new Date('2026-09-21T00:00:00.000Z'),
+        attendanceTo: new Date('2026-10-23T00:00:00.000Z'),
+        days: 7,
+        ratePerDay: 1500,
+        taAmount: 2500,
+        otherAmount: 0,
+        status: 'IN_PROGRESS'
+      },
+      payment: {
+        id: 'cmv_pay_mayapandi_15',
+        grossAmount: 10500,
+        taAmount: 2500,
+        otherAmount: 0,
+        totalAmount: 13000,
+        status: 'ON_PROCESS'
+      },
+      stageBParams: {
+        programmeName: 'PM e-Vidya Classroom Teaching Video Production',
+        workTitle: 'Classroom Teaching Video Production for PM e-Vidya',
+        location: 'National Instructional Media Institute (NIMI), Chennai',
+        startDate: '2026-09-21',
+        endDate: '2026-10-23',
+        topicsCovered: '1.10.56-62 - DC Motor: Construction and Working\n1.10.56-62 - DC Motor: Types of Application\n1.10.56 - 62 - DC Motor: Speed Control and Characteristics\n1.11.68 - AC Motor: Construction - Types, Control, working and starters\n1.10.56-62 - DC Generator - Part 1 - Construction, Working & classification\n1.10.56-62 - DC Generator - Part 2 - EMF Equation\n1.10.56-62 - DC Generator - Losses\n1.10.56-62 - DC Generator - Voltage Regulation\n1.10.56-62 - DC Generator - Efficiency\n1.10.56-62 - DC Generator - Characteristics\n1.9.50-55 - Earthing - Plate and pipe earthing\n1.9.50-55 - Earthing - Rod, Strip and chemical earthing\n1.9.50-55 - Earthing - Comparision and measurement of earth resistance',
+        submissionDate: '2026-10-22',
+        verifierName: 'Shri. Ashfaq Ahmed',
+        verifierDesignation: 'Assistant Manager',
+        verifierOrganisation: 'National Instructional Media Institute (NIMI), Chennai',
+        verificationDate: '2026-10-22'
+      },
+      stageCParams: {
+        programmeName: 'PM e-Vidya Classroom Teaching Video Production',
+        workTitle: 'Classroom Teaching Video Production for PM e-Vidya',
+        location: 'National Instructional Media Institute (NIMI), Chennai',
+        trade: 'Wireman',
+        attendanceSlots: [{ id: 'slot-1', startDate: '2026-09-21', endDate: '2026-10-23', trade: 'Wireman' }],
+        totalDays: 7,
+        ratePerDay: 1500,
+        grossAmount: 10500,
+        taAmount: 2500,
+        otherAmount: 0,
+        totalAmount: 13000,
+        amountInWords: 'Thirteen Thousand Only',
+        submissionDate: '2026-10-22',
+        verifierName: 'Joint Director / HOO',
+        verifierDesignation: 'Head of Office'
+      }
+    },
+    {
+      sme: {
+        id: 'cmv_sme_gnanavel_12',
+        name: 'Shri A.Gnanavel',
+        designation: 'ATO MPCA',
+        institute: 'Govt ITI',
+        location: 'Chennai',
+        address: null,
+        status: 'ACTIVE'
+      },
+      entry: {
+        id: 'cmv_entry_gnanavel_12',
+        epicSequence: 12,
+        trade: 'Wireman',
+        topic: 'General Safety & First Aid for Electrical Hazards, Single Phase & Three Phase Distribution, Protective Switchgear: MCB & ELCB',
+        attendanceFrom: new Date('2026-09-01T00:00:00.000Z'),
+        attendanceTo: new Date('2026-09-06T00:00:00.000Z'),
+        days: 5,
+        ratePerDay: 1500,
+        taAmount: 2000,
+        otherAmount: 0,
+        status: 'IN_PROGRESS'
+      },
+      payment: {
+        id: 'cmv_pay_gnanavel_12',
+        grossAmount: 7500,
+        taAmount: 2000,
+        otherAmount: 0,
+        totalAmount: 9500,
+        status: 'ON_PROCESS'
+      },
+      stageBParams: {
+        programmeName: 'PM e-Vidya Classroom Teaching Video Production',
+        workTitle: 'Classroom Teaching Video Production for PM e-Vidya',
+        location: 'National Instructional Media Institute (NIMI), Chennai',
+        startDate: '2026-09-01',
+        endDate: '2026-09-06',
+        topicsCovered: 'Module 1: General Safety & First Aid for Electrical Hazards\nModule 2: Single Phase & Three Phase Distribution Boards\nModule 3: Protective Switchgear: MCB, MCCB, ELCB & RCCB Operation',
+        submissionDate: '2026-09-07',
+        verifierName: 'Shri. Ashfaq Ahmed',
+        verifierDesignation: 'Assistant Manager',
+        verifierOrganisation: 'National Instructional Media Institute (NIMI), Chennai',
+        verificationDate: '2026-09-08'
+      },
+      stageCParams: {
+        programmeName: 'PM e-Vidya Classroom Teaching Video Production',
+        workTitle: 'Classroom Teaching Video Production for PM e-Vidya',
+        location: 'National Instructional Media Institute (NIMI), Chennai',
+        trade: 'Wireman',
+        attendanceSlots: [{ id: 'slot-1', startDate: '2026-09-01', endDate: '2026-09-06', trade: 'Wireman' }],
+        totalDays: 5,
+        ratePerDay: 1500,
+        grossAmount: 7500,
+        taAmount: 2000,
+        otherAmount: 0,
+        totalAmount: 9500,
+        amountInWords: 'Nine Thousand Five Hundred Only',
+        submissionDate: '2026-09-08',
+        verifierName: 'Joint Director / HOO',
+        verifierDesignation: 'Head of Office'
+      }
+    }
+  ];
+
+  for (const item of RESTORED_SMES) {
+    try {
+      const sme = await prisma.sME.upsert({
+        where: { id: item.sme.id },
+        update: {
+          name: item.sme.name,
+          designation: item.sme.designation,
+          institute: item.sme.institute,
+          location: item.sme.location,
+          status: item.sme.status
+        },
+        create: item.sme
+      });
+
+      const workEntry = await prisma.sMEWorkEntry.upsert({
+        where: { id: item.entry.id },
+        update: {
+          smeId: sme.id,
+          epicSequence: item.entry.epicSequence,
+          trade: item.entry.trade,
+          topic: item.entry.topic,
+          attendanceFrom: item.entry.attendanceFrom,
+          attendanceTo: item.entry.attendanceTo,
+          days: item.entry.days,
+          ratePerDay: item.entry.ratePerDay,
+          taAmount: item.entry.taAmount,
+          otherAmount: item.entry.otherAmount,
+          status: item.entry.status
+        },
+        create: {
+          ...item.entry,
+          smeId: sme.id
+        }
+      });
+
+      await prisma.payment.upsert({
+        where: { id: item.payment.id },
+        update: {
+          workEntryId: workEntry.id,
+          grossAmount: item.payment.grossAmount,
+          taAmount: item.payment.taAmount,
+          otherAmount: item.payment.otherAmount,
+          totalAmount: item.payment.totalAmount,
+          status: item.payment.status
+        },
+        create: {
+          ...item.payment,
+          workEntryId: workEntry.id
+        }
+      });
+
+      const seqStr = String(workEntry.epicSequence).padStart(2, '0');
+      const docs = [
+        {
+          id: `cmv_doc_app_${workEntry.epicSequence}`,
+          name: `Approval Letter - EPIC-2026-PMeVidya ${seqStr}`,
+          type: 'APPROVAL_LETTER',
+          status: 'GENERATED',
+          filePath: null,
+          workEntryId: workEntry.id
+        },
+        {
+          id: `cmv_doc_wc_${workEntry.epicSequence}`,
+          name: `Work Completion Certificate - EPIC-2026-PMeVidya ${seqStr}`,
+          type: 'WORK_COMPLETION',
+          status: 'GENERATED',
+          filePath: null,
+          workEntryId: workEntry.id
+        },
+        {
+          id: `cmv_doc_pn_${workEntry.epicSequence}`,
+          name: `SME Remuneration Note - EPIC-2026-PMeVidya ${seqStr}`,
+          type: 'PAYMENT_NOTE',
+          status: 'GENERATED',
+          filePath: null,
+          workEntryId: workEntry.id
+        },
+        {
+          id: `cmv_doc_stageb_${workEntry.epicSequence}`,
+          name: `Work Completion Parameters - EPIC-2026-PMeVidya ${seqStr}`,
+          type: 'STAGE_B_WORK_COMPLETION',
+          status: 'SAVED',
+          filePath: JSON.stringify(item.stageBParams),
+          workEntryId: workEntry.id
+        },
+        {
+          id: `cmv_doc_stagec_${workEntry.epicSequence}`,
+          name: `Remuneration Parameters - EPIC-2026-PMeVidya ${seqStr}`,
+          type: 'STAGE_C_REMUNERATION',
+          status: 'SAVED',
+          filePath: JSON.stringify(item.stageCParams),
+          workEntryId: workEntry.id
+        }
+      ];
+
+      for (const d of docs) {
+        await prisma.document.upsert({
+          where: { id: d.id },
+          update: {
+            name: d.name,
+            type: d.type,
+            status: d.status,
+            filePath: d.filePath,
+            workEntryId: d.workEntryId
+          },
+          create: d
+        });
+      }
+      console.log(`[Sync DB Script] Synchronized restored SME EPIC-${workEntry.epicSequence} (${sme.name})`);
+    } catch (e) {
+      console.warn(`[Sync DB Script] Notice: SME ${item.entry.epicSequence} sync skipped:`, e.message);
+    }
   }
 }
 

@@ -45,6 +45,14 @@ export default async function SMEProfilePage(props: { params: Promise<{ id: stri
         workEntries: allMatchingEntries.length > 0 ? allMatchingEntries : [matched]
       };
     }
+  } else if (!sme.workEntries || sme.workEntries.length === 0) {
+    const { REAL_PM_EVIDYA_SME_WORK_ENTRIES } = await import('@/lib/fallbackData');
+    const allMatchingEntries = REAL_PM_EVIDYA_SME_WORK_ENTRIES.filter(
+      (e: any) => e.smeId === params.id || e.sme?.id === params.id || e.id === params.id
+    );
+    if (allMatchingEntries.length > 0) {
+      sme.workEntries = allMatchingEntries;
+    }
   }
 
   if (!sme) {

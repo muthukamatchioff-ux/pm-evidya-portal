@@ -33,9 +33,18 @@ export default async function DeputationGeneratorPage({
     console.error('Failed to load work entries for Communications:', e);
   }
 
+  const { REAL_PM_EVIDYA_SME_WORK_ENTRIES } = await import('@/lib/fallbackData');
   if (!workEntries || workEntries.length === 0) {
-    const { REAL_PM_EVIDYA_SME_WORK_ENTRIES } = await import('@/lib/fallbackData');
     workEntries = REAL_PM_EVIDYA_SME_WORK_ENTRIES;
+  } else if (workEntries.length < REAL_PM_EVIDYA_SME_WORK_ENTRIES.length) {
+    const existingIds = new Set(workEntries.map(e => e.id));
+    const existingSeqs = new Set(workEntries.map(e => e.epicSequence));
+    for (const fb of (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[])) {
+      if (!existingIds.has(fb.id) && !existingSeqs.has(fb.epicSequence)) {
+        workEntries.push(fb);
+      }
+    }
+    workEntries.sort((a, b) => (a.epicSequence || 0) - (b.epicSequence || 0));
   }
 
   return (
