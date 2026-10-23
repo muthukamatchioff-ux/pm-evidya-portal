@@ -24,7 +24,7 @@ export default async function SMEsPage() {
         payments: true,
         documents: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { epicSequence: 'desc' }
     });
   } catch {}
 

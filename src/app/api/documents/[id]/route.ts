@@ -167,22 +167,34 @@ export async function GET(
     }
 
     // If parameters not in this document, look for companion stage parameters on the same work entry
+    // If parameters not in this document, look for companion stage parameters on the same work entry
     if (!parsedParams && document.workEntryId) {
-      try {
-        let companionType = '';
-        if (document.type === 'PAYMENT_NOTE' || document.type === 'STAGE_C_REMUNERATION') companionType = 'STAGE_C_REMUNERATION';
-        if (document.type === 'WORK_COMPLETION' || document.type === 'STAGE_B_WORK_COMPLETION') companionType = 'STAGE_B_WORK_COMPLETION';
-        if (document.type === 'APPROVAL_LETTER' || document.type === 'STAGE_A_APPROVAL_LETTER') companionType = 'STAGE_A_APPROVAL_LETTER';
+      let companionType = '';
+      if (document.type === 'PAYMENT_NOTE' || document.type === 'STAGE_C_REMUNERATION') companionType = 'STAGE_C_REMUNERATION';
+      if (document.type === 'WORK_COMPLETION' || document.type === 'STAGE_B_WORK_COMPLETION') companionType = 'STAGE_B_WORK_COMPLETION';
+      if (document.type === 'APPROVAL_LETTER' || document.type === 'STAGE_A_APPROVAL_LETTER') companionType = 'STAGE_A_APPROVAL_LETTER';
 
-        if (companionType) {
+      if (companionType) {
+        // Try Prisma first
+        try {
           const companion = await prisma.document.findFirst({
             where: { workEntryId: document.workEntryId, type: companionType, filePath: { not: null } }
           });
           if (companion && companion.filePath && companion.filePath.startsWith('{')) {
             parsedParams = JSON.parse(companion.filePath);
           }
+        } catch {}
+
+        // If still empty, check documents array on workEntry
+        if (!parsedParams && document.workEntry?.documents && Array.isArray(document.workEntry.documents)) {
+          const companion = document.workEntry.documents.find((d: any) => d.type === companionType && d.filePath && d.filePath.startsWith('{'));
+          if (companion) {
+            try {
+              parsedParams = JSON.parse(companion.filePath);
+            } catch {}
+          }
         }
-      } catch {}
+      }
     }
 
     // Synthesize structured params from work entry if still empty
@@ -212,6 +224,10 @@ export async function GET(
       };
     }
 
+    const isWorkComp = document.type === 'WORK_COMPLETION' || document.type === 'STAGE_B_WORK_COMPLETION';
+    const isPayNote = document.type === 'PAYMENT_NOTE' || document.type === 'STAGE_C_REMUNERATION';
+    const isAppLetter = document.type === 'APPROVAL_LETTER' || document.type === 'STAGE_A_APPROVAL_LETTER';
+
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -231,7 +247,7 @@ export async function GET(
     .document-page {
       background: #ffffff;
       width: 100%;
-      max-width: 800px;
+      max-width: 820px;
       padding: 40px;
       border-radius: 8px;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -265,6 +281,7 @@ export async function GET(
       color: #0f172a;
       text-decoration: underline;
       margin: 20px 0;
+      text-transform: uppercase;
     }
     .meta-grid {
       display: grid;
@@ -298,11 +315,20 @@ export async function GET(
       font-size: 11.5px;
     }
     .doc-body {
-      font-size: 14px;
+      font-size: 13.5px;
       line-height: 1.8;
       color: #334155;
-      margin-bottom: 30px;
+      margin-bottom: 24px;
       text-align: justify;
+    }
+    .topics-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin: 14px 0;
+      font-size: 13px;
+      line-height: 1.6;
     }
     .official-table {
       width: 100%;
@@ -320,7 +346,7 @@ export async function GET(
       font-weight: 700;
     }
     .footer-signatures {
-      margin-top: 40px;
+      margin-top: 36px;
       display: flex;
       justify-content: space-between;
       border-top: 1px dashed #cbd5e1;
@@ -340,7 +366,8 @@ export async function GET(
   <div class="document-page">
     <div class="official-header">
       <div class="institute-title">National Instructional Media Institute (NIMI)</div>
-      <div class="portal-title">Ministry of Skill Development & Entrepreneurship • PM e-Vidya Document Portal</div>
+      <div class="portal-title">Ministry of Skill Development & Entrepreneurship • Government of India</div>
+      <div style="font-size: 11.5px; color: #64748b; margin-top: 2px;">PM e-Vidya Educational Broadcast & Digital Content Portal</div>
     </div>
 
     <div class="meta-grid">
@@ -355,10 +382,36 @@ export async function GET(
     <div class="doc-headline">${document.name}</div>
 
     <div class="doc-body">
-      ${parsedParams?.programmeName ? `
-        <p>This is to certify that <strong>${smeName}</strong> served as a <strong>Subject Matter Expert</strong> for the programme <strong>"${parsedParams.programmeName}"</strong> for the trade <strong>"${parsedParams.trade || trade}"</strong> at <strong>${parsedParams.location || sme?.institute || 'NIMI Chennai'}</strong>.</p>
-        ${parsedParams.topicsCovered ? `<p><strong>Curriculum Modules Covered:</strong><br/>${String(parsedParams.topicsCovered).replace(/\n/g, '<br/>')}</p>` : ''}
-        ${parsedParams.totalAmount ? `<p><strong>Sanctioned Remuneration:</strong> Rs. ${Number(parsedParams.totalAmount).toLocaleString('en-IN')}/- (${parsedParams.amountInWords || ''})</p>` : ''}
+      ${isWorkComp ? `
+        <p>This is to certify that <strong>${smeName}</strong>, <strong>Guest Expert / Subject Matter Expert (SME)</strong>, has successfully completed the <strong>${parsedParams?.programmeName || 'PM e-Vidya Classroom Teaching Video Production'}</strong> for the <strong>${parsedParams?.trade || trade}</strong> trade at the <strong>${parsedParams?.location || 'National Instructional Media Institute (NIMI), Chennai'}</strong>, during the period from <strong>${parsedParams?.startDate ? new Date(parsedParams.startDate).toLocaleDateString('en-IN') : '21.09.2026'}</strong> to <strong>${parsedParams?.endDate ? new Date(parsedParams.endDate).toLocaleDateString('en-IN') : '23.10.2026'}</strong>.</p>
+        <p>As the Guest Expert / Subject Matter Expert (SME), <strong>${smeName}</strong> effectively delivered the assigned classroom sessions in accordance with the approved curriculum, ensuring technical accuracy, instructional quality, and compliance with the applicable standards for PM e-Vidya digital learning content.</p>
+        ${parsedParams?.topicsCovered ? `
+          <div class="topics-box">
+            <strong>Curriculum Topics Covered:</strong><br/>
+            ${String(parsedParams.topicsCovered).split('\n').filter(Boolean).map((t: string, i: number) => `<div>${i + 1}. ${t}</div>`).join('')}
+          </div>
+        ` : ''}
+        <p>This certificate is issued upon complete verification of the recorded video content and instructional delivery for official archive and records.</p>
+      ` : isPayNote ? `
+        <p>Sanction may kindly be accorded for a sum of <strong>Rs. ${Number(parsedParams?.totalAmount || payment?.totalAmount || 13000).toLocaleString('en-IN')}/- (Rupees ${parsedParams?.amountInWords || numberToWords(parsedParams?.totalAmount || payment?.totalAmount || 13000)})</strong> towards the remuneration of <strong>${smeName}</strong>, <strong>${sme?.designation || 'Subject Matter Expert'}</strong>, <strong>${sme?.institute || 'National Instructional Media Institute (NIMI), Chennai'}</strong>, who served as the <strong>Guest Expert / Subject Matter Expert (SME)</strong> for the <strong>${parsedParams?.programmeName || 'PM e-Vidya Classroom Teaching Video Production'}</strong> for the <strong>${parsedParams?.trade || trade}</strong> trade. The <strong>${parsedParams?.workTitle || 'Classroom Teaching Video Production for PM e-Vidya'}</strong> was successfully conducted and completed at the <strong>${parsedParams?.location || 'NIMI Chennai'}</strong>.</p>
+        <table class="official-table">
+          <thead>
+            <tr>
+              <th>Attendance Date / Period</th>
+              <th>Total Days</th>
+              <th>Remuneration / Day</th>
+              <th>Total Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>${parsedParams?.startDate ? new Date(parsedParams.startDate).toLocaleDateString('en-IN') : '21.09.2026'} to ${parsedParams?.endDate ? new Date(parsedParams.endDate).toLocaleDateString('en-IN') : '23.10.2026'}</td>
+              <td style="text-align: center; font-weight: bold;">${parsedParams?.totalDays || workEntry?.days || 7} Days</td>
+              <td style="text-align: right;">Rs. ${Number(parsedParams?.ratePerDay || 1500).toLocaleString('en-IN')}/-</td>
+              <td style="text-align: right; font-weight: bold; color: #15803d;">Rs. ${Number(parsedParams?.totalAmount || payment?.totalAmount || 13000).toLocaleString('en-IN')}/-</td>
+            </tr>
+          </tbody>
+        </table>
       ` : `
         <p>This official compliance record confirms the verified registration of <strong>${document.name}</strong> under PM e-Vidya for Subject Matter Expert <strong>${smeName}</strong> (${sme?.designation || 'SME'}), associated with trade <strong>${trade}</strong> at <strong>${sme?.institute || 'NIMI Chennai'}</strong>.</p>
         <p>All administrative and academic requirements for this document entry have been validated in the PM e-Vidya Document Registry.</p>
