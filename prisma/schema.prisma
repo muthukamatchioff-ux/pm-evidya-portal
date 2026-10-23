@@ -33,6 +33,8 @@ model SME {
   updatedAt         DateTime           @updatedAt
   address           String?
   location          String?
+  email             String?
+  contactNumber     String?
   deputationLetters DeputationLetter[]
   workEntries       SMEWorkEntry[]
 }

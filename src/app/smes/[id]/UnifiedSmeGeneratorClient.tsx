@@ -21,6 +21,8 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any; rol
   const [smeInst, setSmeInst] = useState(sme.institute || '');
   const [smePlace, setSmePlace] = useState(sme.location || '');
   const [smeAddress, setSmeAddress] = useState(sme.address || '');
+  const [smeEmail, setSmeEmail] = useState(sme.email || '');
+  const [smeContact, setSmeContact] = useState(sme.contactNumber || '');
   const [trade, setTrade] = useState(entry.trade || '');
   const [topic, setTopic] = useState(entry.topic || '');
 
@@ -30,6 +32,8 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any; rol
     setSmeInst(sme.institute || '');
     setSmePlace(sme.location || '');
     setSmeAddress(sme.address || '');
+    setSmeEmail(sme.email || '');
+    setSmeContact(sme.contactNumber || '');
     const currentEntry = sme.workEntries?.[0] || {};
     setTrade(currentEntry.trade || '');
     setTopic(currentEntry.topic || '');
@@ -60,6 +64,8 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any; rol
         smeInst,
         smePlace,
         smeAddress,
+        smeEmail,
+        smeContact,
         trade,
         topic,
         startDate: entry.attendanceFrom ? new Date(entry.attendanceFrom).toISOString().split('T')[0] : null,
@@ -77,6 +83,8 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any; rol
         sme.institute = smeInst;
         sme.location = smePlace;
         sme.address = smeAddress;
+        sme.email = smeEmail;
+        sme.contactNumber = smeContact;
         entry.trade = trade;
         entry.topic = topic;
         showToast('✓ SME Master Record saved successfully!');
@@ -423,7 +431,7 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any; rol
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
                 Assigned Trade(s) <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>(Multiple trades supported)</span>
@@ -448,13 +456,36 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any; rol
 
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                Main Topic / Domain
+                Email ID
               </label>
               <input
-                type="text"
-                value={topic}
-                onChange={e => !isViewer && setTopic(e.target.value)}
+                type="email"
+                value={smeEmail}
+                onChange={e => !isViewer && setSmeEmail(e.target.value)}
                 readOnly={isViewer}
+                placeholder="e.g. expert@domain.gov.in"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: '6px',
+                  fontSize: '13.5px',
+                  boxSizing: 'border-box',
+                  background: isViewer ? '#f8fafc' : 'white'
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                Contact Number
+              </label>
+              <input
+                type="tel"
+                value={smeContact}
+                onChange={e => !isViewer && setSmeContact(e.target.value)}
+                readOnly={isViewer}
+                placeholder="e.g. +91 98765 43210"
                 style={{
                   width: '100%',
                   padding: '10px 12px',

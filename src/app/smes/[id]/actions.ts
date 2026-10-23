@@ -109,6 +109,8 @@ export async function updateSMERecord(smeId: string, entryId: string | undefined
         institute: data.smeInst,
         location: data.smePlace,
         address: data.smeAddress !== undefined ? data.smeAddress : undefined,
+        email: data.smeEmail !== undefined ? (data.smeEmail ? data.smeEmail.trim() : null) : undefined,
+        contactNumber: data.smeContact !== undefined ? (data.smeContact ? data.smeContact.trim() : null) : undefined,
       } as any
     });
 
