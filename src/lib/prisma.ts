@@ -595,7 +595,7 @@ const createPrismaClient = () => {
 
                 if (operation === 'create') {
                   const newDoc = {
-                    id: `doc-${Date.now()}`,
+                    id: args?.data?.id || `doc-${Date.now()}`,
                     ...args?.data,
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString()
@@ -604,7 +604,12 @@ const createPrismaClient = () => {
                     const entry = (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).find(e => e.id === args.data.workEntryId);
                     if (entry) {
                       if (!entry.documents) entry.documents = [];
-                      entry.documents.push(newDoc);
+                      const existingIdx = entry.documents.findIndex((d: any) => d.id === newDoc.id || d.type === newDoc.type);
+                      if (existingIdx !== -1) {
+                        entry.documents[existingIdx] = { ...entry.documents[existingIdx], ...newDoc };
+                      } else {
+                        entry.documents.push(newDoc);
+                      }
                     }
                   }
                   allDocs.push(newDoc);
@@ -613,6 +618,16 @@ const createPrismaClient = () => {
 
                 if (operation === 'update') {
                   const id = args?.where?.id;
+                  for (const entry of (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[])) {
+                    if (Array.isArray(entry.documents)) {
+                      const origDoc = entry.documents.find((d: any) => d.id === id);
+                      if (origDoc && args?.data) {
+                        Object.assign(origDoc, args.data);
+                        origDoc.updatedAt = new Date().toISOString();
+                        return origDoc;
+                      }
+                    }
+                  }
                   const doc = allDocs.find(d => d.id === id);
                   if (doc && args?.data) {
                     Object.assign(doc, args.data);

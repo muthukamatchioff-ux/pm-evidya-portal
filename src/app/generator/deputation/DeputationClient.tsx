@@ -61,6 +61,25 @@ const calculateSlotDays = (start: string, end: string): number => {
 const getEpicId = (epicSequence: number) =>
   `EPIC-2026-PMeVidya ${String(epicSequence || 1).padStart(2, '0')}`;
 
+const getStorageKey = (stage: string, entryId: string) => `pm_evidya_saved_${stage}_${entryId}`;
+
+const getSavedParams = (stage: string, entryId: string) => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(getStorageKey(stage, entryId));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const persistSavedParams = (stage: string, entryId: string, params: any) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(getStorageKey(stage, entryId), JSON.stringify(params));
+  } catch {}
+};
+
 export default function DeputationClient({
   initialWorkEntries,
   userRole = 'ADMIN',
@@ -69,10 +88,33 @@ export default function DeputationClient({
   const router = useRouter();
   const isReadOnly = userRole === 'VIEWER' || userRole === 'HIGHER_OFFICIAL_VIEWER';
   const [entries, setEntries] = useState<any[]>(initialWorkEntries || []);
+  const lastLoadedEntryIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (initialWorkEntries) {
-      setEntries(initialWorkEntries);
+    if (initialWorkEntries && initialWorkEntries.length > 0) {
+      setEntries(prevEntries => {
+        const prevMap = new Map(prevEntries.map(e => [e.id, e]));
+        return initialWorkEntries.map(newEntry => {
+          const prev = prevMap.get(newEntry.id);
+          if (!prev) return newEntry;
+          const mergedDocs = [...(newEntry.documents || [])];
+          for (const d of (prev.documents || [])) {
+            const idx = mergedDocs.findIndex((md: any) => md.type === d.type);
+            if (idx === -1) {
+              mergedDocs.push(d);
+            } else if (d.filePath && (!mergedDocs[idx].filePath || (d.updatedAt && d.updatedAt > (mergedDocs[idx].updatedAt || '')))) {
+              mergedDocs[idx] = d;
+            }
+          }
+          return {
+            ...newEntry,
+            topic: prev.topic || newEntry.topic,
+            attendanceFrom: prev.attendanceFrom || newEntry.attendanceFrom,
+            attendanceTo: prev.attendanceTo || newEntry.attendanceTo,
+            documents: mergedDocs
+          };
+        });
+      });
     }
   }, [initialWorkEntries]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -178,18 +220,30 @@ export default function DeputationClient({
   const [hasSavedDocC, setHasSavedDocC] = useState(false);
   const [docCLastSavedAt, setDocCLastSavedAt] = useState<string | null>(null);
 
-  // Synchronize state when selectedEntry changes
+  // Synchronize state when selectedEntry changes (switching SME)
   useEffect(() => {
     if (!selectedEntry) return;
+
+    // Only re-initialize when switching to a DIFFERENT SME entry
+    if (lastLoadedEntryIdRef.current === selectedEntry.id) {
+      return;
+    }
+    lastLoadedEntryIdRef.current = selectedEntry.id;
 
     const sme = selectedEntry.sme || {};
     const docs = selectedEntry.documents || [];
     const payments = selectedEntry.payments || [];
     const payment = payments[0] || {};
 
-    // 1. Stage A initialization
+    // 1. Stage A initialization (localStorage cache first, then DB doc, then default)
+    const savedA = getSavedParams('STAGE_A', selectedEntry.id);
     const docA = docs.find((d: any) => d.type === 'STAGE_A_APPROVAL_LETTER');
-    if (docA?.filePath) {
+    if (savedA) {
+      setStageAParams(savedA);
+      setHasSavedDocA(true);
+      setIsEditingA(false);
+      setDocALastSavedAt(docA?.updatedAt || docA?.createdAt || new Date().toISOString());
+    } else if (docA?.filePath) {
       try {
         const parsed = JSON.parse(docA.filePath);
         setStageAParams(parsed);
@@ -203,9 +257,15 @@ export default function DeputationClient({
       initDefaultStageA(selectedEntry, sme);
     }
 
-    // 2. Stage B initialization
-    const docB = docs.find((d: any) => d.type === 'STAGE_B_WORK_COMPLETION');
-    if (docB?.filePath) {
+    // 2. Stage B initialization (localStorage cache first, then DB doc, then default)
+    const savedB = getSavedParams('STAGE_B', selectedEntry.id);
+    const docB = docs.find((d: any) => d.type === 'STAGE_B_WORK_COMPLETION' || d.type === 'WORK_COMPLETION');
+    if (savedB) {
+      setStageBParams(savedB);
+      setHasSavedDocB(true);
+      setIsEditingB(false);
+      setDocBLastSavedAt(docB?.updatedAt || docB?.createdAt || new Date().toISOString());
+    } else if (docB?.filePath) {
       try {
         const parsed = JSON.parse(docB.filePath);
         setStageBParams(parsed);
@@ -219,9 +279,15 @@ export default function DeputationClient({
       initDefaultStageB(selectedEntry);
     }
 
-    // 3. Stage C initialization
-    const docC = docs.find((d: any) => d.type === 'STAGE_C_REMUNERATION');
-    if (docC?.filePath) {
+    // 3. Stage C initialization (localStorage cache first, then DB doc, then default)
+    const savedC = getSavedParams('STAGE_C', selectedEntry.id);
+    const docC = docs.find((d: any) => d.type === 'STAGE_C_REMUNERATION' || d.type === 'PAYMENT_NOTE');
+    if (savedC) {
+      setStageCParams(savedC);
+      setHasSavedDocC(true);
+      setIsEditingC(false);
+      setDocCLastSavedAt(docC?.updatedAt || docC?.createdAt || new Date().toISOString());
+    } else if (docC?.filePath) {
       try {
         const parsed = JSON.parse(docC.filePath);
         if (!parsed.attendanceSlots || !Array.isArray(parsed.attendanceSlots) || parsed.attendanceSlots.length === 0) {
@@ -465,6 +531,7 @@ export default function DeputationClient({
     if (!selectedEntry) return;
     setIsSavingA(true);
     try {
+      persistSavedParams('STAGE_A', selectedEntry.id, stageAParams);
       const res = await saveCommunicationsStage(selectedEntry.id, 'STAGE_A', stageAParams);
       if (res.success && res.document) {
         setHasSavedDocA(true);
@@ -473,10 +540,9 @@ export default function DeputationClient({
         // Update local state without mutating other stages
         setEntries(prev => prev.map(e => {
           if (e.id !== selectedEntry.id) return e;
-          const otherDocs = (e.documents || []).filter((d: any) => d.type !== 'STAGE_A_APPROVAL_LETTER');
+          const otherDocs = (e.documents || []).filter((d: any) => d.type !== 'STAGE_A_APPROVAL_LETTER' && d.type !== 'APPROVAL_LETTER');
           return { ...e, documents: [...otherDocs, res.document] };
         }));
-        router.refresh();
         showToast('✓ Stage A: Approval Letter parameters saved successfully!', 'success');
       } else {
         showToast(res.error || 'Failed to save Approval Letter parameters', 'error');
@@ -492,6 +558,7 @@ export default function DeputationClient({
     if (!selectedEntry) return;
     setIsSavingB(true);
     try {
+      persistSavedParams('STAGE_B', selectedEntry.id, stageBParams);
       const res = await saveCommunicationsStage(selectedEntry.id, 'STAGE_B', stageBParams);
       if (res.success && res.document) {
         setHasSavedDocB(true);
@@ -499,7 +566,7 @@ export default function DeputationClient({
         setDocBLastSavedAt(res.document.updatedAt || new Date().toISOString());
         setEntries(prev => prev.map(e => {
           if (e.id !== selectedEntry.id) return e;
-          const otherDocs = (e.documents || []).filter((d: any) => d.type !== 'STAGE_B_WORK_COMPLETION');
+          const otherDocs = (e.documents || []).filter((d: any) => d.type !== 'STAGE_B_WORK_COMPLETION' && d.type !== 'WORK_COMPLETION');
           return {
             ...e,
             topic: stageBParams.topicsCovered || e.topic,
@@ -508,7 +575,6 @@ export default function DeputationClient({
             documents: [...otherDocs, res.document]
           };
         }));
-        router.refresh();
         showToast('✓ Stage B: Work Completion parameters saved successfully!', 'success');
       } else {
         showToast(res.error || 'Failed to save Work Completion parameters', 'error');
@@ -524,6 +590,7 @@ export default function DeputationClient({
     if (!selectedEntry) return;
     setIsSavingC(true);
     try {
+      persistSavedParams('STAGE_C', selectedEntry.id, stageCParams);
       const res = await saveCommunicationsStage(selectedEntry.id, 'STAGE_C', stageCParams);
       if (res.success && res.document) {
         setHasSavedDocC(true);
@@ -531,7 +598,7 @@ export default function DeputationClient({
         setDocCLastSavedAt(res.document.updatedAt || new Date().toISOString());
         setEntries(prev => prev.map(e => {
           if (e.id !== selectedEntry.id) return e;
-          const otherDocs = (e.documents || []).filter((d: any) => d.type !== 'STAGE_C_REMUNERATION');
+          const otherDocs = (e.documents || []).filter((d: any) => d.type !== 'STAGE_C_REMUNERATION' && d.type !== 'PAYMENT_NOTE');
           return {
             ...e,
             trade: stageCParams.trade || e.trade,
@@ -542,7 +609,6 @@ export default function DeputationClient({
             documents: [...otherDocs, res.document]
           };
         }));
-        router.refresh();
         showToast('✓ Stage C: Remuneration parameters saved successfully!', 'success');
       } else {
         showToast(res.error || 'Failed to save Remuneration parameters', 'error');

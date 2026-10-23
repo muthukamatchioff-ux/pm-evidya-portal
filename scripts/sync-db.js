@@ -374,14 +374,14 @@ async function syncRestoredSmes(prisma) {
         programmeName: 'PM e-Vidya Classroom Teaching Video Production',
         workTitle: 'Classroom Teaching Video Production for PM e-Vidya',
         location: 'National Instructional Media Institute (NIMI), Chennai',
-        startDate: '2026-09-01',
-        endDate: '2026-09-06',
-        topicsCovered: 'Module 1: General Safety & First Aid for Electrical Hazards\nModule 2: Single Phase & Three Phase Distribution Boards\nModule 3: Protective Switchgear: MCB, MCCB, ELCB & RCCB Operation',
-        submissionDate: '2026-09-07',
+        startDate: '2026-09-23',
+        endDate: '2026-10-23',
+        topicsCovered: '1. 2.10 - 1.3.16 - Basic Workshop Practice (Hand Tools)\n1.11.63 - 1.11.68 - Transformer - Principle - Classification - EMF Equation\n1.8.42 - 1.8.45 - Generation and Transmission - PowerPlant and overhead transmission\n1.7.37 - 1.7.38 - Measuring Instruments - AM types, instruments scale, Classification\n1.12.69 - 73 - Relay and Control Panel Wiring\n1.7.39 - 41 - Measuring Instruments - Principles, MC, MI, Force types\n1.8.46 - 1.8.49 - Distribution & Substation - Circuit Breaker, Supply, CT, PT',
+        submissionDate: '2026-10-23',
         verifierName: 'Shri. Ashfaq Ahmed',
         verifierDesignation: 'Assistant Manager',
         verifierOrganisation: 'National Instructional Media Institute (NIMI), Chennai',
-        verificationDate: '2026-09-08'
+        verificationDate: '2026-10-23'
       },
       stageCParams: {
         programmeName: 'PM e-Vidya Classroom Teaching Video Production',

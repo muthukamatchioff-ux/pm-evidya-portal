@@ -280,6 +280,18 @@ export async function saveCommunicationsStage(
       }
 
       try {
+        const appDoc = await prisma.document.findFirst({
+          where: { workEntryId: actualWorkEntryId, type: 'APPROVAL_LETTER' }
+        });
+        if (appDoc) {
+          await prisma.document.update({
+            where: { id: appDoc.id },
+            data: { filePath: JSON.stringify(parameters), status: 'SAVED' }
+          });
+        }
+      } catch {}
+
+      try {
         await logAudit({
           action: 'SAVE_STAGE_A_APPROVAL_LETTER',
           entity: 'SMEWorkEntry',
@@ -345,6 +357,18 @@ export async function saveCommunicationsStage(
             attendanceTo: parameters.endDate ? new Date(parameters.endDate) : workEntry.attendanceTo,
           }
         });
+      } catch {}
+
+      try {
+        const wcDoc = await prisma.document.findFirst({
+          where: { workEntryId: actualWorkEntryId, type: 'WORK_COMPLETION' }
+        });
+        if (wcDoc) {
+          await prisma.document.update({
+            where: { id: wcDoc.id },
+            data: { filePath: JSON.stringify(parameters), status: 'SAVED' }
+          });
+        }
       } catch {}
 
       try {
@@ -463,6 +487,18 @@ export async function saveCommunicationsStage(
       } catch {}
 
       try {
+        const pnDoc = await prisma.document.findFirst({
+          where: { workEntryId: actualWorkEntryId, type: 'PAYMENT_NOTE' }
+        });
+        if (pnDoc) {
+          await prisma.document.update({
+            where: { id: pnDoc.id },
+            data: { filePath: JSON.stringify(parameters), status: 'SAVED' }
+          });
+        }
+      } catch {}
+
+      try {
         await logAudit({
           action: 'SAVE_STAGE_C_REMUNERATION',
           entity: 'SMEWorkEntry',
@@ -475,13 +511,33 @@ export async function saveCommunicationsStage(
 
     // Also update in-memory fallbackData so subsequent lookups are immediate
     if (fallbackEntry) {
+      if (stage === 'STAGE_B') {
+        fallbackEntry.topic = parameters.topicsCovered || fallbackEntry.topic;
+        if (parameters.startDate) fallbackEntry.attendanceFrom = new Date(parameters.startDate).toISOString();
+        if (parameters.endDate) fallbackEntry.attendanceTo = new Date(parameters.endDate).toISOString();
+      } else if (stage === 'STAGE_C') {
+        fallbackEntry.trade = parameters.trade || fallbackEntry.trade;
+        fallbackEntry.days = Number(parameters.totalDays) || fallbackEntry.days;
+        fallbackEntry.ratePerDay = Number(parameters.ratePerDay) || fallbackEntry.ratePerDay;
+      }
       if (!fallbackEntry.documents) fallbackEntry.documents = [];
       const docType = stage === 'STAGE_A' ? 'STAGE_A_APPROVAL_LETTER' : stage === 'STAGE_B' ? 'STAGE_B_WORK_COMPLETION' : 'STAGE_C_REMUNERATION';
+      const companionType = stage === 'STAGE_A' ? 'APPROVAL_LETTER' : stage === 'STAGE_B' ? 'WORK_COMPLETION' : 'PAYMENT_NOTE';
+
       const docIdx = fallbackEntry.documents.findIndex((d: any) => d.type === docType);
       if (docIdx !== -1) {
         fallbackEntry.documents[docIdx] = savedDocument;
       } else {
         fallbackEntry.documents.push(savedDocument);
+      }
+
+      const compIdx = fallbackEntry.documents.findIndex((d: any) => d.type === companionType);
+      if (compIdx !== -1) {
+        fallbackEntry.documents[compIdx] = {
+          ...fallbackEntry.documents[compIdx],
+          filePath: JSON.stringify(parameters),
+          status: 'SAVED'
+        };
       }
     }
 
