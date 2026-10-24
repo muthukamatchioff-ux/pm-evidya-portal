@@ -499,17 +499,25 @@ async function syncRestoredSmes(prisma) {
       ];
 
       for (const d of docs) {
-        await prisma.document.upsert({
-          where: { id: d.id },
-          update: {
+        const existingDoc = await prisma.document.findUnique({ where: { id: d.id } });
+        if (existingDoc) {
+          // Preserve live production saved parameters: never overwrite an existing non-null filePath with seed data or null!
+          const updateData = {
             name: d.name,
             type: d.type,
-            status: d.status,
-            filePath: d.filePath,
             workEntryId: d.workEntryId
-          },
-          create: d
-        });
+          };
+          if (!existingDoc.filePath && d.filePath) {
+            updateData.filePath = d.filePath;
+            updateData.status = d.status;
+          }
+          await prisma.document.update({
+            where: { id: d.id },
+            data: updateData
+          });
+        } else {
+          await prisma.document.create({ data: d });
+        }
       }
       console.log(`[Sync DB Script] Synchronized restored SME EPIC-${workEntry.epicSequence} (${sme.name})`);
     } catch (e) {

@@ -22,7 +22,9 @@ export default async function SMEsPage() {
       include: {
         sme: true,
         payments: true,
-        documents: true,
+        documents: {
+          orderBy: { updatedAt: 'desc' }
+        },
       },
       orderBy: { epicSequence: 'desc' }
     });

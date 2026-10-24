@@ -21,7 +21,9 @@ export default async function SMEProfilePage(props: { params: Promise<{ id: stri
         workEntries: {
           include: {
             payments: true,
-            documents: true,
+            documents: {
+              orderBy: { updatedAt: 'desc' }
+            },
           },
           orderBy: { createdAt: 'desc' }
         }

@@ -91,7 +91,9 @@ export async function getCommunicationsWorkEntries() {
         include: {
           sme: true,
           payments: true,
-          documents: true,
+          documents: {
+            orderBy: { updatedAt: 'desc' }
+          },
         },
         orderBy: { epicSequence: 'asc' }
       });
@@ -247,12 +249,15 @@ export async function saveCommunicationsStage(
     const epicIdStr = getEpicId(workEntry.epicSequence || 1);
     const userEmail = await getEmail();
     let savedDocument: any = null;
+    let companionDoc: any = null;
 
     if (stage === 'STAGE_A') {
       const docType = 'STAGE_A_APPROVAL_LETTER';
+      const companionType = 'APPROVAL_LETTER';
       try {
         const existingDoc = await prisma.document.findFirst({
-          where: { workEntryId: actualWorkEntryId, type: docType }
+          where: { workEntryId: actualWorkEntryId, type: docType },
+          orderBy: { updatedAt: 'desc' }
         });
 
         if (existingDoc) {
@@ -290,18 +295,19 @@ export async function saveCommunicationsStage(
 
       try {
         const appDoc = await prisma.document.findFirst({
-          where: { workEntryId: actualWorkEntryId, type: 'APPROVAL_LETTER' }
+          where: { workEntryId: actualWorkEntryId, type: companionType },
+          orderBy: { updatedAt: 'desc' }
         });
         if (appDoc) {
-          await prisma.document.update({
+          companionDoc = await prisma.document.update({
             where: { id: appDoc.id },
             data: { filePath: JSON.stringify(parameters), status: 'SAVED' }
           });
         } else {
-          await prisma.document.create({
+          companionDoc = await prisma.document.create({
             data: {
               name: `Approval Letter - ${epicIdStr}`,
-              type: 'APPROVAL_LETTER',
+              type: companionType,
               status: 'SAVED',
               filePath: JSON.stringify(parameters),
               workEntryId: actualWorkEntryId,
@@ -322,9 +328,11 @@ export async function saveCommunicationsStage(
       } catch {}
     } else if (stage === 'STAGE_B') {
       const docType = 'STAGE_B_WORK_COMPLETION';
+      const companionType = 'WORK_COMPLETION';
       try {
         const existingDoc = await prisma.document.findFirst({
-          where: { workEntryId: actualWorkEntryId, type: docType }
+          where: { workEntryId: actualWorkEntryId, type: docType },
+          orderBy: { updatedAt: 'desc' }
         });
 
         if (existingDoc) {
@@ -378,18 +386,19 @@ export async function saveCommunicationsStage(
 
       try {
         const wcDoc = await prisma.document.findFirst({
-          where: { workEntryId: actualWorkEntryId, type: 'WORK_COMPLETION' }
+          where: { workEntryId: actualWorkEntryId, type: companionType },
+          orderBy: { updatedAt: 'desc' }
         });
         if (wcDoc) {
-          await prisma.document.update({
+          companionDoc = await prisma.document.update({
             where: { id: wcDoc.id },
             data: { filePath: JSON.stringify(parameters), status: 'SAVED' }
           });
         } else {
-          await prisma.document.create({
+          companionDoc = await prisma.document.create({
             data: {
               name: `Work Completion Certificate - ${epicIdStr}`,
-              type: 'WORK_COMPLETION',
+              type: companionType,
               status: 'SAVED',
               filePath: JSON.stringify(parameters),
               workEntryId: actualWorkEntryId,
@@ -410,9 +419,11 @@ export async function saveCommunicationsStage(
       } catch {}
     } else if (stage === 'STAGE_C') {
       const docType = 'STAGE_C_REMUNERATION';
+      const companionType = 'PAYMENT_NOTE';
       try {
         const existingDoc = await prisma.document.findFirst({
-          where: { workEntryId: actualWorkEntryId, type: docType }
+          where: { workEntryId: actualWorkEntryId, type: docType },
+          orderBy: { updatedAt: 'desc' }
         });
 
         if (existingDoc) {
@@ -509,54 +520,25 @@ export async function saveCommunicationsStage(
 
       try {
         const pnDoc = await prisma.document.findFirst({
-          where: { workEntryId: actualWorkEntryId, type: 'PAYMENT_NOTE' }
+          where: { workEntryId: actualWorkEntryId, type: companionType },
+          orderBy: { updatedAt: 'desc' }
         });
         if (pnDoc) {
-          await prisma.document.update({
+          companionDoc = await prisma.document.update({
             where: { id: pnDoc.id },
             data: { filePath: JSON.stringify(parameters), status: 'SAVED' }
           });
         } else {
-          await prisma.document.create({
+          companionDoc = await prisma.document.create({
             data: {
               name: `SME Remuneration Note - ${epicIdStr}`,
-              type: 'PAYMENT_NOTE',
+              type: companionType,
               status: 'SAVED',
               filePath: JSON.stringify(parameters),
               workEntryId: actualWorkEntryId,
               version: 1
             }
           });
-        }
-      } catch {}
-
-      // Keep STAGE_B_WORK_COMPLETION and WORK_COMPLETION ratePerDay synchronized
-      try {
-        const stageBDoc = await prisma.document.findFirst({
-          where: { workEntryId: actualWorkEntryId, type: 'STAGE_B_WORK_COMPLETION' }
-        });
-        if (stageBDoc && stageBDoc.filePath) {
-          try {
-            const bParams = JSON.parse(stageBDoc.filePath);
-            bParams.ratePerDay = ratePerDay;
-            await prisma.document.update({
-              where: { id: stageBDoc.id },
-              data: { filePath: JSON.stringify(bParams) }
-            });
-          } catch {}
-        }
-        const wcDoc = await prisma.document.findFirst({
-          where: { workEntryId: actualWorkEntryId, type: 'WORK_COMPLETION' }
-        });
-        if (wcDoc && wcDoc.filePath) {
-          try {
-            const bParams = JSON.parse(wcDoc.filePath);
-            bParams.ratePerDay = ratePerDay;
-            await prisma.document.update({
-              where: { id: wcDoc.id },
-              data: { filePath: JSON.stringify(bParams) }
-            });
-          } catch {}
         }
       } catch {}
 
@@ -594,13 +576,13 @@ export async function saveCommunicationsStage(
         fallbackEntry.documents.push(savedDocument);
       }
 
-      const compIdx = fallbackEntry.documents.findIndex((d: any) => d.type === companionType);
-      if (compIdx !== -1) {
-        fallbackEntry.documents[compIdx] = {
-          ...fallbackEntry.documents[compIdx],
-          filePath: JSON.stringify(parameters),
-          status: 'SAVED'
-        };
+      if (companionDoc) {
+        const compIdx = fallbackEntry.documents.findIndex((d: any) => d.type === companionType);
+        if (compIdx !== -1) {
+          fallbackEntry.documents[compIdx] = companionDoc;
+        } else {
+          fallbackEntry.documents.push(companionDoc);
+        }
       }
     }
 
@@ -617,6 +599,7 @@ export async function saveCommunicationsStage(
       success: true,
       stage,
       document: savedDocument,
+      companionDocument: companionDoc,
       message: `Stage ${stage.replace('STAGE_', '')} parameters saved successfully!`
     };
   } catch (error: any) {

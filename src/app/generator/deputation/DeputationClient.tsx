@@ -61,24 +61,81 @@ const calculateSlotDays = (start: string, end: string): number => {
 const getEpicId = (epicSequence: number) =>
   `EPIC-2026-PMeVidya ${String(epicSequence || 1).padStart(2, '0')}`;
 
-const getStorageKey = (stage: string, entryId: string) => `pm_evidya_saved_${stage}_${entryId}`;
+const getStorageKeys = (stage: string, entryId: string, epicSeq?: number | null) => {
+  const keys = [`pm_evidya_saved_${stage}_${entryId}`];
+  if (epicSeq !== undefined && epicSeq !== null) {
+    keys.push(`pm_evidya_saved_${stage}_seq_${epicSeq}`);
+  }
+  return keys;
+};
 
-const getSavedParams = (stage: string, entryId: string) => {
+const getSavedParams = (stage: string, entryId: string, epicSeq?: number | null) => {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = localStorage.getItem(getStorageKey(stage, entryId));
-    return raw ? JSON.parse(raw) : null;
+    const keys = getStorageKeys(stage, entryId, epicSeq);
+    for (const k of keys) {
+      const raw = localStorage.getItem(k);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    }
+    return null;
   } catch {
     return null;
   }
 };
 
-const persistSavedParams = (stage: string, entryId: string, params: any) => {
+const persistSavedParams = (stage: string, entryId: string, epicSeq: number | null | undefined, params: any) => {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(getStorageKey(stage, entryId), JSON.stringify(params));
+    const keys = getStorageKeys(stage, entryId, epicSeq);
+    const str = JSON.stringify(params);
+    for (const k of keys) {
+      localStorage.setItem(k, str);
+    }
   } catch {}
 };
+
+function extractSavedParams(
+  docs: any[],
+  primaryType: string,
+  companionType: string
+): { params: any; updatedAt: string | null; docId: string | null } | null {
+  if (!Array.isArray(docs) || docs.length === 0) return null;
+
+  // Filter only candidate documents of matching types with a valid non-empty JSON string
+  const candidates = docs.filter(
+    (d: any) =>
+      (d.type === primaryType || d.type === companionType) &&
+      typeof d.filePath === 'string' &&
+      d.filePath.trim().startsWith('{')
+  );
+
+  if (candidates.length === 0) return null;
+
+  // Sort candidates by updatedAt descending so the latest saved parameters win
+  candidates.sort((a: any, b: any) => {
+    const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    return timeB - timeA;
+  });
+
+  for (const cand of candidates) {
+    try {
+      const parsed = JSON.parse(cand.filePath);
+      if (parsed && typeof parsed === 'object') {
+        return {
+          params: parsed,
+          updatedAt: cand.updatedAt || cand.createdAt || null,
+          docId: cand.id
+        };
+      }
+    } catch {}
+  }
+
+  return null;
+}
 
 export default function DeputationClient({
   initialWorkEntries,
@@ -98,14 +155,14 @@ export default function DeputationClient({
           const prev = prevMap.get(newEntry.id);
           if (!prev) return newEntry;
 
-          // Merge documents safely: prioritize documents with valid filePath
+          // Merge documents safely: prioritize documents with valid JSON filePath
           const mergedDocs = [...(newEntry.documents || [])];
           for (const d of (prev.documents || [])) {
-            if (!d.filePath) continue;
+            if (!d.filePath || typeof d.filePath !== 'string' || !d.filePath.trim().startsWith('{')) continue;
             const idx = mergedDocs.findIndex((md: any) => md.type === d.type);
             if (idx === -1) {
               mergedDocs.unshift(d);
-            } else if (!mergedDocs[idx].filePath) {
+            } else if (!mergedDocs[idx].filePath || !mergedDocs[idx].filePath.trim().startsWith('{')) {
               mergedDocs[idx] = d;
             } else {
               const dTime = new Date(d.updatedAt || d.createdAt || 0).getTime();
@@ -123,7 +180,7 @@ export default function DeputationClient({
             attendanceTo: prev.attendanceTo || newEntry.attendanceTo,
             trade: prev.trade || newEntry.trade,
             days: prev.days || newEntry.days,
-            ratePerDay: (prev.ratePerDay && prev.ratePerDay !== 1500) ? prev.ratePerDay : (newEntry.ratePerDay || prev.ratePerDay || 1500),
+            ratePerDay: prev.ratePerDay || newEntry.ratePerDay || 1500,
             documents: mergedDocs
           };
         });
@@ -253,141 +310,107 @@ export default function DeputationClient({
     const docs = selectedEntry.documents || [];
     const payments = selectedEntry.payments || [];
     const payment = payments[0] || {};
+    const seq = selectedEntry.epicSequence;
 
-    // 1. Stage A initialization (localStorage cache first, then DB doc with filePath, then companion doc, then default)
-    const savedA = getSavedParams('STAGE_A', selectedEntry.id);
-    const docA =
-      docs.find((d: any) => d.type === 'STAGE_A_APPROVAL_LETTER' && d.filePath) ||
-      docs.find((d: any) => d.type === 'APPROVAL_LETTER' && d.filePath) ||
-      docs.find((d: any) => d.type === 'STAGE_A_APPROVAL_LETTER') ||
-      docs.find((d: any) => d.type === 'APPROVAL_LETTER');
+    // 1. Stage A: Database source of truth first, then cache, then defaults
+    const dbRecordA = extractSavedParams(docs, 'STAGE_A_APPROVAL_LETTER', 'APPROVAL_LETTER');
+    const cachedA = getSavedParams('STAGE_A', selectedEntry.id, seq);
 
-    if (savedA) {
-      setStageAParams(savedA);
+    if (dbRecordA) {
+      setStageAParams(dbRecordA.params);
       setHasSavedDocA(true);
       setIsEditingA(false);
-      setDocALastSavedAt(docA?.updatedAt || docA?.createdAt || new Date().toISOString());
-    } else if (docA?.filePath) {
-      try {
-        const parsed = JSON.parse(docA.filePath);
-        setStageAParams(parsed);
-        setHasSavedDocA(true);
-        setIsEditingA(false);
-        setDocALastSavedAt(docA.updatedAt || docA.createdAt);
-        persistSavedParams('STAGE_A', selectedEntry.id, parsed);
-      } catch {
-        initDefaultStageA(selectedEntry, sme);
-      }
+      setDocALastSavedAt(dbRecordA.updatedAt || new Date().toISOString());
+      persistSavedParams('STAGE_A', selectedEntry.id, seq, dbRecordA.params);
+    } else if (cachedA) {
+      setStageAParams(cachedA);
+      setHasSavedDocA(true);
+      setIsEditingA(false);
+      setDocALastSavedAt(new Date().toISOString());
     } else {
       initDefaultStageA(selectedEntry, sme);
     }
 
-    // 3. Stage C initialization first to determine accurate Remuneration rate
-    const savedC = getSavedParams('STAGE_C', selectedEntry.id);
-    const docC =
-      docs.find((d: any) => d.type === 'STAGE_C_REMUNERATION' && d.filePath) ||
-      docs.find((d: any) => d.type === 'PAYMENT_NOTE' && d.filePath) ||
-      docs.find((d: any) => d.type === 'STAGE_C_REMUNERATION') ||
-      docs.find((d: any) => d.type === 'PAYMENT_NOTE');
+    // 2. Stage B: Database source of truth first, then cache, then defaults
+    const dbRecordB = extractSavedParams(docs, 'STAGE_B_WORK_COMPLETION', 'WORK_COMPLETION');
+    const cachedB = getSavedParams('STAGE_B', selectedEntry.id, seq);
 
-    let loadedStageCRate = selectedEntry.ratePerDay || 1500;
-    if (savedC) {
-      if (savedC.ratePerDay) loadedStageCRate = Number(savedC.ratePerDay);
-      setStageCParams(savedC);
-      setHasSavedDocC(true);
-      setIsEditingC(false);
-      setDocCLastSavedAt(docC?.updatedAt || docC?.createdAt || new Date().toISOString());
-    } else if (docC?.filePath) {
-      try {
-        const parsed = JSON.parse(docC.filePath);
-        if (!parsed.attendanceSlots || !Array.isArray(parsed.attendanceSlots) || parsed.attendanceSlots.length === 0) {
-          const startDate = selectedEntry.attendanceFrom
-            ? new Date(selectedEntry.attendanceFrom).toISOString().split('T')[0]
-            : new Date().toISOString().split('T')[0];
-          const endDate = selectedEntry.attendanceTo
-            ? new Date(selectedEntry.attendanceTo).toISOString().split('T')[0]
-            : startDate;
-          parsed.attendanceSlots = [{ id: 'slot-1', startDate, endDate, trade: parsed.trade || selectedEntry.trade || '' }];
-        } else {
-          parsed.attendanceSlots = parsed.attendanceSlots.map((s: any) => ({
-            ...s,
-            trade: s.trade || parsed.trade || selectedEntry.trade || ''
-          }));
-        }
-        if (!parsed.trade) {
-          parsed.trade = selectedEntry.trade || '';
-        }
-        parsed.taAmount = 0;
-        parsed.otherAmount = 0;
-        if (parsed.totalDays === undefined || parsed.totalDays === null || isNaN(Number(parsed.totalDays))) {
-          const sumDays = parsed.attendanceSlots.reduce((acc: number, s: any) => acc + calculateSlotDays(s.startDate, s.endDate), 0);
-          parsed.totalDays = sumDays > 0 ? sumDays : (Number(selectedEntry.days) || 4);
-        } else {
-          parsed.totalDays = Number(parsed.totalDays);
-        }
-        const rate = (parsed.ratePerDay !== undefined && parsed.ratePerDay !== null && !isNaN(Number(parsed.ratePerDay)))
-          ? Number(parsed.ratePerDay)
-          : (Number(selectedEntry.ratePerDay) || 1500);
-        parsed.ratePerDay = rate;
-        loadedStageCRate = rate;
-        if (parsed.grossAmount === undefined || parsed.grossAmount === null || isNaN(Number(parsed.grossAmount))) {
-          parsed.grossAmount = parsed.totalDays * rate;
-        } else {
-          parsed.grossAmount = Number(parsed.grossAmount);
-        }
-        if (parsed.totalAmount === undefined || parsed.totalAmount === null || isNaN(Number(parsed.totalAmount))) {
-          parsed.totalAmount = parsed.grossAmount;
-        } else {
-          parsed.totalAmount = Number(parsed.totalAmount);
-        }
-        if (!parsed.amountInWords) {
-          parsed.amountInWords = numberToWords(parsed.totalAmount);
-        }
-
-        persistSavedParams('STAGE_C', selectedEntry.id, parsed);
-        setStageCParams(parsed);
-        setHasSavedDocC(true);
-        setIsEditingC(false);
-        setDocCLastSavedAt(docC.updatedAt || docC.createdAt);
-      } catch {
-        initDefaultStageC(selectedEntry, payment, loadedStageCRate);
-      }
-    } else {
-      initDefaultStageC(selectedEntry, payment, loadedStageCRate);
-    }
-
-    // 2. Stage B initialization (always prioritize valid filePath to prevent resetting to defaults)
-    const savedB = getSavedParams('STAGE_B', selectedEntry.id);
-    const docB =
-      docs.find((d: any) => d.type === 'STAGE_B_WORK_COMPLETION' && d.filePath) ||
-      docs.find((d: any) => d.type === 'WORK_COMPLETION' && d.filePath) ||
-      docs.find((d: any) => d.type === 'STAGE_B_WORK_COMPLETION') ||
-      docs.find((d: any) => d.type === 'WORK_COMPLETION');
-
-    if (savedB) {
-      if (!savedB.ratePerDay || (loadedStageCRate && loadedStageCRate !== 1500 && savedB.ratePerDay === 1500)) {
-        savedB.ratePerDay = loadedStageCRate;
-      }
-      setStageBParams(savedB);
+    if (dbRecordB) {
+      setStageBParams(dbRecordB.params);
       setHasSavedDocB(true);
       setIsEditingB(false);
-      setDocBLastSavedAt(docB?.updatedAt || docB?.createdAt || new Date().toISOString());
-    } else if (docB?.filePath) {
-      try {
-        const parsed = JSON.parse(docB.filePath);
-        if (!parsed.ratePerDay || (loadedStageCRate && loadedStageCRate !== 1500 && parsed.ratePerDay === 1500)) {
-          parsed.ratePerDay = loadedStageCRate;
-        }
-        persistSavedParams('STAGE_B', selectedEntry.id, parsed);
-        setStageBParams(parsed);
-        setHasSavedDocB(true);
-        setIsEditingB(false);
-        setDocBLastSavedAt(docB.updatedAt || docB.createdAt);
-      } catch {
-        initDefaultStageB(selectedEntry, loadedStageCRate);
-      }
+      setDocBLastSavedAt(dbRecordB.updatedAt || new Date().toISOString());
+      persistSavedParams('STAGE_B', selectedEntry.id, seq, dbRecordB.params);
+    } else if (cachedB) {
+      setStageBParams(cachedB);
+      setHasSavedDocB(true);
+      setIsEditingB(false);
+      setDocBLastSavedAt(new Date().toISOString());
     } else {
-      initDefaultStageB(selectedEntry, loadedStageCRate);
+      initDefaultStageB(selectedEntry, selectedEntry.ratePerDay);
+    }
+
+    // 3. Stage C: Database source of truth first, then cache, then defaults
+    const dbRecordC = extractSavedParams(docs, 'STAGE_C_REMUNERATION', 'PAYMENT_NOTE');
+    const cachedC = getSavedParams('STAGE_C', selectedEntry.id, seq);
+
+    if (dbRecordC) {
+      const parsed = { ...dbRecordC.params };
+      if (!parsed.attendanceSlots || !Array.isArray(parsed.attendanceSlots) || parsed.attendanceSlots.length === 0) {
+        const startDate = selectedEntry.attendanceFrom
+          ? new Date(selectedEntry.attendanceFrom).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0];
+        const endDate = selectedEntry.attendanceTo
+          ? new Date(selectedEntry.attendanceTo).toISOString().split('T')[0]
+          : startDate;
+        parsed.attendanceSlots = [{ id: 'slot-1', startDate, endDate, trade: parsed.trade || selectedEntry.trade || '' }];
+      } else {
+        parsed.attendanceSlots = parsed.attendanceSlots.map((s: any) => ({
+          ...s,
+          trade: s.trade || parsed.trade || selectedEntry.trade || ''
+        }));
+      }
+      if (!parsed.trade) {
+        parsed.trade = selectedEntry.trade || '';
+      }
+      parsed.taAmount = 0;
+      parsed.otherAmount = 0;
+      if (parsed.totalDays === undefined || parsed.totalDays === null || isNaN(Number(parsed.totalDays))) {
+        const sumDays = parsed.attendanceSlots.reduce((acc: number, s: any) => acc + calculateSlotDays(s.startDate, s.endDate), 0);
+        parsed.totalDays = sumDays > 0 ? sumDays : (Number(selectedEntry.days) || 4);
+      } else {
+        parsed.totalDays = Number(parsed.totalDays);
+      }
+      const rate = (parsed.ratePerDay !== undefined && parsed.ratePerDay !== null && !isNaN(Number(parsed.ratePerDay)))
+        ? Number(parsed.ratePerDay)
+        : (Number(selectedEntry.ratePerDay) || 1500);
+      parsed.ratePerDay = rate;
+      if (parsed.grossAmount === undefined || parsed.grossAmount === null || isNaN(Number(parsed.grossAmount))) {
+        parsed.grossAmount = parsed.totalDays * rate;
+      } else {
+        parsed.grossAmount = Number(parsed.grossAmount);
+      }
+      if (parsed.totalAmount === undefined || parsed.totalAmount === null || isNaN(Number(parsed.totalAmount))) {
+        parsed.totalAmount = parsed.grossAmount;
+      } else {
+        parsed.totalAmount = Number(parsed.totalAmount);
+      }
+      if (!parsed.amountInWords) {
+        parsed.amountInWords = numberToWords(parsed.totalAmount);
+      }
+
+      setStageCParams(parsed);
+      setHasSavedDocC(true);
+      setIsEditingC(false);
+      setDocCLastSavedAt(dbRecordC.updatedAt || new Date().toISOString());
+      persistSavedParams('STAGE_C', selectedEntry.id, seq, parsed);
+    } else if (cachedC) {
+      setStageCParams(cachedC);
+      setHasSavedDocC(true);
+      setIsEditingC(false);
+      setDocCLastSavedAt(new Date().toISOString());
+    } else {
+      initDefaultStageC(selectedEntry, payment, selectedEntry.ratePerDay);
     }
   }, [selectedEntryId, entries]);
 
@@ -589,10 +612,6 @@ export default function DeputationClient({
       updated.amountInWords = numberToWords(gross);
       return updated;
     });
-    if (field === 'ratePerDay') {
-      const newRate = Number(value) || 0;
-      setStageBParams(prev => ({ ...prev, ratePerDay: newRate }));
-    }
   };
 
   // Save Handlers
@@ -600,17 +619,17 @@ export default function DeputationClient({
     if (!selectedEntry) return;
     setIsSavingA(true);
     try {
-      persistSavedParams('STAGE_A', selectedEntry.id, stageAParams);
+      persistSavedParams('STAGE_A', selectedEntry.id, selectedEntry.epicSequence, stageAParams);
       const res = await saveCommunicationsStage(selectedEntry.id, 'STAGE_A', stageAParams);
       if (res.success && res.document) {
         setHasSavedDocA(true);
         setIsEditingA(false);
         setDocALastSavedAt(res.document.updatedAt || new Date().toISOString());
-        // Update local state without mutating other stages
+        const newDocs = [res.document, ...(res.companionDocument ? [res.companionDocument] : [])];
         setEntries(prev => prev.map(e => {
           if (e.id !== selectedEntry.id) return e;
           const otherDocs = (e.documents || []).filter((d: any) => d.type !== 'STAGE_A_APPROVAL_LETTER' && d.type !== 'APPROVAL_LETTER');
-          return { ...e, documents: [...otherDocs, res.document] };
+          return { ...e, documents: [...otherDocs, ...newDocs] };
         }));
         showToast('✓ Stage A: Approval Letter parameters saved successfully!', 'success');
       } else {
@@ -627,42 +646,24 @@ export default function DeputationClient({
     if (!selectedEntry) return;
     setIsSavingB(true);
     try {
-      const bParamsToSave = { ...stageBParams, ratePerDay: effectiveRatePerDay };
-      persistSavedParams('STAGE_B', selectedEntry.id, bParamsToSave);
+      persistSavedParams('STAGE_B', selectedEntry.id, selectedEntry.epicSequence, stageBParams);
 
-      // Keep Stage C cache updated with initial rate ONLY if Stage C has NOT been saved yet
-      if (!hasSavedDocC) {
-        const currentC = getSavedParams('STAGE_C', selectedEntry.id) || stageCParams;
-        if (currentC && currentC.ratePerDay !== effectiveRatePerDay) {
-          const totalDays = Number(currentC.totalDays) || 4;
-          const gross = totalDays * effectiveRatePerDay;
-          const updatedC = {
-            ...currentC,
-            ratePerDay: effectiveRatePerDay,
-            grossAmount: gross,
-            totalAmount: gross,
-            amountInWords: numberToWords(gross)
-          };
-          persistSavedParams('STAGE_C', selectedEntry.id, updatedC);
-          setStageCParams(updatedC);
-        }
-      }
-
-      const res = await saveCommunicationsStage(selectedEntry.id, 'STAGE_B', bParamsToSave);
+      const res = await saveCommunicationsStage(selectedEntry.id, 'STAGE_B', stageBParams);
       if (res.success && res.document) {
         setHasSavedDocB(true);
         setIsEditingB(false);
         setDocBLastSavedAt(res.document.updatedAt || new Date().toISOString());
+        const newDocs = [res.document, ...(res.companionDocument ? [res.companionDocument] : [])];
         setEntries(prev => prev.map(e => {
           if (e.id !== selectedEntry.id) return e;
           const otherDocs = (e.documents || []).filter((d: any) => d.type !== 'STAGE_B_WORK_COMPLETION' && d.type !== 'WORK_COMPLETION');
           return {
             ...e,
-            ratePerDay: effectiveRatePerDay,
+            ratePerDay: stageBParams.ratePerDay || e.ratePerDay,
             topic: stageBParams.topicsCovered || e.topic,
             attendanceFrom: stageBParams.startDate ? new Date(stageBParams.startDate) : e.attendanceFrom,
             attendanceTo: stageBParams.endDate ? new Date(stageBParams.endDate) : e.attendanceTo,
-            documents: [...otherDocs, res.document]
+            documents: [...otherDocs, ...newDocs]
           };
         }));
         showToast('✓ Stage B: Work Completion parameters saved successfully!', 'success');
@@ -680,19 +681,14 @@ export default function DeputationClient({
     if (!selectedEntry) return;
     setIsSavingC(true);
     try {
-      persistSavedParams('STAGE_C', selectedEntry.id, stageCParams);
-
-      // Keep Stage B in sync with Stage C's ratePerDay
-      const currentB = getSavedParams('STAGE_B', selectedEntry.id) || stageBParams;
-      const updatedB = { ...currentB, ratePerDay: stageCParams.ratePerDay };
-      persistSavedParams('STAGE_B', selectedEntry.id, updatedB);
-      setStageBParams(prev => ({ ...prev, ratePerDay: stageCParams.ratePerDay }));
+      persistSavedParams('STAGE_C', selectedEntry.id, selectedEntry.epicSequence, stageCParams);
 
       const res = await saveCommunicationsStage(selectedEntry.id, 'STAGE_C', stageCParams);
       if (res.success && res.document) {
         setHasSavedDocC(true);
         setIsEditingC(false);
         setDocCLastSavedAt(res.document.updatedAt || new Date().toISOString());
+        const newDocs = [res.document, ...(res.companionDocument ? [res.companionDocument] : [])];
         setEntries(prev => prev.map(e => {
           if (e.id !== selectedEntry.id) return e;
           const otherDocs = (e.documents || []).filter((d: any) => d.type !== 'STAGE_C_REMUNERATION' && d.type !== 'PAYMENT_NOTE');
@@ -703,7 +699,7 @@ export default function DeputationClient({
             ratePerDay: stageCParams.ratePerDay,
             taAmount: 0,
             otherAmount: 0,
-            documents: [...otherDocs, res.document]
+            documents: [...otherDocs, ...newDocs]
           };
         }));
         showToast('✓ Stage C: Remuneration parameters saved successfully!', 'success');

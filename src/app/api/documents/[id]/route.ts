@@ -178,7 +178,8 @@ export async function GET(
         // Try Prisma first
         try {
           const companion = await prisma.document.findFirst({
-            where: { workEntryId: document.workEntryId, type: companionType, filePath: { not: null } }
+            where: { workEntryId: document.workEntryId, type: companionType, filePath: { not: null } },
+            orderBy: { updatedAt: 'desc' }
           });
           if (companion && companion.filePath && companion.filePath.startsWith('{')) {
             parsedParams = JSON.parse(companion.filePath);
