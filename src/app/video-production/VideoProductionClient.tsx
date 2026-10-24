@@ -305,13 +305,21 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         const smeName = lib?.smeName || entry.sme?.name || '-';
         const title = lib?.title || sched?.videoTitle || ed?.assignedVideo || entry.topic || '-';
 
-        const shootingStartDate = sched?.scheduledStart ? formatDateForInput(sched.scheduledStart) : null;
-        const shootingEndDate = sched?.scheduledEnd ? formatDateForInput(sched.scheduledEnd) : null;
+        const shootingStartDate = sched?.scheduledStart 
+          ? formatDateForInput(sched.scheduledStart) 
+          : (entry.attendanceFrom ? formatDateForInput(entry.attendanceFrom) : null);
+        const shootingEndDate = sched?.scheduledEnd 
+          ? formatDateForInput(sched.scheduledEnd) 
+          : (entry.attendanceTo ? formatDateForInput(entry.attendanceTo) : null);
         const shootingStatus = sched?.status || 'Yet to Shoot';
         const cameraman = cleanCameramanDisplay(sched?.cameraman);
 
-        const editingStartDate = ed?.editingStartDate ? formatDateForInput(ed.editingStartDate) : null;
-        const editingEndDate = ed?.editingEndDate ? formatDateForInput(ed.editingEndDate) : null;
+        const editingStartDate = ed?.editingStartDate 
+          ? formatDateForInput(ed.editingStartDate) 
+          : (shootingEndDate ? formatDateForInput(new Date(new Date(shootingEndDate).getTime() + 86400000)) : null);
+        const editingEndDate = ed?.editingEndDate 
+          ? formatDateForInput(ed.editingEndDate) 
+          : (editingStartDate ? formatDateForInput(new Date(new Date(editingStartDate).getTime() + 7 * 86400000)) : null);
         const editingStatus = ed?.status || 'Pending';
         const editor = cleanEditorDisplay(ed?.editorName);
 

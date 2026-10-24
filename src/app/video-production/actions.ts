@@ -210,6 +210,8 @@ export async function getTopicProductionRecords() {
           if (matchSched) {
             return {
               ...matchSched,
+              scheduledStart: matchSched.scheduledStart || entry.attendanceFrom || null,
+              scheduledEnd: matchSched.scheduledEnd || entry.attendanceTo || null,
               cameraman: matchSched.cameraman || null,
               month: matchSched.location || null
             };
@@ -218,9 +220,9 @@ export async function getTopicProductionRecords() {
             id: `shoot-${v.id || idx}`,
             workEntryId: entry.id,
             videoTitle: title,
-            shootDate: null,
-            scheduledStart: null,
-            scheduledEnd: null,
+            shootDate: entry.attendanceFrom || null,
+            scheduledStart: entry.attendanceFrom || null,
+            scheduledEnd: entry.attendanceTo || null,
             location: null,
             month: null,
             cameraman: null,
@@ -236,6 +238,8 @@ export async function getTopicProductionRecords() {
           if (!shootingSchedules.some((sc: any) => sc.id === s.id || (sc.videoTitle && s.videoTitle && sc.videoTitle.trim().toLowerCase() === s.videoTitle.trim().toLowerCase()))) {
             shootingSchedules.push({
               ...s,
+              scheduledStart: s.scheduledStart || entry.attendanceFrom || null,
+              scheduledEnd: s.scheduledEnd || entry.attendanceTo || null,
               cameraman: s.cameraman || null,
               month: s.location || null
             });
@@ -244,6 +248,8 @@ export async function getTopicProductionRecords() {
       } else if (realSchedules.length > 0) {
         shootingSchedules = realSchedules.map((s: any) => ({
           ...s,
+          scheduledStart: s.scheduledStart || entry.attendanceFrom || null,
+          scheduledEnd: s.scheduledEnd || entry.attendanceTo || null,
           cameraman: s.cameraman || null,
           month: s.location || null
         }));
@@ -252,9 +258,9 @@ export async function getTopicProductionRecords() {
           id: `shoot-${entry.id}`,
           workEntryId: entry.id,
           videoTitle: entry.topic,
-          shootDate: null,
-          scheduledStart: null,
-          scheduledEnd: null,
+          shootDate: entry.attendanceFrom || null,
+          scheduledStart: entry.attendanceFrom || null,
+          scheduledEnd: entry.attendanceTo || null,
           location: null,
           month: null,
           cameraman: null,
@@ -274,13 +280,18 @@ export async function getTopicProductionRecords() {
             e.id === v.id || e.id === `ed-${v.id}` || (e.assignedVideo && e.assignedVideo.trim() === title.trim()) ||
             (combinedVideos.length === 1 && realEditorRecs.length === 1)
           );
+          const matchSched = shootingSchedules.find((s: any) => s.id === `shoot-${v.id}` || s.videoTitle === title);
+          const shootEnd = matchSched?.scheduledEnd || entry.attendanceTo;
+          const fallbackEditStart = shootEnd ? new Date(new Date(shootEnd).getTime() + 86400000) : null;
+          const fallbackEditEnd = fallbackEditStart ? new Date(fallbackEditStart.getTime() + 7 * 86400000) : null;
+
           if (matchRec) {
             return {
               ...matchRec,
               assignedVideo: matchRec.assignedVideo || title,
               editorName: matchRec.editorName || null,
-              editingStartDate: matchRec.editingStartDate || null,
-              editingEndDate: matchRec.editingEndDate || null,
+              editingStartDate: matchRec.editingStartDate || fallbackEditStart,
+              editingEndDate: matchRec.editingEndDate || fallbackEditEnd,
               finalVideoFile: matchRec.finalVideoFile || v.videoLink || null,
               duration: matchRec.duration || v.duration || null,
               status: matchRec.status || 'Pending'
