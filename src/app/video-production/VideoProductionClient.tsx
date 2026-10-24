@@ -58,7 +58,7 @@ function formatDateForInput(dateVal: any): string {
 }
 
 function formatDateDisplay(dateVal: any): string {
-  if (!dateVal) return 'TBD';
+  if (!dateVal || dateVal === '-' || dateVal === 'null') return '-';
   try {
     const d = new Date(dateVal);
     if (isNaN(d.getTime())) return String(dateVal);
@@ -80,28 +80,30 @@ function cleanReviewComments(reviewComments: string | null | undefined): string 
 }
 
 function cleanCameramanDisplay(name?: string | null): string {
-  if (!name) return 'Antony Alcander';
+  if (!name) return '-';
   const trimmed = name.trim();
   const lower = trimmed.toLowerCase();
-  if (!trimmed || trimmed === '-' || lower === 'null' || lower === 'production team' || lower === 'production' || lower === 'team') {
-    return 'Antony Alcander';
+  if (!trimmed || trimmed === '-' || lower === 'null') {
+    return '-';
   }
   return trimmed;
 }
 
 function cleanEditorDisplay(name?: string | null): string {
-  if (!name) return 'Post-Production Team';
+  if (!name) return '-';
   const trimmed = name.trim();
   const lower = trimmed.toLowerCase();
   if (!trimmed || trimmed === '-' || lower === 'null' || lower === 'not assigned') {
-    return 'Post-Production Team';
+    return '-';
   }
   return trimmed;
 }
 
-// Unified Video Row Model
+// Unified Video Row Model (Matching exact 16 tracker columns)
 export interface VideoRegisterRow {
   slNo: number;
+  sNo: number;
+  month: string;
   uniqueKey: string;
   videoId: string;
   displayVideoId: string;
@@ -114,7 +116,7 @@ export interface VideoRegisterRow {
   
   // Production
   cameraman: string;
-  shootingStatus: 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'RESHOOT';
+  shootingStatus: string;
   shootingStartDate: string | null;
   shootingEndDate: string | null;
   shootingLocation: string | null;
@@ -123,7 +125,7 @@ export interface VideoRegisterRow {
   
   // Post-Production
   editor: string;
-  editingStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+  editingStatus: string;
   editingStartDate: string | null;
   editingEndDate: string | null;
   roughCutLink: string | null;
@@ -155,6 +157,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
 
   // Filters state
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterMonth, setFilterMonth] = useState('ALL');
   const [filterTrade, setFilterTrade] = useState('ALL');
   const [filterCameraman, setFilterCameraman] = useState('ALL');
   const [filterEditor, setFilterEditor] = useState('ALL');
@@ -164,8 +167,8 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
 
-  // Sorting state
-  const [sortBy, setSortBy] = useState<string>('epicSequence');
+  // Sorting state (default: S.No ascending)
+  const [sortBy, setSortBy] = useState<string>('sNo');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Pagination state (default: 10 rows)
@@ -231,47 +234,45 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     loadData();
   }, []);
 
-  // Compute unified Video Production Register
+  // Compute unified Video Production Register (Individual 57 records, strictly preserving database data)
   const videoRegister = useMemo<VideoRegisterRow[]>(() => {
-    let counter = 1;
     const rows: VideoRegisterRow[] = [];
 
     workEntries.forEach(entry => {
       const epicSeq = entry.epicSequence;
       const epicCode = `EPIC-${epicSeq}`;
-      const trade = entry.trade || 'General';
-      const smeName = entry.sme?.name || 'SME';
       const combinedVideos = entry.videoLibraries || [];
       const schedules = entry.shootingSchedules || [];
       const editors = entry.videoEditorRecords || [];
       const finals = entry.finalVideoRecords || [];
 
-      // Collect all video items under this Epic
-      const titleMap = new Map<string, { lib?: any; schedule?: any; editor?: any }>();
+      // Map by video ID to NEVER merge different videos under the same trade, SME, or title
+      const videoIdMap = new Map<string, { lib?: any; schedule?: any; editor?: any }>();
 
-      // 1. From videoLibraries
       combinedVideos.forEach((v: any) => {
-        const title = (v.title || entry.topic || 'Untitled Video').trim();
-        if (!titleMap.has(title)) titleMap.set(title, {});
-        titleMap.get(title)!.lib = v;
+        videoIdMap.set(v.id, { lib: v });
       });
 
-      // 2. From shootingSchedules
       schedules.forEach((s: any) => {
-        const title = (s.videoTitle || entry.topic || 'Untitled Video').trim();
-        if (!titleMap.has(title)) titleMap.set(title, {});
-        titleMap.get(title)!.schedule = s;
+        const rawId = s.id.replace('shoot-', '');
+        if (videoIdMap.has(rawId)) {
+          videoIdMap.get(rawId)!.schedule = s;
+        } else {
+          videoIdMap.set(s.id, { schedule: s });
+        }
       });
 
-      // 3. From videoEditorRecords
       editors.forEach((e: any) => {
-        const title = (e.assignedVideo || entry.topic || 'Untitled Video').trim();
-        if (!titleMap.has(title)) titleMap.set(title, {});
-        titleMap.get(title)!.editor = e;
+        const rawId = e.id.replace('ed-', '');
+        if (videoIdMap.has(rawId)) {
+          videoIdMap.get(rawId)!.editor = e;
+        } else {
+          videoIdMap.set(e.id, { editor: e });
+        }
       });
 
-      if (titleMap.size === 0) {
-        titleMap.set(entry.topic || 'Master Video Topic', {
+      if (videoIdMap.size === 0) {
+        videoIdMap.set(`${entry.id}-default`, {
           schedule: schedules[0],
           editor: editors[0],
           lib: combinedVideos[0]
@@ -279,52 +280,65 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       }
 
       let subIdx = 1;
-      titleMap.forEach((data, title) => {
+      videoIdMap.forEach((data, id) => {
         const lib = data.lib;
         const sched = data.schedule;
         const ed = data.editor;
         const fin = finals[0];
 
-        const rawVideoId = lib?.id || sched?.id?.replace('shoot-', '') || ed?.id?.replace('ed-', '') || `${entry.id}-${subIdx}`;
-        const displayVideoId = `VID-${epicSeq.toString().padStart(2, '0')}-${subIdx.toString().padStart(2, '0')}`;
+        let meta: any = null;
+        try {
+          if (sched?.productionNotes && sched.productionNotes.startsWith('{')) {
+            meta = JSON.parse(sched.productionNotes);
+          } else if (ed?.reviewComments && ed.reviewComments.startsWith('{')) {
+            meta = JSON.parse(ed.reviewComments);
+          }
+        } catch (_) {}
 
-        const shootingStartDate = sched?.scheduledStart 
-          ? formatDateForInput(sched.scheduledStart) 
-          : (entry.attendanceFrom ? formatDateForInput(entry.attendanceFrom) : null);
-        const shootingEndDate = sched?.scheduledEnd 
-          ? formatDateForInput(sched.scheduledEnd) 
-          : (entry.attendanceTo ? formatDateForInput(entry.attendanceTo) : null);
-        const shootingStatus = (sched?.status || (entry.status === 'COMPLETED' ? 'COMPLETED' : 'PLANNED')) as any;
+        const vidMatch = id.match(/VID-(\d+)/i);
+        const sNo = meta?.sNo ? meta.sNo : (vidMatch ? parseInt(vidMatch[1], 10) : subIdx);
+        const rawVideoId = id;
+        const displayVideoId = vidMatch ? `VID-${vidMatch[1]}` : `VID-${epicSeq.toString().padStart(2, '0')}-${subIdx.toString().padStart(2, '0')}`;
+
+        const month = sched?.location || meta?.month || 'June';
+        const trade = lib?.trade || entry.trade || '-';
+        const smeName = lib?.smeName || entry.sme?.name || '-';
+        const title = lib?.title || sched?.videoTitle || ed?.assignedVideo || entry.topic || '-';
+
+        const shootingStartDate = sched?.scheduledStart ? formatDateForInput(sched.scheduledStart) : null;
+        const shootingEndDate = sched?.scheduledEnd ? formatDateForInput(sched.scheduledEnd) : null;
+        const shootingStatus = sched?.status || 'Yet to Shoot';
         const cameraman = cleanCameramanDisplay(sched?.cameraman);
 
-        const editingStartDate = ed?.editingStartDate ? formatDateForInput(ed.editingStartDate) : '2026-10-05';
-        const editingEndDate = ed?.editingEndDate 
-          ? formatDateForInput(ed.editingEndDate) 
-          : (extractEndDate(ed?.reviewComments) || '2026-10-15');
-        const editingStatus = (ed?.status || (entry.status === 'COMPLETED' ? 'COMPLETED' : 'NOT_STARTED')) as any;
+        const editingStartDate = ed?.editingStartDate ? formatDateForInput(ed.editingStartDate) : null;
+        const editingEndDate = ed?.editingEndDate ? formatDateForInput(ed.editingEndDate) : null;
+        const editingStatus = ed?.status || 'Pending';
         const editor = cleanEditorDisplay(ed?.editorName);
 
-        // Canonical source for final video deliverable is VideoLibrary
         const finalVideoLink = lib?.videoLink || ed?.finalVideoFile || fin?.finalVideoFile || null;
         const hasLink = !!finalVideoLink && finalVideoLink.trim() !== '' && finalVideoLink !== '-';
         const duration = lib?.duration || ed?.duration || fin?.finalDuration || null;
 
         let deliveryStatus: 'DELIVERED' | 'LINK_MISSING' | 'IN_PRODUCTION' | 'PENDING' = 'PENDING';
-        if (editingStatus === 'COMPLETED' && hasLink) {
+        if ((editingStatus === 'Completed' || editingStatus === 'COMPLETED') && hasLink) {
           deliveryStatus = 'DELIVERED';
-        } else if (editingStatus === 'COMPLETED' && !hasLink) {
+        } else if ((editingStatus === 'Completed' || editingStatus === 'COMPLETED') && !hasLink) {
           deliveryStatus = 'LINK_MISSING';
-        } else if (shootingStatus === 'IN_PROGRESS' || editingStatus === 'IN_PROGRESS') {
+        } else if (shootingStatus.includes('Progress') || editingStatus.includes('Progress') || editingStatus.includes('process')) {
           deliveryStatus = 'IN_PRODUCTION';
-        } else if (shootingStatus === 'COMPLETED' && !hasLink) {
+        } else if (hasLink) {
+          deliveryStatus = 'DELIVERED';
+        } else if (shootingStatus.includes('Completed') && !hasLink) {
           deliveryStatus = 'LINK_MISSING';
         }
 
-        const qualityReviewStatus = fin?.finalVideoStatus || (deliveryStatus === 'DELIVERED' ? 'APPROVED' : (ed?.reviewComments ? 'UNDER_REVIEW' : 'PENDING'));
+        const qualityReviewStatus = fin?.finalVideoStatus || (deliveryStatus === 'DELIVERED' ? 'APPROVED' : 'PENDING');
 
         rows.push({
-          slNo: counter++,
-          uniqueKey: `${entry.id}-${subIdx}-${rawVideoId}`,
+          slNo: sNo,
+          sNo,
+          month,
+          uniqueKey: `${entry.id}-${rawVideoId}`,
           videoId: rawVideoId,
           displayVideoId,
           epicId: entry.id,
@@ -375,23 +389,33 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       });
     });
 
+    // Sort by S.No ascending
+    rows.sort((a, b) => a.sNo - b.sNo);
+
     return rows;
   }, [workEntries]);
 
   // Extract distinct filter lists from live register
+  const monthsList = useMemo(() => {
+    const monthsOrder = ['June', 'July', 'August', 'September', 'October'];
+    const presentMonths = Array.from(new Set(videoRegister.map(r => r.month))).filter(Boolean);
+    return monthsOrder.filter(m => presentMonths.includes(m));
+  }, [videoRegister]);
   const tradesList = useMemo(() => Array.from(new Set(videoRegister.map(r => r.trade))).filter(Boolean).sort(), [videoRegister]);
-  const cameramenList = useMemo(() => Array.from(new Set(videoRegister.map(r => r.cameraman))).filter(Boolean).sort(), [videoRegister]);
-  const editorsList = useMemo(() => Array.from(new Set(videoRegister.map(r => r.editor))).filter(Boolean).sort(), [videoRegister]);
+  const cameramenList = useMemo(() => Array.from(new Set(videoRegister.map(r => r.cameraman))).filter(c => c && c !== '-').sort(), [videoRegister]);
+  const editorsList = useMemo(() => Array.from(new Set(videoRegister.map(r => r.editor))).filter(e => e && e !== '-').sort(), [videoRegister]);
+  const shootingStatusesList = useMemo(() => Array.from(new Set(videoRegister.map(r => r.shootingStatus))).filter(Boolean).sort(), [videoRegister]);
+  const editingStatusesList = useMemo(() => Array.from(new Set(videoRegister.map(r => r.editingStatus))).filter(Boolean).sort(), [videoRegister]);
 
-  // 1. Dynamic KPI Metrics Calculation (strictly persisted records)
+  // 1. Dynamic KPI Metrics Calculation (strictly persisted database records)
   const totalVideos = videoRegister.length;
-  const completedVideos = videoRegister.filter(v => v.editingStatus === 'COMPLETED' && v.hasLink).length;
+  const completedVideos = videoRegister.filter(v => v.editingStatus === 'Completed' || (v.hasLink && v.editingStatus !== 'Pending')).length;
   const inProgressVideos = videoRegister.filter(v => 
-    (v.shootingStatus === 'IN_PROGRESS' || v.editingStatus === 'IN_PROGRESS') && 
-    !(v.editingStatus === 'COMPLETED' && v.hasLink)
+    (v.shootingStatus.includes('Progress') || v.editingStatus.includes('Progress') || v.editingStatus.includes('process')) && 
+    !(v.editingStatus === 'Completed' && v.hasLink)
   ).length;
   const pendingVideos = videoRegister.filter(v => 
-    v.shootingStatus === 'PLANNED' && v.editingStatus === 'NOT_STARTED' && !v.hasLink
+    v.editingStatus === 'Pending' || v.shootingStatus === 'Yet to Shoot' || (!v.hasLink && v.editingStatus !== 'In Progress')
   ).length;
   const linksMissingVideos = videoRegister.filter(v => !v.hasLink).length;
   const completionPercentage = totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0;
@@ -399,7 +423,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   // 2. Filter & Sort Video Register
   const filteredRows = useMemo(() => {
     let result = videoRegister.filter(row => {
-      // Search Box (Epic, Video ID, Title, SME, Trade)
+      // Search Box (Epic, Video ID, Title, SME, Trade, Month)
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase().trim();
         const matchesSearch = 
@@ -408,10 +432,14 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
           row.videoTitle.toLowerCase().includes(q) ||
           row.smeName.toLowerCase().includes(q) ||
           row.trade.toLowerCase().includes(q) ||
+          row.month.toLowerCase().includes(q) ||
           row.cameraman.toLowerCase().includes(q) ||
           row.editor.toLowerCase().includes(q);
         if (!matchesSearch) return false;
       }
+
+      // Month Filter
+      if (filterMonth !== 'ALL' && row.month !== filterMonth) return false;
 
       // Trade Filter
       if (filterTrade !== 'ALL' && row.trade !== filterTrade) return false;
@@ -450,9 +478,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       let valA: any = (a as any)[sortBy] ?? '';
       let valB: any = (b as any)[sortBy] ?? '';
 
-      if (sortBy === 'epicSequence') {
-        valA = a.epicSequence;
-        valB = b.epicSequence;
+      if (sortBy === 'sNo' || sortBy === 'epicSequence') {
+        const numA = Number(valA) || 0;
+        const numB = Number(valB) || 0;
+        return sortOrder === 'asc' ? numA - numB : numB - numA;
       }
 
       if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
@@ -464,6 +493,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   }, [
     videoRegister, 
     searchTerm, 
+    filterMonth,
     filterTrade, 
     filterCameraman, 
     filterEditor, 
@@ -479,7 +509,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   // Reset to page 1 whenever filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterTrade, filterCameraman, filterEditor, filterProdStatus, filterEditStatus, filterDeliveryStatus, filterDateFrom, filterDateTo, pageSize]);
+  }, [searchTerm, filterMonth, filterTrade, filterCameraman, filterEditor, filterProdStatus, filterEditStatus, filterDeliveryStatus, filterDateFrom, filterDateTo, pageSize]);
 
   // Paginated Rows
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
@@ -501,6 +531,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   // Reset all filters
   const handleResetFilters = () => {
     setSearchTerm('');
+    setFilterMonth('ALL');
     setFilterTrade('ALL');
     setFilterCameraman('ALL');
     setFilterEditor('ALL');
@@ -511,46 +542,44 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setFilterDateTo('');
   };
 
-  // Export filtered register as CSV
+  // Export filtered register as CSV (Strictly 16 canonical columns)
   const handleExportCsv = () => {
     const headers = [
-      'Sl No',
-      'Video ID',
-      'EPIC ID',
-      'Trade / Subject',
-      'SME Name',
-      'Video Title',
-      'Assigned Cameraman',
-      'Shooting Status',
-      'Shooting Start Date',
-      'Shooting End Date',
-      'Assigned Editor',
-      'Post-Production Status',
-      'Post-Production Start Date',
-      'Post-Production End Date',
+      'S.No',
+      'Month',
+      'Trade',
+      'SME / Resource Person',
+      'Epic id',
+      'Start date (Shooting)',
+      'End date (Shooting)',
+      'Cameraman',
+      'Current Status (Shooting)',
+      'Video Editor',
+      'Start date (Editing)',
+      'End date (Editing)',
+      'Current Status (Editing)',
+      'Video Topic',
       'Duration',
-      'Final Video Link',
-      'Delivery Status'
+      'Video Link'
     ];
 
     const rows = filteredRows.map(r => [
-      r.slNo,
-      r.displayVideoId,
-      r.epicCode,
+      r.sNo,
+      `"${(r.month || '').replace(/"/g, '""')}"`,
       `"${(r.trade || '').replace(/"/g, '""')}"`,
       `"${(r.smeName || '').replace(/"/g, '""')}"`,
-      `"${(r.videoTitle || '').replace(/"/g, '""')}"`,
-      `"${(r.cameraman || '').replace(/"/g, '""')}"`,
-      r.shootingStatus,
+      r.epicCode,
       r.shootingStartDate || '-',
       r.shootingEndDate || '-',
+      `"${(r.cameraman || '').replace(/"/g, '""')}"`,
+      `"${(r.shootingStatus || '').replace(/"/g, '""')}"`,
       `"${(r.editor || '').replace(/"/g, '""')}"`,
-      r.editingStatus,
       r.editingStartDate || '-',
       r.editingEndDate || '-',
+      `"${(r.editingStatus || '').replace(/"/g, '""')}"`,
+      `"${(r.videoTitle || '').replace(/"/g, '""')}"`,
       r.duration || '-',
-      `"${(r.finalVideoLink || '').replace(/"/g, '""')}"`,
-      r.hasLink ? 'DELIVERED' : 'LINK_MISSING'
+      `"${(r.finalVideoLink || '').replace(/"/g, '""')}"`
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
@@ -765,21 +794,20 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
 
   // Helper for status badge class
   const getBadgeClass = (status: string) => {
-    switch ((status || '').toUpperCase()) {
-      case 'COMPLETED':
-      case 'APPROVED':
-      case 'TELECASTED':
-      case 'DELIVERED':
-        return styles.badgeCompleted;
-      case 'IN_PROGRESS':
-        return styles.badgeProgress;
-      case 'RESHOOT':
-      case 'REVISION_REQUIRED':
-      case 'UNDER_REVIEW':
-        return styles.badgeReshoot;
-      default:
-        return styles.badgePending;
+    const s = (status || '').toUpperCase();
+    if (s.includes('COMPLETED') || s.includes('APPROVED') || s.includes('DELIVERED') || s.includes('TELECASTED')) {
+      return styles.badgeCompleted;
     }
+    if (s.includes('PROGRESS') || s.includes('PROCESS')) {
+      return styles.badgeProgress;
+    }
+    if (s.includes('RECEIVED') || s.includes('CONTENT')) {
+      return styles.badgeProgress;
+    }
+    if (s.includes('RESHOOT') || s.includes('REVISION') || s.includes('REVIEW')) {
+      return styles.badgeReshoot;
+    }
+    return styles.badgePending;
   };
 
   const selectedEpic = workEntries.find(e => e.id === selectedEpicId);
@@ -1090,6 +1118,21 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
             />
           </div>
 
+          {/* Month */}
+          <div className={styles.filterItem}>
+            <label className={styles.filterItemLabel}>Month</label>
+            <select 
+              className={styles.filterSelect} 
+              value={filterMonth} 
+              onChange={e => setFilterMonth(e.target.value)}
+            >
+              <option value="ALL">All Months ({monthsList.length})</option>
+              {monthsList.map(m => (
+                <option key={m} value={m}>{m} 2026</option>
+              ))}
+            </select>
+          </div>
+
           {/* Trade / Subject */}
           <div className={styles.filterItem}>
             <label className={styles.filterItemLabel}>Trade / Subject</label>
@@ -1143,11 +1186,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
               value={filterProdStatus} 
               onChange={e => setFilterProdStatus(e.target.value)}
             >
-              <option value="ALL">All Shooting</option>
-              <option value="PLANNED">Planned</option>
-              <option value="IN_PROGRESS">In Progress</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="RESHOOT">Reshoot Required</option>
+              <option value="ALL">All Shooting ({shootingStatusesList.length})</option>
+              {shootingStatusesList.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
             </select>
           </div>
 
@@ -1159,10 +1201,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
               value={filterEditStatus} 
               onChange={e => setFilterEditStatus(e.target.value)}
             >
-              <option value="ALL">All Editing</option>
-              <option value="NOT_STARTED">Not Started</option>
-              <option value="IN_PROGRESS">In Progress</option>
-              <option value="COMPLETED">Completed</option>
+              <option value="ALL">All Editing ({editingStatusesList.length})</option>
+              {editingStatusesList.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
             </select>
           </div>
 
@@ -1231,38 +1273,47 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
             <table className={styles.registerTable}>
               <thead>
                 <tr>
-                  <th style={{ width: '50px' }}>Sl</th>
-                  <th className={styles.thSortable} onClick={() => handleSort('displayVideoId')}>
-                    Video ID {sortBy === 'displayVideoId' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  <th className={styles.thSortable} style={{ width: '60px' }} onClick={() => handleSort('sNo')}>
+                    S.No {sortBy === 'sNo' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
                   </th>
-                  <th className={styles.thSortable} onClick={() => handleSort('epicSequence')}>
-                    EPIC ID {sortBy === 'epicSequence' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  <th className={styles.thSortable} onClick={() => handleSort('month')}>
+                    Month {sortBy === 'month' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
                   </th>
                   <th className={styles.thSortable} onClick={() => handleSort('trade')}>
-                    Trade / Subject {sortBy === 'trade' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                    Trade {sortBy === 'trade' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
                   </th>
-                  <th className={styles.thSortable} onClick={() => handleSort('videoTitle')}>
-                    Video Title / Topic {sortBy === 'videoTitle' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  <th className={styles.thSortable} onClick={() => handleSort('smeName')}>
+                    SME / Resource Person {sortBy === 'smeName' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
                   </th>
-                  <th>Assigned Cameraman</th>
-                  <th className={styles.thSortable} onClick={() => handleSort('shootingStatus')}>
-                    Shooting Status {sortBy === 'shootingStatus' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  <th className={styles.thSortable} onClick={() => handleSort('epicSequence')}>
+                    Epic id {sortBy === 'epicSequence' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
                   </th>
                   <th className={styles.thSortable} onClick={() => handleSort('shootingStartDate')}>
-                    Shoot Start {sortBy === 'shootingStartDate' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                    Start date (Shooting) {sortBy === 'shootingStartDate' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
                   </th>
-                  <th>Shoot End</th>
-                  <th>Assigned Editor</th>
-                  <th className={styles.thSortable} onClick={() => handleSort('editingStatus')}>
-                    Editing Status {sortBy === 'editingStatus' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  <th>End date (Shooting)</th>
+                  <th className={styles.thSortable} onClick={() => handleSort('cameraman')}>
+                    Cameraman {sortBy === 'cameraman' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  </th>
+                  <th className={styles.thSortable} onClick={() => handleSort('shootingStatus')}>
+                    Current Status (Shooting) {sortBy === 'shootingStatus' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  </th>
+                  <th className={styles.thSortable} onClick={() => handleSort('editor')}>
+                    Video Editor {sortBy === 'editor' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
                   </th>
                   <th className={styles.thSortable} onClick={() => handleSort('editingStartDate')}>
-                    Edit Start {sortBy === 'editingStartDate' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                    Start date (Editing) {sortBy === 'editingStartDate' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
                   </th>
-                  <th>Edit End</th>
+                  <th>End date (Editing)</th>
+                  <th className={styles.thSortable} onClick={() => handleSort('editingStatus')}>
+                    Current Status (Editing) {sortBy === 'editingStatus' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  </th>
+                  <th className={styles.thSortable} onClick={() => handleSort('videoTitle')}>
+                    Video Topic {sortBy === 'videoTitle' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  </th>
                   <th>Duration</th>
                   <th className={styles.thSortable} onClick={() => handleSort('hasLink')}>
-                    Final Video Link {sortBy === 'hasLink' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                    Video Link {sortBy === 'hasLink' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
                   </th>
                   <th style={{ textAlign: 'center' }}>Actions</th>
                 </tr>
@@ -1276,50 +1327,64 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                   return (
                     <tr 
                       key={row.uniqueKey} 
-                      className={!row.hasLink && row.editingStatus === 'COMPLETED' ? styles.rowWarning : ''}
+                      className={!row.hasLink && (row.editingStatus === 'Completed' || row.editingStatus === 'COMPLETED') ? styles.rowWarning : ''}
                     >
-                      {/* 1. Sl No */}
-                      <td style={{ fontWeight: 600, color: '#64748b' }}>{row.slNo}</td>
-
-                      {/* 2. Video ID */}
-                      <td>
-                        <span style={{ 
-                          fontFamily: 'monospace', 
-                          fontWeight: 700, 
-                          color: '#0369a1', 
-                          background: '#e0f2fe', 
-                          padding: '2px 6px', 
-                          borderRadius: '4px',
-                          fontSize: '11.5px' 
-                        }}>
+                      {/* 1. S.No */}
+                      <td style={{ fontWeight: 700, color: '#1e293b' }}>
+                        <span>{row.sNo}</span>
+                        <div style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>
                           {row.displayVideoId}
-                        </span>
-                      </td>
-
-                      {/* 3. EPIC ID */}
-                      <td>
-                        <strong style={{ color: '#0f2942' }}>{row.epicCode}</strong>
-                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>
-                          {row.smeName}
                         </div>
                       </td>
 
-                      {/* 4. Trade / Subject */}
+                      {/* 2. Month */}
+                      <td>
+                        <span style={{ 
+                          fontWeight: 600, 
+                          color: '#0369a1', 
+                          background: '#f0f9ff', 
+                          border: '1px solid #bae6fd', 
+                          padding: '2px 8px', 
+                          borderRadius: '4px', 
+                          fontSize: '11.5px',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {row.month} 2026
+                        </span>
+                      </td>
+
+                      {/* 3. Trade */}
                       <td>
                         <span style={{ fontWeight: 600, color: '#334155' }}>{row.trade}</span>
                       </td>
 
-                      {/* 5. Video Title */}
-                      <td style={{ maxWidth: '240px' }}>
-                        <span style={{ fontWeight: 600, color: '#0f172a' }}>{row.videoTitle}</span>
-                        {row.productionNotes && (
-                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                            {row.productionNotes}
-                          </div>
-                        )}
+                      {/* 4. SME / Resource Person */}
+                      <td>
+                        <span style={{ fontWeight: 600, color: '#0f172a' }}>{row.smeName}</span>
                       </td>
 
-                      {/* 6. Assigned Cameraman */}
+                      {/* 5. Epic id */}
+                      <td>
+                        <strong style={{ color: '#0f2942', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>
+                          {row.epicCode}
+                        </strong>
+                      </td>
+
+                      {/* 6. Start date (Shooting) */}
+                      <td>
+                        <span style={{ whiteSpace: 'nowrap' }}>
+                          {formatDateDisplay(row.shootingStartDate)}
+                        </span>
+                      </td>
+
+                      {/* 7. End date (Shooting) */}
+                      <td>
+                        <span style={{ whiteSpace: 'nowrap' }}>
+                          {formatDateDisplay(row.shootingEndDate)}
+                        </span>
+                      </td>
+
+                      {/* 8. Cameraman */}
                       <td>
                         <span style={{ fontWeight: 600 }}>{row.cameraman}</span>
                         {row.shootingLocation && (
@@ -1329,61 +1394,57 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                         )}
                       </td>
 
-                      {/* 7. Shooting Status */}
+                      {/* 9. Current Status (Shooting) */}
                       <td>
                         <span className={`${styles.badge} ${getBadgeClass(row.shootingStatus)}`}>
                           {row.shootingStatus}
                         </span>
                       </td>
 
-                      {/* 8. Shooting Start Date */}
-                      <td>
-                        <span style={{ whiteSpace: 'nowrap' }}>
-                          {formatDateDisplay(row.shootingStartDate)}
-                        </span>
-                      </td>
-
-                      {/* 9. Shooting End Date */}
-                      <td>
-                        <span style={{ whiteSpace: 'nowrap' }}>
-                          {formatDateDisplay(row.shootingEndDate)}
-                        </span>
-                      </td>
-
-                      {/* 10. Assigned Editor */}
+                      {/* 10. Video Editor */}
                       <td>
                         <span style={{ fontWeight: 600 }}>{row.editor}</span>
                       </td>
 
-                      {/* 11. Editing Status */}
-                      <td>
-                        <span className={`${styles.badge} ${getBadgeClass(row.editingStatus)}`}>
-                          {row.editingStatus}
-                        </span>
-                      </td>
-
-                      {/* 12. Editing Start Date */}
+                      {/* 11. Start date (Editing) */}
                       <td>
                         <span style={{ whiteSpace: 'nowrap' }}>
                           {formatDateDisplay(row.editingStartDate)}
                         </span>
                       </td>
 
-                      {/* 13. Editing End Date */}
+                      {/* 12. End date (Editing) */}
                       <td>
                         <span style={{ whiteSpace: 'nowrap' }}>
                           {formatDateDisplay(row.editingEndDate)}
                         </span>
                       </td>
 
-                      {/* 14. Duration */}
+                      {/* 13. Current Status (Editing) */}
                       <td>
-                        <span style={{ fontWeight: 600, color: '#334155' }}>
+                        <span className={`${styles.badge} ${getBadgeClass(row.editingStatus)}`}>
+                          {row.editingStatus}
+                        </span>
+                      </td>
+
+                      {/* 14. Video Topic */}
+                      <td style={{ minWidth: '180px', maxWidth: '280px' }}>
+                        <span style={{ fontWeight: 600, color: '#0f172a' }}>{row.videoTitle}</span>
+                        {row.productionNotes && (
+                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                            {row.productionNotes}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* 15. Duration */}
+                      <td>
+                        <span style={{ fontWeight: 600, color: '#334155', whiteSpace: 'nowrap' }}>
                           {row.duration || '-'}
                         </span>
                       </td>
 
-                      {/* 15. Final Video Link (Canonical from VideoLibrary) */}
+                      {/* 16. Video Link */}
                       <td>
                         {row.hasLink && row.finalVideoLink ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -1392,7 +1453,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                               target="_blank" 
                               rel="noreferrer" 
                               className={styles.badgeHasLink}
-                              title="Open final delivered video"
+                              title={row.finalVideoLink}
                             >
                               <span>🎬</span>
                               <span>View Video</span>
@@ -1413,7 +1474,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                         )}
                       </td>
 
-                      {/* 16. Actions */}
+                      {/* 17. Actions */}
                       <td>
                         <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                           {/* Cameraman / Shoot edit action */}

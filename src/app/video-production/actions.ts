@@ -94,7 +94,7 @@ function normalizeName(name?: string | null): string {
     .replace(/[^a-z0-9]/g, '');
 }
 
-function cleanCameraman(name?: string | null, fallbackName: string = 'Antony Alcander'): string {
+function cleanCameraman(name?: string | null, fallbackName: string | null = null): string | null {
   if (!name) return fallbackName;
   const trimmed = name.trim();
   const lower = trimmed.toLowerCase();
@@ -104,7 +104,7 @@ function cleanCameraman(name?: string | null, fallbackName: string = 'Antony Alc
   return trimmed;
 }
 
-function cleanEditorName(name?: string | null, fallbackName: string = 'Post-Production Team'): string {
+function cleanEditorName(name?: string | null, fallbackName: string | null = null): string | null {
   if (!name) return fallbackName;
   const trimmed = name.trim();
   const lower = trimmed.toLowerCase();
@@ -173,11 +173,11 @@ export async function getTopicProductionRecords() {
           shootingSchedules: true,
         },
         orderBy: {
-          epicSequence: 'desc'
+          epicSequence: 'asc'
         }
       }),
       prisma.videoLibrary.findMany({
-        orderBy: { createdAt: 'desc' }
+        orderBy: { id: 'asc' }
       }),
       prisma.user.findMany({
         where: { role: 'CAMERAMAN', status: 'ACTIVE' },
@@ -189,46 +189,16 @@ export async function getTopicProductionRecords() {
       }).catch(() => [])
     ]);
 
-    const findAssignedCameraman = (seq: number): string => {
-      const match = cameramen.find((u: any) => parseAssignedEpics(u.department).includes(seq));
-      return match?.name || 'Antony Alcander';
-    };
-
-    const findAssignedEditor = (seq: number): string => {
-      const match = editors.find((u: any) => parseAssignedEpics(u.department).includes(seq));
-      return match?.name || 'Post-Production Team';
-    };
-
     const allRecords = allEntries.map((entry: any) => {
-      const eNorm = normalizeName(entry.sme?.name);
-      const eTrade = (entry.trade || '').toLowerCase().trim();
-      const assignedCam = findAssignedCameraman(entry.epicSequence);
-      const assignedEd = findAssignedEditor(entry.epicSequence);
-      const defaultStartDate = new Date('2026-10-05T00:00:00.000Z');
-      const defaultEndDate = new Date('2026-10-15T00:00:00.000Z');
-
-      // Find matching videos for this epic by epicId, SME name, or Trade
-      const matchingVideos = allVideos.filter((v: any) => {
-        if (v.epicId && v.epicId === entry.id) return true;
-        if (v.epicId && v.epicId !== entry.id) return false;
-        const vNorm = normalizeName(v.smeName);
-        if (eNorm && vNorm && (eNorm.includes(vNorm) || vNorm.includes(eNorm))) return true;
-        if (v.smeName && entry.sme?.name && v.smeName.toLowerCase().trim().includes(entry.sme.name.toLowerCase().trim())) return true;
-        if (v.trade && entry.trade && v.trade.toLowerCase().trim() === eTrade) return true;
-        // Associate Drone Technician videos with Dr. Majji (EPIC-11) as verified in Annexure-I records
-        if (entry.epicSequence === 11 && (v.trade?.toLowerCase().includes('drone') || v.smeName?.toLowerCase().includes('drone'))) return true;
-        return false;
-      });
-
       const videoMap = new Map<string, any>();
       (entry.videoLibraries || []).forEach((v: any) => videoMap.set(v.id, v));
-      matchingVideos.forEach((v: any) => videoMap.set(v.id, v));
+      allVideos.filter((v: any) => v.epicId === entry.id).forEach((v: any) => videoMap.set(v.id, v));
       const combinedVideos = Array.from(videoMap.values());
 
       const realSchedules: any[] = entry.shootingSchedules || [];
       const realEditorRecs: any[] = entry.videoEditorRecords || [];
 
-      // Construct shooting schedules from real database records (or entry topic)
+      // Construct shooting schedules from real database records
       let shootingSchedules: any[] = [];
       if (combinedVideos.length > 0) {
         shootingSchedules = combinedVideos.map((v: any, idx: number) => {
@@ -240,19 +210,21 @@ export async function getTopicProductionRecords() {
           if (matchSched) {
             return {
               ...matchSched,
-              cameraman: cleanCameraman(matchSched.cameraman, assignedCam),
+              cameraman: matchSched.cameraman || null,
+              month: matchSched.location || null
             };
           }
           return {
             id: `shoot-${v.id || idx}`,
             workEntryId: entry.id,
             videoTitle: title,
-            shootDate: v.createdAt || entry.attendanceFrom || entry.createdAt,
-            scheduledStart: entry.attendanceFrom || v.createdAt,
-            scheduledEnd: entry.attendanceTo || v.createdAt,
-            location: 'Studio - NIMI Chennai',
-            cameraman: assignedCam,
-            status: 'COMPLETED',
+            shootDate: null,
+            scheduledStart: null,
+            scheduledEnd: null,
+            location: null,
+            month: null,
+            cameraman: null,
+            status: 'Yet to Shoot',
             productionNotes: `Trade: ${v.trade || entry.trade} | Topic: ${v.title}`,
             createdAt: v.createdAt || entry.createdAt,
             updatedAt: v.updatedAt || entry.updatedAt,
@@ -264,34 +236,36 @@ export async function getTopicProductionRecords() {
           if (!shootingSchedules.some((sc: any) => sc.id === s.id || (sc.videoTitle && s.videoTitle && sc.videoTitle.trim().toLowerCase() === s.videoTitle.trim().toLowerCase()))) {
             shootingSchedules.push({
               ...s,
-              cameraman: cleanCameraman(s.cameraman, assignedCam),
+              cameraman: s.cameraman || null,
+              month: s.location || null
             });
           }
         });
       } else if (realSchedules.length > 0) {
         shootingSchedules = realSchedules.map((s: any) => ({
           ...s,
-          cameraman: cleanCameraman(s.cameraman, assignedCam),
+          cameraman: s.cameraman || null,
+          month: s.location || null
         }));
       } else {
         shootingSchedules = [{
           id: `shoot-${entry.id}`,
           workEntryId: entry.id,
           videoTitle: entry.topic,
-          shootDate: entry.attendanceFrom || entry.createdAt,
-          scheduledStart: entry.attendanceFrom || entry.createdAt,
-          scheduledEnd: entry.attendanceTo || entry.createdAt,
-          location: 'Studio - NIMI Chennai',
-          cameraman: assignedCam,
-          status: entry.status === 'COMPLETED' ? 'COMPLETED' : 'PLANNED',
+          shootDate: null,
+          scheduledStart: null,
+          scheduledEnd: null,
+          location: null,
+          month: null,
+          cameraman: null,
+          status: 'Yet to Shoot',
           productionNotes: `Trade: ${entry.trade}`,
           createdAt: entry.createdAt,
           updatedAt: entry.updatedAt,
         }];
       }
 
-      // Construct post-production editor records:
-      // Merge with real VideoEditorRecord saved in database so editingEndDate & comments persist
+      // Construct post-production editor records
       let videoEditorRecords: any[] = [];
       if (combinedVideos.length > 0) {
         videoEditorRecords = combinedVideos.map((v: any, idx: number) => {
@@ -301,28 +275,26 @@ export async function getTopicProductionRecords() {
             (combinedVideos.length === 1 && realEditorRecs.length === 1)
           );
           if (matchRec) {
-            const parsedEnd = matchRec.editingEndDate 
-              ? matchRec.editingEndDate 
-              : (extractEndDate(matchRec.reviewComments) ? new Date(extractEndDate(matchRec.reviewComments)!) : defaultEndDate);
             return {
               ...matchRec,
               assignedVideo: matchRec.assignedVideo || title,
-              editorName: cleanEditorName(matchRec.editorName, assignedEd),
-              editingStartDate: matchRec.editingStartDate || defaultStartDate,
-              editingEndDate: parsedEnd,
+              editorName: matchRec.editorName || null,
+              editingStartDate: matchRec.editingStartDate || null,
+              editingEndDate: matchRec.editingEndDate || null,
               finalVideoFile: matchRec.finalVideoFile || v.videoLink || null,
               duration: matchRec.duration || v.duration || null,
+              status: matchRec.status || 'Pending'
             };
           }
           return {
             id: `ed-${v.id || idx}`,
             workEntryId: entry.id,
             assignedVideo: title,
-            editorName: assignedEd,
-            editingStartDate: defaultStartDate,
-            editingEndDate: defaultEndDate,
+            editorName: null,
+            editingStartDate: null,
+            editingEndDate: null,
             duration: v.duration || null,
-            status: 'COMPLETED',
+            status: 'Pending',
             finalVideoFile: v.videoLink || null,
             reviewComments: null,
             createdAt: v.createdAt || entry.createdAt,
@@ -333,39 +305,31 @@ export async function getTopicProductionRecords() {
         // Add any standalone real editor records not matching combinedVideos
         realEditorRecs.forEach((e: any) => {
           if (!videoEditorRecords.some((vr: any) => vr.id === e.id || (vr.assignedVideo && e.assignedVideo && vr.assignedVideo.trim() === e.assignedVideo.trim()))) {
-            const parsedEnd = e.editingEndDate 
-              ? e.editingEndDate 
-              : (extractEndDate(e.reviewComments) ? new Date(extractEndDate(e.reviewComments)!) : defaultEndDate);
             videoEditorRecords.push({
               ...e,
-              editorName: cleanEditorName(e.editorName, assignedEd),
-              editingStartDate: e.editingStartDate || defaultStartDate,
-              editingEndDate: parsedEnd,
+              editorName: e.editorName || null,
+              editingStartDate: e.editingStartDate || null,
+              editingEndDate: e.editingEndDate || null,
             });
           }
         });
       } else if (realEditorRecs.length > 0) {
-        videoEditorRecords = realEditorRecs.map((e: any) => {
-          const parsedEnd = e.editingEndDate 
-            ? e.editingEndDate 
-            : (extractEndDate(e.reviewComments) ? new Date(extractEndDate(e.reviewComments)!) : defaultEndDate);
-          return {
-            ...e,
-            editorName: cleanEditorName(e.editorName, assignedEd),
-            editingStartDate: e.editingStartDate || defaultStartDate,
-            editingEndDate: parsedEnd,
-          };
-        });
+        videoEditorRecords = realEditorRecs.map((e: any) => ({
+          ...e,
+          editorName: e.editorName || null,
+          editingStartDate: e.editingStartDate || null,
+          editingEndDate: e.editingEndDate || null,
+        }));
       } else {
         videoEditorRecords = [{
           id: `ed-${entry.id}`,
           workEntryId: entry.id,
           assignedVideo: entry.topic,
-          editorName: assignedEd,
-          editingStartDate: defaultStartDate,
-          editingEndDate: defaultEndDate,
+          editorName: null,
+          editingStartDate: null,
+          editingEndDate: null,
           duration: null,
-          status: entry.status === 'COMPLETED' ? 'COMPLETED' : 'NOT_STARTED',
+          status: 'Pending',
           finalVideoFile: null,
           reviewComments: null,
           createdAt: entry.createdAt,
