@@ -14,7 +14,10 @@ import {
   updateAnimationRecord,
   updateFinalVideoRecord,
   deleteFinalVideoRecord,
-  detectVideoDuration
+  detectVideoDuration,
+  getAuthorizedStaff,
+  assignProductionPersonnel,
+  getProductionAuditLogs
 } from './actions';
 
 // =========================================================================
@@ -189,6 +192,21 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const [editingStage3, setEditingStage3] = useState<any | null>(null);
   const [highlightedScheduleId, setHighlightedScheduleId] = useState<string | null>(null);
 
+  // Phase 4: Work Assignment Modal & Audit History Drawer State
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+  const [authorizedStaff, setAuthorizedStaff] = useState<{ cameramen: any[]; editors: any[] }>({
+    cameramen: [
+      { id: 'cam-antony', name: 'Antony Alcander', email: 'antony.alcander@gmail.com' },
+      { id: 'cam-parasuraman', name: 'Parasuraman', email: 'parasuraman.cam@nimi.org' }
+    ],
+    editors: [
+      { id: 'ed-postprod', name: 'Post-Production Team', email: 'postprod@nimi.org' }
+    ]
+  });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -204,6 +222,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       const res = await getTopicProductionRecords();
       if (res.success && res.data) {
         setWorkEntries(res.data);
+      }
+      const staffRes = await getAuthorizedStaff();
+      if (staffRes.success && staffRes.data) {
+        setAuthorizedStaff(staffRes.data);
       }
     }
     loadData();
@@ -541,6 +563,34 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     document.body.removeChild(link);
   };
 
+  // Phase 4: Fetch persistent audit logs
+  const handleOpenAuditModal = async () => {
+    setIsAuditModalOpen(true);
+    setLoadingAudit(true);
+    const res = await getProductionAuditLogs();
+    if (res.success && res.data) {
+      setAuditLogs(res.data);
+    }
+    setLoadingAudit(false);
+  };
+
+  // Phase 4: Handle Work Assignment Submit
+  const handleAssignSubmit = async (params: any) => {
+    setLoading(true);
+    setError(null);
+    const res = await assignProductionPersonnel(params);
+    if (res.success) {
+      setSuccess(`✅ ${res.message || 'Work assignment updated successfully.'}`);
+      const updatedList = await getTopicProductionRecords();
+      if (updatedList.success) setWorkEntries(updatedList.data || []);
+      setIsAssignModalOpen(false);
+      router.refresh();
+    } else {
+      setError(res.error || 'Failed to assign personnel.');
+    }
+    setLoading(false);
+  };
+
   // Stage 1 Create Handler (Preserved)
   const handleCreateStage1 = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -606,13 +656,13 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setLoading(false);
   };
 
-  // Stage 1 Shooting Update Save (Preserved)
+  // Stage 1 Shooting Update Save (Preserved & audited)
   const handleSaveStage1Edit = async (id: string, data: any) => {
     setLoading(true);
     setError(null);
     const res = await updateShootingSchedule(id, data);
     if (res.success) {
-      setSuccess('✅ Production shooting record updated successfully.');
+      setSuccess('✅ Production shooting record updated and logged to audit history.');
       const updatedList = await getTopicProductionRecords();
       if (updatedList.success && updatedList.data) {
         setWorkEntries(updatedList.data);
@@ -642,15 +692,15 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setLoading(false);
   };
 
-  // Stage 2 Editor Update Save (Preserved & isolated from shooting dates)
+  // Stage 2 Editor Update Save (Preserved, isolated & audited)
   const handleSaveStage2Edit = async (id: string, data: any, workEntryId: string) => {
     setLoading(true);
     setError(null);
     const res = await updateVideoEditorRecord(id, data, workEntryId);
     if (res.success) {
       setSuccess(data.status === 'COMPLETED' 
-        ? '🎉 Post-Production marked COMPLETED! Video has automatically advanced to Stage 3 (Final Video Deliverable).'
-        : '✅ Post-Production details saved successfully.'
+        ? '🎉 Post-Production marked COMPLETED! Video advanced to Stage 3 and logged to audit history.'
+        : '✅ Post-Production details saved and logged to audit history.'
       );
       const updatedList = await getTopicProductionRecords();
       if (updatedList.success) setWorkEntries(updatedList.data || []);
@@ -679,13 +729,13 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setLoading(false);
   };
 
-  // Stage 3 Save Final Record (Preserved)
+  // Stage 3 Save Final Record (Preserved & audited)
   const handleSaveStage3Edit = async (id: string, data: any, workEntryId: string) => {
     setLoading(true);
     setError(null);
     const res = await updateFinalVideoRecord(id, data, workEntryId);
     if (res.success) {
-      setSuccess('✅ Final Video Deliverable details saved successfully.');
+      setSuccess('✅ Final Video Deliverable saved and logged to audit history.');
       const updatedList = await getTopicProductionRecords();
       if (updatedList.success) setWorkEntries(updatedList.data || []);
       router.refresh();
@@ -988,8 +1038,32 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
             </button>
           </div>
 
-          {/* Export and Reset Actions */}
+          {/* Export, Work Assignment, Audit History and Reset Actions */}
           <div className={styles.toolbarActions}>
+            {/* Phase 4: Admin Work Assignment Button */}
+            {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+              <button 
+                className={styles.btnAssign} 
+                onClick={() => setIsAssignModalOpen(true)}
+                title="Assign Cameraman and Editor to an Epic or Video Topic"
+              >
+                <span>👤</span>
+                <span>Work Assignment</span>
+              </button>
+            )}
+
+            {/* Phase 4: Persistent Audit History Button */}
+            {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+              <button 
+                className={styles.btnAudit} 
+                onClick={handleOpenAuditModal}
+                title="View persistent audit history of all production updates"
+              >
+                <span>📜</span>
+                <span>Audit History</span>
+              </button>
+            )}
+
             <button className={styles.btnExport} onClick={handleExportCsv} title="Export filtered rows to Excel/CSV">
               <span>⬇️</span>
               <span>Export CSV</span>
@@ -2186,12 +2260,284 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
           onSave={handleSaveStage3Edit}
         />
       )}
+
+      {/* ========================================================
+          PHASE 4 MODAL: ADMIN WORK ASSIGNMENT
+         ======================================================== */}
+      {isAssignModalOpen && (
+        <AdminAssignmentModal 
+          workEntries={workEntries}
+          authorizedStaff={authorizedStaff}
+          loading={loading}
+          onClose={() => setIsAssignModalOpen(false)}
+          onAssign={handleAssignSubmit}
+        />
+      )}
+
+      {/* ========================================================
+          PHASE 4 MODAL: PERSISTENT AUDIT HISTORY DRAWER
+         ======================================================== */}
+      {isAuditModalOpen && (
+        <AuditHistoryModal 
+          auditLogs={auditLogs}
+          loading={loadingAudit}
+          onClose={() => setIsAuditModalOpen(false)}
+        />
+      )}
     </div>
   );
 }
 
 // =========================================================================
-// STAGE 1 EDIT MODAL COMPONENT
+// PHASE 4: ADMIN WORK ASSIGNMENT MODAL COMPONENT
+// =========================================================================
+function AdminAssignmentModal({ 
+  workEntries, 
+  authorizedStaff, 
+  loading, 
+  onClose, 
+  onAssign 
+}: any) {
+  const [selectedEpicId, setSelectedEpicId] = useState('');
+  const [selectedVideoId, setSelectedVideoId] = useState('ALL');
+  const [cameraman, setCameraman] = useState('');
+  const [editor, setEditor] = useState('');
+  const [changeReason, setChangeReason] = useState('');
+
+  const selectedEpic = workEntries.find((e: any) => e.id === selectedEpicId);
+  const availableVideos = selectedEpic ? (
+    selectedEpic.videoLibraries?.length > 0 ? selectedEpic.videoLibraries : (
+      selectedEpic.shootingSchedules?.length > 0 ? selectedEpic.shootingSchedules : [
+        { id: selectedEpic.id, title: selectedEpic.topic }
+      ]
+    )
+  ) : [];
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEpicId) {
+      alert('Please select an EPIC ID.');
+      return;
+    }
+    if (!cameraman && !editor) {
+      alert('Please select at least one Cameraman or Editor to assign.');
+      return;
+    }
+    if (!changeReason || changeReason.trim().length < 5) {
+      alert('Please provide a mandatory assignment reason (minimum 5 characters) for audit compliance.');
+      return;
+    }
+
+    const matchedCam = authorizedStaff.cameramen.find((c: any) => c.name === cameraman);
+    const matchedEd = authorizedStaff.editors.find((e: any) => e.name === editor);
+
+    onAssign({
+      workEntryId: selectedEpicId,
+      videoId: selectedVideoId,
+      cameramanName: cameraman || undefined,
+      cameramanEmail: matchedCam?.email || undefined,
+      editorName: editor || undefined,
+      editorEmail: matchedEd?.email || undefined,
+      changeReason: changeReason.trim()
+    });
+  };
+
+  return (
+    <div className={styles.modalOverlay}>
+      <div className={styles.modalContent} style={{ maxWidth: '600px' }}>
+        <div className={styles.modalHeader}>
+          <h3 className={styles.modalTitle}>
+            👤 Work Assignment: Cameraman & Editor Allocation
+          </h3>
+          <button className={styles.modalCloseBtn} onClick={onClose}>✕</button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className={styles.modalBody}>
+            <div className={styles.formField}>
+              <label className={styles.formLabel}>EPIC ID * (From Existing Records)</label>
+              <select 
+                className={styles.formSelect} 
+                value={selectedEpicId} 
+                onChange={e => {
+                  setSelectedEpicId(e.target.value);
+                  setSelectedVideoId('ALL');
+                }}
+                required
+              >
+                <option value="">-- Choose Existing EPIC ID --</option>
+                {workEntries.map((e: any) => (
+                  <option key={e.id} value={e.id}>
+                    EPIC-{e.epicSequence} — {e.sme?.name || 'SME'} ({e.trade || 'General'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedEpic && (
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Target Video / Topic</label>
+                <select 
+                  className={styles.formSelect} 
+                  value={selectedVideoId} 
+                  onChange={e => setSelectedVideoId(e.target.value)}
+                >
+                  <option value="ALL">All Videos in EPIC-{selectedEpic.epicSequence} ({availableVideos.length} Topics)</option>
+                  {availableVideos.map((v: any, idx: number) => (
+                    <option key={v.id || idx} value={v.id}>
+                      #{idx + 1}: {v.title || v.videoTitle || 'Untitled Topic'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className={styles.modalGrid}>
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Assigned Cameraman</label>
+                <select 
+                  className={styles.formSelect} 
+                  value={cameraman} 
+                  onChange={e => setCameraman(e.target.value)}
+                >
+                  <option value="">-- Select Authorized Cameraman --</option>
+                  {authorizedStaff.cameramen.map((c: any) => (
+                    <option key={c.id || c.email} value={c.name}>
+                      {c.name} {c.email ? `(${c.email})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className={styles.formField}>
+                <label className={styles.formLabel}>Assigned Editor</label>
+                <select 
+                  className={styles.formSelect} 
+                  value={editor} 
+                  onChange={e => setEditor(e.target.value)}
+                >
+                  <option value="">-- Select Authorized Editor --</option>
+                  {authorizedStaff.editors.map((ed: any) => (
+                    <option key={ed.id || ed.email} value={ed.name}>
+                      {ed.name} {ed.email ? `(${ed.email})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className={styles.formField}>
+              <label className={styles.formLabel}>
+                Assignment Reason / Justification * 
+                <span style={{ fontSize: '11px', color: '#b45309', marginLeft: '6px' }}>(Mandatory for Audit History)</span>
+              </label>
+              <textarea 
+                className={styles.changeReasonTextarea}
+                rows={2}
+                placeholder="e.g. Assigned to Antony Alcander for studio shooting; Assigned to Post-Production team..."
+                value={changeReason}
+                onChange={e => setChangeReason(e.target.value)}
+                required
+              />
+              <div className={styles.mandatoryReasonNotice}>
+                <span>ℹ️</span>
+                <span>Audit compliance: Every assignment change is permanently logged with your credentials and reason.</span>
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.modalFooter}>
+            <button type="button" className={styles.btnCancel} onClick={onClose}>Cancel</button>
+            <button type="submit" className={styles.btnSave} style={{ background: '#4338ca' }} disabled={loading}>
+              {loading ? 'Saving Assignment...' : 'Save Assignment'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// PHASE 4: AUDIT HISTORY MODAL COMPONENT
+// =========================================================================
+function AuditHistoryModal({ auditLogs, loading, onClose }: any) {
+  return (
+    <div className={styles.modalOverlay}>
+      <div className={styles.modalContent} style={{ maxWidth: '750px' }}>
+        <div className={styles.modalHeader}>
+          <h3 className={styles.modalTitle}>
+            📜 Production Audit History & Change Log
+          </h3>
+          <button className={styles.modalCloseBtn} onClick={onClose}>✕</button>
+        </div>
+
+        <div className={styles.modalBody}>
+          <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 12px 0' }}>
+            Permanent chronological record of all work assignments, shooting updates, post-production revisions, and deliverable changes with mandatory justifications.
+          </p>
+
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+              <span>⏳ Loading persistent audit logs...</span>
+            </div>
+          ) : auditLogs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+              <span>No audit logs recorded yet for this module.</span>
+            </div>
+          ) : (
+            <div className={styles.auditTimeline}>
+              {auditLogs.map((log: any) => {
+                let parsedNew: any = null;
+                try {
+                  parsedNew = log.newData ? JSON.parse(log.newData) : null;
+                } catch (_) {}
+
+                const reason = parsedNew?.changeReason || 'No change reason provided';
+
+                return (
+                  <div key={log.id} className={styles.auditLogCard}>
+                    <div className={styles.auditLogTop}>
+                      <span className={styles.auditActionBadge}>{log.action}</span>
+                      <span className={styles.auditUserBadge}>
+                        👤 {log.user?.name || log.user?.email || 'System User'}
+                      </span>
+                      <span className={styles.auditTimestamp}>
+                        🕒 {new Date(log.createdAt).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+
+                    <div className={styles.auditReasonBox}>
+                      <strong>Justification:</strong> {reason}
+                    </div>
+
+                    {parsedNew && (
+                      <div style={{ fontSize: '11px', color: '#475569' }}>
+                        {parsedNew.assignedCameraman && <span>Cameraman: <strong>{parsedNew.assignedCameraman}</strong> | </span>}
+                        {parsedNew.assignedEditor && <span>Editor: <strong>{parsedNew.assignedEditor}</strong> | </span>}
+                        {parsedNew.status && <span>Status: <strong>{parsedNew.status}</strong> | </span>}
+                        {parsedNew.scheduledStart && <span>Shoot Start: <strong>{formatDateDisplay(parsedNew.scheduledStart)}</strong> | </span>}
+                        {parsedNew.editingStartDate && <span>Edit Start: <strong>{formatDateDisplay(parsedNew.editingStartDate)}</strong> | </span>}
+                        {parsedNew.finalVideoFile && <span>Video File Updated</span>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className={styles.modalFooter}>
+          <button type="button" className={styles.btnSecondary} onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// STAGE 1 EDIT MODAL COMPONENT (SHOOTING)
 // =========================================================================
 function parseLocationInit(loc?: string | null) {
   if (!loc) return { type: '' as '' | 'Studio - NIMI Chennai' | 'On-site', custom: '' };
@@ -2236,13 +2582,19 @@ function Stage1EditModal({ record, loading, errorMessage, onClose, onSave }: any
     scheduledStart: formatDateForInput(record.scheduledStart || record.shootDate),
     scheduledEnd: formatDateForInput(record.scheduledEnd),
     status: record.status || 'PLANNED',
-    productionNotes: record.productionNotes || ''
+    productionNotes: record.productionNotes || '',
+    changeReason: ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.scheduledStart && formData.scheduledEnd && new Date(formData.scheduledEnd) < new Date(formData.scheduledStart)) {
       alert('Production End Date cannot be earlier than Production Start Date.');
+      return;
+    }
+
+    if (!formData.changeReason || formData.changeReason.trim().length < 5) {
+      alert('Please provide a mandatory change reason (minimum 5 characters) for audit compliance.');
       return;
     }
 
@@ -2398,10 +2750,30 @@ function Stage1EditModal({ record, loading, errorMessage, onClose, onSave }: any
               <label className={styles.formLabel}>Production Notes</label>
               <textarea 
                 className={styles.formInput} 
-                rows={3}
+                rows={2}
                 value={formData.productionNotes} 
                 onChange={e => setFormData({ ...formData, productionNotes: e.target.value })}
               />
+            </div>
+
+            {/* Phase 4: Mandatory Change Reason */}
+            <div className={styles.formField}>
+              <label className={styles.formLabel}>
+                Reason for Change / Justification * 
+                <span style={{ fontSize: '11px', color: '#b45309', marginLeft: '6px' }}>(Mandatory for Audit History)</span>
+              </label>
+              <textarea 
+                className={styles.changeReasonTextarea}
+                rows={2}
+                placeholder="e.g. Rescheduled shooting dates as requested by SME / equipment availability..."
+                value={formData.changeReason}
+                onChange={e => setFormData({ ...formData, changeReason: e.target.value })}
+                required
+              />
+              <div className={styles.mandatoryReasonNotice}>
+                <span>ℹ️</span>
+                <span>Audit compliance: A mandatory reason (min 5 characters) is required to save changes.</span>
+              </div>
             </div>
           </div>
 
@@ -2431,13 +2803,18 @@ function Stage2EditModal({ record, loading, onClose, onSave }: any) {
     finalCutLink: record.finalCutLink || '',
     duration: record.duration || '',
     finalVideoFile: record.finalVideoFile || '',
-    reviewComments: record.cleanComments || cleanReviewComments(record.reviewComments) || ''
+    reviewComments: record.cleanComments || cleanReviewComments(record.reviewComments) || '',
+    changeReason: ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.editingStartDate && formData.editingEndDate && new Date(formData.editingEndDate) < new Date(formData.editingStartDate)) {
       alert('Post-Production End Date cannot be earlier than Start Date.');
+      return;
+    }
+    if (!formData.changeReason || formData.changeReason.trim().length < 5) {
+      alert('Please provide a mandatory change reason (minimum 5 characters) for audit compliance.');
       return;
     }
     onSave(record.id, formData, record.workEntryId);
@@ -2534,11 +2911,31 @@ function Stage2EditModal({ record, loading, onClose, onSave }: any) {
               <label className={styles.formLabel}>Review Comments & Notes</label>
               <textarea 
                 className={styles.formInput} 
-                rows={3}
+                rows={2}
                 placeholder="Editorial feedback or corrections..."
                 value={formData.reviewComments} 
                 onChange={e => setFormData({ ...formData, reviewComments: e.target.value })}
               />
+            </div>
+
+            {/* Phase 4: Mandatory Change Reason */}
+            <div className={styles.formField}>
+              <label className={styles.formLabel}>
+                Reason for Change / Justification * 
+                <span style={{ fontSize: '11px', color: '#b45309', marginLeft: '6px' }}>(Mandatory for Audit History)</span>
+              </label>
+              <textarea 
+                className={styles.changeReasonTextarea}
+                rows={2}
+                placeholder="e.g. Completed rough cut and final cuts; Updated editor assignment..."
+                value={formData.changeReason}
+                onChange={e => setFormData({ ...formData, changeReason: e.target.value })}
+                required
+              />
+              <div className={styles.mandatoryReasonNotice}>
+                <span>ℹ️</span>
+                <span>Audit compliance: A mandatory reason (min 5 characters) is required to save changes.</span>
+              </div>
             </div>
           </div>
 
@@ -2620,7 +3017,8 @@ function Stage3EditModal({ record, loading, onClose, onSave }: any) {
     finalVideoFile: record.finalVideoFile || '',
     finalDuration: record.finalDuration || '',
     videoId: record.videoId,
-    title: record.title
+    title: record.title,
+    changeReason: ''
   });
 
   const [isDetecting, setIsDetecting] = useState(false);
@@ -2717,6 +3115,10 @@ function Stage3EditModal({ record, loading, onClose, onSave }: any) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.changeReason || formData.changeReason.trim().length < 5) {
+      alert('Please provide a mandatory change reason (minimum 5 characters) for audit compliance.');
+      return;
+    }
     onSave(record.id, formData, record.workEntryId);
   };
 
@@ -2857,6 +3259,26 @@ function Stage3EditModal({ record, loading, onClose, onSave }: any) {
                 <span>{detectionMessage}</span>
               </div>
             )}
+
+            {/* Phase 4: Mandatory Change Reason */}
+            <div className={styles.formField}>
+              <label className={styles.formLabel}>
+                Reason for Change / Justification * 
+                <span style={{ fontSize: '11px', color: '#b45309', marginLeft: '6px' }}>(Mandatory for Audit History)</span>
+              </label>
+              <textarea 
+                className={styles.changeReasonTextarea}
+                rows={2}
+                placeholder="e.g. Uploaded final approved video file; Duration verified..."
+                value={formData.changeReason}
+                onChange={e => setFormData({ ...formData, changeReason: e.target.value })}
+                required
+              />
+              <div className={styles.mandatoryReasonNotice}>
+                <span>ℹ️</span>
+                <span>Audit compliance: A mandatory reason (min 5 characters) is required to save changes.</span>
+              </div>
+            </div>
           </div>
 
           <div className={styles.modalFooter}>

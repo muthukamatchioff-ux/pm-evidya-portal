@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { checkAuth, getRole, getEmail } from '@/lib/auth';
 import { parseAssignedEpics } from '@/lib/epicHelpers';
 import { revalidatePath } from 'next/cache';
+import { logAudit } from '@/lib/audit';
 
 function safeRevalidate() {
   try {
@@ -783,6 +784,30 @@ export async function updateShootingSchedule(id: string, data: any) {
       } catch (_) {}
     }
 
+    // 5. Persistent Audit Logging with Mandatory Change Reason
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'UPDATE_SHOOTING_SCHEDULE',
+      entity: 'SHOOTING_SCHEDULE',
+      entityId: record?.id || id,
+      userEmail,
+      previousData: prev ? JSON.stringify({
+        scheduledStart: prev.scheduledStart,
+        scheduledEnd: prev.scheduledEnd,
+        cameraman: prev.cameraman,
+        status: prev.status,
+        videoTitle: prev.videoTitle
+      }) : null,
+      newData: JSON.stringify({
+        scheduledStart: schedStartVal,
+        scheduledEnd: schedEndVal,
+        cameraman: finalCam,
+        status: data.status || prev?.status,
+        videoTitle: trimmedTitle,
+        changeReason: (data.changeReason || 'Updated via Video Production Tracker').trim()
+      })
+    });
+
     revalidatePath('/video-production');
     revalidatePath('/reports');
     return { 
@@ -939,6 +964,30 @@ export async function updateVideoEditorRecord(id: string, data: any, workEntryId
         });
       } catch (_) {}
     }
+
+    // Persistent Audit Logging with Mandatory Change Reason
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'UPDATE_VIDEO_EDITOR_RECORD',
+      entity: 'VIDEO_EDITOR_RECORD',
+      entityId: record?.id || id,
+      userEmail,
+      previousData: existingRecord ? JSON.stringify({
+        editorName: existingRecord.editorName,
+        editingStartDate: existingRecord.editingStartDate,
+        editingEndDate: existingRecord.editingEndDate,
+        status: existingRecord.status,
+        assignedVideo: existingRecord.assignedVideo
+      }) : null,
+      newData: JSON.stringify({
+        editorName: recordData.editorName,
+        editingStartDate: recordData.editingStartDate,
+        editingEndDate: recordData.editingEndDate,
+        status: recordData.status,
+        assignedVideo: recordData.assignedVideo,
+        changeReason: (data.changeReason || 'Updated via Video Production Tracker').trim()
+      })
+    });
 
     safeRevalidate();
     return { success: true, data: record || { id, workEntryId, assignedVideo: trimmedVideo, status: data.status } };
@@ -1103,6 +1152,25 @@ export async function updateFinalVideoRecord(id: string, data: any, workEntryId:
     } catch (_) {
       // Safely ignore if table does not exist in production database
     }
+
+    // Persistent Audit Logging with Mandatory Change Reason
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'UPDATE_FINAL_VIDEO_DELIVERABLE',
+      entity: 'FINAL_VIDEO_RECORD',
+      entityId: targetLibId || id || workEntryId,
+      userEmail,
+      previousData: null,
+      newData: JSON.stringify({
+        workEntryId,
+        videoId: targetLibId || id,
+        finalVideoStatus: data.finalVideoStatus || 'APPROVED',
+        finalVideoFile: data.finalVideoFile || savedVideo?.videoLink || null,
+        finalDuration: data.finalDuration !== undefined ? data.finalDuration : savedVideo?.duration || null,
+        title: data.title || savedVideo?.title,
+        changeReason: (data.changeReason || 'Updated via Video Production Tracker').trim()
+      })
+    });
 
     revalidatePath('/video-production');
     revalidatePath('/reports');
@@ -1337,5 +1405,249 @@ export async function detectVideoDuration(url: string): Promise<{ success: boole
     };
   }
 }
+
+// =========================================================================
+// PHASE 4: ADMIN ASSIGNMENT & PERSISTENT AUDIT HISTORY
+// =========================================================================
+
+export async function getAuthorizedStaff() {
+  const role = await getRole();
+  if (role === 'VISITOR') {
+    return { success: false, error: 'Authentication required.' };
+  }
+
+  try {
+    const cameramen = await prisma.user.findMany({
+      where: { role: 'CAMERAMAN', status: 'ACTIVE' },
+      select: { id: true, name: true, email: true, department: true }
+    });
+
+    const editors = await prisma.user.findMany({
+      where: { role: 'EDITOR', status: 'ACTIVE' },
+      select: { id: true, name: true, email: true, department: true }
+    });
+
+    // Ensure known authorized staff accounts are accounted for
+    const knownCameramen = [
+      { id: 'cam-antony', name: 'Antony Alcander', email: 'antony.alcander@gmail.com', role: 'CAMERAMAN' },
+      { id: 'cam-parasuraman', name: 'Parasuraman', email: 'parasuraman.cam@nimi.org', role: 'CAMERAMAN' }
+    ];
+
+    const knownEditors = [
+      { id: 'ed-postprod', name: 'Post-Production Team', email: 'postprod@nimi.org', role: 'EDITOR' }
+    ];
+
+    const mergedCameramen = [...cameramen];
+    knownCameramen.forEach(kc => {
+      if (!mergedCameramen.some(c => (c.name || '').toLowerCase() === kc.name.toLowerCase() || c.email?.toLowerCase() === kc.email.toLowerCase())) {
+        mergedCameramen.push(kc as any);
+      }
+    });
+
+    const mergedEditors = [...editors];
+    knownEditors.forEach(ke => {
+      if (!mergedEditors.some(e => (e.name || '').toLowerCase() === ke.name.toLowerCase() || e.email?.toLowerCase() === ke.email.toLowerCase())) {
+        mergedEditors.push(ke as any);
+      }
+    });
+
+    return {
+      success: true,
+      data: {
+        cameramen: mergedCameramen,
+        editors: mergedEditors
+      }
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function assignProductionPersonnel(params: {
+  workEntryId: string;
+  videoId?: string;
+  cameramanName?: string;
+  cameramanEmail?: string;
+  editorName?: string;
+  editorEmail?: string;
+  changeReason: string;
+}) {
+  const auth = await checkAuth(['ADMIN', 'TEAM_MEMBER']);
+  if (!auth.success) return auth;
+
+  const email = await getEmail();
+
+  if (!params.changeReason || params.changeReason.trim().length < 5) {
+    return { success: false, error: 'A mandatory change reason (min 5 characters) is required for audit history compliance.' };
+  }
+
+  if (!params.workEntryId) {
+    return { success: false, error: 'Valid EPIC ID is required.' };
+  }
+
+  try {
+    const workEntry = await prisma.sMEWorkEntry.findUnique({
+      where: { id: params.workEntryId },
+      include: { shootingSchedules: true, videoEditorRecords: true, videoLibraries: true }
+    });
+
+    if (!workEntry) {
+      return { success: false, error: 'EPIC ID record not found in database.' };
+    }
+
+    const previousSnapshot = {
+      epicSequence: workEntry.epicSequence,
+      cameramen: workEntry.shootingSchedules.map((s: any) => ({ id: s.id, cameraman: s.cameraman, title: s.videoTitle })),
+      editors: workEntry.videoEditorRecords.map((e: any) => ({ id: e.id, editor: e.editorName, title: e.assignedVideo }))
+    };
+
+    // 1. Update Cameraman on ShootingSchedule
+    if (params.cameramanName) {
+      if (params.videoId && params.videoId !== 'ALL') {
+        const matchingSchedule = workEntry.shootingSchedules.find((s: any) => 
+          s.id === params.videoId || 
+          s.id === `shoot-${params.videoId}` ||
+          (params.videoId && workEntry.videoLibraries.some((vl: any) => vl.id === params.videoId && vl.title === s.videoTitle))
+        );
+
+        if (matchingSchedule) {
+          await prisma.shootingSchedule.update({
+            where: { id: matchingSchedule.id },
+            data: { cameraman: params.cameramanName }
+          });
+        } else {
+          await prisma.shootingSchedule.create({
+            data: {
+              workEntryId: params.workEntryId,
+              cameraman: params.cameramanName,
+              status: 'PLANNED',
+              videoTitle: workEntry.videoLibraries.find((vl: any) => vl.id === params.videoId)?.title || workEntry.topic
+            }
+          }).catch(() => null);
+        }
+      } else {
+        await prisma.shootingSchedule.updateMany({
+          where: { workEntryId: params.workEntryId },
+          data: { cameraman: params.cameramanName }
+        });
+      }
+
+      if (params.cameramanEmail) {
+        const camUser = await prisma.user.findUnique({ where: { email: params.cameramanEmail.toLowerCase().trim() } });
+        if (camUser) {
+          const currentEpics = parseAssignedEpics(camUser.department);
+          if (!currentEpics.includes(workEntry.epicSequence)) {
+            const updatedEpics = [...currentEpics, workEntry.epicSequence].sort((a: number, b: number) => a - b);
+            await prisma.user.update({
+              where: { id: camUser.id },
+              data: { department: `[${updatedEpics.join(',')}]` }
+            }).catch(() => null);
+          }
+        }
+      }
+    }
+
+    // 2. Update Editor on VideoEditorRecord
+    if (params.editorName) {
+      if (params.videoId && params.videoId !== 'ALL') {
+        const matchingEditor = workEntry.videoEditorRecords.find((e: any) => 
+          e.id === params.videoId || 
+          e.id === `ed-${params.videoId}` ||
+          (params.videoId && workEntry.videoLibraries.some((vl: any) => vl.id === params.videoId && vl.title === e.assignedVideo))
+        );
+
+        if (matchingEditor) {
+          await prisma.videoEditorRecord.update({
+            where: { id: matchingEditor.id },
+            data: { editorName: params.editorName }
+          });
+        } else {
+          await prisma.videoEditorRecord.create({
+            data: {
+              workEntryId: params.workEntryId,
+              editorName: params.editorName,
+              status: 'NOT_STARTED',
+              assignedVideo: workEntry.videoLibraries.find((vl: any) => vl.id === params.videoId)?.title || workEntry.topic
+            }
+          }).catch(() => null);
+        }
+      } else {
+        await prisma.videoEditorRecord.updateMany({
+          where: { workEntryId: params.workEntryId },
+          data: { editorName: params.editorName }
+        });
+      }
+
+      if (params.editorEmail) {
+        const edUser = await prisma.user.findUnique({ where: { email: params.editorEmail.toLowerCase().trim() } });
+        if (edUser) {
+          const currentEpics = parseAssignedEpics(edUser.department);
+          if (!currentEpics.includes(workEntry.epicSequence)) {
+            const updatedEpics = [...currentEpics, workEntry.epicSequence].sort((a: number, b: number) => a - b);
+            await prisma.user.update({
+              where: { id: edUser.id },
+              data: { department: `[${updatedEpics.join(',')}]` }
+            }).catch(() => null);
+          }
+        }
+      }
+    }
+
+    // 3. Persistent Audit Logging
+    await logAudit({
+      action: 'ASSIGN_PRODUCTION_WORK',
+      entity: 'VIDEO_PRODUCTION_ASSIGNMENT',
+      entityId: params.videoId || params.workEntryId,
+      userEmail: email,
+      previousData: JSON.stringify(previousSnapshot),
+      newData: JSON.stringify({
+        epicSequence: workEntry.epicSequence,
+        workEntryId: params.workEntryId,
+        videoId: params.videoId || 'ALL_VIDEOS',
+        assignedCameraman: params.cameramanName || null,
+        assignedEditor: params.editorName || null,
+        changeReason: params.changeReason.trim()
+      })
+    });
+
+    safeRevalidate();
+    return {
+      success: true,
+      message: `Successfully assigned personnel for EPIC-${workEntry.epicSequence}.`
+    };
+  } catch (error: any) {
+    console.error('Error in assignProductionPersonnel:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getProductionAuditLogs(workEntryId?: string) {
+  const role = await getRole();
+  if (role !== 'ADMIN' && role !== 'TEAM_MEMBER') {
+    return { success: false, error: 'Unauthorized: Admin or Team Member role required to view audit logs.' };
+  }
+
+  try {
+    const logs = await prisma.auditLog.findMany({
+      where: {
+        entity: { in: ['VIDEO_PRODUCTION', 'SHOOTING_SCHEDULE', 'VIDEO_EDITOR_RECORD', 'VIDEO_PRODUCTION_ASSIGNMENT', 'FINAL_VIDEO_RECORD'] },
+        ...(workEntryId ? { entityId: workEntryId } : {})
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 60,
+      include: {
+        user: { select: { name: true, email: true, role: true } }
+      }
+    });
+
+    return {
+      success: true,
+      data: logs
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
 
 
