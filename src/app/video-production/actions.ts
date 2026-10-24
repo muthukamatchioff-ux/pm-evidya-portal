@@ -811,15 +811,30 @@ export async function updateVideoEditorRecord(id: string, data: any, workEntryId
 
     // Persist to VideoLibrary (if linked or matching this assigned video)
     if (trimmedVideo || data.duration || data.finalVideoFile) {
-      const matchLib = await prisma.videoLibrary.findFirst({
-        where: {
-          OR: [
-            ...(id.startsWith('ed-') ? [{ id: id.replace('ed-', '') }] : []),
-            ...(trimmedVideo ? [{ title: trimmedVideo }] : []),
-            ...(workEntryId ? [{ epicId: workEntryId }] : [])
-          ]
+      let matchLib: any = null;
+      if (id && id.startsWith('ed-')) {
+        const stripped = id.replace('ed-', '');
+        matchLib = await prisma.videoLibrary.findUnique({ where: { id: stripped } }).catch(() => null);
+      }
+      if (!matchLib && trimmedVideo && workEntryId) {
+        matchLib = await prisma.videoLibrary.findFirst({
+          where: {
+            epicId: workEntryId,
+            title: { equals: trimmedVideo, mode: 'insensitive' }
+          }
+        }).catch(() => null);
+      }
+      if (!matchLib && trimmedVideo) {
+        matchLib = await prisma.videoLibrary.findFirst({
+          where: { title: { equals: trimmedVideo, mode: 'insensitive' } }
+        }).catch(() => null);
+      }
+      if (!matchLib && workEntryId) {
+        const epicVideos = await prisma.videoLibrary.findMany({ where: { epicId: workEntryId } }).catch(() => []);
+        if (epicVideos.length === 1) {
+          matchLib = epicVideos[0];
         }
-      }).catch(() => null);
+      }
 
       if (matchLib) {
         await prisma.videoLibrary.update({
@@ -982,52 +997,90 @@ export async function updateFinalVideoRecord(id: string, data: any, workEntryId:
       return { success: false, error: 'Epic work entry not found.' };
     }
 
-    // 2. Persist to VideoLibrary (the active PostgreSQL table for final deliverable storage and duration)
+    // 2. Persist to VideoLibrary (canonical source for deliverable links and duration)
     let savedVideo = null;
-    const existingForEpic = await prisma.videoLibrary.findFirst({
-      where: { epicId: workEntryId }
-    });
+    let targetLibId = data.videoId || data.videoLibraryId;
+    if (!targetLibId && id && !id.startsWith('final-')) {
+      targetLibId = id;
+    }
 
-    if (existingForEpic) {
+    if (targetLibId) {
       savedVideo = await prisma.videoLibrary.update({
-        where: { id: existingForEpic.id },
+        where: { id: targetLibId },
         data: {
-          videoLink: data.finalVideoFile || existingForEpic.videoLink,
-          duration: data.finalDuration !== undefined ? data.finalDuration : existingForEpic.duration
+          videoLink: data.finalVideoFile || '',
+          duration: data.finalDuration !== undefined ? data.finalDuration : undefined,
+          ...(data.title ? { title: data.title } : {}),
+          ...(workEntryId ? { epicId: workEntryId } : {})
         }
-      });
-    } else {
-      // Check if there is an existing library video for this SME or trade to link
-      const existingMatch = await prisma.videoLibrary.findFirst({
+      }).catch(() => null);
+    }
+
+    if (!savedVideo && data.title) {
+      const matchByTitle = await prisma.videoLibrary.findFirst({
         where: {
-          OR: [
-            { videoLink: data.finalVideoFile || undefined },
-            { smeName: { contains: workEntry.sme?.name || '', mode: 'insensitive' } },
-            { trade: { equals: workEntry.trade, mode: 'insensitive' } }
-          ]
+          epicId: workEntryId,
+          title: { equals: data.title.trim(), mode: 'insensitive' }
         }
+      }).catch(() => null);
+
+      if (matchByTitle) {
+        savedVideo = await prisma.videoLibrary.update({
+          where: { id: matchByTitle.id },
+          data: {
+            videoLink: data.finalVideoFile || '',
+            duration: data.finalDuration !== undefined ? data.finalDuration : undefined
+          }
+        }).catch(() => null);
+      }
+    }
+
+    if (!savedVideo) {
+      const existingForEpic = await prisma.videoLibrary.findFirst({
+        where: { epicId: workEntryId }
       });
 
-      if (existingMatch && !existingMatch.epicId) {
+      if (existingForEpic) {
         savedVideo = await prisma.videoLibrary.update({
-          where: { id: existingMatch.id },
+          where: { id: existingForEpic.id },
           data: {
-            epicId: workEntryId,
-            videoLink: data.finalVideoFile || existingMatch.videoLink,
-            duration: data.finalDuration !== undefined ? data.finalDuration : existingMatch.duration
+            videoLink: data.finalVideoFile || existingForEpic.videoLink,
+            duration: data.finalDuration !== undefined ? data.finalDuration : existingForEpic.duration
           }
         });
       } else {
-        savedVideo = await prisma.videoLibrary.create({
-          data: {
-            epicId: workEntryId,
-            videoLink: data.finalVideoFile || '',
-            duration: data.finalDuration || null,
-            title: workEntry.topic || 'PM eVidya Video Deliverable',
-            smeName: workEntry.sme?.name || 'SME',
-            trade: workEntry.trade || 'General'
+        // Check if there is an existing library video for this SME or trade to link
+        const existingMatch = await prisma.videoLibrary.findFirst({
+          where: {
+            OR: [
+              { videoLink: data.finalVideoFile || undefined },
+              { smeName: { contains: workEntry.sme?.name || '', mode: 'insensitive' } },
+              { trade: { equals: workEntry.trade, mode: 'insensitive' } }
+            ]
           }
         });
+
+        if (existingMatch && !existingMatch.epicId) {
+          savedVideo = await prisma.videoLibrary.update({
+            where: { id: existingMatch.id },
+            data: {
+              epicId: workEntryId,
+              videoLink: data.finalVideoFile || existingMatch.videoLink,
+              duration: data.finalDuration !== undefined ? data.finalDuration : existingMatch.duration
+            }
+          });
+        } else {
+          savedVideo = await prisma.videoLibrary.create({
+            data: {
+              epicId: workEntryId,
+              videoLink: data.finalVideoFile || '',
+              duration: data.finalDuration || null,
+              title: data.title || workEntry.topic || 'PM eVidya Video Deliverable',
+              smeName: workEntry.sme?.name || 'SME',
+              trade: workEntry.trade || 'General'
+            }
+          });
+        }
       }
     }
 

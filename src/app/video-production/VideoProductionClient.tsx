@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import styles from './video-production.module.css';
@@ -17,7 +17,10 @@ import {
   detectVideoDuration
 } from './actions';
 
-// Safe date helpers
+// =========================================================================
+// SAFE DATE & STRING HELPERS
+// =========================================================================
+
 function formatDateForInput(dateVal: any): string {
   if (!dateVal) return '';
   if (typeof dateVal === 'string') {
@@ -93,20 +96,79 @@ function cleanEditorDisplay(name?: string | null): string {
   return trimmed;
 }
 
+// Unified Video Row Model
+export interface VideoRegisterRow {
+  slNo: number;
+  uniqueKey: string;
+  videoId: string;
+  displayVideoId: string;
+  epicId: string;
+  epicSequence: number;
+  epicCode: string;
+  trade: string;
+  smeName: string;
+  videoTitle: string;
+  
+  // Production
+  cameraman: string;
+  shootingStatus: 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'RESHOOT';
+  shootingStartDate: string | null;
+  shootingEndDate: string | null;
+  shootingLocation: string | null;
+  productionNotes: string | null;
+  scheduleRecord: any;
+  
+  // Post-Production
+  editor: string;
+  editingStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+  editingStartDate: string | null;
+  editingEndDate: string | null;
+  roughCutLink: string | null;
+  finalCutLink: string | null;
+  reviewComments: string | null;
+  editorRecord: any;
+  
+  // Quality & Final Deliverable
+  qualityReviewStatus: string;
+  duration: string | null;
+  finalVideoLink: string | null;
+  hasLink: boolean;
+  deliveryStatus: 'DELIVERED' | 'LINK_MISSING' | 'IN_PRODUCTION' | 'PENDING';
+  libraryRecord: any;
+  finalRecord: any;
+}
+
 export default function VideoProductionClient({ initialRecords = [], role = 'VIEWER' }: any) {
   const router = useRouter();
+  const [workEntries, setWorkEntries] = useState<any[]>(initialRecords);
+  
+  // Active View Switcher: 'REGISTER' | 'EPIC_REPORT' | 'WORKFLOW_STAGES'
+  const [activeView, setActiveView] = useState<'REGISTER' | 'EPIC_REPORT' | 'WORKFLOW_STAGES'>('REGISTER');
+  
+  // Legacy 3-Stage workflow tab (when activeView === 'WORKFLOW_STAGES')
   const [activeStage, setActiveStage] = useState<'STAGE_1' | 'STAGE_2' | 'STAGE_3'>(
     role === 'EDITOR' ? 'STAGE_2' : 'STAGE_1'
   );
-  const [workEntries, setWorkEntries] = useState<any[]>(initialRecords);
-  const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    if (initialRecords && initialRecords.length > 0) {
-      setWorkEntries(initialRecords);
-    }
-  }, [initialRecords]);
-  
+  // Filters state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterTrade, setFilterTrade] = useState('ALL');
+  const [filterCameraman, setFilterCameraman] = useState('ALL');
+  const [filterEditor, setFilterEditor] = useState('ALL');
+  const [filterProdStatus, setFilterProdStatus] = useState('ALL');
+  const [filterEditStatus, setFilterEditStatus] = useState('ALL');
+  const [filterDeliveryStatus, setFilterDeliveryStatus] = useState('ALL');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+
+  // Sorting state
+  const [sortBy, setSortBy] = useState<string>('epicSequence');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Pagination state (default: 10 rows)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   // Stage 1 Create Form state
   const [selectedEpicId, setSelectedEpicId] = useState('');
   const [videoTitle, setVideoTitle] = useState('');
@@ -125,13 +187,17 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const [editingStage1, setEditingStage1] = useState<any | null>(null);
   const [editingStage2, setEditingStage2] = useState<any | null>(null);
   const [editingStage3, setEditingStage3] = useState<any | null>(null);
-
-  // Interactive Topic Chip selection & highlight state
   const [highlightedScheduleId, setHighlightedScheduleId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialRecords && initialRecords.length > 0) {
+      setWorkEntries(initialRecords);
+    }
+  }, [initialRecords]);
 
   useEffect(() => {
     async function loadData() {
@@ -143,48 +209,339 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     loadData();
   }, []);
 
-  const selectedEpic = workEntries.find(e => e.id === selectedEpicId);
+  // Compute unified Video Production Register
+  const videoRegister = useMemo<VideoRegisterRow[]>(() => {
+    let counter = 1;
+    const rows: VideoRegisterRow[] = [];
 
-  // 1. Calculate 4 Summary Cards
-  const totalEpicCount = workEntries.length;
-  
-  const prodInProgressCount = workEntries.reduce((acc, entry) => {
-    const active = entry.shootingSchedules?.filter((s: any) => 
-      s.status === 'IN_PROGRESS' || s.status === 'PLANNED' || s.status === 'RESHOOT'
-    ).length || 0;
-    return acc + active;
-  }, 0);
+    workEntries.forEach(entry => {
+      const epicSeq = entry.epicSequence;
+      const epicCode = `EPIC-${epicSeq}`;
+      const trade = entry.trade || 'General';
+      const smeName = entry.sme?.name || 'SME';
+      const combinedVideos = entry.videoLibraries || [];
+      const schedules = entry.shootingSchedules || [];
+      const editors = entry.videoEditorRecords || [];
+      const finals = entry.finalVideoRecords || [];
 
-  const postProdInProgressCount = workEntries.reduce((acc, entry) => {
-    const active = entry.videoEditorRecords?.filter((e: any) => 
-      e.status === 'IN_PROGRESS' || e.status === 'NOT_STARTED'
-    ).length || 0;
-    return acc + active;
-  }, 0);
+      // Collect all video items under this Epic
+      const titleMap = new Map<string, { lib?: any; schedule?: any; editor?: any }>();
 
-  const finalDeliveredCount = workEntries.reduce((acc, entry) => {
-    const libs = entry.videoLibraries?.length || 0;
-    const finalRecs = entry.finalVideoRecords?.filter((f: any) => 
-      f.finalVideoStatus === 'APPROVED' || f.finalVideoStatus === 'COMPLETED' || f.telecastStatus === 'TELECASTED'
-    ).length || 0;
-    return acc + Math.max(libs, finalRecs);
-  }, 0);
+      // 1. From videoLibraries
+      combinedVideos.forEach((v: any) => {
+        const title = (v.title || entry.topic || 'Untitled Video').trim();
+        if (!titleMap.has(title)) titleMap.set(title, {});
+        titleMap.get(title)!.lib = v;
+      });
 
-  // Filtered entries for general search
-  const filteredEntries = workEntries.filter(entry => {
-    const q = searchTerm.toLowerCase();
-    const epicCode = `epic-${entry.epicSequence}`.toLowerCase();
-    const smeName = (entry.sme?.name || '').toLowerCase();
-    const trade = (entry.trade || '').toLowerCase();
-    const topic = (entry.topic || '').toLowerCase();
-    const hasMatchingSchedule = entry.shootingSchedules?.some((s: any) => (s.videoTitle || '').toLowerCase().includes(q));
-    const hasMatchingEditor = entry.videoEditorRecords?.some((e: any) => 
-      (e.assignedVideo || '').toLowerCase().includes(q) || (e.editorName || '').toLowerCase().includes(q)
-    );
-    return epicCode.includes(q) || smeName.includes(q) || trade.includes(q) || topic.includes(q) || hasMatchingSchedule || hasMatchingEditor;
-  });
+      // 2. From shootingSchedules
+      schedules.forEach((s: any) => {
+        const title = (s.videoTitle || entry.topic || 'Untitled Video').trim();
+        if (!titleMap.has(title)) titleMap.set(title, {});
+        titleMap.get(title)!.schedule = s;
+      });
 
-  // Stage 1 Create Handler
+      // 3. From videoEditorRecords
+      editors.forEach((e: any) => {
+        const title = (e.assignedVideo || entry.topic || 'Untitled Video').trim();
+        if (!titleMap.has(title)) titleMap.set(title, {});
+        titleMap.get(title)!.editor = e;
+      });
+
+      if (titleMap.size === 0) {
+        titleMap.set(entry.topic || 'Master Video Topic', {
+          schedule: schedules[0],
+          editor: editors[0],
+          lib: combinedVideos[0]
+        });
+      }
+
+      let subIdx = 1;
+      titleMap.forEach((data, title) => {
+        const lib = data.lib;
+        const sched = data.schedule;
+        const ed = data.editor;
+        const fin = finals[0];
+
+        const rawVideoId = lib?.id || sched?.id?.replace('shoot-', '') || ed?.id?.replace('ed-', '') || `${entry.id}-${subIdx}`;
+        const displayVideoId = `VID-${epicSeq.toString().padStart(2, '0')}-${subIdx.toString().padStart(2, '0')}`;
+
+        const shootingStartDate = sched?.scheduledStart 
+          ? formatDateForInput(sched.scheduledStart) 
+          : (entry.attendanceFrom ? formatDateForInput(entry.attendanceFrom) : null);
+        const shootingEndDate = sched?.scheduledEnd 
+          ? formatDateForInput(sched.scheduledEnd) 
+          : (entry.attendanceTo ? formatDateForInput(entry.attendanceTo) : null);
+        const shootingStatus = (sched?.status || (entry.status === 'COMPLETED' ? 'COMPLETED' : 'PLANNED')) as any;
+        const cameraman = cleanCameramanDisplay(sched?.cameraman);
+
+        const editingStartDate = ed?.editingStartDate ? formatDateForInput(ed.editingStartDate) : '2026-10-05';
+        const editingEndDate = ed?.editingEndDate 
+          ? formatDateForInput(ed.editingEndDate) 
+          : (extractEndDate(ed?.reviewComments) || '2026-10-15');
+        const editingStatus = (ed?.status || (entry.status === 'COMPLETED' ? 'COMPLETED' : 'NOT_STARTED')) as any;
+        const editor = cleanEditorDisplay(ed?.editorName);
+
+        // Canonical source for final video deliverable is VideoLibrary
+        const finalVideoLink = lib?.videoLink || ed?.finalVideoFile || fin?.finalVideoFile || null;
+        const hasLink = !!finalVideoLink && finalVideoLink.trim() !== '' && finalVideoLink !== '-';
+        const duration = lib?.duration || ed?.duration || fin?.finalDuration || null;
+
+        let deliveryStatus: 'DELIVERED' | 'LINK_MISSING' | 'IN_PRODUCTION' | 'PENDING' = 'PENDING';
+        if (editingStatus === 'COMPLETED' && hasLink) {
+          deliveryStatus = 'DELIVERED';
+        } else if (editingStatus === 'COMPLETED' && !hasLink) {
+          deliveryStatus = 'LINK_MISSING';
+        } else if (shootingStatus === 'IN_PROGRESS' || editingStatus === 'IN_PROGRESS') {
+          deliveryStatus = 'IN_PRODUCTION';
+        } else if (shootingStatus === 'COMPLETED' && !hasLink) {
+          deliveryStatus = 'LINK_MISSING';
+        }
+
+        const qualityReviewStatus = fin?.finalVideoStatus || (deliveryStatus === 'DELIVERED' ? 'APPROVED' : (ed?.reviewComments ? 'UNDER_REVIEW' : 'PENDING'));
+
+        rows.push({
+          slNo: counter++,
+          uniqueKey: `${entry.id}-${subIdx}-${rawVideoId}`,
+          videoId: rawVideoId,
+          displayVideoId,
+          epicId: entry.id,
+          epicSequence: epicSeq,
+          epicCode,
+          trade,
+          smeName,
+          videoTitle: title,
+          cameraman,
+          shootingStatus,
+          shootingStartDate,
+          shootingEndDate,
+          shootingLocation: sched?.location || null,
+          productionNotes: sched?.productionNotes || null,
+          scheduleRecord: sched || { 
+            workEntryId: entry.id, 
+            videoTitle: title, 
+            cameraman, 
+            status: shootingStatus,
+            scheduledStart: shootingStartDate,
+            scheduledEnd: shootingEndDate
+          },
+          editor,
+          editingStatus,
+          editingStartDate,
+          editingEndDate,
+          roughCutLink: ed?.roughCutLink || null,
+          finalCutLink: ed?.finalCutLink || null,
+          reviewComments: cleanReviewComments(ed?.reviewComments),
+          editorRecord: ed || { 
+            workEntryId: entry.id, 
+            assignedVideo: title, 
+            editorName: editor, 
+            status: editingStatus,
+            editingStartDate,
+            editingEndDate
+          },
+          qualityReviewStatus,
+          duration,
+          finalVideoLink: hasLink ? finalVideoLink : null,
+          hasLink,
+          deliveryStatus,
+          libraryRecord: lib || null,
+          finalRecord: fin || null
+        });
+
+        subIdx++;
+      });
+    });
+
+    return rows;
+  }, [workEntries]);
+
+  // Extract distinct filter lists from live register
+  const tradesList = useMemo(() => Array.from(new Set(videoRegister.map(r => r.trade))).filter(Boolean).sort(), [videoRegister]);
+  const cameramenList = useMemo(() => Array.from(new Set(videoRegister.map(r => r.cameraman))).filter(Boolean).sort(), [videoRegister]);
+  const editorsList = useMemo(() => Array.from(new Set(videoRegister.map(r => r.editor))).filter(Boolean).sort(), [videoRegister]);
+
+  // 1. Dynamic KPI Metrics Calculation (strictly persisted records)
+  const totalVideos = videoRegister.length;
+  const completedVideos = videoRegister.filter(v => v.editingStatus === 'COMPLETED' && v.hasLink).length;
+  const inProgressVideos = videoRegister.filter(v => 
+    (v.shootingStatus === 'IN_PROGRESS' || v.editingStatus === 'IN_PROGRESS') && 
+    !(v.editingStatus === 'COMPLETED' && v.hasLink)
+  ).length;
+  const pendingVideos = videoRegister.filter(v => 
+    v.shootingStatus === 'PLANNED' && v.editingStatus === 'NOT_STARTED' && !v.hasLink
+  ).length;
+  const linksMissingVideos = videoRegister.filter(v => !v.hasLink).length;
+  const completionPercentage = totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0;
+
+  // 2. Filter & Sort Video Register
+  const filteredRows = useMemo(() => {
+    let result = videoRegister.filter(row => {
+      // Search Box (Epic, Video ID, Title, SME, Trade)
+      if (searchTerm.trim()) {
+        const q = searchTerm.toLowerCase().trim();
+        const matchesSearch = 
+          row.epicCode.toLowerCase().includes(q) ||
+          row.displayVideoId.toLowerCase().includes(q) ||
+          row.videoTitle.toLowerCase().includes(q) ||
+          row.smeName.toLowerCase().includes(q) ||
+          row.trade.toLowerCase().includes(q) ||
+          row.cameraman.toLowerCase().includes(q) ||
+          row.editor.toLowerCase().includes(q);
+        if (!matchesSearch) return false;
+      }
+
+      // Trade Filter
+      if (filterTrade !== 'ALL' && row.trade !== filterTrade) return false;
+
+      // Cameraman Filter
+      if (filterCameraman !== 'ALL' && row.cameraman !== filterCameraman) return false;
+
+      // Editor Filter
+      if (filterEditor !== 'ALL' && row.editor !== filterEditor) return false;
+
+      // Production Status Filter
+      if (filterProdStatus !== 'ALL' && row.shootingStatus !== filterProdStatus) return false;
+
+      // Editing Status Filter
+      if (filterEditStatus !== 'ALL' && row.editingStatus !== filterEditStatus) return false;
+
+      // Delivery Status Filter
+      if (filterDeliveryStatus === 'DELIVERED' && !row.hasLink) return false;
+      if (filterDeliveryStatus === 'LINK_MISSING' && row.hasLink) return false;
+
+      // Date Range Filter (checking either shooting or editing start date)
+      if (filterDateFrom) {
+        const rowDate = row.shootingStartDate || row.editingStartDate;
+        if (!rowDate || rowDate < filterDateFrom) return false;
+      }
+      if (filterDateTo) {
+        const rowDate = row.shootingEndDate || row.editingEndDate;
+        if (!rowDate || rowDate > filterDateTo) return false;
+      }
+
+      return true;
+    });
+
+    // Sorting
+    result.sort((a, b) => {
+      let valA: any = (a as any)[sortBy] ?? '';
+      let valB: any = (b as any)[sortBy] ?? '';
+
+      if (sortBy === 'epicSequence') {
+        valA = a.epicSequence;
+        valB = b.epicSequence;
+      }
+
+      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return result;
+  }, [
+    videoRegister, 
+    searchTerm, 
+    filterTrade, 
+    filterCameraman, 
+    filterEditor, 
+    filterProdStatus, 
+    filterEditStatus, 
+    filterDeliveryStatus, 
+    filterDateFrom, 
+    filterDateTo, 
+    sortBy, 
+    sortOrder
+  ]);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterTrade, filterCameraman, filterEditor, filterProdStatus, filterEditStatus, filterDeliveryStatus, filterDateFrom, filterDateTo, pageSize]);
+
+  // Paginated Rows
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, currentPage, pageSize]);
+
+  // Handle Sort column click
+  const handleSort = (field: string) => {
+    if (sortBy === field) {
+      setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+  };
+
+  // Reset all filters
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setFilterTrade('ALL');
+    setFilterCameraman('ALL');
+    setFilterEditor('ALL');
+    setFilterProdStatus('ALL');
+    setFilterEditStatus('ALL');
+    setFilterDeliveryStatus('ALL');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+  };
+
+  // Export filtered register as CSV
+  const handleExportCsv = () => {
+    const headers = [
+      'Sl No',
+      'Video ID',
+      'EPIC ID',
+      'Trade / Subject',
+      'SME Name',
+      'Video Title',
+      'Assigned Cameraman',
+      'Shooting Status',
+      'Shooting Start Date',
+      'Shooting End Date',
+      'Assigned Editor',
+      'Post-Production Status',
+      'Post-Production Start Date',
+      'Post-Production End Date',
+      'Duration',
+      'Final Video Link',
+      'Delivery Status'
+    ];
+
+    const rows = filteredRows.map(r => [
+      r.slNo,
+      r.displayVideoId,
+      r.epicCode,
+      `"${(r.trade || '').replace(/"/g, '""')}"`,
+      `"${(r.smeName || '').replace(/"/g, '""')}"`,
+      `"${(r.videoTitle || '').replace(/"/g, '""')}"`,
+      `"${(r.cameraman || '').replace(/"/g, '""')}"`,
+      r.shootingStatus,
+      r.shootingStartDate || '-',
+      r.shootingEndDate || '-',
+      `"${(r.editor || '').replace(/"/g, '""')}"`,
+      r.editingStatus,
+      r.editingStartDate || '-',
+      r.editingEndDate || '-',
+      r.duration || '-',
+      `"${(r.finalVideoLink || '').replace(/"/g, '""')}"`,
+      r.hasLink ? 'DELIVERED' : 'LINK_MISSING'
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `PM_eVidya_Video_Production_Report_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Stage 1 Create Handler (Preserved)
   const handleCreateStage1 = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEpicId || !videoTitle.trim()) {
@@ -230,11 +587,11 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     });
 
     if (res.success) {
-      setSuccess(`✅ Video "${videoTitle.trim()}" added to EPIC-${selectedEpic?.epicSequence}! It is automatically ready in Stage 2 (Post-Production). You can now enter the next video topic.`);
+      const selectedEpic = workEntries.find(ent => ent.id === selectedEpicId);
+      setSuccess(`✅ Video "${videoTitle.trim()}" added to EPIC-${selectedEpic?.epicSequence}! It is automatically ready in Stage 2 (Post-Production).`);
       const updatedList = await getTopicProductionRecords();
       if (updatedList.success) setWorkEntries(updatedList.data || []);
       router.refresh();
-      // Clear inputs but KEEP selectedEpicId so user can easily add 4-5 topics one by one
       setVideoTitle('');
       setShootStartDate('');
       setShootEndDate('');
@@ -249,13 +606,13 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setLoading(false);
   };
 
-  // Stage 1 Update Save
+  // Stage 1 Shooting Update Save (Preserved)
   const handleSaveStage1Edit = async (id: string, data: any) => {
     setLoading(true);
     setError(null);
     const res = await updateShootingSchedule(id, data);
     if (res.success) {
-      setSuccess('✅ Production record updated successfully.');
+      setSuccess('✅ Production shooting record updated successfully.');
       const updatedList = await getTopicProductionRecords();
       if (updatedList.success && updatedList.data) {
         setWorkEntries(updatedList.data);
@@ -268,7 +625,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setLoading(false);
   };
 
-  // Stage 1 Delete
+  // Stage 1 Delete (Preserved)
   const handleDeleteStage1 = async (id: string) => {
     if (!confirm('Are you sure you want to delete this Production Shoot record? This action cannot be undone.')) return;
     setLoading(true);
@@ -285,7 +642,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setLoading(false);
   };
 
-  // Stage 2 Editor Update Save
+  // Stage 2 Editor Update Save (Preserved & isolated from shooting dates)
   const handleSaveStage2Edit = async (id: string, data: any, workEntryId: string) => {
     setLoading(true);
     setError(null);
@@ -305,7 +662,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setLoading(false);
   };
 
-  // Stage 2 Delete Editor
+  // Stage 2 Delete Editor (Preserved)
   const handleDeleteEditor = async (id: string) => {
     if (!confirm('Are you sure you want to delete this Post-Production record?')) return;
     setLoading(true);
@@ -322,7 +679,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setLoading(false);
   };
 
-  // Stage 3 Save Final Record
+  // Stage 3 Save Final Record (Preserved)
   const handleSaveStage3Edit = async (id: string, data: any, workEntryId: string) => {
     setLoading(true);
     setError(null);
@@ -339,7 +696,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setLoading(false);
   };
 
-  // Stage 3 Delete Final
+  // Stage 3 Delete Final (Preserved)
   const handleDeleteFinal = async (id: string) => {
     if (!confirm('Are you sure you want to delete this Final Deliverable record?')) return;
     setLoading(true);
@@ -356,56 +713,116 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setLoading(false);
   };
 
-  // Status badge styling helper
+  // Helper for status badge class
   const getBadgeClass = (status: string) => {
     switch ((status || '').toUpperCase()) {
       case 'COMPLETED':
       case 'APPROVED':
       case 'TELECASTED':
+      case 'DELIVERED':
         return styles.badgeCompleted;
       case 'IN_PROGRESS':
         return styles.badgeProgress;
       case 'RESHOOT':
       case 'REVISION_REQUIRED':
+      case 'UNDER_REVIEW':
         return styles.badgeReshoot;
       default:
         return styles.badgePending;
     }
   };
 
+  const selectedEpic = workEntries.find(e => e.id === selectedEpicId);
+
   return (
     <div className={styles.container}>
-      {/* 1. FOUR SUMMARY CARDS */}
-      <div className={styles.summaryGrid}>
-        <div className={styles.summaryCard}>
-          <div className={styles.summaryIcon}>📋</div>
-          <div>
-            <div className={styles.summaryValue}>{totalEpicCount}</div>
-            <div className={styles.summaryLabel}>TOTAL EPIC IDS</div>
+      {/* ========================================================
+          1. TOP ENTERPRISE KPI CARDS (Live Persisted Metrics)
+         ======================================================== */}
+      <div className={styles.kpiGrid}>
+        {/* Card 1: Total Videos */}
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiTopRow}>
+            <span className={styles.kpiLabel}>Total Videos</span>
+            <div className={styles.kpiIconWrapper} style={{ background: '#eff6ff', color: '#1e40af' }}>🎬</div>
+          </div>
+          <div className={styles.kpiValueRow}>
+            <span className={styles.kpiMainValue}>{totalVideos}</span>
+            <span className={styles.kpiSubText}>across {workEntries.length} EPICs</span>
+          </div>
+          <div className={styles.kpiProgressBarTrack}>
+            <div className={styles.kpiProgressBarFill} style={{ width: '100%', background: '#3b82f6' }} />
           </div>
         </div>
 
-        <div className={styles.summaryCard}>
-          <div className={styles.summaryIcon} style={{ background: '#fef3c7' }}>🎥</div>
-          <div>
-            <div className={styles.summaryValue}>{prodInProgressCount}</div>
-            <div className={styles.summaryLabel}>PRODUCTION IN PROGRESS</div>
+        {/* Card 2: Completed */}
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiTopRow}>
+            <span className={styles.kpiLabel}>Completed</span>
+            <div className={styles.kpiIconWrapper} style={{ background: '#ecfdf5', color: '#047857' }}>✅</div>
+          </div>
+          <div className={styles.kpiValueRow}>
+            <span className={styles.kpiMainValue} style={{ color: '#047857' }}>{completedVideos}</span>
+            <span className={styles.kpiSubText}>({completionPercentage}% Done)</span>
+          </div>
+          <div className={styles.kpiProgressBarTrack}>
+            <div className={styles.kpiProgressBarFill} style={{ width: `${completionPercentage}%`, background: '#10b981' }} />
           </div>
         </div>
 
-        <div className={styles.summaryCard}>
-          <div className={styles.summaryIcon} style={{ background: '#f3e8ff' }}>✂️</div>
-          <div>
-            <div className={styles.summaryValue}>{postProdInProgressCount}</div>
-            <div className={styles.summaryLabel}>POST-PRODUCTION IN PROGRESS</div>
+        {/* Card 3: In Progress */}
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiTopRow}>
+            <span className={styles.kpiLabel}>In Progress</span>
+            <div className={styles.kpiIconWrapper} style={{ background: '#e0f2fe', color: '#0369a1' }}>⚡</div>
+          </div>
+          <div className={styles.kpiValueRow}>
+            <span className={styles.kpiMainValue} style={{ color: '#0284c7' }}>{inProgressVideos}</span>
+            <span className={styles.kpiSubText}>Shoot & Post-Prod</span>
+          </div>
+          <div className={styles.kpiProgressBarTrack}>
+            <div 
+              className={styles.kpiProgressBarFill} 
+              style={{ width: `${totalVideos > 0 ? (inProgressVideos / totalVideos) * 100 : 0}%`, background: '#0284c7' }} 
+            />
           </div>
         </div>
 
-        <div className={styles.summaryCard}>
-          <div className={styles.summaryIcon} style={{ background: '#dcfce7' }}>✅</div>
-          <div>
-            <div className={styles.summaryValue}>{finalDeliveredCount}</div>
-            <div className={styles.summaryLabel}>FINAL VIDEOS DELIVERED</div>
+        {/* Card 4: Pending */}
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiTopRow}>
+            <span className={styles.kpiLabel}>Pending / Planned</span>
+            <div className={styles.kpiIconWrapper} style={{ background: '#fef3c7', color: '#b45309' }}>⏳</div>
+          </div>
+          <div className={styles.kpiValueRow}>
+            <span className={styles.kpiMainValue} style={{ color: '#b45309' }}>{pendingVideos}</span>
+            <span className={styles.kpiSubText}>Not Started</span>
+          </div>
+          <div className={styles.kpiProgressBarTrack}>
+            <div 
+              className={styles.kpiProgressBarFill} 
+              style={{ width: `${totalVideos > 0 ? (pendingVideos / totalVideos) * 100 : 0}%`, background: '#f59e0b' }} 
+            />
+          </div>
+        </div>
+
+        {/* Card 5: Final Video Links Missing */}
+        <div className={styles.kpiCard} style={{ borderColor: linksMissingVideos > 0 ? '#fca5a5' : '#e2e8f0' }}>
+          <div className={styles.kpiTopRow}>
+            <span className={styles.kpiLabel} style={{ color: linksMissingVideos > 0 ? '#b91c1c' : '#475569' }}>
+              Final Links Missing
+            </span>
+            <div className={styles.kpiIconWrapper} style={{ background: '#fef2f2', color: '#dc2626' }}>⚠️</div>
+          </div>
+          <div className={styles.kpiValueRow}>
+            <span className={styles.kpiMainValue} style={{ color: '#dc2626' }}>{linksMissingVideos}</span>
+            <span className={styles.kpiSubText}>{totalVideos - linksMissingVideos} Available</span>
+          </div>
+          <div className={styles.kpiProgressBarTrack}>
+            <div 
+              className={styles.kpiProgressBarFill} 
+              style={{ width: `${totalVideos > 0 ? (linksMissingVideos / totalVideos) * 100 : 0}%`, background: '#ef4444' }} 
+            />
           </div>
         </div>
       </div>
@@ -439,656 +856,557 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         </div>
       )}
 
-      {/* 2. THREE-STAGE WORKFLOW NAVIGATION TABS */}
-      <div className={styles.workflowTabs}>
-        <button 
-          className={`${styles.workflowTabBtn} ${activeStage === 'STAGE_1' ? styles.workflowTabBtnActive : ''}`}
-          onClick={() => setActiveStage('STAGE_1')}
-        >
-          <span>🎬 Stage 1: Production (Shooting)</span>
-          <span className={styles.workflowTabBadge}>
-            {workEntries.reduce((acc, e) => acc + (e.shootingSchedules?.length || 0), 0)}
+      {/* ========================================================
+          2. PRODUCTION WORKFLOW PIPELINE INDICATOR (4 Stages)
+         ======================================================== */}
+      <div className={styles.pipelineWrapper}>
+        <div className={styles.pipelineHeader}>
+          <span className={styles.pipelineTitle}>
+            <span>🚀</span> Production Lifecycle Stages (Click to filter)
           </span>
-        </button>
+          {filterProdStatus !== 'ALL' || filterEditStatus !== 'ALL' || filterDeliveryStatus !== 'ALL' ? (
+            <button 
+              className={styles.btnResetFilters} 
+              onClick={() => {
+                setFilterProdStatus('ALL');
+                setFilterEditStatus('ALL');
+                setFilterDeliveryStatus('ALL');
+              }}
+            >
+              ✕ Clear Stage Filter
+            </button>
+          ) : null}
+        </div>
 
-        <button 
-          className={`${styles.workflowTabBtn} ${activeStage === 'STAGE_2' ? styles.workflowTabBtnActive : ''}`}
-          onClick={() => setActiveStage('STAGE_2')}
-        >
-          <span>✂️ Stage 2: Post-Production (Editing & Animation)</span>
-          <span className={styles.workflowTabBadge}>
-            {workEntries.reduce((acc, e) => acc + (e.videoEditorRecords?.length || 0), 0)}
-          </span>
-        </button>
+        <div className={styles.pipelineSteps}>
+          {/* Step 1: Production (Shooting) */}
+          <div 
+            className={`${styles.pipelineStepCard} ${filterProdStatus === 'IN_PROGRESS' || filterProdStatus === 'COMPLETED' ? styles.pipelineStepActive : ''}`}
+            onClick={() => {
+              setFilterProdStatus(prev => prev === 'IN_PROGRESS' ? 'ALL' : 'IN_PROGRESS');
+              setActiveView('REGISTER');
+            }}
+          >
+            <div className={styles.pipelineStepTop}>
+              <span className={styles.pipelineStepNumber}>Stage 1</span>
+              <span className={styles.pipelineStepBadge}>
+                {videoRegister.filter(v => v.shootingStatus === 'COMPLETED').length} / {totalVideos}
+              </span>
+            </div>
+            <div className={styles.pipelineStepTitle}>🎬 Production (Shooting)</div>
+            <div className={styles.pipelineStepDesc}>Studio/On-site shooting, Cameraman assignment & date tracking</div>
+          </div>
 
-        <button 
-          className={`${styles.workflowTabBtn} ${activeStage === 'STAGE_3' ? styles.workflowTabBtnActive : ''}`}
-          onClick={() => setActiveStage('STAGE_3')}
-        >
-          <span>📦 Stage 3: Final Video Deliverable (Library)</span>
-          <span className={styles.workflowTabBadge}>
-            {workEntries.reduce((acc, e) => acc + (e.finalVideoRecords?.length || e.videoLibraries?.length || 0), 0)}
-          </span>
-        </button>
+          {/* Step 2: Post-Production */}
+          <div 
+            className={`${styles.pipelineStepCard} ${filterEditStatus === 'IN_PROGRESS' || filterEditStatus === 'COMPLETED' ? styles.pipelineStepActive : ''}`}
+            onClick={() => {
+              setFilterEditStatus(prev => prev === 'IN_PROGRESS' ? 'ALL' : 'IN_PROGRESS');
+              setActiveView('REGISTER');
+            }}
+          >
+            <div className={styles.pipelineStepTop}>
+              <span className={styles.pipelineStepNumber}>Stage 2</span>
+              <span className={styles.pipelineStepBadge}>
+                {videoRegister.filter(v => v.editingStatus === 'COMPLETED').length} / {totalVideos}
+              </span>
+            </div>
+            <div className={styles.pipelineStepTitle}>✂️ Post-Production</div>
+            <div className={styles.pipelineStepDesc}>Editor allocation, rough cuts, final cuts & editorial remarks</div>
+          </div>
+
+          {/* Step 3: Quality Review */}
+          <div 
+            className={`${styles.pipelineStepCard} ${filterDeliveryStatus === 'IN_PRODUCTION' ? styles.pipelineStepActive : ''}`}
+            onClick={() => {
+              setFilterEditStatus('COMPLETED');
+              setActiveView('REGISTER');
+            }}
+          >
+            <div className={styles.pipelineStepTop}>
+              <span className={styles.pipelineStepNumber}>Stage 3</span>
+              <span className={styles.pipelineStepBadge}>
+                {videoRegister.filter(v => v.qualityReviewStatus === 'APPROVED').length} Approved
+              </span>
+            </div>
+            <div className={styles.pipelineStepTitle}>🔍 Quality Review</div>
+            <div className={styles.pipelineStepDesc}>Editorial compliance check, revisions & telecast approval</div>
+          </div>
+
+          {/* Step 4: Final Delivery */}
+          <div 
+            className={`${styles.pipelineStepCard} ${filterDeliveryStatus === 'DELIVERED' ? styles.pipelineStepActive : ''}`}
+            onClick={() => {
+              setFilterDeliveryStatus(prev => prev === 'DELIVERED' ? 'ALL' : 'DELIVERED');
+              setActiveView('REGISTER');
+            }}
+          >
+            <div className={styles.pipelineStepTop}>
+              <span className={styles.pipelineStepNumber}>Stage 4</span>
+              <span className={styles.pipelineStepBadge} style={{ background: '#dcfce7', color: '#166534' }}>
+                {completedVideos} Live
+              </span>
+            </div>
+            <div className={styles.pipelineStepTitle}>📦 Final Delivery</div>
+            <div className={styles.pipelineStepDesc}>Video Content Library storage link & auto-detected duration</div>
+          </div>
+        </div>
       </div>
 
       {/* ========================================================
-          STAGE 1: PRODUCTION (SHOOTING)
+          3. ENTERPRISE FILTER AND SEARCH TOOLBAR
          ======================================================== */}
-      {activeStage === 'STAGE_1' && (
-        <div className={styles.card}>
-          <div className={styles.cardHeader}>
-            <h2 className={styles.cardTitle}>🎬 Stage 1: Production Stage (Shooting)</h2>
+      <div className={styles.filterToolbarCard}>
+        <div className={styles.filterTopRow}>
+          {/* View Mode Toggle */}
+          <div className={styles.viewModeToggle}>
+            <button 
+              className={`${styles.viewModeBtn} ${activeView === 'REGISTER' ? styles.viewModeBtnActive : ''}`}
+              onClick={() => setActiveView('REGISTER')}
+            >
+              <span>📋 Video Production Register</span>
+              <span style={{ fontSize: '11px', background: '#e2e8f0', padding: '1px 6px', borderRadius: '8px' }}>
+                {filteredRows.length}
+              </span>
+            </button>
+
+            <button 
+              className={`${styles.viewModeBtn} ${activeView === 'EPIC_REPORT' ? styles.viewModeBtnActive : ''}`}
+              onClick={() => setActiveView('EPIC_REPORT')}
+            >
+              <span>📑 EPIC ID Report</span>
+              <span style={{ fontSize: '11px', background: '#e2e8f0', padding: '1px 6px', borderRadius: '8px' }}>
+                {workEntries.length}
+              </span>
+            </button>
+
+            <button 
+              className={`${styles.viewModeBtn} ${activeView === 'WORKFLOW_STAGES' ? styles.viewModeBtnActive : ''}`}
+              onClick={() => setActiveView('WORKFLOW_STAGES')}
+            >
+              <span>🎬 Add Videos & Stages</span>
+            </button>
+          </div>
+
+          {/* Export and Reset Actions */}
+          <div className={styles.toolbarActions}>
+            <button className={styles.btnExport} onClick={handleExportCsv} title="Export filtered rows to Excel/CSV">
+              <span>⬇️</span>
+              <span>Export CSV</span>
+            </button>
+
+            <button className={styles.btnResetFilters} onClick={handleResetFilters} title="Reset all search terms and dropdown filters">
+              <span>↺</span>
+              <span>Reset</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Multi-Filter Controls Grid */}
+        <div className={styles.filterGrid}>
+          {/* Search Box */}
+          <div className={styles.filterItem} style={{ gridColumn: 'span 2' }}>
+            <label className={styles.filterItemLabel}>Search Video, Epic, SME, or Topic</label>
             <input 
               type="text" 
-              className={styles.searchBox} 
-              placeholder="Search by Epic ID, SME, Topic, or Trade..." 
+              className={styles.filterInput} 
+              placeholder="e.g. EPIC-11, VID-01, Drone, Safety..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
           </div>
 
-          {/* Form to Add Video Topic by Epic ID */}
-          {(role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'CAMERAMAN') && (
-            <form onSubmit={handleCreateStage1} className={styles.createForm}>
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Epic ID *</label>
-                <select 
-                  className={styles.formSelect} 
-                  value={selectedEpicId} 
-                  onChange={e => {
-                    setSelectedEpicId(e.target.value);
-                    setHighlightedScheduleId(null);
-                  }}
-                  required
-                >
-                  <option value="">Select Recorded Epic ID...</option>
-                  {workEntries.map(entry => (
-                    <option key={entry.id} value={entry.id}>
-                      EPIC-{entry.epicSequence} — {entry.sme?.name || 'SME'} ({entry.trade || 'General'})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>SME Name (Auto-populated)</label>
-                <input 
-                  type="text" 
-                  className={`${styles.formInput} ${styles.formInputReadOnly}`}
-                  value={selectedEpic?.sme?.name ? `${selectedEpic.sme.name} (${selectedEpic.trade || 'General'})` : 'Auto-populated from Epic ID'}
-                  readOnly 
-                />
-              </div>
-
-              <div className={styles.formField} style={{ gridColumn: 'span 2' }}>
-                <label className={styles.formLabel}>
-                  Video Title / Topic * <span style={{ fontWeight: 'normal', color: '#64748b' }}>(Add one-by-one under selected Epic ID)</span>
-                </label>
-                <input 
-                  id="video-title-input"
-                  type="text" 
-                  className={styles.formInput} 
-                  placeholder="e.g. Topic 1: Safety & Personal Protective Equipment" 
-                  value={videoTitle}
-                  onChange={e => setVideoTitle(e.target.value)}
-                  required
-                />
-                {/* Show already added video topics under this selected Epic ID with Senior Fullstack interactive pattern */}
-                {selectedEpic && (
-                  <div style={{ marginTop: '10px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#0369a1', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span>📋 Recorded Video Topics under EPIC-{selectedEpic.epicSequence}</span>
-                      <span style={{ background: '#e0f2fe', color: '#0284c7', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 800 }}>
-                        {selectedEpic.shootingSchedules?.length || 0}
-                      </span>
-                      <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#64748b', marginLeft: 'auto' }}>
-                        (Click any topic to highlight & edit)
-                      </span>
-                    </div>
-                    {selectedEpic.shootingSchedules && selectedEpic.shootingSchedules.length > 0 ? (
-                      <div className={styles.topicChipsContainer}>
-                        {selectedEpic.shootingSchedules.map((s: any, idx: number) => {
-                          const isHighlighted = highlightedScheduleId === s.id;
-                          return (
-                            <button
-                              key={s.id || idx}
-                              type="button"
-                              className={`${styles.topicChip} ${isHighlighted ? styles.topicChipActive : ''}`}
-                              onClick={() => {
-                                setHighlightedScheduleId(s.id);
-                                const rowEl = document.getElementById(`schedule-row-${s.id}`);
-                                if (rowEl) {
-                                  rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                }
-                                setEditingStage1({
-                                  ...s,
-                                  workEntryId: s.workEntryId || selectedEpic.id,
-                                  epicSequence: selectedEpic.epicSequence,
-                                  smeName: selectedEpic.sme?.name,
-                                  trade: selectedEpic.trade
-                                });
-                              }}
-                              title={`Click to edit: ${s.videoTitle || 'Untitled Topic'}`}
-                            >
-                              <span className={`${styles.topicChipDot} ${
-                                s.status === 'COMPLETED' ? styles.dotCompleted :
-                                s.status === 'IN_PROGRESS' ? styles.dotProgress :
-                                s.status === 'RESHOOT' ? styles.dotReshoot : styles.dotPlanned
-                              }`} />
-                              <span>#{idx + 1} {s.videoTitle || 'Untitled Topic'}</span>
-                              <span className={styles.topicChipEditIcon}>✏️</span>
-                            </button>
-                          );
-                        })}
-                        <button
-                          type="button"
-                          className={styles.topicChipAdd}
-                          onClick={() => {
-                            setVideoTitle('');
-                            setHighlightedScheduleId(null);
-                            const inputEl = document.getElementById('video-title-input');
-                            if (inputEl) inputEl.focus();
-                          }}
-                          title="Click to add another topic"
-                        >
-                          + Add Topic
-                        </button>
-                      </div>
-                    ) : (
-                      <span style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginTop: '4px' }}>
-                        No videos recorded for this Epic ID yet. Enter the first topic above.
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Production Start Date</label>
-                <input 
-                  type="date" 
-                  className={styles.formInput} 
-                  value={shootStartDate}
-                  onChange={e => setShootStartDate(e.target.value)}
-                />
-              </div>
-
-              <div className={styles.formField}>
-                <label className={styles.formLabel}>Production End Date</label>
-                <input 
-                  type="date" 
-                  className={styles.formInput} 
-                  value={shootEndDate}
-                  onChange={e => setShootEndDate(e.target.value)}
-                />
-              </div>
-
-              <div className={styles.formField}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label className={styles.formLabel}>Shoot Location</label>
-                  {shootLocationType === 'On-site' && (
-                    <span className={styles.formBadgeNotice}>Specify Location</span>
-                  )}
-                </div>
-                <select 
-                  className={styles.formSelect}
-                  value={shootLocationType}
-                  onChange={e => {
-                    const val = e.target.value as any;
-                    setShootLocationType(val);
-                    if (val !== 'On-site') {
-                      setShootLocationCustom('');
-                    }
-                  }}
-                >
-                  <option value="">Select Shoot Location...</option>
-                  <option value="Studio - NIMI Chennai">Studio - NIMI Chennai</option>
-                  <option value="On-site">On-site</option>
-                </select>
-                {shootLocationType === 'On-site' && (
-                  <input 
-                    type="text" 
-                    className={styles.formInput} 
-                    placeholder="Enter On-site Location (e.g. Guindy ITI, Workshop, Site name)" 
-                    value={shootLocationCustom}
-                    onChange={e => setShootLocationCustom(e.target.value)}
-                    autoFocus
-                    style={{ marginTop: '4px' }}
-                  />
-                )}
-              </div>
-
-              <div className={styles.formField}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label className={styles.formLabel}>Cameraman</label>
-                  {cameramanSelect === 'OTHER' && (
-                    <span className={styles.formBadgeNotice}>Manual Entry</span>
-                  )}
-                </div>
-                <select 
-                  className={styles.formSelect}
-                  value={cameramanSelect}
-                  onChange={e => {
-                    const val = e.target.value as any;
-                    setCameramanSelect(val);
-                    if (val !== 'OTHER') {
-                      setCameramanCustom('');
-                    }
-                  }}
-                >
-                  <option value="">Select Camera Operator...</option>
-                  <option value="Antony Alcander">Antony Alcander</option>
-                  <option value="Parasuraman">Parasuraman</option>
-                  <option value="OTHER">✍️ Other (Enter Camera Operator Name)</option>
-                </select>
-                {cameramanSelect === 'OTHER' && (
-                  <input 
-                    type="text" 
-                    className={styles.formInput} 
-                    placeholder="Enter Camera operator name" 
-                    value={cameramanCustom}
-                    onChange={e => setCameramanCustom(e.target.value)}
-                    autoFocus
-                    style={{ marginTop: '4px' }}
-                  />
-                )}
-              </div>
-
-              <div className={styles.formField} style={{ gridColumn: 'span 2' }}>
-                <label className={styles.formLabel}>Production Notes</label>
-                <input 
-                  type="text" 
-                  className={styles.formInput} 
-                  placeholder="Shooting guidelines, equipment, or remarks" 
-                  value={productionNotes}
-                  onChange={e => setProductionNotes(e.target.value)}
-                />
-              </div>
-
-              <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
-                <button type="submit" className={styles.btnPrimary} disabled={loading}>
-                  {loading ? 'Adding...' : '+ Add Video Record to Epic ID'}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Stage 1 Table */}
-          <div className={styles.tableContainer}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Epic ID & SME</th>
-                  <th>Video Title / Topic</th>
-                  <th>Production Dates</th>
-                  <th>Shoot Location</th>
-                  <th>Cameraman</th>
-                  <th>Status</th>
-                  <th>Notes</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredEntries.flatMap(entry => entry.shootingSchedules?.map((schedule: any) => (
-                  <tr 
-                    key={schedule.id}
-                    id={`schedule-row-${schedule.id}`}
-                    className={highlightedScheduleId === schedule.id ? styles.highlightedRow : ''}
-                  >
-                    <td>
-                      <strong style={{ color: '#0369a1' }}>EPIC-{entry.epicSequence}</strong>
-                      <br/>
-                      <span style={{ fontSize: '12px', color: '#475569' }}>{entry.sme?.name || 'SME'}</span>
-                    </td>
-                    <td>
-                      <strong>{schedule.videoTitle || entry.topic}</strong>
-                      <br/>
-                      <span style={{ fontSize: '11px', color: '#64748b' }}>Trade: {entry.trade || 'General'}</span>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: '12px' }}>
-                        <span><strong>Start:</strong> {formatDateDisplay(schedule.scheduledStart || schedule.shootDate)}</span>
-                        <br/>
-                        <span><strong>End:</strong> {formatDateDisplay(schedule.scheduledEnd)}</span>
-                      </div>
-                    </td>
-                    <td>{schedule.location || '-'}</td>
-                    <td>{cleanCameramanDisplay(schedule.cameraman)}</td>
-                    <td>
-                      <span className={`${styles.badge} ${getBadgeClass(schedule.status)}`}>
-                        {schedule.status || 'PLANNED'}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: '12px', color: '#64748b', maxWidth: '200px' }}>
-                      {schedule.productionNotes || '-'}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        {(role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'CAMERAMAN') && (
-                          <button 
-                            className={styles.btnEdit} 
-                            onClick={() => setEditingStage1({
-                              ...schedule,
-                              workEntryId: schedule.workEntryId || entry.id,
-                              epicSequence: entry.epicSequence,
-                              smeName: entry.sme?.name,
-                              trade: entry.trade
-                            })}
-                          >
-                            Edit
-                          </button>
-                        )}
-                        {role === 'ADMIN' && (
-                          <button 
-                            className={styles.btnDanger} 
-                            onClick={() => handleDeleteStage1(schedule.id)}
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )))}
-                {filteredEntries.filter(e => e.shootingSchedules && e.shootingSchedules.length > 0).length === 0 && (
-                  <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
-                      No production shooting records found matching search criteria.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================
-          STAGE 2: POST-PRODUCTION (EDITING & ANIMATION)
-         ======================================================== */}
-      {activeStage === 'STAGE_2' && (
-        <div className={styles.card}>
-          <div className={styles.cardHeader}>
-            <h2 className={styles.cardTitle}>✂️ Stage 2: Post-Production Stage (Editing & Animation)</h2>
+          {/* Trade / Subject */}
+          <div className={styles.filterItem}>
+            <label className={styles.filterItemLabel}>Trade / Subject</label>
+            <select 
+              className={styles.filterSelect} 
+              value={filterTrade} 
+              onChange={e => setFilterTrade(e.target.value)}
+            >
+              <option value="ALL">All Trades ({tradesList.length})</option>
+              {tradesList.map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
           </div>
 
-          <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>
-            Choose an Epic ID below to view and update post-production details for all its video topics. Once Post-Production is marked <strong>COMPLETED</strong>, the video automatically flows to <strong>Stage 3 (Final Video Deliverable)</strong>.
-          </p>
-
-          {/* Stage 2 Epic ID Filter Bar */}
-          <div className={styles.stage2FilterBar}>
-            <div style={{ flex: '1 1 320px' }}>
-              <label className={styles.formLabel}>🎯 Choose Epic ID to Manage Post-Production:</label>
-              <select 
-                className={styles.formSelect} 
-                value={stage2EpicFilter} 
-                onChange={e => setStage2EpicFilter(e.target.value)}
-              >
-                <option value="">-- All Epic IDs ({workEntries.length} Total) --</option>
-                {workEntries.map(entry => {
-                  const videoCount = (entry.shootingSchedules?.length || 0);
-                  return (
-                    <option key={entry.id} value={entry.id}>
-                      EPIC-{entry.epicSequence} — {entry.sme?.name || 'SME'} ({videoCount} {videoCount === 1 ? 'Topic' : 'Topics'})
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-
-            <div style={{ flex: '1 1 260px' }}>
-              <label className={styles.formLabel}>🔍 Search by Video Title / Editor:</label>
-              <input 
-                type="text" 
-                className={styles.searchBox} 
-                style={{ maxWidth: '100%' }}
-                placeholder="Search within Post-Production..." 
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-              />
-            </div>
+          {/* Assigned Cameraman */}
+          <div className={styles.filterItem}>
+            <label className={styles.filterItemLabel}>Cameraman</label>
+            <select 
+              className={styles.filterSelect} 
+              value={filterCameraman} 
+              onChange={e => setFilterCameraman(e.target.value)}
+            >
+              <option value="ALL">All Cameramen</option>
+              {cameramenList.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
           </div>
 
-          {/* Stage 2 Table: Shows every video under the Epic ID */}
-          <div className={styles.tableContainer}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Epic ID & SME</th>
-                  <th>Video Title / Topic</th>
-                  <th>Shoot Status</th>
-                  <th>Video Editor & Dates</th>
-                  <th>Editing Status</th>
-                  <th>Final Video File</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredEntries
-                  .filter(entry => !stage2EpicFilter || entry.id === stage2EpicFilter)
-                  .flatMap(entry => {
-                    // Collect all videos for this Epic ID from shooting schedules or editor records
-                    const videoMap = new Map<string, { schedule?: any, editorRec?: any }>();
-
-                    // Add from shootingSchedules
-                    (entry.shootingSchedules || []).forEach((s: any) => {
-                      const titleKey = (s.videoTitle || entry.topic || 'Untitled').trim();
-                      videoMap.set(titleKey, { schedule: s });
-                    });
-
-                    // Match or add from videoEditorRecords
-                    (entry.videoEditorRecords || []).forEach((e: any) => {
-                      const titleKey = (e.assignedVideo || entry.topic || 'Untitled').trim();
-                      if (videoMap.has(titleKey)) {
-                        videoMap.get(titleKey)!.editorRec = e;
-                      } else {
-                        videoMap.set(titleKey, { editorRec: e });
-                      }
-                    });
-
-                    // If completely empty, at least show the base topic
-                    if (videoMap.size === 0) {
-                      videoMap.set(entry.topic || 'Topic', {
-                        editorRec: entry.videoEditorRecords?.[0] || {}
-                      });
-                    }
-
-                    return Array.from(videoMap.entries()).map(([videoTitle, data], idx) => {
-                      const schedule = data.schedule;
-                      const editorRec = data.editorRec || {};
-                      const editingEndDate = editorRec.editingEndDate 
-                        ? formatDateForInput(editorRec.editingEndDate) 
-                        : (extractEndDate(editorRec.reviewComments) || '2026-10-15');
-                      const editingStartDate = editorRec.editingStartDate 
-                        ? editorRec.editingStartDate 
-                        : '2026-10-05';
-                      const editorNameDisplay = cleanEditorDisplay(editorRec.editorName);
-
-                      return (
-                        <tr key={`${entry.id}-${idx}`}>
-                          <td>
-                            <strong style={{ color: '#0369a1' }}>EPIC-{entry.epicSequence}</strong>
-                            <br/>
-                            <span style={{ fontSize: '12px', color: '#475569' }}>{entry.sme?.name || 'SME'}</span>
-                          </td>
-                          <td>
-                            <strong>{videoTitle}</strong>
-                            <br/>
-                            <span style={{ fontSize: '11px', color: '#64748b' }}>Trade: {entry.trade || 'General'}</span>
-                          </td>
-                          <td>
-                            <span className={`${styles.badge} ${getBadgeClass(schedule?.status || 'COMPLETED')}`}>
-                              {schedule?.status || 'COMPLETED'}
-                            </span>
-                          </td>
-                          <td>
-                            <strong>{editorNameDisplay}</strong>
-                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                              <span>Start: {formatDateDisplay(editingStartDate)}</span>
-                              <br/>
-                              <span>End: {formatDateDisplay(editingEndDate)}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <span className={`${styles.badge} ${getBadgeClass(editorRec.status || 'COMPLETED')}`}>
-                              {editorRec.status || 'COMPLETED'}
-                            </span>
-                          </td>
-                          <td>
-                            {editorRec.finalVideoFile ? (
-                              <a href={editorRec.finalVideoFile} target="_blank" rel="noreferrer" style={{ color: '#0369a1', fontSize: '12px', fontWeight: 'bold' }}>
-                                📁 Storage File
-                              </a>
-                            ) : (
-                              <span style={{ fontSize: '12px', color: '#94a3b8' }}>-</span>
-                            )}
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              {(role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'EDITOR') && (
-                                <button 
-                                  className={styles.btnEdit} 
-                                  onClick={() => setEditingStage2({
-                                    ...editorRec,
-                                    workEntryId: entry.id,
-                                    assignedVideo: videoTitle,
-                                    epicSequence: entry.epicSequence,
-                                    smeName: entry.sme?.name,
-                                    editorName: editorNameDisplay,
-                                    editingStartDate: editingStartDate,
-                                    editingEndDate: editingEndDate,
-                                    cleanComments: cleanReviewComments(editorRec.reviewComments)
-                                  })}
-                                >
-                                  Edit Details
-                                </button>
-                              )}
-                              {role === 'ADMIN' && editorRec.id && (
-                                <button 
-                                  className={styles.btnDanger} 
-                                  onClick={() => handleDeleteEditor(editorRec.id)}
-                                >
-                                  Delete
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    });
-                  })}
-                {filteredEntries.length === 0 && (
-                  <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
-                      No Post-Production records found matching search criteria.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          {/* Assigned Editor */}
+          <div className={styles.filterItem}>
+            <label className={styles.filterItemLabel}>Editor</label>
+            <select 
+              className={styles.filterSelect} 
+              value={filterEditor} 
+              onChange={e => setFilterEditor(e.target.value)}
+            >
+              <option value="ALL">All Editors</option>
+              {editorsList.map(ed => (
+                <option key={ed} value={ed}>{ed}</option>
+              ))}
+            </select>
           </div>
-        </div>
-      )}
 
-      {/* ========================================================
-          STAGE 3: FINAL VIDEO DELIVERABLE & LIBRARY INTEGRATION
-         ======================================================== */}
-      {activeStage === 'STAGE_3' && (
-        <div className={styles.card}>
-          <div className={styles.cardHeader}>
-            <h2 className={styles.cardTitle}>📦 Stage 3: Final Video Deliverable (Library Integration)</h2>
+          {/* Production Status */}
+          <div className={styles.filterItem}>
+            <label className={styles.filterItemLabel}>Shooting Status</label>
+            <select 
+              className={styles.filterSelect} 
+              value={filterProdStatus} 
+              onChange={e => setFilterProdStatus(e.target.value)}
+            >
+              <option value="ALL">All Shooting</option>
+              <option value="PLANNED">Planned</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="RESHOOT">Reshoot Required</option>
+            </select>
+          </div>
+
+          {/* Post-Production Status */}
+          <div className={styles.filterItem}>
+            <label className={styles.filterItemLabel}>Editing Status</label>
+            <select 
+              className={styles.filterSelect} 
+              value={filterEditStatus} 
+              onChange={e => setFilterEditStatus(e.target.value)}
+            >
+              <option value="ALL">All Editing</option>
+              <option value="NOT_STARTED">Not Started</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="COMPLETED">Completed</option>
+            </select>
+          </div>
+
+          {/* Final Video Link Status */}
+          <div className={styles.filterItem}>
+            <label className={styles.filterItemLabel}>Final Delivery</label>
+            <select 
+              className={styles.filterSelect} 
+              value={filterDeliveryStatus} 
+              onChange={e => setFilterDeliveryStatus(e.target.value)}
+            >
+              <option value="ALL">All Deliveries</option>
+              <option value="DELIVERED">Link Available ({totalVideos - linksMissingVideos})</option>
+              <option value="LINK_MISSING">Link Missing ({linksMissingVideos})</option>
+            </select>
+          </div>
+
+          {/* Date Range From */}
+          <div className={styles.filterItem}>
+            <label className={styles.filterItemLabel}>Date From</label>
             <input 
-              type="text" 
-              className={styles.searchBox} 
-              placeholder="Search by Epic ID, Title, or SME..." 
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
+              type="date" 
+              className={styles.filterInput} 
+              value={filterDateFrom} 
+              onChange={e => setFilterDateFrom(e.target.value)}
             />
           </div>
 
-          <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>
-            Final approved videos automatically integrated with the Video Content Library and verified duration tracking.
-          </p>
+          {/* Date Range To */}
+          <div className={styles.filterItem}>
+            <label className={styles.filterItemLabel}>Date To</label>
+            <input 
+              type="date" 
+              className={styles.filterInput} 
+              value={filterDateTo} 
+              onChange={e => setFilterDateTo(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
 
-          <div className={styles.tableContainer}>
-            <table className={styles.table}>
+      {/* ========================================================
+          VIEW 1: STRUCTURED PAGINATED VIDEO REGISTER
+         ======================================================== */}
+      {activeView === 'REGISTER' && (
+        <div className={styles.registerTableCard}>
+          <div className={styles.registerTableCardHeader}>
+            <div className={styles.registerTableTitle}>
+              <span>📋</span>
+              <span>Authoritative Video Production Register</span>
+              <span style={{ fontSize: '13px', fontWeight: 'normal', color: '#64748b', marginLeft: '6px' }}>
+                (Showing {paginatedRows.length} of {filteredRows.length} filtered videos)
+              </span>
+            </div>
+
+            {/* Quick role-based hint */}
+            <div style={{ fontSize: '12px', color: '#475569' }}>
+              <strong>Role Access: </strong>
+              <span style={{ padding: '2px 8px', borderRadius: '10px', background: '#e0f2fe', color: '#0369a1', fontWeight: 700 }}>
+                {role}
+              </span>
+            </div>
+          </div>
+
+          <div className={styles.registerTableScroll}>
+            <table className={styles.registerTable}>
               <thead>
                 <tr>
-                  <th>Epic ID & SME</th>
-                  <th>Video Title / Trade</th>
-                  <th>Final Video Link / File</th>
-                  <th>Approval Status</th>
-                  <th>Final Duration</th>
-                  <th>Action</th>
+                  <th style={{ width: '50px' }}>Sl</th>
+                  <th className={styles.thSortable} onClick={() => handleSort('displayVideoId')}>
+                    Video ID {sortBy === 'displayVideoId' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  </th>
+                  <th className={styles.thSortable} onClick={() => handleSort('epicSequence')}>
+                    EPIC ID {sortBy === 'epicSequence' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  </th>
+                  <th className={styles.thSortable} onClick={() => handleSort('trade')}>
+                    Trade / Subject {sortBy === 'trade' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  </th>
+                  <th className={styles.thSortable} onClick={() => handleSort('videoTitle')}>
+                    Video Title / Topic {sortBy === 'videoTitle' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  </th>
+                  <th>Assigned Cameraman</th>
+                  <th className={styles.thSortable} onClick={() => handleSort('shootingStatus')}>
+                    Shooting Status {sortBy === 'shootingStatus' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  </th>
+                  <th className={styles.thSortable} onClick={() => handleSort('shootingStartDate')}>
+                    Shoot Start {sortBy === 'shootingStartDate' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  </th>
+                  <th>Shoot End</th>
+                  <th>Assigned Editor</th>
+                  <th className={styles.thSortable} onClick={() => handleSort('editingStatus')}>
+                    Editing Status {sortBy === 'editingStatus' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  </th>
+                  <th className={styles.thSortable} onClick={() => handleSort('editingStartDate')}>
+                    Edit Start {sortBy === 'editingStartDate' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  </th>
+                  <th>Edit End</th>
+                  <th>Duration</th>
+                  <th className={styles.thSortable} onClick={() => handleSort('hasLink')}>
+                    Final Video Link {sortBy === 'hasLink' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                  </th>
+                  <th style={{ textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredEntries.flatMap(entry => {
-                  const finalRec = entry.finalVideoRecords?.[0] || {};
-                  const libraryVideos = entry.videoLibraries || [];
-                  const primaryLib = libraryVideos[0];
-
-                  const videoFileLink = finalRec.finalVideoFile || primaryLib?.videoLink;
-                  const finalStatus = finalRec.finalVideoStatus || (primaryLib ? 'APPROVED' : 'PENDING');
-                  const duration = finalRec.finalDuration || primaryLib?.duration || '-';
+                {paginatedRows.map(row => {
+                  const canEditShooting = role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'CAMERAMAN';
+                  const canEditEditing = role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'EDITOR';
+                  const canEditDeliverable = role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'EDITOR';
 
                   return (
-                    <tr key={entry.id}>
+                    <tr 
+                      key={row.uniqueKey} 
+                      className={!row.hasLink && row.editingStatus === 'COMPLETED' ? styles.rowWarning : ''}
+                    >
+                      {/* 1. Sl No */}
+                      <td style={{ fontWeight: 600, color: '#64748b' }}>{row.slNo}</td>
+
+                      {/* 2. Video ID */}
                       <td>
-                        <strong style={{ color: '#0369a1' }}>EPIC-{entry.epicSequence}</strong>
-                        <br/>
-                        <span style={{ fontSize: '12px', color: '#475569' }}>{entry.sme?.name || 'SME'}</span>
-                      </td>
-                      <td>
-                        <strong>{primaryLib?.title || entry.shootingSchedules?.[0]?.videoTitle || entry.topic}</strong>
-                        <br/>
-                        <span style={{ fontSize: '11px', color: '#64748b' }}>Trade: {entry.trade || 'General'}</span>
-                      </td>
-                      <td>
-                        {videoFileLink ? (
-                          <a href={videoFileLink} target="_blank" rel="noreferrer" style={{ color: '#0284c7', fontWeight: 'bold' }}>
-                            🎬 View Final Video
-                          </a>
-                        ) : (
-                          <span style={{ color: '#94a3b8' }}>Awaiting File Link</span>
-                        )}
-                      </td>
-                      <td>
-                        <span className={`${styles.badge} ${getBadgeClass(finalStatus)}`}>
-                          {finalStatus}
+                        <span style={{ 
+                          fontFamily: 'monospace', 
+                          fontWeight: 700, 
+                          color: '#0369a1', 
+                          background: '#e0f2fe', 
+                          padding: '2px 6px', 
+                          borderRadius: '4px',
+                          fontSize: '11.5px' 
+                        }}>
+                          {row.displayVideoId}
                         </span>
                       </td>
+
+                      {/* 3. EPIC ID */}
+                      <td>
+                        <strong style={{ color: '#0f2942' }}>{row.epicCode}</strong>
+                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>
+                          {row.smeName}
+                        </div>
+                      </td>
+
+                      {/* 4. Trade / Subject */}
+                      <td>
+                        <span style={{ fontWeight: 600, color: '#334155' }}>{row.trade}</span>
+                      </td>
+
+                      {/* 5. Video Title */}
+                      <td style={{ maxWidth: '240px' }}>
+                        <span style={{ fontWeight: 600, color: '#0f172a' }}>{row.videoTitle}</span>
+                        {row.productionNotes && (
+                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                            {row.productionNotes}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* 6. Assigned Cameraman */}
+                      <td>
+                        <span style={{ fontWeight: 600 }}>{row.cameraman}</span>
+                        {row.shootingLocation && (
+                          <div style={{ fontSize: '10.5px', color: '#64748b' }}>
+                            📍 {row.shootingLocation}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* 7. Shooting Status */}
+                      <td>
+                        <span className={`${styles.badge} ${getBadgeClass(row.shootingStatus)}`}>
+                          {row.shootingStatus}
+                        </span>
+                      </td>
+
+                      {/* 8. Shooting Start Date */}
+                      <td>
+                        <span style={{ whiteSpace: 'nowrap' }}>
+                          {formatDateDisplay(row.shootingStartDate)}
+                        </span>
+                      </td>
+
+                      {/* 9. Shooting End Date */}
+                      <td>
+                        <span style={{ whiteSpace: 'nowrap' }}>
+                          {formatDateDisplay(row.shootingEndDate)}
+                        </span>
+                      </td>
+
+                      {/* 10. Assigned Editor */}
+                      <td>
+                        <span style={{ fontWeight: 600 }}>{row.editor}</span>
+                      </td>
+
+                      {/* 11. Editing Status */}
+                      <td>
+                        <span className={`${styles.badge} ${getBadgeClass(row.editingStatus)}`}>
+                          {row.editingStatus}
+                        </span>
+                      </td>
+
+                      {/* 12. Editing Start Date */}
+                      <td>
+                        <span style={{ whiteSpace: 'nowrap' }}>
+                          {formatDateDisplay(row.editingStartDate)}
+                        </span>
+                      </td>
+
+                      {/* 13. Editing End Date */}
+                      <td>
+                        <span style={{ whiteSpace: 'nowrap' }}>
+                          {formatDateDisplay(row.editingEndDate)}
+                        </span>
+                      </td>
+
+                      {/* 14. Duration */}
                       <td>
                         <span style={{ fontWeight: 600, color: '#334155' }}>
-                          {duration}
+                          {row.duration || '-'}
                         </span>
                       </td>
+
+                      {/* 15. Final Video Link (Canonical from VideoLibrary) */}
                       <td>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
-                            <button 
-                              className={styles.btnEdit} 
-                              onClick={() => setEditingStage3({
-                                ...finalRec,
-                                workEntryId: entry.id,
-                                epicSequence: entry.epicSequence,
-                                smeName: entry.sme?.name,
-                                title: primaryLib?.title || entry.topic,
-                                finalVideoFile: videoFileLink,
-                                finalDuration: duration !== '-' ? duration : (finalRec.finalDuration || primaryLib?.duration || '')
-                              })}
+                        {row.hasLink && row.finalVideoLink ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <a 
+                              href={row.finalVideoLink} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className={styles.badgeHasLink}
+                              title="Open final delivered video"
                             >
-                              Edit Details
+                              <span>🎬</span>
+                              <span>View Video</span>
+                            </a>
+                            <Link 
+                              href="/content" 
+                              style={{ fontSize: '10px', color: '#0284c7', textDecoration: 'underline' }}
+                              title="Go to Video Content Library"
+                            >
+                              Library Record
+                            </Link>
+                          </div>
+                        ) : (
+                          <span className={styles.badgeMissingLink}>
+                            <span>⚠️</span>
+                            <span>Link Missing</span>
+                          </span>
+                        )}
+                      </td>
+
+                      {/* 16. Actions */}
+                      <td>
+                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                          {/* Cameraman / Shoot edit action */}
+                          {canEditShooting && (
+                            <button 
+                              className={styles.btnEdit}
+                              onClick={() => setEditingStage1({
+                                ...row.scheduleRecord,
+                                workEntryId: row.epicId,
+                                epicSequence: row.epicSequence,
+                                smeName: row.smeName,
+                                trade: row.trade,
+                                videoTitle: row.videoTitle,
+                                cameraman: row.cameraman,
+                                scheduledStart: row.shootingStartDate,
+                                scheduledEnd: row.shootingEndDate,
+                                location: row.shootingLocation,
+                                status: row.shootingStatus
+                              })}
+                              title="Update shooting start/end dates and status"
+                            >
+                              Shoot
                             </button>
                           )}
-                          {role === 'ADMIN' && finalRec.id && (
+
+                          {/* Editor / Post-Prod edit action */}
+                          {canEditEditing && (
                             <button 
-                              className={styles.btnDanger} 
-                              onClick={() => handleDeleteFinal(finalRec.id)}
+                              className={styles.btnEdit}
+                              style={{ borderColor: '#ddd6fe', color: '#6d28d9' }}
+                              onClick={() => setEditingStage2({
+                                ...row.editorRecord,
+                                workEntryId: row.epicId,
+                                assignedVideo: row.videoTitle,
+                                epicSequence: row.epicSequence,
+                                smeName: row.smeName,
+                                editorName: row.editor,
+                                editingStartDate: row.editingStartDate,
+                                editingEndDate: row.editingEndDate,
+                                status: row.editingStatus,
+                                cleanComments: row.reviewComments
+                              })}
+                              title="Update post-production start/end dates and status"
                             >
-                              Delete
+                              Edit
+                            </button>
+                          )}
+
+                          {/* Final deliverable edit action */}
+                          {canEditDeliverable && (
+                            <button 
+                              className={styles.btnEdit}
+                              style={{ borderColor: '#bbf7d0', color: '#15803d' }}
+                              onClick={() => setEditingStage3({
+                                id: row.libraryRecord?.id || `final-${row.epicId}`,
+                                workEntryId: row.epicId,
+                                videoId: row.libraryRecord?.id,
+                                epicSequence: row.epicSequence,
+                                smeName: row.smeName,
+                                title: row.videoTitle,
+                                finalVideoFile: row.finalVideoLink || '',
+                                finalDuration: row.duration || '',
+                                finalVideoStatus: row.qualityReviewStatus || 'APPROVED'
+                              })}
+                              title="Update final deliverable link and auto-detect duration"
+                            >
+                              Link
                             </button>
                           )}
                         </div>
@@ -1096,16 +1414,739 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                     </tr>
                   );
                 })}
-                {filteredEntries.length === 0 && (
+
+                {filteredRows.length === 0 && (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
-                      No final deliverables found matching search criteria.
+                    <td colSpan={16} style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
+                      <div style={{ fontSize: '20px', marginBottom: '8px' }}>🔍</div>
+                      <strong>No video records match the selected filters.</strong>
+                      <p style={{ margin: '6px 0 0 0', fontSize: '12px' }}>
+                        Try clearing search terms or resetting filters using the Reset button above.
+                      </p>
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          <div className={styles.paginationBar}>
+            <div className={styles.paginationInfo}>
+              Showing <strong>{filteredRows.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}</strong> to <strong>{Math.min(currentPage * pageSize, filteredRows.length)}</strong> of <strong>{filteredRows.length}</strong> videos
+            </div>
+
+            <div className={styles.paginationControls}>
+              <span style={{ fontSize: '12px', color: '#64748b' }}>Rows per page:</span>
+              <select 
+                className={styles.pageSizeDropdown}
+                value={pageSize}
+                onChange={e => setPageSize(Number(e.target.value))}
+              >
+                <option value={10}>10 rows</option>
+                <option value={25}>25 rows</option>
+                <option value={50}>50 rows</option>
+                <option value={100}>100 rows</option>
+              </select>
+
+              <button 
+                className={styles.pageBtn} 
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(1)}
+                title="First Page"
+              >
+                «
+              </button>
+              <button 
+                className={styles.pageBtn} 
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                title="Previous Page"
+              >
+                ‹ Prev
+              </button>
+
+              {/* Page Number Chips */}
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let p = i + 1;
+                if (totalPages > 5 && currentPage > 3) {
+                  p = currentPage - 2 + i;
+                  if (p > totalPages) p = totalPages - (4 - i);
+                }
+                return (
+                  <button 
+                    key={p}
+                    className={`${styles.pageBtn} ${currentPage === p ? styles.pageBtnActive : ''}`}
+                    onClick={() => setCurrentPage(p)}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+
+              <button 
+                className={styles.pageBtn} 
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                title="Next Page"
+              >
+                Next ›
+              </button>
+              <button 
+                className={styles.pageBtn} 
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                title="Last Page"
+              >
+                »
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          VIEW 2: EPIC ID REPORTING VIEW (Grouped by Epic ID)
+         ======================================================== */}
+      {activeView === 'EPIC_REPORT' && (
+        <div className={styles.epicReportContainer}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <h2 className={styles.cardTitle}>📑 EPIC ID-Based Production & Telecast Roll-Up Report</h2>
+            <button className={styles.btnExport} onClick={handleExportCsv}>
+              <span>⬇️</span>
+              <span>Export All Records CSV</span>
+            </button>
+          </div>
+
+          <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 16px 0' }}>
+            Authoritative rollup reflecting live database records across all production and post-production stages for each Epic ID.
+          </p>
+
+          {workEntries.map(entry => {
+            const epicSeq = entry.epicSequence;
+            const epicCode = `EPIC-${epicSeq}`;
+            const relatedVideos = videoRegister.filter(v => v.epicSequence === epicSeq);
+            const totalInEpic = relatedVideos.length;
+            const completedInEpic = relatedVideos.filter(v => v.hasLink && v.editingStatus === 'COMPLETED').length;
+            const missingLinksInEpic = relatedVideos.filter(v => !v.hasLink).length;
+
+            return (
+              <div key={entry.id} className={styles.epicReportCard}>
+                <div className={styles.epicReportCardHeader}>
+                  <div className={styles.epicReportTitleGroup}>
+                    <span className={styles.epicReportBadge}>{epicCode}</span>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '15px', color: '#0f172a', fontWeight: 800 }}>
+                        {entry.sme?.name || 'SME'} — {entry.trade || 'General'}
+                      </h3>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                        Master Topic: <strong>{entry.topic}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span style={{ 
+                      padding: '4px 10px', 
+                      borderRadius: '8px', 
+                      fontSize: '12px', 
+                      fontWeight: 700,
+                      background: completedInEpic === totalInEpic && totalInEpic > 0 ? '#dcfce7' : '#e0f2fe',
+                      color: completedInEpic === totalInEpic && totalInEpic > 0 ? '#166534' : '#0369a1'
+                    }}>
+                      {completedInEpic} / {totalInEpic} Videos Delivered
+                    </span>
+
+                    {missingLinksInEpic > 0 && (
+                      <span className={styles.badgeMissingLink}>
+                        {missingLinksInEpic} Link{missingLinksInEpic > 1 ? 's' : ''} Missing
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Epic Metadata Grid */}
+                <div className={styles.epicReportMetaGrid}>
+                  <div className={styles.epicMetaItem}>
+                    <span className={styles.epicMetaLabel}>Recorded Videos</span>
+                    <span className={styles.epicMetaValue}>{totalInEpic} Video Topic{totalInEpic > 1 ? 's' : ''}</span>
+                  </div>
+
+                  <div className={styles.epicMetaItem}>
+                    <span className={styles.epicMetaLabel}>Shooting Window</span>
+                    <span className={styles.epicMetaValue}>
+                      {formatDateDisplay(entry.attendanceFrom)} to {formatDateDisplay(entry.attendanceTo)}
+                    </span>
+                  </div>
+
+                  <div className={styles.epicMetaItem}>
+                    <span className={styles.epicMetaLabel}>Primary Cameraman</span>
+                    <span className={styles.epicMetaValue}>{relatedVideos[0]?.cameraman || 'Antony Alcander'}</span>
+                  </div>
+
+                  <div className={styles.epicMetaItem}>
+                    <span className={styles.epicMetaLabel}>Primary Editor</span>
+                    <span className={styles.epicMetaValue}>{relatedVideos[0]?.editor || 'Post-Production Team'}</span>
+                  </div>
+                </div>
+
+                {/* Table of all video records under this Epic */}
+                <div className={styles.tableContainer}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Video ID</th>
+                        <th>Video Title / Topic</th>
+                        <th>Cameraman & Shoot Dates</th>
+                        <th>Editor & Post-Prod Dates</th>
+                        <th>Duration</th>
+                        <th>Final Video Link</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {relatedVideos.map(v => (
+                        <tr key={v.uniqueKey}>
+                          <td>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0369a1' }}>
+                              {v.displayVideoId}
+                            </span>
+                          </td>
+                          <td>
+                            <strong>{v.videoTitle}</strong>
+                          </td>
+                          <td>
+                            <span>{v.cameraman}</span>
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>
+                              {formatDateDisplay(v.shootingStartDate)} — {formatDateDisplay(v.shootingEndDate)}
+                              <span className={`${styles.badge} ${getBadgeClass(v.shootingStatus)}`} style={{ marginLeft: '6px' }}>
+                                {v.shootingStatus}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <span>{v.editor}</span>
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>
+                              {formatDateDisplay(v.editingStartDate)} — {formatDateDisplay(v.editingEndDate)}
+                              <span className={`${styles.badge} ${getBadgeClass(v.editingStatus)}`} style={{ marginLeft: '6px' }}>
+                                {v.editingStatus}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{ fontWeight: 600 }}>{v.duration || '-'}</span>
+                          </td>
+                          <td>
+                            {v.hasLink && v.finalVideoLink ? (
+                              <a 
+                                href={v.finalVideoLink} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className={styles.badgeHasLink}
+                              >
+                                🎬 Open Video
+                              </a>
+                            ) : (
+                              <span className={styles.badgeMissingLink}>
+                                ⚠️ Missing Link
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              {(role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'CAMERAMAN') && (
+                                <button 
+                                  className={styles.btnEdit}
+                                  onClick={() => setEditingStage1({
+                                    ...v.scheduleRecord,
+                                    workEntryId: v.epicId,
+                                    epicSequence: v.epicSequence,
+                                    smeName: v.smeName,
+                                    trade: v.trade,
+                                    videoTitle: v.videoTitle,
+                                    cameraman: v.cameraman,
+                                    scheduledStart: v.shootingStartDate,
+                                    scheduledEnd: v.shootingEndDate,
+                                    location: v.shootingLocation,
+                                    status: v.shootingStatus
+                                  })}
+                                >
+                                  Shoot
+                                </button>
+                              )}
+
+                              {(role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'EDITOR') && (
+                                <button 
+                                  className={styles.btnEdit}
+                                  style={{ borderColor: '#ddd6fe', color: '#6d28d9' }}
+                                  onClick={() => setEditingStage2({
+                                    ...v.editorRecord,
+                                    workEntryId: v.epicId,
+                                    assignedVideo: v.videoTitle,
+                                    epicSequence: v.epicSequence,
+                                    smeName: v.smeName,
+                                    editorName: v.editor,
+                                    editingStartDate: v.editingStartDate,
+                                    editingEndDate: v.editingEndDate,
+                                    status: v.editingStatus,
+                                    cleanComments: v.reviewComments
+                                  })}
+                                >
+                                  Edit
+                                </button>
+                              )}
+
+                              {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+                                <button 
+                                  className={styles.btnEdit}
+                                  style={{ borderColor: '#bbf7d0', color: '#15803d' }}
+                                  onClick={() => setEditingStage3({
+                                    id: v.libraryRecord?.id || `final-${v.epicId}`,
+                                    workEntryId: v.epicId,
+                                    videoId: v.libraryRecord?.id,
+                                    epicSequence: v.epicSequence,
+                                    smeName: v.smeName,
+                                    title: v.videoTitle,
+                                    finalVideoFile: v.finalVideoLink || '',
+                                    finalDuration: v.duration || '',
+                                    finalVideoStatus: v.qualityReviewStatus || 'APPROVED'
+                                  })}
+                                >
+                                  Link
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ========================================================
+          VIEW 3: WORKFLOW STAGES (PRESERVED TOPIC ENTRY & TABS)
+         ======================================================== */}
+      {activeView === 'WORKFLOW_STAGES' && (
+        <div>
+          {/* Workflow Stage Sub-Tabs */}
+          <div className={styles.workflowTabs}>
+            <button 
+              className={`${styles.workflowTabBtn} ${activeStage === 'STAGE_1' ? styles.workflowTabBtnActive : ''}`}
+              onClick={() => setActiveStage('STAGE_1')}
+            >
+              <span>🎬 Stage 1: Production (Shooting)</span>
+              <span className={styles.workflowTabBadge}>
+                {workEntries.reduce((acc, e) => acc + (e.shootingSchedules?.length || 0), 0)}
+              </span>
+            </button>
+
+            <button 
+              className={`${styles.workflowTabBtn} ${activeStage === 'STAGE_2' ? styles.workflowTabBtnActive : ''}`}
+              onClick={() => setActiveStage('STAGE_2')}
+            >
+              <span>✂️ Stage 2: Post-Production (Editing & Animation)</span>
+              <span className={styles.workflowTabBadge}>
+                {workEntries.reduce((acc, e) => acc + (e.videoEditorRecords?.length || 0), 0)}
+              </span>
+            </button>
+
+            <button 
+              className={`${styles.workflowTabBtn} ${activeStage === 'STAGE_3' ? styles.workflowTabBtnActive : ''}`}
+              onClick={() => setActiveStage('STAGE_3')}
+            >
+              <span>📦 Stage 3: Final Video Deliverable (Library)</span>
+              <span className={styles.workflowTabBadge}>
+                {workEntries.reduce((acc, e) => acc + (e.finalVideoRecords?.length || e.videoLibraries?.length || 0), 0)}
+              </span>
+            </button>
+          </div>
+
+          {/* STAGE 1: PRODUCTION */}
+          {activeStage === 'STAGE_1' && (
+            <div className={styles.card}>
+              <div className={styles.cardHeader}>
+                <h2 className={styles.cardTitle}>🎬 Stage 1: Production Stage (Shooting)</h2>
+              </div>
+
+              {/* Form to Add Video Topic by Epic ID */}
+              {(role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'CAMERAMAN') && (
+                <form onSubmit={handleCreateStage1} className={styles.createForm}>
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>Epic ID *</label>
+                    <select 
+                      className={styles.formSelect} 
+                      value={selectedEpicId} 
+                      onChange={e => {
+                        setSelectedEpicId(e.target.value);
+                        setHighlightedScheduleId(null);
+                      }}
+                      required
+                    >
+                      <option value="">Select Recorded Epic ID...</option>
+                      {workEntries.map(entry => (
+                        <option key={entry.id} value={entry.id}>
+                          EPIC-{entry.epicSequence} — {entry.sme?.name || 'SME'} ({entry.trade || 'General'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>SME Name (Auto-populated)</label>
+                    <input 
+                      type="text" 
+                      className={`${styles.formInput} ${styles.formInputReadOnly}`}
+                      value={selectedEpic?.sme?.name ? `${selectedEpic.sme.name} (${selectedEpic.trade || 'General'})` : 'Auto-populated from Epic ID'}
+                      readOnly 
+                    />
+                  </div>
+
+                  <div className={styles.formField} style={{ gridColumn: 'span 2' }}>
+                    <label className={styles.formLabel}>
+                      Video Title / Topic * <span style={{ fontWeight: 'normal', color: '#64748b' }}>(Add one-by-one under selected Epic ID)</span>
+                    </label>
+                    <input 
+                      id="video-title-input"
+                      type="text" 
+                      className={styles.formInput} 
+                      placeholder="e.g. Topic 1: Safety & Personal Protective Equipment" 
+                      value={videoTitle}
+                      onChange={e => setVideoTitle(e.target.value)}
+                      required
+                    />
+
+                    {selectedEpic && (
+                      <div style={{ marginTop: '10px' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#0369a1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>📋 Recorded Video Topics under EPIC-{selectedEpic.epicSequence}</span>
+                          <span style={{ background: '#e0f2fe', color: '#0284c7', padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 800 }}>
+                            {selectedEpic.shootingSchedules?.length || 0}
+                          </span>
+                        </div>
+
+                        {selectedEpic.shootingSchedules && selectedEpic.shootingSchedules.length > 0 ? (
+                          <div className={styles.topicChipsContainer}>
+                            {selectedEpic.shootingSchedules.map((s: any, idx: number) => {
+                              const isHighlighted = highlightedScheduleId === s.id;
+                              return (
+                                <button
+                                  key={s.id || idx}
+                                  type="button"
+                                  className={`${styles.topicChip} ${isHighlighted ? styles.topicChipActive : ''}`}
+                                  onClick={() => {
+                                    setHighlightedScheduleId(s.id);
+                                    setEditingStage1({
+                                      ...s,
+                                      workEntryId: s.workEntryId || selectedEpic.id,
+                                      epicSequence: selectedEpic.epicSequence,
+                                      smeName: selectedEpic.sme?.name,
+                                      trade: selectedEpic.trade
+                                    });
+                                  }}
+                                  title={`Click to edit: ${s.videoTitle || 'Untitled Topic'}`}
+                                >
+                                  <span className={`${styles.topicChipDot} ${
+                                    s.status === 'COMPLETED' ? styles.dotCompleted :
+                                    s.status === 'IN_PROGRESS' ? styles.dotProgress :
+                                    s.status === 'RESHOOT' ? styles.dotReshoot : styles.dotPlanned
+                                  }`} />
+                                  <span>#{idx + 1} {s.videoTitle || 'Untitled Topic'}</span>
+                                  <span className={styles.topicChipEditIcon}>✏️</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>Shooting Start Date</label>
+                    <input 
+                      type="date" 
+                      className={styles.formInput} 
+                      value={shootStartDate} 
+                      onChange={e => setShootStartDate(e.target.value)}
+                    />
+                  </div>
+
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>Shooting End Date</label>
+                    <input 
+                      type="date" 
+                      className={styles.formInput} 
+                      value={shootEndDate} 
+                      onChange={e => setShootEndDate(e.target.value)}
+                    />
+                  </div>
+
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>Shooting Location</label>
+                    <select 
+                      className={styles.formSelect}
+                      value={shootLocationType}
+                      onChange={e => {
+                        const val = e.target.value as any;
+                        setShootLocationType(val);
+                        if (val !== 'On-site') setShootLocationCustom('');
+                      }}
+                    >
+                      <option value="">Select Location...</option>
+                      <option value="Studio - NIMI Chennai">Studio - NIMI Chennai</option>
+                      <option value="On-site">On-site (Enter details below)</option>
+                    </select>
+                    {shootLocationType === 'On-site' && (
+                      <input 
+                        type="text" 
+                        className={styles.formInput} 
+                        placeholder="e.g. Field / Lab / Industry premises"
+                        value={shootLocationCustom} 
+                        onChange={e => setShootLocationCustom(e.target.value)}
+                        style={{ marginTop: '6px' }}
+                      />
+                    )}
+                  </div>
+
+                  <div className={styles.formField}>
+                    <label className={styles.formLabel}>Cameraman</label>
+                    <select 
+                      className={styles.formSelect}
+                      value={cameramanSelect}
+                      onChange={e => {
+                        const val = e.target.value as any;
+                        setCameramanSelect(val);
+                        if (val !== 'OTHER') setCameramanCustom('');
+                      }}
+                    >
+                      <option value="">Select Cameraman...</option>
+                      <option value="Antony Alcander">Antony Alcander</option>
+                      <option value="Parasuraman">Parasuraman</option>
+                      <option value="OTHER">Other / External</option>
+                    </select>
+                    {cameramanSelect === 'OTHER' && (
+                      <input 
+                        type="text" 
+                        className={styles.formInput} 
+                        placeholder="Enter cameraman name"
+                        value={cameramanCustom} 
+                        onChange={e => setCameramanCustom(e.target.value)}
+                        style={{ marginTop: '6px' }}
+                      />
+                    )}
+                  </div>
+
+                  <div className={styles.formField} style={{ gridColumn: 'span 2' }}>
+                    <label className={styles.formLabel}>Production Notes</label>
+                    <textarea 
+                      className={styles.formInput} 
+                      rows={2}
+                      placeholder="Special equipment, camera setup, scene requirements..."
+                      value={productionNotes}
+                      onChange={e => setProductionNotes(e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                    <button type="submit" className={styles.btnPrimary} disabled={loading}>
+                      {loading ? 'Adding...' : '+ Add Video Topic'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
+
+          {/* STAGE 2: POST-PRODUCTION */}
+          {activeStage === 'STAGE_2' && (
+            <div className={styles.card}>
+              <div className={styles.cardHeader}>
+                <h2 className={styles.cardTitle}>✂️ Stage 2: Post-Production Stage (Editing & Animation)</h2>
+              </div>
+
+              {/* Stage 2 Filter Bar */}
+              <div className={styles.stage2FilterBar}>
+                <div style={{ flex: '1 1 320px' }}>
+                  <label className={styles.formLabel}>🎯 Choose Epic ID to Manage Post-Production:</label>
+                  <select 
+                    className={styles.formSelect} 
+                    value={stage2EpicFilter} 
+                    onChange={e => setStage2EpicFilter(e.target.value)}
+                  >
+                    <option value="">-- All Epic IDs ({workEntries.length} Total) --</option>
+                    {workEntries.map(entry => {
+                      const videoCount = (entry.shootingSchedules?.length || 0);
+                      return (
+                        <option key={entry.id} value={entry.id}>
+                          EPIC-{entry.epicSequence} — {entry.sme?.name || 'SME'} ({videoCount} Topics)
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </div>
+
+              {/* Stage 2 Table */}
+              <div className={styles.tableContainer}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Epic ID & SME</th>
+                      <th>Video Title / Topic</th>
+                      <th>Shoot Status</th>
+                      <th>Video Editor & Dates</th>
+                      <th>Editing Status</th>
+                      <th>Final Video File</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {videoRegister
+                      .filter(r => !stage2EpicFilter || r.epicId === stage2EpicFilter)
+                      .map(r => (
+                        <tr key={r.uniqueKey}>
+                          <td>
+                            <strong style={{ color: '#0369a1' }}>{r.epicCode}</strong>
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>{r.smeName}</div>
+                          </td>
+                          <td>
+                            <strong>{r.videoTitle}</strong>
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>Trade: {r.trade}</div>
+                          </td>
+                          <td>
+                            <span className={`${styles.badge} ${getBadgeClass(r.shootingStatus)}`}>
+                              {r.shootingStatus}
+                            </span>
+                          </td>
+                          <td>
+                            <strong>{r.editor}</strong>
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>
+                              <span>Start: {formatDateDisplay(r.editingStartDate)}</span><br/>
+                              <span>End: {formatDateDisplay(r.editingEndDate)}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`${styles.badge} ${getBadgeClass(r.editingStatus)}`}>
+                              {r.editingStatus}
+                            </span>
+                          </td>
+                          <td>
+                            {r.hasLink && r.finalVideoLink ? (
+                              <a href={r.finalVideoLink} target="_blank" rel="noreferrer" style={{ color: '#0369a1', fontWeight: 700, fontSize: '12px' }}>
+                                📁 Storage File
+                              </a>
+                            ) : (
+                              <span style={{ fontSize: '11px', color: '#94a3b8' }}>-</span>
+                            )}
+                          </td>
+                          <td>
+                            {(role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'EDITOR') && (
+                              <button 
+                                className={styles.btnEdit}
+                                onClick={() => setEditingStage2({
+                                  ...r.editorRecord,
+                                  workEntryId: r.epicId,
+                                  assignedVideo: r.videoTitle,
+                                  epicSequence: r.epicSequence,
+                                  smeName: r.smeName,
+                                  editorName: r.editor,
+                                  editingStartDate: r.editingStartDate,
+                                  editingEndDate: r.editingEndDate,
+                                  status: r.editingStatus,
+                                  cleanComments: r.reviewComments
+                                })}
+                              >
+                                Edit Details
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* STAGE 3: FINAL DELIVERABLES */}
+          {activeStage === 'STAGE_3' && (
+            <div className={styles.card}>
+              <div className={styles.cardHeader}>
+                <h2 className={styles.cardTitle}>📦 Stage 3: Final Video Deliverable (Library Integration)</h2>
+              </div>
+
+              <div className={styles.tableContainer}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Epic ID & SME</th>
+                      <th>Video Title / Trade</th>
+                      <th>Final Video Link / File</th>
+                      <th>Approval Status</th>
+                      <th>Final Duration</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {videoRegister.map(r => (
+                      <tr key={r.uniqueKey}>
+                        <td>
+                          <strong style={{ color: '#0369a1' }}>{r.epicCode}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>{r.smeName}</div>
+                        </td>
+                        <td>
+                          <strong>{r.videoTitle}</strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>Trade: {r.trade}</div>
+                        </td>
+                        <td>
+                          {r.hasLink && r.finalVideoLink ? (
+                            <a href={r.finalVideoLink} target="_blank" rel="noreferrer" style={{ color: '#0284c7', fontWeight: 700 }}>
+                              🎬 View Final Video
+                            </a>
+                          ) : (
+                            <span className={styles.badgeMissingLink}>Awaiting Link</span>
+                          )}
+                        </td>
+                        <td>
+                          <span className={`${styles.badge} ${getBadgeClass(r.qualityReviewStatus)}`}>
+                            {r.qualityReviewStatus}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontWeight: 600 }}>{r.duration || '-'}</span>
+                        </td>
+                        <td>
+                          {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+                            <button 
+                              className={styles.btnEdit}
+                              onClick={() => setEditingStage3({
+                                id: r.libraryRecord?.id || `final-${r.epicId}`,
+                                workEntryId: r.epicId,
+                                videoId: r.libraryRecord?.id,
+                                epicSequence: r.epicSequence,
+                                smeName: r.smeName,
+                                title: r.videoTitle,
+                                finalVideoFile: r.finalVideoLink || '',
+                                finalDuration: r.duration || '',
+                                finalVideoStatus: r.qualityReviewStatus || 'APPROVED'
+                              })}
+                            >
+                              Edit Details
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1149,9 +2190,9 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   );
 }
 
-/* =========================================================================
-   STAGE 1 EDIT MODAL COMPONENT
-   ========================================================================= */
+// =========================================================================
+// STAGE 1 EDIT MODAL COMPONENT
+// =========================================================================
 function parseLocationInit(loc?: string | null) {
   if (!loc) return { type: '' as '' | 'Studio - NIMI Chennai' | 'On-site', custom: '' };
   const trimmed = loc.trim();
@@ -1227,7 +2268,7 @@ function Stage1EditModal({ record, loading, errorMessage, onClose, onSave }: any
       ...formData,
       location: finalLocation,
       cameraman: finalCameraman,
-      workEntryId: record.workEntryId || record.epicId
+      workEntryId: record.workEntryId
     });
   };
 
@@ -1236,18 +2277,20 @@ function Stage1EditModal({ record, loading, errorMessage, onClose, onSave }: any
       <div className={styles.modalContent}>
         <div className={styles.modalHeader}>
           <h3 className={styles.modalTitle}>
-            🎬 Edit Production Shoot: EPIC-{record.epicSequence} ({record.smeName || 'SME'})
+            🎬 Production Shoot: EPIC-{record.epicSequence} ({record.videoTitle || 'Topic'})
           </h3>
           <button className={styles.modalCloseBtn} onClick={onClose}>✕</button>
         </div>
 
+        {errorMessage && (
+          <div className={styles.errorAlert} style={{ margin: '16px' }}>
+            <span>⚠️</span>
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className={styles.modalBody}>
-            {errorMessage && (
-              <div style={{ background: '#fee2e2', border: '1px solid #f87171', color: '#b91c1c', padding: '10px 14px', borderRadius: '6px', fontSize: '13px', marginBottom: '14px' }}>
-                ⚠️ {errorMessage}
-              </div>
-            )}
             <div className={styles.formField}>
               <label className={styles.formLabel}>Video Title / Topic *</label>
               <input 
@@ -1255,13 +2298,13 @@ function Stage1EditModal({ record, loading, errorMessage, onClose, onSave }: any
                 className={styles.formInput} 
                 value={formData.videoTitle} 
                 onChange={e => setFormData({ ...formData, videoTitle: e.target.value })}
-                required
+                required 
               />
             </div>
 
             <div className={styles.modalGrid}>
               <div className={styles.formField}>
-                <label className={styles.formLabel}>Production Start Date</label>
+                <label className={styles.formLabel}>Shooting Start Date</label>
                 <input 
                   type="date" 
                   className={styles.formInput} 
@@ -1271,7 +2314,7 @@ function Stage1EditModal({ record, loading, errorMessage, onClose, onSave }: any
               </div>
 
               <div className={styles.formField}>
-                <label className={styles.formLabel}>Production End Date</label>
+                <label className={styles.formLabel}>Shooting End Date</label>
                 <input 
                   type="date" 
                   className={styles.formInput} 
@@ -1283,71 +2326,54 @@ function Stage1EditModal({ record, loading, errorMessage, onClose, onSave }: any
 
             <div className={styles.modalGrid}>
               <div className={styles.formField}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label className={styles.formLabel}>Shoot Location</label>
-                  {locationType === 'On-site' && (
-                    <span className={styles.formBadgeNotice}>Specify Location</span>
-                  )}
-                </div>
+                <label className={styles.formLabel}>Shooting Location</label>
                 <select 
                   className={styles.formSelect} 
                   value={locationType} 
                   onChange={e => {
                     const val = e.target.value as any;
                     setLocationType(val);
-                    if (val !== 'On-site') {
-                      setLocationCustom('');
-                    }
+                    if (val !== 'On-site') setLocationCustom('');
                   }}
                 >
-                  <option value="">Select Shoot Location...</option>
+                  <option value="">Select Location...</option>
                   <option value="Studio - NIMI Chennai">Studio - NIMI Chennai</option>
-                  <option value="On-site">On-site</option>
+                  <option value="On-site">On-site (Field / Lab / Outside Studio)</option>
                 </select>
                 {locationType === 'On-site' && (
                   <input 
                     type="text" 
                     className={styles.formInput} 
-                    placeholder="Enter On-site Location (e.g. Guindy ITI / Workshop)" 
+                    placeholder="Enter site name / premises"
                     value={locationCustom} 
                     onChange={e => setLocationCustom(e.target.value)}
-                    autoFocus
                     style={{ marginTop: '4px' }}
                   />
                 )}
               </div>
 
               <div className={styles.formField}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label className={styles.formLabel}>Cameraman</label>
-                  {cameramanSelect === 'OTHER' && (
-                    <span className={styles.formBadgeNotice}>Manual Entry</span>
-                  )}
-                </div>
+                <label className={styles.formLabel}>Cameraman</label>
                 <select 
                   className={styles.formSelect} 
                   value={cameramanSelect} 
                   onChange={e => {
                     const val = e.target.value as any;
                     setCameramanSelect(val);
-                    if (val !== 'OTHER') {
-                      setCameramanCustom('');
-                    }
+                    if (val !== 'OTHER') setCameramanCustom('');
                   }}
                 >
-                  <option value="">Select Camera Operator...</option>
                   <option value="Antony Alcander">Antony Alcander</option>
                   <option value="Parasuraman">Parasuraman</option>
-                  <option value="OTHER">✍️ Other (Enter Camera Operator Name)</option>
+                  <option value="OTHER">Other Cameraman</option>
                 </select>
                 {cameramanSelect === 'OTHER' && (
                   <input 
                     type="text" 
                     className={styles.formInput} 
-                    placeholder="Enter Camera operator name" 
+                    placeholder="Enter Cameraman Name"
                     value={cameramanCustom} 
                     onChange={e => setCameramanCustom(e.target.value)}
-                    autoFocus
                     style={{ marginTop: '4px' }}
                   />
                 )}
@@ -1382,7 +2408,7 @@ function Stage1EditModal({ record, loading, errorMessage, onClose, onSave }: any
           <div className={styles.modalFooter}>
             <button type="button" className={styles.btnCancel} onClick={onClose}>Cancel</button>
             <button type="submit" className={styles.btnSave} disabled={loading}>
-              {loading ? 'Saving...' : 'Save Changes'}
+              {loading ? 'Saving...' : 'Save Shooting Changes'}
             </button>
           </div>
         </form>
@@ -1391,9 +2417,9 @@ function Stage1EditModal({ record, loading, errorMessage, onClose, onSave }: any
   );
 }
 
-/* =========================================================================
-   STAGE 2 EDIT MODAL COMPONENT (POST-PRODUCTION)
-   ========================================================================= */
+// =========================================================================
+// STAGE 2 EDIT MODAL COMPONENT (POST-PRODUCTION)
+// =========================================================================
 function Stage2EditModal({ record, loading, onClose, onSave }: any) {
   const [formData, setFormData] = useState({
     editorName: cleanEditorDisplay(record.editorName),
@@ -1431,7 +2457,7 @@ function Stage2EditModal({ record, loading, onClose, onSave }: any) {
           <div className={styles.modalBody}>
             {formData.status === 'COMPLETED' && (
               <div style={{ padding: '10px 14px', background: '#dcfce7', border: '1px solid #86efac', borderRadius: '8px', color: '#166534', fontSize: '13px', fontWeight: 600 }}>
-                🚀 Setting status to COMPLETED will automatically advance this video to Stage 3 (Final Video Deliverable / Library)!
+                🚀 Setting status to COMPLETED advances this video to Stage 3 (Final Video Deliverable / Library)!
               </div>
             )}
 
@@ -1466,7 +2492,7 @@ function Stage2EditModal({ record, loading, onClose, onSave }: any) {
                 >
                   <option value="NOT_STARTED">Not Started</option>
                   <option value="IN_PROGRESS">In Progress</option>
-                  <option value="COMPLETED">Completed (Advance to Stage 3)</option>
+                  <option value="COMPLETED">Completed</option>
                 </select>
               </div>
             </div>
@@ -1498,7 +2524,7 @@ function Stage2EditModal({ record, loading, onClose, onSave }: any) {
               <input 
                 type="url" 
                 className={styles.formInput} 
-                placeholder="Google Drive / Cloud storage link"
+                placeholder="Cloud storage / Vercel blob link"
                 value={formData.finalVideoFile} 
                 onChange={e => setFormData({ ...formData, finalVideoFile: e.target.value })}
               />
@@ -1528,9 +2554,9 @@ function Stage2EditModal({ record, loading, onClose, onSave }: any) {
   );
 }
 
-/* =========================================================================
-   STAGE 3 EDIT MODAL COMPONENT (FINAL DELIVERABLE)
-   ========================================================================= */
+// =========================================================================
+// STAGE 3 EDIT MODAL COMPONENT (FINAL DELIVERABLE)
+// =========================================================================
 function probeBrowserVideo(url: string): Promise<number> {
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined') return reject(new Error('Browser environment not available'));
@@ -1592,7 +2618,9 @@ function Stage3EditModal({ record, loading, onClose, onSave }: any) {
   const [formData, setFormData] = useState({
     finalVideoStatus: record.finalVideoStatus || 'APPROVED',
     finalVideoFile: record.finalVideoFile || '',
-    finalDuration: record.finalDuration || ''
+    finalDuration: record.finalDuration || '',
+    videoId: record.videoId,
+    title: record.title
   });
 
   const [isDetecting, setIsDetecting] = useState(false);
@@ -1612,7 +2640,6 @@ function Stage3EditModal({ record, loading, onClose, onSave }: any) {
       return;
     }
 
-    // If same URL and duration is already populated, no need to re-detect
     if (trimmed === lastAnalyzedUrl.current && formData.finalDuration) {
       return;
     }
@@ -1621,16 +2648,12 @@ function Stage3EditModal({ record, loading, onClose, onSave }: any) {
     setIsDetecting(true);
     setDetectionStatus('detecting');
     setDetectionMessage('Detecting video duration from source metadata...');
-    // Rule 5: Do not invent, estimate, or retain an old duration when the new video cannot be analyzed
     setFormData(prev => ({ ...prev, finalDuration: '' }));
 
-    // 1. Attempt client-side browser video metadata inspection
     let detectedSec: number | null = null;
     try {
       detectedSec = await probeBrowserVideo(trimmed);
-    } catch {
-      // Browser probe failed or CORS-blocked; will fallback to server-side analysis
-    }
+    } catch (_) {}
 
     if (detectedSec && detectedSec > 0) {
       const formatted = formatSecondsToDuration(detectedSec);
@@ -1641,7 +2664,6 @@ function Stage3EditModal({ record, loading, onClose, onSave }: any) {
       return;
     }
 
-    // 2. Fallback to server-side header & storage analysis
     try {
       const serverRes = await detectVideoDuration(trimmed);
       if (serverRes.success && serverRes.duration) {
@@ -1674,7 +2696,6 @@ function Stage3EditModal({ record, loading, onClose, onSave }: any) {
       return;
     }
 
-    // Reset duration immediately when URL changes so old duration is not retained
     if (trimmed !== lastAnalyzedUrl.current) {
       setFormData(prev => ({ ...prev, finalDuration: '' }));
       setDetectionStatus('detecting');
@@ -1727,7 +2748,7 @@ function Stage3EditModal({ record, loading, onClose, onSave }: any) {
 
             <div className={styles.formField}>
               <label className={styles.formLabel}>
-                Final Video File / Storage Link
+                Final Video File / Storage Link (Video Content Library)
                 {isDetecting && (
                   <span style={{ marginLeft: '10px', fontSize: '12px', color: '#0284c7', fontWeight: 'normal' }}>
                     ⏳ Analyzing duration...
@@ -1769,7 +2790,7 @@ function Stage3EditModal({ record, loading, onClose, onSave }: any) {
               <label className={styles.formLabel}>
                 Final Duration
                 <span style={{ marginLeft: '8px', fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>
-                  (Auto-detected from video; manual entry/correction allowed as fallback)
+                  (Auto-detected from video; manual correction allowed)
                 </span>
               </label>
               <input 
