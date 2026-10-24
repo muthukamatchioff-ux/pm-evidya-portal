@@ -25,7 +25,9 @@ export default async function DeputationGeneratorPage({
       include: {
         sme: true,
         payments: true,
-        documents: true,
+        documents: {
+          orderBy: { updatedAt: 'desc' }
+        },
       },
       orderBy: { epicSequence: 'asc' }
     });

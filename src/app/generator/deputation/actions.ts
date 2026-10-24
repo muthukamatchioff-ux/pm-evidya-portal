@@ -277,21 +277,14 @@ export async function saveCommunicationsStage(
             }
           });
         }
-      } catch (docDbErr) {
-        console.warn('Prisma document save fallback for Stage A:', docDbErr);
+      } catch (docDbErr: any) {
+        console.error('Prisma document save failed for Stage A:', docDbErr);
       }
 
       if (!savedDocument) {
-        savedDocument = {
-          id: `cmv_doc_stagea_${workEntry.epicSequence}`,
-          name: `Approval Letter Parameters - ${epicIdStr}`,
-          type: docType,
-          status: 'SAVED',
-          filePath: JSON.stringify(parameters),
-          workEntryId: actualWorkEntryId,
-          version: 1,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+        return {
+          success: false,
+          error: 'Failed to save Approval Letter parameters to the database.'
         };
       }
 
@@ -303,6 +296,17 @@ export async function saveCommunicationsStage(
           await prisma.document.update({
             where: { id: appDoc.id },
             data: { filePath: JSON.stringify(parameters), status: 'SAVED' }
+          });
+        } else {
+          await prisma.document.create({
+            data: {
+              name: `Approval Letter - ${epicIdStr}`,
+              type: 'APPROVAL_LETTER',
+              status: 'SAVED',
+              filePath: JSON.stringify(parameters),
+              workEntryId: actualWorkEntryId,
+              version: 1
+            }
           });
         }
       } catch {}
@@ -345,21 +349,14 @@ export async function saveCommunicationsStage(
             }
           });
         }
-      } catch (docDbErr) {
-        console.warn('Prisma document save fallback for Stage B:', docDbErr);
+      } catch (docDbErr: any) {
+        console.error('Prisma document save failed for Stage B:', docDbErr);
       }
 
       if (!savedDocument) {
-        savedDocument = {
-          id: `cmv_doc_stageb_${workEntry.epicSequence}`,
-          name: `Work Completion Parameters - ${epicIdStr}`,
-          type: docType,
-          status: 'SAVED',
-          filePath: JSON.stringify(parameters),
-          workEntryId: actualWorkEntryId,
-          version: 1,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+        return {
+          success: false,
+          error: 'Failed to save Work Completion parameters to the database.'
         };
       }
 
@@ -388,30 +385,19 @@ export async function saveCommunicationsStage(
             where: { id: wcDoc.id },
             data: { filePath: JSON.stringify(parameters), status: 'SAVED' }
           });
+        } else {
+          await prisma.document.create({
+            data: {
+              name: `Work Completion Certificate - ${epicIdStr}`,
+              type: 'WORK_COMPLETION',
+              status: 'SAVED',
+              filePath: JSON.stringify(parameters),
+              workEntryId: actualWorkEntryId,
+              version: 1
+            }
+          });
         }
       } catch {}
-
-      if (parameters.ratePerDay) {
-        try {
-          const stageCDoc = await prisma.document.findFirst({
-            where: { workEntryId: actualWorkEntryId, type: 'STAGE_C_REMUNERATION' }
-          });
-          if (stageCDoc && stageCDoc.filePath) {
-            try {
-              const cParams = JSON.parse(stageCDoc.filePath);
-              cParams.ratePerDay = Number(parameters.ratePerDay);
-              const totalDays = Number(cParams.totalDays) || 4;
-              cParams.grossAmount = totalDays * cParams.ratePerDay;
-              cParams.totalAmount = cParams.grossAmount;
-              cParams.amountInWords = numberToWords(cParams.totalAmount);
-              await prisma.document.update({
-                where: { id: stageCDoc.id },
-                data: { filePath: JSON.stringify(cParams) }
-              });
-            } catch {}
-          }
-        } catch {}
-      }
 
       try {
         await logAudit({
@@ -451,21 +437,14 @@ export async function saveCommunicationsStage(
             }
           });
         }
-      } catch (docDbErr) {
-        console.warn('Prisma document save fallback for Stage C:', docDbErr);
+      } catch (docDbErr: any) {
+        console.error('Prisma document save failed for Stage C:', docDbErr);
       }
 
       if (!savedDocument) {
-        savedDocument = {
-          id: `cmv_doc_stagec_${workEntry.epicSequence}`,
-          name: `Remuneration Parameters - ${epicIdStr}`,
-          type: docType,
-          status: 'SAVED',
-          filePath: JSON.stringify(parameters),
-          workEntryId: actualWorkEntryId,
-          version: 1,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+        return {
+          success: false,
+          error: 'Failed to save Remuneration parameters to the database.'
         };
       }
 
@@ -536,6 +515,17 @@ export async function saveCommunicationsStage(
           await prisma.document.update({
             where: { id: pnDoc.id },
             data: { filePath: JSON.stringify(parameters), status: 'SAVED' }
+          });
+        } else {
+          await prisma.document.create({
+            data: {
+              name: `SME Remuneration Note - ${epicIdStr}`,
+              type: 'PAYMENT_NOTE',
+              status: 'SAVED',
+              filePath: JSON.stringify(parameters),
+              workEntryId: actualWorkEntryId,
+              version: 1
+            }
           });
         }
       } catch {}

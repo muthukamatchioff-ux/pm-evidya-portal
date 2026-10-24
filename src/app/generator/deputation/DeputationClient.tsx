@@ -97,15 +97,25 @@ export default function DeputationClient({
         return initialWorkEntries.map(newEntry => {
           const prev = prevMap.get(newEntry.id);
           if (!prev) return newEntry;
+
+          // Merge documents safely: prioritize documents with valid filePath
           const mergedDocs = [...(newEntry.documents || [])];
           for (const d of (prev.documents || [])) {
+            if (!d.filePath) continue;
             const idx = mergedDocs.findIndex((md: any) => md.type === d.type);
             if (idx === -1) {
-              mergedDocs.push(d);
-            } else if (d.filePath && (!mergedDocs[idx].filePath || (d.updatedAt && d.updatedAt > (mergedDocs[idx].updatedAt || '')))) {
+              mergedDocs.unshift(d);
+            } else if (!mergedDocs[idx].filePath) {
               mergedDocs[idx] = d;
+            } else {
+              const dTime = new Date(d.updatedAt || d.createdAt || 0).getTime();
+              const mdTime = new Date(mergedDocs[idx].updatedAt || mergedDocs[idx].createdAt || 0).getTime();
+              if (dTime >= mdTime) {
+                mergedDocs[idx] = d;
+              }
             }
           }
+
           return {
             ...newEntry,
             topic: prev.topic || newEntry.topic,
@@ -309,14 +319,30 @@ export default function DeputationClient({
         }
         parsed.taAmount = 0;
         parsed.otherAmount = 0;
-        const sumDays = parsed.attendanceSlots.reduce((acc: number, s: any) => acc + calculateSlotDays(s.startDate, s.endDate), 0);
-        parsed.totalDays = sumDays > 0 ? sumDays : (Number(parsed.totalDays) || 4);
-        const rate = Number(parsed.ratePerDay) || Number(selectedEntry.ratePerDay) || 1500;
+        if (parsed.totalDays === undefined || parsed.totalDays === null || isNaN(Number(parsed.totalDays))) {
+          const sumDays = parsed.attendanceSlots.reduce((acc: number, s: any) => acc + calculateSlotDays(s.startDate, s.endDate), 0);
+          parsed.totalDays = sumDays > 0 ? sumDays : (Number(selectedEntry.days) || 4);
+        } else {
+          parsed.totalDays = Number(parsed.totalDays);
+        }
+        const rate = (parsed.ratePerDay !== undefined && parsed.ratePerDay !== null && !isNaN(Number(parsed.ratePerDay)))
+          ? Number(parsed.ratePerDay)
+          : (Number(selectedEntry.ratePerDay) || 1500);
         parsed.ratePerDay = rate;
         loadedStageCRate = rate;
-        parsed.grossAmount = parsed.totalDays * rate;
-        parsed.totalAmount = parsed.grossAmount;
-        parsed.amountInWords = numberToWords(parsed.totalAmount);
+        if (parsed.grossAmount === undefined || parsed.grossAmount === null || isNaN(Number(parsed.grossAmount))) {
+          parsed.grossAmount = parsed.totalDays * rate;
+        } else {
+          parsed.grossAmount = Number(parsed.grossAmount);
+        }
+        if (parsed.totalAmount === undefined || parsed.totalAmount === null || isNaN(Number(parsed.totalAmount))) {
+          parsed.totalAmount = parsed.grossAmount;
+        } else {
+          parsed.totalAmount = Number(parsed.totalAmount);
+        }
+        if (!parsed.amountInWords) {
+          parsed.amountInWords = numberToWords(parsed.totalAmount);
+        }
 
         persistSavedParams('STAGE_C', selectedEntry.id, parsed);
         setStageCParams(parsed);
@@ -604,20 +630,22 @@ export default function DeputationClient({
       const bParamsToSave = { ...stageBParams, ratePerDay: effectiveRatePerDay };
       persistSavedParams('STAGE_B', selectedEntry.id, bParamsToSave);
 
-      // Keep Stage C cache updated if rate changed
-      const currentC = getSavedParams('STAGE_C', selectedEntry.id) || stageCParams;
-      if (currentC && currentC.ratePerDay !== effectiveRatePerDay) {
-        const totalDays = Number(currentC.totalDays) || 4;
-        const gross = totalDays * effectiveRatePerDay;
-        const updatedC = {
-          ...currentC,
-          ratePerDay: effectiveRatePerDay,
-          grossAmount: gross,
-          totalAmount: gross,
-          amountInWords: numberToWords(gross)
-        };
-        persistSavedParams('STAGE_C', selectedEntry.id, updatedC);
-        setStageCParams(updatedC);
+      // Keep Stage C cache updated with initial rate ONLY if Stage C has NOT been saved yet
+      if (!hasSavedDocC) {
+        const currentC = getSavedParams('STAGE_C', selectedEntry.id) || stageCParams;
+        if (currentC && currentC.ratePerDay !== effectiveRatePerDay) {
+          const totalDays = Number(currentC.totalDays) || 4;
+          const gross = totalDays * effectiveRatePerDay;
+          const updatedC = {
+            ...currentC,
+            ratePerDay: effectiveRatePerDay,
+            grossAmount: gross,
+            totalAmount: gross,
+            amountInWords: numberToWords(gross)
+          };
+          persistSavedParams('STAGE_C', selectedEntry.id, updatedC);
+          setStageCParams(updatedC);
+        }
       }
 
       const res = await saveCommunicationsStage(selectedEntry.id, 'STAGE_B', bParamsToSave);
@@ -2189,8 +2217,8 @@ export default function DeputationClient({
               ));
               const displayedTrades = distinctTrades.length > 0 ? distinctTrades.join(', ') : currentTrade;
               const isMultipleTrades = distinctTrades.length > 1;
-              const isDenseSlots = rawSlots.length >= 2;
-              const isVeryDenseSlots = rawSlots.length >= 4;
+              const isDenseSlots = rawSlots.length >= 8;
+              const isVeryDenseSlots = rawSlots.length >= 12;
 
               // Helper to identify a person for dynamic row grouping
               const getSlotPerson = (s: any) => {
@@ -2235,7 +2263,7 @@ export default function DeputationClient({
                     return flattened;
                   })();
 
-              // Build grouped row metadata with vertical cell merge span
+              // Build grouped row metadata with vertical cell merge span for both Person and Trade
               const groupedRows: Array<{
                 slot: any;
                 sNo: number;
@@ -2245,6 +2273,8 @@ export default function DeputationClient({
                 personDesignation: string;
                 personInstitute: string;
                 personLocation: string;
+                isFirstOfTrade: boolean;
+                tradeRowSpan: number;
                 daysVal: number;
                 slotTrade: string;
                 slotAmount: number;
@@ -2266,26 +2296,49 @@ export default function DeputationClient({
                   }
                 }
 
-                for (let s = 0; s < span; s++) {
-                  const slot = orderedSlots[slotIdx + s];
-                  const slotDays = calculateSlotDays(slot.startDate, slot.endDate);
-                  const daysVal = slotDays > 0 ? slotDays : 1;
-                  const slotTrade = (slot.trade || currentTrade || 'General').trim();
-                  const slotAmount = daysVal * stageCParams.ratePerDay;
+                // Within this person's rows, count consecutive rows for the same trade (dynamic merge)
+                let tradeRelIdx = 0;
+                while (tradeRelIdx < span) {
+                  const tradeSlot = orderedSlots[slotIdx + tradeRelIdx];
+                  const tradeName = (tradeSlot.trade || currentTrade || 'General').trim();
 
-                  groupedRows.push({
-                    slot,
-                    sNo: slotIdx + s + 1,
-                    isFirstOfPerson: s === 0,
-                    personRowSpan: span,
-                    personName: person.name,
-                    personDesignation: person.designation,
-                    personInstitute: person.institute,
-                    personLocation: person.location,
-                    daysVal,
-                    slotTrade,
-                    slotAmount
-                  });
+                  let tradeSpan = 1;
+                  while (tradeRelIdx + tradeSpan < span) {
+                    const nextTradeSlot = orderedSlots[slotIdx + tradeRelIdx + tradeSpan];
+                    const nextTradeName = (nextTradeSlot.trade || currentTrade || 'General').trim();
+                    if (nextTradeName.toLowerCase() === tradeName.toLowerCase()) {
+                      tradeSpan++;
+                    } else {
+                      break;
+                    }
+                  }
+
+                  for (let t = 0; t < tradeSpan; t++) {
+                    const s = tradeRelIdx + t;
+                    const slot = orderedSlots[slotIdx + s];
+                    const slotDays = calculateSlotDays(slot.startDate, slot.endDate);
+                    const daysVal = slotDays > 0 ? slotDays : 1;
+                    const slotTrade = tradeName;
+                    const slotAmount = daysVal * stageCParams.ratePerDay;
+
+                    groupedRows.push({
+                      slot,
+                      sNo: slotIdx + s + 1,
+                      isFirstOfPerson: s === 0,
+                      personRowSpan: span,
+                      personName: person.name,
+                      personDesignation: person.designation,
+                      personInstitute: person.institute,
+                      personLocation: person.location,
+                      isFirstOfTrade: t === 0,
+                      tradeRowSpan: tradeSpan,
+                      daysVal,
+                      slotTrade,
+                      slotAmount
+                    });
+                  }
+
+                  tradeRelIdx += tradeSpan;
                 }
 
                 slotIdx += span;
@@ -2293,16 +2346,16 @@ export default function DeputationClient({
 
               return (
                 <div className={styles.a4Page} ref={remunerationPrintRef}>
-                  <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: isDenseSlots ? '15px' : '16px', margin: isDenseSlots ? '14px 0 8px 0' : '20px 0 10px 0' }}>
+                  <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: isDenseSlots ? '15px' : '17px', margin: isDenseSlots ? '14px 0 8px 0' : '22px 0 14px 0', letterSpacing: '0.3px' }}>
                     SME REMUNERATION / SANCTION NOTE
                   </h2>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: isDenseSlots ? '8px' : '12px', fontWeight: 'bold', fontSize: isDenseSlots ? '12px' : '13px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: isDenseSlots ? '8px' : '14px', fontWeight: 'bold', fontSize: isDenseSlots ? '12px' : '13px' }}>
                     <div>Submitted</div>
                     <div>{formatDateDot(stageCParams.submissionDate)}</div>
                   </div>
-                  <div style={{ textAlign: 'justify', lineHeight: isDenseSlots ? '1.38' : '1.45', fontSize: isDenseSlots ? '11.5px' : '12.5px' }}>
+                  <div style={{ textAlign: 'justify', lineHeight: isDenseSlots ? '1.4' : '1.55', fontSize: isDenseSlots ? '11.5px' : '13px' }}>
                     Sanction may kindly be accorded for a sum of <strong>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/- (Rupees {stageCParams.amountInWords})</strong> towards the remuneration of <strong>{sme.name || 'Subject Matter Expert'}</strong>, <strong>{sme.designation || 'Designation'}</strong>, <strong>{sme.institute || 'Institution'}, {sme.location || 'Location'}</strong>, who served as the <strong>Guest Expert / Subject Matter Expert (SME)</strong> for the <strong>{stageCParams.programmeName}</strong> for the <strong>{displayedTrades}</strong> {isMultipleTrades ? 'trades' : 'trade'}. The <strong>{stageCParams.workTitle}</strong> was successfully conducted and completed at the <strong>{stageCParams.location}</strong>.
-                    <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: isDenseSlots ? '6px' : '8px', marginBottom: isDenseSlots ? '8px' : '12px', fontSize: isVeryDenseSlots ? '10px' : isDenseSlots ? '11px' : '12px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: isDenseSlots ? '6px' : '12px', marginBottom: isDenseSlots ? '8px' : '14px', fontSize: isVeryDenseSlots ? '10px' : isDenseSlots ? '11px' : '12px' }}>
                       <thead>
                         <tr style={{ background: '#f8fafc' }}>
                           <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'center', width: '5%' }}>S. No.</th>
@@ -2318,7 +2371,7 @@ export default function DeputationClient({
                         {groupedRows.map(row => {
                           return (
                             <tr key={row.slot.id || row.sNo}>
-                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'center' }}>
+                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '6px 8px', textAlign: 'center' }}>
                                 {row.sNo}
                               </td>
                               {row.isFirstOfPerson && (
@@ -2326,7 +2379,7 @@ export default function DeputationClient({
                                   rowSpan={row.personRowSpan}
                                   style={{
                                     border: '1px solid #000',
-                                    padding: isDenseSlots ? '3px 5px' : '5px 7px',
+                                    padding: isDenseSlots ? '3px 5px' : '6px 8px',
                                     verticalAlign: 'middle',
                                     backgroundColor: '#ffffff'
                                   }}
@@ -2334,25 +2387,35 @@ export default function DeputationClient({
                                   <strong>{row.personName}</strong><br />
                                   <span>{row.personDesignation}</span>
                                   {(row.personInstitute || row.personLocation) && (
-                                    <div style={{ fontSize: '10.5px', color: '#475569', marginTop: '2px' }}>
+                                    <div style={{ fontSize: isDenseSlots ? '10px' : '11px', color: '#475569', marginTop: '2px' }}>
                                       {row.personInstitute}{row.personLocation ? `, ${row.personLocation}` : ''}
                                     </div>
                                   )}
                                 </td>
                               )}
-                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px' }}>
-                                <strong>{row.slotTrade}</strong>
-                              </td>
-                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'center', fontSize: isDenseSlots ? '10.5px' : '11.5px', whiteSpace: 'nowrap' }}>
+                              {row.isFirstOfTrade && (
+                                <td
+                                  rowSpan={row.tradeRowSpan}
+                                  style={{
+                                    border: '1px solid #000',
+                                    padding: isDenseSlots ? '3px 5px' : '6px 8px',
+                                    verticalAlign: 'middle',
+                                    backgroundColor: '#ffffff'
+                                  }}
+                                >
+                                  <strong>{row.slotTrade}</strong>
+                                </td>
+                              )}
+                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '6px 8px', textAlign: 'center', fontSize: isDenseSlots ? '10.5px' : '11.5px', whiteSpace: 'nowrap' }}>
                                 {formatDateDot(row.slot.startDate)} to {formatDateDot(row.slot.endDate)}
                               </td>
-                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'center', fontWeight: 'bold' }}>
+                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '6px 8px', textAlign: 'center', fontWeight: 'bold' }}>
                                 {row.daysVal} {row.daysVal === 1 ? 'Day' : 'Days'}
                               </td>
-                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '6px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                 Rs. {stageCParams.ratePerDay}/-
                               </td>
-                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                              <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '6px 8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                                 Rs. {row.slotAmount.toLocaleString('en-IN')}/-
                               </td>
                             </tr>
@@ -2372,10 +2435,10 @@ export default function DeputationClient({
                         </tr>
                       </tfoot>
                     </table>
-                    <p style={{ margin: isDenseSlots ? '4px 0' : '6px 0' }}>
+                    <p style={{ margin: isDenseSlots ? '4px 0' : '10px 0', fontSize: isDenseSlots ? '11.5px' : '13px', lineHeight: isDenseSlots ? '1.4' : '1.55' }}>
                       If approved, payment of <strong>Rs. {stageCParams.totalAmount.toLocaleString('en-IN')}/- (Rupees {stageCParams.amountInWords})</strong> may be released to the above Subject Matter Expert from the PM e-Vidya Funds as per the prevailing NCERT norms. The SME engagement approval letter, Work Completion Certificate, and other supporting documents are enclosed separately for kind perusal.
                     </p>
-                    <p style={{ margin: isDenseSlots ? '4px 0' : '6px 0' }}>
+                    <p style={{ margin: isDenseSlots ? '4px 0' : '10px 0', fontSize: isDenseSlots ? '11.5px' : '13px', lineHeight: isDenseSlots ? '1.4' : '1.55' }}>
                       Submitted for kind approval, please.
                     </p>
                   </div>

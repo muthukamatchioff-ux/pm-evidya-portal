@@ -268,19 +268,54 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
       }
 
       if (docType === 'both' || docType === 'remuneration') {
-        const slotRowsHtml = trades.map((t, idx) => `
+        // Group consecutive trades for rowspan
+        const groupedTradeRows: Array<{
+          t: any;
+          sNo: number;
+          isFirstOfTrade: boolean;
+          tradeRowSpan: number;
+        }> = [];
+        let tIdx = 0;
+        while (tIdx < trades.length) {
+          const currentT = trades[tIdx];
+          const tName = (currentT.tradeName || '').trim();
+          let tSpan = 1;
+          while (tIdx + tSpan < trades.length) {
+            const nextT = trades[tIdx + tSpan];
+            if ((nextT.tradeName || '').trim().toLowerCase() === tName.toLowerCase()) {
+              tSpan++;
+            } else {
+              break;
+            }
+          }
+          for (let k = 0; k < tSpan; k++) {
+            groupedTradeRows.push({
+              t: trades[tIdx + k],
+              sNo: tIdx + k + 1,
+              isFirstOfTrade: k === 0,
+              tradeRowSpan: tSpan
+            });
+          }
+          tIdx += tSpan;
+        }
+
+        const slotRowsHtml = groupedTradeRows.map((row, idx) => `
           <tr>
-            <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center;">${idx + 1}</td>
-            <td style="border: 1pt solid #000; padding: 4pt 6pt;">
+            <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center;">${row.sNo}</td>
+            ${idx === 0 ? `
+            <td rowspan="${trades.length}" style="border: 1pt solid #000; padding: 4pt 6pt; vertical-align: middle;">
               <strong>${sme.name}</strong><br>
               <span>${sme.designation}</span>
-              ${(sme.institution || sme.city) ? `<div style="font-size: 8pt; color: #475569; margin-top: 1pt;">${sme.institution}, ${sme.city}</div>` : ''}
-            </td>
-            <td style="border: 1pt solid #000; padding: 4pt 6pt;"><strong>${t.tradeName}</strong></td>
-            <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center; white-space: nowrap;">${t.startDate && t.endDate ? `${formatDate(t.startDate)} to ${formatDate(t.endDate)}` : '-'}</td>
-            <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center; font-weight: bold;">${t.totalDays} Days</td>
-            <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: right; white-space: nowrap;">Rs. ${t.remunerationPerDay}/-</td>
-            <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: right; font-weight: bold; white-space: nowrap;">Rs. ${t.totalAmount.toLocaleString('en-IN')}/-</td>
+              ${(sme.institution || sme.city) ? `<div style="font-size: 8.5pt; color: #475569; margin-top: 1pt;">${sme.institution}, ${sme.city}</div>` : ''}
+            </td>` : ''}
+            ${row.isFirstOfTrade ? `
+            <td rowspan="${row.tradeRowSpan}" style="border: 1pt solid #000; padding: 4pt 6pt; vertical-align: middle;">
+              <strong>${row.t.tradeName}</strong>
+            </td>` : ''}
+            <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center; white-space: nowrap;">${row.t.startDate && row.t.endDate ? `${formatDate(row.t.startDate)} to ${formatDate(row.t.endDate)}` : '-'}</td>
+            <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center; font-weight: bold;">${row.t.totalDays} Days</td>
+            <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: right; white-space: nowrap;">Rs. ${row.t.remunerationPerDay}/-</td>
+            <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: right; font-weight: bold; white-space: nowrap;">Rs. ${row.t.totalAmount.toLocaleString('en-IN')}/-</td>
           </tr>
         `).join('');
 
@@ -759,23 +794,53 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
           })()}
 
           {(docType === 'both' || docType === 'remuneration') && (() => {
-            const isDenseSlots = trades.length >= 2;
-            const isVeryDenseSlots = trades.length >= 4;
+            const isDenseSlots = trades.length >= 8;
+            const isVeryDenseSlots = trades.length >= 12;
+
+            const groupedTradeRows: Array<{
+              t: any;
+              sNo: number;
+              isFirstOfTrade: boolean;
+              tradeRowSpan: number;
+            }> = [];
+            let tIdx = 0;
+            while (tIdx < trades.length) {
+              const currentT = trades[tIdx];
+              const tName = (currentT.tradeName || '').trim();
+              let tSpan = 1;
+              while (tIdx + tSpan < trades.length) {
+                const nextT = trades[tIdx + tSpan];
+                if ((nextT.tradeName || '').trim().toLowerCase() === tName.toLowerCase()) {
+                  tSpan++;
+                } else {
+                  break;
+                }
+              }
+              for (let k = 0; k < tSpan; k++) {
+                groupedTradeRows.push({
+                  t: trades[tIdx + k],
+                  sNo: tIdx + k + 1,
+                  isFirstOfTrade: k === 0,
+                  tradeRowSpan: tSpan
+                });
+              }
+              tIdx += tSpan;
+            }
 
             return (
               <div className={styles.a4Page}>
-                <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: isDenseSlots ? '15px' : '16px', margin: isDenseSlots ? '10px 0 8px 0' : '14px 0 10px 0' }}>
+                <h2 style={{ textAlign: 'center', textDecoration: 'underline', fontSize: isDenseSlots ? '15px' : '17px', margin: isDenseSlots ? '14px 0 8px 0' : '22px 0 14px 0', letterSpacing: '0.3px' }}>
                   SME REMUNERATION / SANCTION NOTE
                 </h2>
                 
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: isDenseSlots ? '8px' : '12px', fontWeight: 'bold', fontSize: isDenseSlots ? '12px' : '13px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: isDenseSlots ? '8px' : '14px', fontWeight: 'bold', fontSize: isDenseSlots ? '12px' : '13px' }}>
                   <div>Submitted</div>
                   <div>{formatDate(approval.submittedDate)}</div>
                 </div>
 
-                <div style={{ textAlign: 'justify', lineHeight: isDenseSlots ? '1.38' : '1.45', fontSize: isDenseSlots ? '11.5px' : '12.5px' }}>
+                <div style={{ textAlign: 'justify', lineHeight: isDenseSlots ? '1.4' : '1.55', fontSize: isDenseSlots ? '11.5px' : '13px' }}>
                   Sanction may kindly be accorded for a sum of <strong>Rs. {grandTotalAmount.toLocaleString('en-IN')}/- (Rupees {amountInWords})</strong> towards the remuneration of <strong>{sme.name}</strong>, <strong>{sme.designation}</strong>, <strong>{sme.institution}, {sme.city}</strong>, who served as the <strong>{sme.role}</strong> for the <strong>{programme.name}</strong> for the <strong>{trades.map(t => t.tradeName).join(' and ')}</strong> trades. The <strong>{programme.workTitle}</strong> was successfully conducted and completed at the <strong>{programme.location}</strong>.
-                  <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: isDenseSlots ? '6px' : '8px', marginBottom: isDenseSlots ? '8px' : '12px', fontSize: isVeryDenseSlots ? '10px' : isDenseSlots ? '11px' : '12px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: isDenseSlots ? '6px' : '12px', marginBottom: isDenseSlots ? '8px' : '14px', fontSize: isVeryDenseSlots ? '10px' : isDenseSlots ? '11px' : '12px' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc' }}>
                         <th style={{ border: '1px solid #000', padding: isDenseSlots ? '4px 6px' : '6px 8px', textAlign: 'center', width: '5%' }}>S. No.</th>
@@ -788,27 +853,47 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
                       </tr>
                     </thead>
                     <tbody>
-                      {trades.map((t, idx) => (
-                        <tr key={t.id}>
-                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'center' }}>{idx + 1}</td>
-                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px' }}>
-                            <strong>{sme.name}</strong><br />
-                            <span>{sme.designation}</span>
-                            {(sme.institution || sme.city) && (
-                              <div style={{ fontSize: '10.5px', color: '#475569', marginTop: '2px' }}>
-                                {sme.institution}{sme.city ? `, ${sme.city}` : ''}
-                              </div>
-                            )}
+                      {groupedTradeRows.map((row, idx) => (
+                        <tr key={row.t.id || idx}>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '6px 8px', textAlign: 'center' }}>{row.sNo}</td>
+                          {idx === 0 && (
+                            <td
+                              rowSpan={trades.length}
+                              style={{
+                                border: '1px solid #000',
+                                padding: isDenseSlots ? '3px 5px' : '6px 8px',
+                                verticalAlign: 'middle',
+                                backgroundColor: '#ffffff'
+                              }}
+                            >
+                              <strong>{sme.name}</strong><br />
+                              <span>{sme.designation}</span>
+                              {(sme.institution || sme.city) && (
+                                <div style={{ fontSize: isDenseSlots ? '10px' : '11px', color: '#475569', marginTop: '2px' }}>
+                                  {sme.institution}{sme.city ? `, ${sme.city}` : ''}
+                                </div>
+                              )}
+                            </td>
+                          )}
+                          {row.isFirstOfTrade && (
+                            <td
+                              rowSpan={row.tradeRowSpan}
+                              style={{
+                                border: '1px solid #000',
+                                padding: isDenseSlots ? '3px 5px' : '6px 8px',
+                                verticalAlign: 'middle',
+                                backgroundColor: '#ffffff'
+                              }}
+                            >
+                              <strong>{row.t.tradeName}</strong>
+                            </td>
+                          )}
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '6px 8px', textAlign: 'center', fontSize: isDenseSlots ? '10.5px' : '11.5px', whiteSpace: 'nowrap' }}>
+                            {row.t.startDate && row.t.endDate ? `${formatDate(row.t.startDate)} to ${formatDate(row.t.endDate)}` : '-'}
                           </td>
-                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px' }}>
-                            <strong>{t.tradeName}</strong>
-                          </td>
-                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'center', fontSize: isDenseSlots ? '10.5px' : '11.5px', whiteSpace: 'nowrap' }}>
-                            {t.startDate && t.endDate ? `${formatDate(t.startDate)} to ${formatDate(t.endDate)}` : '-'}
-                          </td>
-                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'center', fontWeight: 'bold' }}>{t.totalDays} Days</td>
-                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'right', whiteSpace: 'nowrap' }}>Rs. {t.remunerationPerDay}/-</td>
-                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '5px 7px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Rs. {t.totalAmount.toLocaleString('en-IN')}/-</td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '6px 8px', textAlign: 'center', fontWeight: 'bold' }}>{row.t.totalDays} Days</td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '6px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>Rs. {row.t.remunerationPerDay}/-</td>
+                          <td style={{ border: '1px solid #000', padding: isDenseSlots ? '3px 5px' : '6px 8px', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Rs. {row.t.totalAmount.toLocaleString('en-IN')}/-</td>
                         </tr>
                       ))}
                     </tbody>
@@ -823,10 +908,10 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
                       </tfoot>
                     )}
                   </table>
-                  <p style={{ margin: isDenseSlots ? '4px 0' : '6px 0' }}>
+                  <p style={{ margin: isDenseSlots ? '4px 0' : '10px 0', fontSize: isDenseSlots ? '11.5px' : '13px', lineHeight: isDenseSlots ? '1.4' : '1.55' }}>
                     If approved, payment of <strong>Rs. {grandTotalAmount.toLocaleString('en-IN')}/- (Rupees {amountInWords})</strong> may be released to the above Subject Matter Expert from the PM e-Vidya Funds as per the prevailing NCERT norms. The SME engagement approval letter, Work Completion Certificate, and other supporting documents are enclosed separately for kind perusal.
                   </p>
-                  <p style={{ margin: isDenseSlots ? '4px 0' : '6px 0' }}>
+                  <p style={{ margin: isDenseSlots ? '4px 0' : '10px 0', fontSize: isDenseSlots ? '11.5px' : '13px', lineHeight: isDenseSlots ? '1.4' : '1.55' }}>
                     Submitted for kind approval, please.
                   </p>
                 </div>

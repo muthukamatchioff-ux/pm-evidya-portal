@@ -470,7 +470,7 @@ export function buildRemunerationWordHtml(params: any, sme: any, entry: any): st
         return flattened;
       })();
 
-  // Build grouped row metadata with vertical cell merge span
+  // Build grouped row metadata with vertical cell merge span for Person and Trade
   const groupedRows: Array<{
     slot: any;
     sNo: number;
@@ -480,6 +480,8 @@ export function buildRemunerationWordHtml(params: any, sme: any, entry: any): st
     personDesignation: string;
     personInstitute: string;
     personLocation: string;
+    isFirstOfTrade: boolean;
+    tradeRowSpan: number;
     daysVal: number;
     slotTrade: string;
     slotAmount: number;
@@ -500,26 +502,49 @@ export function buildRemunerationWordHtml(params: any, sme: any, entry: any): st
       }
     }
 
-    for (let s = 0; s < span; s++) {
-      const slot = orderedSlots[slotIdx + s];
-      const slotDays = calculateSlotDays(slot.startDate, slot.endDate);
-      const daysVal = slotDays > 0 ? slotDays : 1;
-      const slotTrade = (slot.trade || currentTrade || 'General').trim();
-      const slotAmount = daysVal * (params.ratePerDay || 1500);
+    // Within this person's rows, count consecutive rows for the same trade
+    let tradeRelIdx = 0;
+    while (tradeRelIdx < span) {
+      const tradeSlot = orderedSlots[slotIdx + tradeRelIdx];
+      const tradeName = (tradeSlot.trade || currentTrade || 'General').trim();
 
-      groupedRows.push({
-        slot,
-        sNo: slotIdx + s + 1,
-        isFirstOfPerson: s === 0,
-        personRowSpan: span,
-        personName: person.name,
-        personDesignation: person.designation,
-        personInstitute: person.institute,
-        personLocation: person.location,
-        daysVal,
-        slotTrade,
-        slotAmount
-      });
+      let tradeSpan = 1;
+      while (tradeRelIdx + tradeSpan < span) {
+        const nextTradeSlot = orderedSlots[slotIdx + tradeRelIdx + tradeSpan];
+        const nextTradeName = (nextTradeSlot.trade || currentTrade || 'General').trim();
+        if (nextTradeName.toLowerCase() === tradeName.toLowerCase()) {
+          tradeSpan++;
+        } else {
+          break;
+        }
+      }
+
+      for (let t = 0; t < tradeSpan; t++) {
+        const s = tradeRelIdx + t;
+        const slot = orderedSlots[slotIdx + s];
+        const slotDays = calculateSlotDays(slot.startDate, slot.endDate);
+        const daysVal = slotDays > 0 ? slotDays : 1;
+        const slotTrade = tradeName;
+        const slotAmount = daysVal * (params.ratePerDay || 1500);
+
+        groupedRows.push({
+          slot,
+          sNo: slotIdx + s + 1,
+          isFirstOfPerson: s === 0,
+          personRowSpan: span,
+          personName: person.name,
+          personDesignation: person.designation,
+          personInstitute: person.institute,
+          personLocation: person.location,
+          isFirstOfTrade: t === 0,
+          tradeRowSpan: tradeSpan,
+          daysVal,
+          slotTrade,
+          slotAmount
+        });
+      }
+
+      tradeRelIdx += tradeSpan;
     }
 
     slotIdx += span;
@@ -533,9 +558,12 @@ export function buildRemunerationWordHtml(params: any, sme: any, entry: any): st
         <td rowspan="${row.personRowSpan}" style="border: 1pt solid #000; padding: 4pt 6pt; vertical-align: middle;">
           <strong>${row.personName}</strong><br>
           <span>${row.personDesignation}</span>
-          ${(row.personInstitute || row.personLocation) ? `<div style="font-size: 8pt; color: #475569; margin-top: 1pt;">${row.personInstitute}${row.personLocation ? `, ${row.personLocation}` : ''}</div>` : ''}
+          ${(row.personInstitute || row.personLocation) ? `<div style="font-size: 8.5pt; color: #475569; margin-top: 1pt;">${row.personInstitute}${row.personLocation ? `, ${row.personLocation}` : ''}</div>` : ''}
         </td>` : ''}
-        <td style="border: 1pt solid #000; padding: 4pt 6pt;"><strong>${row.slotTrade}</strong></td>
+        ${row.isFirstOfTrade ? `
+        <td rowspan="${row.tradeRowSpan}" style="border: 1pt solid #000; padding: 4pt 6pt; vertical-align: middle;">
+          <strong>${row.slotTrade}</strong>
+        </td>` : ''}
         <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center; white-space: nowrap;">${formatDateDot(row.slot.startDate)} to ${formatDateDot(row.slot.endDate)}</td>
         <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: center; font-weight: bold;">${row.daysVal} ${row.daysVal === 1 ? 'Day' : 'Days'}</td>
         <td style="border: 1pt solid #000; padding: 4pt 6pt; text-align: right; white-space: nowrap;">Rs. ${params.ratePerDay || 1500}/-</td>
@@ -545,29 +573,29 @@ export function buildRemunerationWordHtml(params: any, sme: any, entry: any): st
   }).join('');
 
   return `
-    <h2 style="text-align: center; text-decoration: underline; font-size: 12pt; margin: 8pt 0 6pt 0;">
+    <h2 style="text-align: center; text-decoration: underline; font-size: 13pt; margin: 12pt 0 8pt 0;">
       SME REMUNERATION / SANCTION NOTE
     </h2>
 
-    <table style="width: 100%; border: none; margin-bottom: 6pt; font-family: 'Times New Roman', serif; font-size: 9.5pt; font-weight: bold;">
+    <table style="width: 100%; border: none; margin-bottom: 8pt; font-family: 'Times New Roman', serif; font-size: 10pt; font-weight: bold;">
       <tr>
         <td align="left" style="border: none;">Submitted</td>
         <td align="right" style="border: none;">${formatDateDot(params.submissionDate)}</td>
       </tr>
     </table>
 
-    <p style="line-height: 1.35; font-size: 9pt; margin-bottom: 6pt;">
+    <p style="line-height: 1.45; font-size: 10pt; margin-bottom: 8pt; text-align: justify;">
       Sanction may kindly be accorded for a sum of <strong>Rs. ${(params.totalAmount || 0).toLocaleString('en-IN')}/- (Rupees ${params.amountInWords || ''})</strong> towards the remuneration of <strong>${sme?.name || 'Subject Matter Expert'}</strong>, <strong>${sme?.designation || 'Designation'}</strong>, <strong>${sme?.institute || 'Institution'}, ${sme?.location || 'Location'}</strong>, who served as the <strong>Guest Expert / Subject Matter Expert (SME)</strong> for the <strong>${params.programmeName || 'PM e-Vidya Classroom Teaching Video Production'}</strong> for the <strong>${displayedTrades}</strong> ${isMultiple ? 'trades' : 'trade'}. The <strong>${params.workTitle || 'Classroom Teaching Video Production for PM e-Vidya'}</strong> was successfully conducted and completed at the <strong>${params.location || 'National Instructional Media Institute (NIMI), Chennai'}</strong>.
     </p>
 
-    <table style="width: 100%; border-collapse: collapse; margin: 6pt 0; font-size: 8.5pt;">
+    <table style="width: 100%; border-collapse: collapse; margin: 8pt 0; font-size: 9.5pt;">
       <thead>
         <tr style="background-color: #f1f5f9;">
-          <th style="border: 1pt solid #000; padding: 4pt 5pt; text-align: center; width: 6%;">S. No.</th>
-          <th style="border: 1pt solid #000; padding: 4pt 5pt; text-align: left; width: 24%;">Name &amp; Designation</th>
-          <th style="border: 1pt solid #000; padding: 4pt 5pt; text-align: left; width: 20%;">Trade</th>
-          <th style="border: 1pt solid #000; padding: 4pt 5pt; text-align: center; width: 21%;">Attendance Date</th>
-          <th style="border: 1pt solid #000; padding: 4pt 5pt; text-align: center; width: 11%;">Total No. of Days</th>
+          <th style="border: 1pt solid #000; padding: 5pt 6pt; text-align: center; width: 6%;">S. No.</th>
+          <th style="border: 1pt solid #000; padding: 5pt 6pt; text-align: left; width: 24%;">Name &amp; Designation</th>
+          <th style="border: 1pt solid #000; padding: 5pt 6pt; text-align: left; width: 20%;">Trade</th>
+          <th style="border: 1pt solid #000; padding: 5pt 6pt; text-align: center; width: 21%;">Attendance Date</th>
+          <th style="border: 1pt solid #000; padding: 5pt 6pt; text-align: center; width: 11%;">Total No. of Days</th>
           <th style="border: 1pt solid #000; padding: 4pt 5pt; text-align: right; width: 9%;">Remuneration per Day</th>
           <th style="border: 1pt solid #000; padding: 4pt 5pt; text-align: right; width: 9%;">Total Amount</th>
         </tr>
