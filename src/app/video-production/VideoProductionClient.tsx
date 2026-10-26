@@ -57,11 +57,12 @@ function formatDateForInput(dateVal: any): string {
 }
 
 // Display format with dots: DD.MM.YYYY (as in 15.08.2026, 28.07.2026)
+// Display format with dots: DD.MM.YYYY (as in 15.08.2026, 28.07.2026)
 function formatDateDotDisplay(dateVal: any): string {
-  if (!dateVal || dateVal === '-' || dateVal === 'null') return '-';
+  if (!dateVal || dateVal === '-' || dateVal === '—' || dateVal === 'null') return '—';
   if (typeof dateVal === 'string') {
     const trimmed = dateVal.trim();
-    if (!trimmed || trimmed === '-' || trimmed === 'null') return '-';
+    if (!trimmed || trimmed === '-' || trimmed === '—' || trimmed === 'null') return '—';
     if (/^\d{2}\.\d{2}\.\d{4}$/.test(trimmed)) return trimmed;
     const ymd = trimmed.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
     if (ymd) {
@@ -74,40 +75,40 @@ function formatDateDotDisplay(dateVal: any): string {
   }
   try {
     const d = new Date(dateVal);
-    if (isNaN(d.getTime())) return '-';
+    if (isNaN(d.getTime())) return '—';
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
     return `${day}.${month}.${year}`;
   } catch {
-    return '-';
+    return '—';
   }
 }
 
 // Format: EPIC-2026-PMeVidya 04, EPIC-2026-PMeVidya 03
 function formatEpicCode(epicSeq: any): string {
-  if (!epicSeq || epicSeq === 0 || epicSeq === '0' || epicSeq === '-') return '-';
+  if (!epicSeq || epicSeq === 0 || epicSeq === '0' || epicSeq === '-' || epicSeq === '—') return '—';
   const num = parseInt(epicSeq, 10);
-  if (isNaN(num) || num <= 0) return '-';
+  if (isNaN(num) || num <= 0) return '—';
   return `EPIC-2026-PMeVidya ${String(num).padStart(2, '0')}`;
 }
 
 function cleanCameramanDisplay(name?: string | null): string {
-  if (!name) return '-';
+  if (!name) return '—';
   const trimmed = name.trim();
   const lower = trimmed.toLowerCase();
-  if (!trimmed || trimmed === '-' || lower === 'null') {
-    return '-';
+  if (!trimmed || trimmed === '-' || trimmed === '—' || lower === 'null') {
+    return '—';
   }
   return trimmed;
 }
 
 function cleanEditorDisplay(name?: string | null): string {
-  if (!name) return '-';
+  if (!name) return '—';
   const trimmed = name.trim();
   const lower = trimmed.toLowerCase();
-  if (!trimmed || trimmed === '-' || lower === 'null' || lower === 'not assigned') {
-    return '-';
+  if (!trimmed || trimmed === '-' || trimmed === '—' || lower === 'null' || lower === 'not assigned') {
+    return '—';
   }
   return trimmed;
 }
@@ -703,18 +704,18 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     const headers = [
       'S.No',
       'Month',
-      'Trade',
+      'EPIC ID',
       'SME / Resource Person',
-      'Epic id',
+      'Trade',
+      'Video Topic',
       'Start date (Shooting)',
       'End date (Shooting)',
       'Cameraman',
       'Current Status (Shooting)',
-      'Video Editor',
       'Start date (Editing)',
       'End date (Editing)',
+      'Video Editor',
       'Current Status (Editing)',
-      'Video Topic',
       'Duration',
       'Video Link'
     ];
@@ -730,20 +731,20 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       csvRows.push([
         escapeCsv(row.sNo),
         escapeCsv(row.month),
-        escapeCsv(row.trade),
-        escapeCsv(row.smeName),
         escapeCsv(row.epicCode),
+        escapeCsv(row.smeName),
+        escapeCsv(row.trade),
+        escapeCsv(row.videoTitle),
         escapeCsv(formatDateDotDisplay(row.shootingStartDate)),
         escapeCsv(formatDateDotDisplay(row.shootingEndDate)),
         escapeCsv(row.cameraman),
         escapeCsv(row.shootingStatus),
-        escapeCsv(row.editor),
         escapeCsv(formatDateDotDisplay(row.editingStartDate)),
         escapeCsv(formatDateDotDisplay(row.editingEndDate)),
+        escapeCsv(row.editor),
         escapeCsv(row.editingStatus),
-        escapeCsv(row.videoTitle),
-        escapeCsv(row.duration || '-'),
-        escapeCsv(row.finalVideoLink || '-')
+        escapeCsv(row.duration || '—'),
+        escapeCsv(row.finalVideoLink || '—')
       ].join(','));
     });
 
@@ -1330,93 +1331,83 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         <table className={styles.trackerTable}>
           <thead>
             <tr>
-              {/* 1 */}
-              <th style={{ width: '50px' }}>S.No</th>
-              {/* 2 - Highlighted in Red box as in user reference screenshot */}
-              <th className={styles.monthHeaderHighlight} style={{ minWidth: '90px' }}>Month</th>
-              {/* 3 */}
-              <th style={{ minWidth: '130px' }}>Trade</th>
-              {/* 4 */}
+              {/* S.No */}
+              <th style={{ width: '48px', textAlign: 'center' }}>S.No</th>
+              {/* Month */}
+              <th className={styles.monthHeaderHighlight} style={{ minWidth: '85px', textAlign: 'center' }}>Month</th>
+              {/* Video Identity */}
+              <th style={{ minWidth: '160px' }}>EPIC ID</th>
               <th style={{ minWidth: '150px' }}>SME / Resource Person</th>
-              {/* 5 */}
-              <th style={{ minWidth: '160px' }}>Epic id</th>
-              {/* 6 */}
+              <th style={{ minWidth: '130px' }}>Trade</th>
+              <th style={{ minWidth: '280px' }}>Video Topic</th>
+              {/* Production / Shooting */}
               <th style={{ minWidth: '110px' }}>Start date (Shooting)</th>
-              {/* 7 */}
               <th style={{ minWidth: '110px' }}>End date (Shooting)</th>
-              {/* 8 */}
               <th style={{ minWidth: '120px' }}>Cameraman</th>
-              {/* 9 */}
               <th style={{ minWidth: '120px' }}>Current Status (Shooting)</th>
-              {/* 10 */}
-              <th style={{ minWidth: '120px' }}>Video Editor</th>
-              {/* 11 */}
+              {/* Post-Production / Editing */}
               <th style={{ minWidth: '110px' }}>Start date (Editing)</th>
-              {/* 12 */}
               <th style={{ minWidth: '110px' }}>End date (Editing)</th>
-              {/* 13 */}
+              <th style={{ minWidth: '120px' }}>Video Editor</th>
               <th style={{ minWidth: '120px' }}>Current Status (Editing)</th>
-              {/* 14 */}
-              <th style={{ minWidth: '220px' }}>Video Topic</th>
-              {/* 15 */}
-              <th style={{ minWidth: '80px' }}>Duration</th>
-              {/* 16 */}
-              <th style={{ minWidth: '80px' }}>Video Link</th>
+              {/* Video Output */}
+              <th style={{ minWidth: '85px' }}>Duration</th>
+              <th style={{ minWidth: '85px' }}>Video Link</th>
               {/* Actions */}
-              <th style={{ minWidth: '80px', textAlign: 'center' }}>Actions</th>
+              <th style={{ minWidth: '85px', textAlign: 'center' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {paginatedRows.map(row => (
               <tr key={row.uniqueKey}>
                 {/* 1. S.No */}
-                <td style={{ fontWeight: 500, color: '#334155' }}>
+                <td style={{ fontWeight: 600, color: '#334155', textAlign: 'center' }}>
                   {row.sNo}
                 </td>
 
-                {/* 2. Month (with red highlight box) */}
-                <td className={styles.monthCellHighlight}>
+                {/* 2. Month */}
+                <td className={styles.monthCellHighlight} style={{ textAlign: 'center' }}>
                   {row.month}
                 </td>
 
-                {/* 3. Trade */}
-                <td style={{ fontWeight: 500, color: '#1e293b' }}>
-                  {row.trade}
-                </td>
-
-                {/* 4. SME / Resource Person */}
-                <td style={{ color: '#334155' }}>
-                  {row.smeName}
-                </td>
-
-                {/* 5. Epic id */}
-                <td style={{ color: '#0f172a', fontWeight: 500 }}>
+                {/* 3. EPIC ID */}
+                <td style={{ color: '#0f172a', fontWeight: 600, whiteSpace: 'nowrap' }}>
                   {row.epicCode}
                 </td>
 
-                {/* 6. Start date (Shooting) */}
+                {/* 4. SME / Resource Person */}
+                <td style={{ color: '#1e293b', fontWeight: 500 }}>
+                  {row.smeName}
+                </td>
+
+                {/* 5. Trade */}
+                <td style={{ fontWeight: 500, color: '#475569' }}>
+                  {row.trade}
+                </td>
+
+                {/* 6. Video Topic (wrapped gracefully within its own cell) */}
+                <td style={{ maxWidth: '300px', wordBreak: 'break-word', whiteSpace: 'normal', lineHeight: '1.45', fontWeight: 500, color: '#0f172a' }}>
+                  {row.videoTitle}
+                </td>
+
+                {/* 7. Start date (Shooting) */}
                 <td style={{ whiteSpace: 'nowrap', color: '#334155' }}>
                   {formatDateDotDisplay(row.shootingStartDate)}
                 </td>
 
-                {/* 7. End date (Shooting) */}
+                {/* 8. End date (Shooting) */}
                 <td style={{ whiteSpace: 'nowrap', color: '#334155' }}>
                   {formatDateDotDisplay(row.shootingEndDate)}
                 </td>
 
-                {/* 8. Cameraman */}
-                <td style={{ color: '#1e293b' }}>
+                {/* 9. Cameraman */}
+                <td style={{ color: '#1e293b', fontWeight: 500 }}>
                   {row.cameraman}
                 </td>
 
-                {/* 9. Current Status (Shooting) */}
+                {/* 10. Current Status (Shooting) */}
                 <td>
                   {renderShootingBadge(row.shootingStatus)}
-                </td>
-
-                {/* 10. Video Editor */}
-                <td style={{ color: '#1e293b' }}>
-                  {row.editor}
                 </td>
 
                 {/* 11. Start date (Editing) */}
@@ -1429,19 +1420,19 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                   {formatDateDotDisplay(row.editingEndDate)}
                 </td>
 
-                {/* 13. Current Status (Editing) */}
+                {/* 13. Video Editor */}
+                <td style={{ color: '#1e293b', fontWeight: 500 }}>
+                  {row.editor}
+                </td>
+
+                {/* 14. Current Status (Editing) */}
                 <td>
                   {renderEditingBadge(row.editingStatus)}
                 </td>
 
-                {/* 14. Video Topic */}
-                <td style={{ fontWeight: 500, color: '#0f172a' }}>
-                  {row.videoTitle}
-                </td>
-
                 {/* 15. Duration */}
-                <td style={{ whiteSpace: 'nowrap', color: '#334155' }}>
-                  {row.duration || '-'}
+                <td style={{ whiteSpace: 'nowrap', color: '#334155', fontWeight: 500 }}>
+                  {row.duration || '—'}
                 </td>
 
                 {/* 16. Video Link */}
@@ -1454,10 +1445,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                       className={styles.videoLinkText}
                       title={row.finalVideoLink}
                     >
-                      Link
+                      🔗 Link
                     </a>
                   ) : (
-                    <span>-</span>
+                    <span style={{ color: '#94a3b8' }}>—</span>
                   )}
                 </td>
 
