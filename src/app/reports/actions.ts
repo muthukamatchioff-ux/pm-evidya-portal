@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { requireAuth, checkAuth, getCurrentUser } from '@/lib/auth';
 import { parseAssignedEpics } from '@/lib/epicHelpers';
+import { getTopicProductionRecords } from '@/app/video-production/actions';
 
 export async function generateReportData(reportId: string, dateFrom: string, dateTo: string) {
   const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER', 'HIGHER_OFFICIAL_VIEWER']);
@@ -328,7 +329,7 @@ export async function getComprehensiveReportData() {
     }
   }
 
-  const [smes, production, auditLogs, rawEpicEntries, allVideos] = await Promise.all([
+  const [smes, production, auditLogs, rawEpicEntries, allVideos, topicProdRes] = await Promise.all([
     (role === 'CAMERAMAN' || role === 'EDITOR')
       ? Promise.resolve([])
       : prisma.sME.findMany({
@@ -370,15 +371,19 @@ export async function getComprehensiveReportData() {
 
     prisma.videoLibrary.findMany({
       orderBy: { createdAt: 'desc' }
-    })
+    }),
+
+    getTopicProductionRecords()
   ]);
+
+  const topicProductionRecords = (topicProdRes && topicProdRes.success ? topicProdRes.data : []) || [];
 
   const epicWorkEntries = (rawEpicEntries || []).map((e: any) => {
     const combinedVideos = matchVideosForEpic(e, allVideos);
     return buildEpicWorkflowRecords(e, combinedVideos);
   });
 
-  return JSON.parse(JSON.stringify({ smes, production, auditLogs, epicWorkEntries }));
+  return JSON.parse(JSON.stringify({ smes, production, auditLogs, epicWorkEntries, topicProductionRecords }));
 }
 
 export async function getEpicCompleteHistory(workEntryId: string) {

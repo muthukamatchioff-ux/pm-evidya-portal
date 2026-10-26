@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import { generateDocxReport } from './docxHelper';
 import { getEpicCompleteHistory } from './actions';
 import EpicWorkflowReport from './EpicWorkflowReport';
+import VideoProductionTrackerReport from './VideoProductionTrackerReport';
 import styles from '@/app/dashboard/dashboard.module.css';
 
 export default function ReportsClient({ 
@@ -17,7 +18,7 @@ export default function ReportsClient({
   role?: string 
 }) {
   const [selectedComponents, setSelectedComponents] = useState<string[]>([]);
-  const { smes = [], production = [], auditLogs = [], epicWorkEntries = [] } = comprehensiveData || {};
+  const { smes = [], production = [], auditLogs = [], epicWorkEntries = [], topicProductionRecords = [] } = comprehensiveData || {};
 
   const canViewFinancials = role === 'ADMIN' || role === 'TEAM_MEMBER';
   const canViewAuditLogs = role === 'ADMIN' || role === 'TEAM_MEMBER';
@@ -26,6 +27,18 @@ export default function ReportsClient({
   const [isPrinting, setIsPrinting] = useState(false);
   const [isPrintingAnnexure, setIsPrintingAnnexure] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  // Video Production Tracker Report States
+  const [isVideoTrackerModalOpen, setIsVideoTrackerModalOpen] = useState(false);
+  const [isPrintingVideoTracker, setIsPrintingVideoTracker] = useState(false);
+
+  const triggerPrintVideoTracker = () => {
+    setIsPrintingVideoTracker(true);
+    setTimeout(() => {
+      window.print();
+      setIsPrintingVideoTracker(false);
+    }, 500);
+  };
 
   // SME Epic Workflow Report States
   const [selectedEpicId, setSelectedEpicId] = useState<string>('');
@@ -645,17 +658,43 @@ export default function ReportsClient({
         </div>
       )}
 
-      {/* Production & Telecast Tracker */}
-      <div className={styles.sectionCard}>
-        <div className={styles.sectionTitle}>
-          <span style={{ fontSize: '20px' }}>🎥 Production & Telecast Tracker</span>
+      {/* SECTION: Video Production Tracker Report Option Card */}
+      <div className={styles.sectionCard} style={{ border: '2px solid #8b5cf6', background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 100%)', boxShadow: '0 4px 12px rgba(139, 92, 246, 0.08)' }}>
+        <div className={styles.sectionTitle} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '24px' }}>🎥</span>
+            <span style={{ fontSize: '18px', fontWeight: 800, color: '#0f2942' }}>Video Production Tracker Report</span>
+          </div>
+          <span style={{ fontSize: '12px', fontWeight: 700, background: '#ede9fe', color: '#6d28d9', padding: '4px 12px', borderRadius: '12px', border: '1px solid #ddd6fe' }}>
+            Executive Dashboard & Details
+          </span>
         </div>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-          Exports a full tracker of all video content shoots, pending video URLs, processing statuses, and final telecast delivery metrics.
+        <p style={{ color: '#475569', marginBottom: '20px', fontSize: '14px' }}>
+          Interactive executive report modeled on the Sheet10 Executive Summary. Includes 4 KPI summary cards (Planned, Shooting Done, Editing Done, Duration), Monthly Progress, Cameraman Workload, Trade-wise Progress, Editor Workload, and searchable 16-attribute production records.
         </p>
-        <button className={styles.btnAction} style={{ width: '100%', justifyContent: 'center', backgroundColor: '#8b5cf6', color: 'white' }} onClick={generateProductionReport}>
-          Export Production Tracker (Excel)
-        </button>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <button
+            className={styles.btnAction}
+            style={{ flex: 1, minWidth: '180px', justifyContent: 'center', backgroundColor: '#8b5cf6', color: 'white', fontWeight: 700 }}
+            onClick={() => setIsVideoTrackerModalOpen(true)}
+          >
+            <span>👁️</span> View Executive Dashboard & Report
+          </button>
+          <button
+            className={styles.btnAction}
+            style={{ flex: 1, minWidth: '150px', justifyContent: 'center', backgroundColor: '#f59e0b', color: 'white', fontWeight: 700 }}
+            onClick={triggerPrintVideoTracker}
+          >
+            <span>🖨️</span> Print Report (PDF)
+          </button>
+          <button
+            className={styles.btnAction}
+            style={{ flex: 1, minWidth: '150px', justifyContent: 'center', backgroundColor: '#10b981', color: 'white', fontWeight: 700 }}
+            onClick={generateProductionReport}
+          >
+            <span>📊</span> Export Excel
+          </button>
+        </div>
       </div>
 
       {/* System Audit Logs */}
@@ -714,7 +753,10 @@ export default function ReportsClient({
           #printable-epic-report, #printable-epic-report * {
             visibility: visible !important;
           }
-          #printable-dashboard, #printable-annexures, #printable-epic-report { 
+          #printable-video-tracker-report, #printable-video-tracker-report * {
+            visibility: visible !important;
+          }
+          #printable-dashboard, #printable-annexures, #printable-epic-report, #printable-video-tracker-report {
             position: absolute !important; 
             left: 0 !important; 
             top: 0 !important; 
@@ -1574,6 +1616,52 @@ export default function ReportsClient({
             isPrintOnly={true}
           />
         )}
+      </div>
+
+      {/* Video Production Tracker Report Modal */}
+      {isVideoTrackerModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999,
+          padding: '20px'
+        }}
+        onClick={() => setIsVideoTrackerModalOpen(false)}
+        >
+          <div style={{
+            width: '100%',
+            maxWidth: '1280px',
+            maxHeight: '94vh',
+            overflowY: 'auto',
+            background: '#ffffff',
+            borderRadius: '16px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            padding: '4px'
+          }}
+          onClick={(e) => e.stopPropagation()}
+          >
+            <VideoProductionTrackerReport
+              initialRecords={topicProductionRecords.length > 0 ? topicProductionRecords : allEpicEntries}
+              onClose={() => setIsVideoTrackerModalOpen(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Printable Video Production Tracker Report Container */}
+      <div id="printable-video-tracker-report" style={{ display: isPrintingVideoTracker ? 'block' : 'none', background: 'white' }}>
+        <VideoProductionTrackerReport
+          initialRecords={topicProductionRecords.length > 0 ? topicProductionRecords : allEpicEntries}
+          isPrintOnly={true}
+        />
       </div>
     </div>
   );

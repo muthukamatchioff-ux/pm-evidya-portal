@@ -78,6 +78,84 @@ export default function EpicWorkflowReport({
     return { background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0' };
   };
 
+  // Consolidated Topic-wise Production & Post-Production Stage Breakdown (Requirement 6)
+  const consolidatedTopicRows = React.useMemo(() => {
+    const list: any[] = [];
+    const vLibs = libraryVideos.length > 0 ? libraryVideos : [];
+
+    if (vLibs.length > 0) {
+      vLibs.forEach((v: any, idx: number) => {
+        const title = v.title || entry.topic || `Topic #${idx + 1}`;
+        const matchSched = shootingSchedules.find((s: any) =>
+          s.id === v.id || s.id === `shoot-${v.id}` ||
+          (s.videoTitle && s.videoTitle.trim().toLowerCase() === title.trim().toLowerCase())
+        );
+        const matchEd = videoEditorRecords.find((e: any) =>
+          e.id === v.id || e.id === `ed-${v.id}` ||
+          (e.assignedVideo && e.assignedVideo.trim().toLowerCase() === title.trim().toLowerCase()) ||
+          (vLibs.length === 1 && videoEditorRecords.length === 1)
+        );
+
+        const shootStart = matchSched?.scheduledStart ? new Date(matchSched.scheduledStart).toLocaleDateString('en-IN') : (matchSched?.shootDate ? new Date(matchSched.shootDate).toLocaleDateString('en-IN') : '-');
+        const shootEnd = matchSched?.scheduledEnd ? new Date(matchSched.scheduledEnd).toLocaleDateString('en-IN') : '-';
+        const shootDates = shootStart !== '-' && shootEnd !== '-' ? `${shootStart} to ${shootEnd}` : (shootStart !== '-' ? shootStart : '-');
+
+        const editStart = matchEd?.editingStartDate ? new Date(matchEd.editingStartDate).toLocaleDateString('en-IN') : '-';
+        const editEnd = matchEd?.editingEndDate ? new Date(matchEd.editingEndDate).toLocaleDateString('en-IN') : '-';
+        const editDates = editStart !== '-' && editEnd !== '-' ? `${editStart} to ${editEnd}` : (editStart !== '-' ? editStart : '-');
+
+        const durationVal = v.duration || matchEd?.duration || '-';
+        const videoLinkVal = v.videoLink || matchEd?.finalVideoFile || matchEd?.finalCutLink || null;
+
+        list.push({
+          id: v.id || `topic-${idx}`,
+          topic: title,
+          smeName: v.smeName || sme.name || 'Unassigned',
+          trade: v.trade || entry.trade || 'General',
+          cameraman: matchSched?.cameraman || 'Unassigned',
+          shootingStatus: matchSched?.status || 'PLANNED',
+          shootingDates: shootDates,
+          editorName: matchEd?.editorName || 'Not Assigned',
+          editingStatus: matchEd?.status || 'NOT_STARTED',
+          editingDates: editDates,
+          duration: durationVal,
+          videoLink: videoLinkVal
+        });
+      });
+    } else {
+      const maxCount = Math.max(shootingSchedules.length, videoEditorRecords.length, 1);
+      for (let i = 0; i < maxCount; i++) {
+        const s = shootingSchedules[i];
+        const e = videoEditorRecords[i];
+        const title = s?.videoTitle || e?.assignedVideo || entry.topic || 'Untitled Topic';
+
+        const shootStart = s?.scheduledStart ? new Date(s.scheduledStart).toLocaleDateString('en-IN') : (s?.shootDate ? new Date(s.shootDate).toLocaleDateString('en-IN') : '-');
+        const shootEnd = s?.scheduledEnd ? new Date(s.scheduledEnd).toLocaleDateString('en-IN') : '-';
+        const shootDates = shootStart !== '-' && shootEnd !== '-' ? `${shootStart} to ${shootEnd}` : (shootStart !== '-' ? shootStart : '-');
+
+        const editStart = e?.editingStartDate ? new Date(e.editingStartDate).toLocaleDateString('en-IN') : '-';
+        const editEnd = e?.editingEndDate ? new Date(e.editingEndDate).toLocaleDateString('en-IN') : '-';
+        const editDates = editStart !== '-' && editEnd !== '-' ? `${editStart} to ${editEnd}` : (editStart !== '-' ? editStart : '-');
+
+        list.push({
+          id: `topic-${i}`,
+          topic: title,
+          smeName: sme.name || 'Unassigned',
+          trade: entry.trade || 'General',
+          cameraman: s?.cameraman || 'Unassigned',
+          shootingStatus: s?.status || 'PLANNED',
+          shootingDates: shootDates,
+          editorName: e?.editorName || 'Not Assigned',
+          editingStatus: e?.status || 'NOT_STARTED',
+          editingDates: editDates,
+          duration: e?.duration || primaryFinalVideo?.finalDuration || '-',
+          videoLink: e?.finalVideoFile || primaryFinalVideo?.finalVideoFile || null
+        });
+      }
+    }
+    return list;
+  }, [entry, libraryVideos, shootingSchedules, videoEditorRecords, sme, primaryFinalVideo]);
+
   const reportCardStyle = {
     background: '#ffffff',
     borderRadius: '16px',
@@ -425,6 +503,83 @@ export default function EpicWorkflowReport({
               Channel: {primaryFinalVideo?.telecastChannel || 'TBD'} • Ep: {primaryFinalVideo?.telecastEpisode || '-'}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* SECTION 3B: CONSOLIDATED PRODUCTION & POST-PRODUCTION STAGE BREAKDOWN (READ-ONLY) */}
+      <div className="print-avoid-break" style={{ padding: '0 28px 14px 28px', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        <div className="print-no-break-after" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', marginBottom: '8px', breakAfter: 'avoid', pageBreakAfter: 'avoid' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '15px' }}>📹</span>
+            <h3 style={{ fontSize: '13px', fontWeight: 800, color: '#0f2942', margin: 0 }}>
+              Production & Post-Production Stage Breakdown ({consolidatedTopicRows.length} Topics)
+            </h3>
+          </div>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: '#0369a1', background: '#e0f2fe', padding: '2px 8px', borderRadius: '6px', border: '1px solid #bae6fd' }}>
+            Read-Only Production View • {friendlyEpicId}
+          </span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+            <thead>
+              <tr style={{ background: '#0f2942', color: '#ffffff' }}>
+                <th style={{ padding: '8px 10px', textAlign: 'left', width: '4%' }}>Sl.</th>
+                <th style={{ padding: '8px 10px', textAlign: 'left', width: '28%' }}>Video Topic / Title</th>
+                <th style={{ padding: '8px 10px', textAlign: 'left', width: '14%' }}>SME & Trade</th>
+                <th style={{ padding: '8px 10px', textAlign: 'left', width: '18%' }}>Cameraman & Shooting</th>
+                <th style={{ padding: '8px 10px', textAlign: 'left', width: '18%' }}>Editor & Post-Prod</th>
+                <th style={{ padding: '8px 10px', textAlign: 'center', width: '8%' }}>Duration</th>
+                <th style={{ padding: '8px 10px', textAlign: 'center', width: '10%' }}>Video Link</th>
+              </tr>
+            </thead>
+            <tbody>
+              {consolidatedTopicRows.map((row, idx) => (
+                <tr key={row.id} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                  <td style={{ padding: '8px 10px', fontWeight: 700, color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>{idx + 1}</td>
+                  <td style={{ padding: '8px 10px', borderBottom: '1px solid #e2e8f0' }}>
+                    <div style={{ fontWeight: 700, color: '#0f172a' }}>{row.topic}</div>
+                    <div style={{ fontSize: '10px', color: '#64748b' }}>EPIC: {friendlyEpicId}</div>
+                  </td>
+                  <td style={{ padding: '8px 10px', borderBottom: '1px solid #e2e8f0' }}>
+                    <div style={{ fontWeight: 600, color: '#1e293b' }}>{row.smeName}</div>
+                    <div style={{ fontSize: '10px', color: '#0369a1' }}>{row.trade}</div>
+                  </td>
+                  <td style={{ padding: '8px 10px', borderBottom: '1px solid #e2e8f0' }}>
+                    <div style={{ fontWeight: 600, color: '#0f172a' }}>🎥 {row.cameraman}</div>
+                    <div style={{ fontSize: '10px', color: '#475569', marginTop: '2px' }}>Dates: {row.shootingDates}</div>
+                    <span style={{ display: 'inline-block', marginTop: '3px', padding: '1px 6px', borderRadius: '6px', fontWeight: 700, fontSize: '9.5px', ...getStatusBadgeStyle(row.shootingStatus) }}>
+                      {row.shootingStatus}
+                    </span>
+                  </td>
+                  <td style={{ padding: '8px 10px', borderBottom: '1px solid #e2e8f0' }}>
+                    <div style={{ fontWeight: 600, color: '#0f172a' }}>✂️ {row.editorName}</div>
+                    <div style={{ fontSize: '10px', color: '#475569', marginTop: '2px' }}>Dates: {row.editingDates}</div>
+                    <span style={{ display: 'inline-block', marginTop: '3px', padding: '1px 6px', borderRadius: '6px', fontWeight: 700, fontSize: '9.5px', ...getStatusBadgeStyle(row.editingStatus) }}>
+                      {row.editingStatus}
+                    </span>
+                  </td>
+                  <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                    {row.duration && row.duration !== '-' ? (
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: '#0369a1', background: '#eff6ff', padding: '2px 6px', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
+                        ⏱️ {row.duration}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '10px', color: '#94a3b8', fontStyle: 'italic' }}>-</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                    {row.videoLink ? (
+                      <a href={row.videoLink} target="_blank" rel="noreferrer" style={{ fontSize: '11px', fontWeight: 700, color: '#0284c7', textDecoration: 'underline' }}>
+                        🎬 View Link
+                      </a>
+                    ) : (
+                      <span style={{ fontSize: '10px', color: '#94a3b8', fontStyle: 'italic' }}>Pending</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
