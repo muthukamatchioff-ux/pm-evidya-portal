@@ -50,3 +50,4 @@ prisma/dev.db
 /prisma/schema.git-*.prisma
 /scratch/
 /logo_base64.txt
+/backups/

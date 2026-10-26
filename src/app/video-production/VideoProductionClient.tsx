@@ -9,8 +9,14 @@ import {
   updateProductionRowDetails,
   getAuthorizedStaff,
   getProductionAuditLogs,
-  detectVideoDuration
+  detectVideoDuration,
+  saveCameramanShootingEntry,
+  saveEditorPostProductionEntry,
+  assignProductionPersonnel
 } from './actions';
+import CameramanPortal from './CameramanPortal';
+import VideoEditorPortal from './VideoEditorPortal';
+import AdminWorkAssignmentModal from './AdminWorkAssignmentModal';
 
 // =========================================================================
 // SAFE DATE & STRING HELPERS MATCHING USER'S EXACT REFERENCE UI
@@ -141,9 +147,23 @@ export interface VideoRegisterRow {
   hasLink: boolean;
 }
 
-export default function VideoProductionClient({ initialRecords = [], role = 'VIEWER' }: any) {
+export default function VideoProductionClient({ initialRecords = [], role = 'VIEWER', currentUser = null }: any) {
   const router = useRouter();
   const [workEntries, setWorkEntries] = useState<any[]>(initialRecords);
+  const [viewOverallTrackerAsStaff, setViewOverallTrackerAsStaff] = useState(false);
+  const [isAdminAssignModalOpen, setIsAdminAssignModalOpen] = useState(false);
+  const [adminAssignInitialEpic, setAdminAssignInitialEpic] = useState<string>('');
+
+  const refreshTopicRecords = async () => {
+    const res = await getTopicProductionRecords();
+    if (res.success && res.data) {
+      setWorkEntries(res.data);
+    }
+    const staffRes = await getAuthorizedStaff();
+    if (staffRes.success && staffRes.data) {
+      setAuthorizedStaff(staffRes.data);
+    }
+  };
 
   // Filters State
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
@@ -676,8 +696,105 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     return <span>{status}</span>;
   };
 
+  if (role === 'CAMERAMAN' && !viewOverallTrackerAsStaff) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+        {notification && (
+          <div style={{
+            padding: '12px 18px',
+            borderRadius: '8px',
+            background: notification.type === 'success' ? '#ecfdf5' : '#fef2f2',
+            border: `1px solid ${notification.type === 'success' ? '#a7f3d0' : '#fca5a5'}`,
+            color: notification.type === 'success' ? '#065f46' : '#991b1b',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontSize: '13px',
+            fontWeight: 500
+          }}>
+            <span>{notification.message}</span>
+            <button 
+              onClick={() => setNotification(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        <CameramanPortal
+          currentUser={currentUser}
+          videoRegister={videoRegister}
+          onRefreshData={refreshTopicRecords}
+          onViewOverallTracker={() => setViewOverallTrackerAsStaff(true)}
+          setNotification={setNotification}
+        />
+      </div>
+    );
+  }
+
+  if (role === 'EDITOR' && !viewOverallTrackerAsStaff) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+        {notification && (
+          <div style={{
+            padding: '12px 18px',
+            borderRadius: '8px',
+            background: notification.type === 'success' ? '#ecfdf5' : '#fef2f2',
+            border: `1px solid ${notification.type === 'success' ? '#a7f3d0' : '#fca5a5'}`,
+            color: notification.type === 'success' ? '#065f46' : '#991b1b',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontSize: '13px',
+            fontWeight: 500
+          }}>
+            <span>{notification.message}</span>
+            <button 
+              onClick={() => setNotification(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        <VideoEditorPortal
+          currentUser={currentUser}
+          videoRegister={videoRegister}
+          onRefreshData={refreshTopicRecords}
+          onViewOverallTracker={() => setViewOverallTrackerAsStaff(true)}
+          setNotification={setNotification}
+        />
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+      {/* Return to Staff Portal Banner */}
+      {(role === 'CAMERAMAN' || role === 'EDITOR') && viewOverallTrackerAsStaff && (
+        <div style={{
+          background: '#f8fafc',
+          border: '1px solid #cbd5e1',
+          borderRadius: '8px',
+          padding: '10px 16px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <span style={{ fontSize: '13px', color: '#334155', fontWeight: 600 }}>
+            Viewing Overall 16-Column Video Production Tracker in Read-Only Mode
+          </span>
+          <button
+            type="button"
+            className={styles.btnDraft}
+            style={{ padding: '6px 14px', fontSize: '12px', background: '#0284c7', color: 'white', borderColor: '#0284c7' }}
+            onClick={() => setViewOverallTrackerAsStaff(false)}
+          >
+            ← Return to {role === 'CAMERAMAN' ? 'Cameraman Portal' : 'Video Editor Portal'}
+          </button>
+        </div>
+      )}
+
       {/* Header Section (Role-Aware) */}
       {isAdmin ? (
         <div className={styles.adminHeaderSection}>
@@ -933,9 +1050,8 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                 className={styles.pageSquareBtn} 
                 style={{ width: 'auto', padding: '0 10px', height: '38px', gap: '6px', fontWeight: 600 }}
                 onClick={() => {
-                  if (paginatedRows.length > 0) {
-                    handleOpenWorkAssignment(paginatedRows[0]);
-                  }
+                  setAdminAssignInitialEpic(paginatedRows[0]?.epicCode || 'EPIC-2026-PMeVidya 01');
+                  setIsAdminAssignModalOpen(true);
                 }}
                 title="Open Work Assignment Modal"
               >
@@ -1663,6 +1779,21 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================
+          7. ADMIN EPIC-BASED WORK ASSIGNMENT MODAL
+         ======================================================== */}
+      {isAdmin && (
+        <AdminWorkAssignmentModal
+          isOpen={isAdminAssignModalOpen}
+          onClose={() => setIsAdminAssignModalOpen(false)}
+          videoRegister={videoRegister}
+          authorizedStaff={authorizedStaff}
+          initialEpicCode={adminAssignInitialEpic}
+          onSaveSuccess={refreshTopicRecords}
+          setNotification={setNotification}
+        />
       )}
     </div>
   );

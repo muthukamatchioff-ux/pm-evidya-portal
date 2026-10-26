@@ -1676,6 +1676,11 @@ export async function updateProductionRowDetails(params: {
       return { success: false, error: 'EPIC ID record not found in database.' };
     }
 
+    const perm = await verifyEpicPermission(params.workEntryId, ['ADMIN', 'TEAM_MEMBER', 'CAMERAMAN', 'EDITOR']);
+    if (!perm.authorized) {
+      return { success: false, error: perm.error || 'Unauthorized: You are not authorized to update this EPIC record.' };
+    }
+
     if (role === 'CAMERAMAN') {
       // Cameramen can only edit shooting fields
     } else if (role === 'EDITOR') {
@@ -1697,6 +1702,13 @@ export async function updateProductionRowDetails(params: {
     const editStart = safeParseDate(params.editingStartDate);
     const editEnd = safeParseDate(params.editingEndDate);
 
+    if (schedStart && schedEnd && schedEnd < schedStart) {
+      return { success: false, error: 'Shooting End Date cannot precede Shooting Start Date.' };
+    }
+    if (editStart && editEnd && editEnd < editStart) {
+      return { success: false, error: 'Editing End Date cannot precede Editing Start Date.' };
+    }
+
     // 1. UPDATE OR CREATE SHOOTING SCHEDULE (Cameraman Portion)
     const matchingSchedule = params.videoId && params.videoId !== 'ALL'
       ? workEntry.shootingSchedules.find((s: any) => 
@@ -1713,14 +1725,14 @@ export async function updateProductionRowDetails(params: {
           ...(role === 'ADMIN' || role === 'TEAM_MEMBER' ? {
             ...(params.cameramanName !== undefined ? { cameraman: params.cameramanName } : {})
           } : {}),
-          ...(params.shootingStartDate !== undefined ? { scheduledStart: schedStart } : {}),
-          ...(params.shootingEndDate !== undefined ? { scheduledEnd: schedEnd } : {}),
-          ...(params.shootingStatus ? { status: params.shootingStatus } : {}),
-          ...(params.shootingNotes !== undefined ? { productionNotes: params.shootingNotes } : {}),
-          ...(params.videoTitle ? { videoTitle: params.videoTitle } : {})
+          ...(params.shootingStartDate !== undefined && role !== 'EDITOR' ? { scheduledStart: schedStart } : {}),
+          ...(params.shootingEndDate !== undefined && role !== 'EDITOR' ? { scheduledEnd: schedEnd } : {}),
+          ...(params.shootingStatus && role !== 'EDITOR' ? { status: params.shootingStatus } : {}),
+          ...(params.shootingNotes !== undefined && role !== 'EDITOR' ? { productionNotes: params.shootingNotes } : {}),
+          ...(params.videoTitle && (role === 'ADMIN' || role === 'TEAM_MEMBER') ? { videoTitle: params.videoTitle } : {})
         }
       });
-    } else if (role === 'ADMIN' || role === 'TEAM_MEMBER') {
+    } else if (role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'CAMERAMAN') {
       await prisma.shootingSchedule.create({
         data: {
           workEntryId: workEntry.id,
@@ -1750,16 +1762,16 @@ export async function updateProductionRowDetails(params: {
           ...(role === 'ADMIN' || role === 'TEAM_MEMBER' ? {
             ...(params.editorName !== undefined ? { editorName: params.editorName } : {})
           } : {}),
-          ...(params.editingStartDate !== undefined ? { editingStartDate: editStart } : {}),
-          ...(params.editingEndDate !== undefined ? { editingEndDate: editEnd } : {}),
-          ...(params.editingStatus ? { status: params.editingStatus } : {}),
-          ...(params.reviewComments !== undefined ? { reviewComments: params.reviewComments } : {}),
-          ...(params.duration !== undefined ? { duration: params.duration } : {}),
-          ...(params.finalVideoLink !== undefined ? { finalVideoFile: params.finalVideoLink } : {}),
-          ...(params.videoTitle ? { assignedVideo: params.videoTitle } : {})
+          ...(params.editingStartDate !== undefined && role !== 'CAMERAMAN' ? { editingStartDate: editStart } : {}),
+          ...(params.editingEndDate !== undefined && role !== 'CAMERAMAN' ? { editingEndDate: editEnd } : {}),
+          ...(params.editingStatus && role !== 'CAMERAMAN' ? { status: params.editingStatus } : {}),
+          ...(params.reviewComments !== undefined && role !== 'CAMERAMAN' ? { reviewComments: params.reviewComments } : {}),
+          ...(params.duration !== undefined && role !== 'CAMERAMAN' ? { duration: params.duration } : {}),
+          ...(params.finalVideoLink !== undefined && role !== 'CAMERAMAN' ? { finalVideoFile: params.finalVideoLink } : {}),
+          ...(params.videoTitle && (role === 'ADMIN' || role === 'TEAM_MEMBER') ? { assignedVideo: params.videoTitle } : {})
         }
       });
-    } else if (role === 'ADMIN' || role === 'TEAM_MEMBER') {
+    } else if (role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'EDITOR') {
       await prisma.videoEditorRecord.create({
         data: {
           workEntryId: workEntry.id,
@@ -1776,30 +1788,32 @@ export async function updateProductionRowDetails(params: {
     }
 
     // 3. UPDATE VIDEO LIBRARY (Deliverable & link)
-    const matchingLib = params.videoId && params.videoId !== 'ALL'
-      ? workEntry.videoLibraries.find((v: any) => v.id === params.videoId)
-      : workEntry.videoLibraries[0];
+    if (role !== 'CAMERAMAN') {
+      const matchingLib = params.videoId && params.videoId !== 'ALL'
+        ? workEntry.videoLibraries.find((v: any) => v.id === params.videoId)
+        : workEntry.videoLibraries[0];
 
-    if (matchingLib) {
-      await prisma.videoLibrary.update({
-        where: { id: matchingLib.id },
-        data: {
-          ...(params.videoTitle ? { title: params.videoTitle } : {}),
-          ...(params.duration !== undefined ? { duration: params.duration } : {}),
-          ...(params.finalVideoLink !== undefined ? { videoLink: params.finalVideoLink } : {})
-        }
-      });
-    } else if (params.finalVideoLink && (role === 'ADMIN' || role === 'TEAM_MEMBER')) {
-      await prisma.videoLibrary.create({
-        data: {
-          epicId: workEntry.id,
-          smeName: workEntry.sme?.name || workEntry.topic || 'SME',
-          trade: workEntry.trade || 'General',
-          title: params.videoTitle || workEntry.topic,
-          videoLink: params.finalVideoLink,
-          duration: params.duration || null
-        }
-      });
+      if (matchingLib) {
+        await prisma.videoLibrary.update({
+          where: { id: matchingLib.id },
+          data: {
+            ...(params.videoTitle ? { title: params.videoTitle } : {}),
+            ...(params.duration !== undefined ? { duration: params.duration } : {}),
+            ...(params.finalVideoLink !== undefined ? { videoLink: params.finalVideoLink } : {})
+          }
+        });
+      } else if (params.finalVideoLink && (role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'EDITOR')) {
+        await prisma.videoLibrary.create({
+          data: {
+            epicId: workEntry.id,
+            smeName: workEntry.sme?.name || workEntry.topic || 'SME',
+            trade: workEntry.trade || 'General',
+            title: params.videoTitle || workEntry.topic,
+            videoLink: params.finalVideoLink,
+            duration: params.duration || null
+          }
+        });
+      }
     }
 
     // 4. LOG AUDIT ENTRY
@@ -1839,6 +1853,272 @@ export async function updateProductionRowDetails(params: {
   }
 }
 
+// =========================================================================
+// CAMERAMAN PORTAL — DEDICATED SHOOTING STAGE ENTRY
+// =========================================================================
 
+export async function saveCameramanShootingEntry(params: {
+  workEntryId: string;
+  videoId: string;
+  shootingStartDate?: string | null;
+  shootingEndDate?: string | null;
+  shootingStatus: string;
+  shootingNotes?: string | null;
+  isSubmit?: boolean;
+}) {
+  const perm = await verifyEpicPermission(params.workEntryId, ['ADMIN', 'TEAM_MEMBER', 'CAMERAMAN']);
+  if (!perm.authorized) {
+    return { success: false, error: perm.error || 'Unauthorized: You are not assigned to shoot this EPIC ID.' };
+  }
 
+  const email = await getEmail();
+  const schedStart = safeParseDate(params.shootingStartDate);
+  const schedEnd = safeParseDate(params.shootingEndDate);
 
+  if (schedStart && schedEnd && schedEnd < schedStart) {
+    return { success: false, error: 'Validation Error: Shooting End Date cannot precede Shooting Start Date.' };
+  }
+
+  const finalStatus = params.isSubmit ? 'Completed' : (params.shootingStatus || 'In Progress');
+
+  try {
+    const workEntry = await prisma.sMEWorkEntry.findUnique({
+      where: { id: params.workEntryId },
+      include: { shootingSchedules: true, videoEditorRecords: true, videoLibraries: true }
+    });
+
+    if (!workEntry) {
+      return { success: false, error: 'EPIC record not found in database.' };
+    }
+
+    // Match schedule
+    let matchingSchedule = workEntry.shootingSchedules.find((s: any) =>
+      s.id === params.videoId ||
+      s.id === `shoot-${params.videoId}` ||
+      (params.videoId && workEntry.videoLibraries.some((vl: any) => vl.id === params.videoId && vl.title === s.videoTitle))
+    );
+
+    if (!matchingSchedule && workEntry.shootingSchedules.length > 0) {
+      matchingSchedule = workEntry.shootingSchedules[0];
+    }
+
+    if (matchingSchedule) {
+      await prisma.shootingSchedule.update({
+        where: { id: matchingSchedule.id },
+        data: {
+          scheduledStart: schedStart,
+          scheduledEnd: schedEnd,
+          status: finalStatus,
+          productionNotes: params.shootingNotes !== undefined ? params.shootingNotes : matchingSchedule.productionNotes
+        }
+      });
+    } else {
+      await prisma.shootingSchedule.create({
+        data: {
+          workEntryId: workEntry.id,
+          cameraman: perm.user?.name || 'Antony Alcander',
+          scheduledStart: schedStart,
+          scheduledEnd: schedEnd,
+          status: finalStatus,
+          productionNotes: params.shootingNotes || null,
+          videoTitle: workEntry.videoLibraries.find((vl: any) => vl.id === params.videoId)?.title || workEntry.topic
+        }
+      });
+    }
+
+    // When submitted as Completed, automatically make it available in the assigned Editor's queue
+    if (finalStatus === 'Completed') {
+      const matchEd = workEntry.videoEditorRecords.find((e: any) =>
+        e.id === params.videoId ||
+        e.id === `ed-${params.videoId}` ||
+        (params.videoId && workEntry.videoLibraries.some((vl: any) => vl.id === params.videoId && vl.title === e.assignedVideo))
+      );
+      if (matchEd) {
+        if (matchEd.status === 'NOT_STARTED' || !matchEd.status) {
+          await prisma.videoEditorRecord.update({
+            where: { id: matchEd.id },
+            data: { status: 'Pending' }
+          });
+        }
+      } else {
+        await prisma.videoEditorRecord.create({
+          data: {
+            workEntryId: workEntry.id,
+            editorName: 'Hassan & Antony',
+            status: 'Pending',
+            assignedVideo: workEntry.videoLibraries.find((vl: any) => vl.id === params.videoId)?.title || workEntry.topic
+          }
+        }).catch(() => null);
+      }
+    }
+
+    await logAudit({
+      action: params.isSubmit ? 'SUBMIT_SHOOTING_COMPLETED' : 'SAVE_SHOOTING_DRAFT',
+      entity: 'SHOOTING_SCHEDULE',
+      entityId: params.videoId || workEntry.id,
+      userEmail: email || 'cameraman@nimi.org',
+      newData: JSON.stringify({
+        workEntryId: workEntry.id,
+        videoId: params.videoId,
+        scheduledStart: params.shootingStartDate,
+        scheduledEnd: params.shootingEndDate,
+        status: finalStatus,
+        productionNotes: params.shootingNotes
+      })
+    });
+
+    safeRevalidate();
+    return {
+      success: true,
+      message: params.isSubmit
+        ? 'Shooting successfully submitted as Completed! Topic is now available in the Video Editor queue.'
+        : 'Shooting draft saved successfully.'
+    };
+  } catch (error: any) {
+    console.error('Error in saveCameramanShootingEntry:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// =========================================================================
+// VIDEO EDITOR PORTAL — DEDICATED POST-PRODUCTION STAGE ENTRY
+// =========================================================================
+
+export async function saveEditorPostProductionEntry(params: {
+  workEntryId: string;
+  videoId: string;
+  editingStartDate?: string | null;
+  editingEndDate?: string | null;
+  editingStatus: string;
+  duration?: string | null;
+  finalVideoLink?: string | null;
+  reviewComments?: string | null;
+  isSubmit?: boolean;
+}) {
+  const perm = await verifyEpicPermission(params.workEntryId, ['ADMIN', 'TEAM_MEMBER', 'EDITOR']);
+  if (!perm.authorized) {
+    return { success: false, error: perm.error || 'Unauthorized: You are not assigned to edit this EPIC ID.' };
+  }
+
+  const email = await getEmail();
+  const editStart = safeParseDate(params.editingStartDate);
+  const editEnd = safeParseDate(params.editingEndDate);
+
+  if (editStart && editEnd && editEnd < editStart) {
+    return { success: false, error: 'Validation Error: Editing End Date cannot precede Editing Start Date.' };
+  }
+
+  // URL validation if provided
+  if (params.finalVideoLink && params.finalVideoLink.trim() !== '' && params.finalVideoLink !== '-') {
+    const urlStr = params.finalVideoLink.trim();
+    if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
+      return { success: false, error: 'Validation Error: Final Video Link must be a valid HTTP or HTTPS URL.' };
+    }
+  }
+
+  const finalStatus = params.isSubmit ? 'Completed' : (params.editingStatus || 'In Progress');
+
+  try {
+    const workEntry = await prisma.sMEWorkEntry.findUnique({
+      where: { id: params.workEntryId },
+      include: { shootingSchedules: true, videoEditorRecords: true, videoLibraries: true }
+    });
+
+    if (!workEntry) {
+      return { success: false, error: 'EPIC record not found in database.' };
+    }
+
+    // Match editor record
+    let matchingEditor = workEntry.videoEditorRecords.find((e: any) =>
+      e.id === params.videoId ||
+      e.id === `ed-${params.videoId}` ||
+      (params.videoId && workEntry.videoLibraries.some((vl: any) => vl.id === params.videoId && vl.title === e.assignedVideo))
+    );
+
+    if (!matchingEditor && workEntry.videoEditorRecords.length > 0) {
+      matchingEditor = workEntry.videoEditorRecords[0];
+    }
+
+    if (matchingEditor) {
+      await prisma.videoEditorRecord.update({
+        where: { id: matchingEditor.id },
+        data: {
+          editingStartDate: editStart,
+          editingEndDate: editEnd,
+          status: finalStatus,
+          duration: params.duration !== undefined ? params.duration : matchingEditor.duration,
+          finalVideoFile: params.finalVideoLink !== undefined ? params.finalVideoLink : matchingEditor.finalVideoFile,
+          reviewComments: params.reviewComments !== undefined ? params.reviewComments : matchingEditor.reviewComments
+        }
+      });
+    } else {
+      await prisma.videoEditorRecord.create({
+        data: {
+          workEntryId: workEntry.id,
+          editorName: perm.user?.name || 'Hassan & Antony',
+          editingStartDate: editStart,
+          editingEndDate: editEnd,
+          status: finalStatus,
+          duration: params.duration || null,
+          finalVideoFile: params.finalVideoLink || null,
+          reviewComments: params.reviewComments || null,
+          assignedVideo: workEntry.videoLibraries.find((vl: any) => vl.id === params.videoId)?.title || workEntry.topic
+        }
+      });
+    }
+
+    // Synchronize canonical VideoLibrary deliverable record so it reflects across Overall Tracker & Library
+    const matchingLib = params.videoId && params.videoId !== 'ALL'
+      ? workEntry.videoLibraries.find((v: any) => v.id === params.videoId)
+      : workEntry.videoLibraries[0];
+
+    if (matchingLib) {
+      await prisma.videoLibrary.update({
+        where: { id: matchingLib.id },
+        data: {
+          ...(params.duration !== undefined ? { duration: params.duration } : {}),
+          ...(params.finalVideoLink !== undefined ? { videoLink: params.finalVideoLink } : {})
+        }
+      });
+    } else if (params.finalVideoLink) {
+      await prisma.videoLibrary.create({
+        data: {
+          epicId: workEntry.id,
+          smeName: workEntry.sme?.name || workEntry.topic || 'SME',
+          trade: workEntry.trade || 'General',
+          title: workEntry.topic,
+          videoLink: params.finalVideoLink,
+          duration: params.duration || null
+        }
+      }).catch(() => null);
+    }
+
+    await logAudit({
+      action: params.isSubmit ? 'SUBMIT_POST_PRODUCTION_COMPLETED' : 'SAVE_POST_PRODUCTION_DRAFT',
+      entity: 'VIDEO_EDITOR_RECORD',
+      entityId: params.videoId || workEntry.id,
+      userEmail: email || 'editor@nimi.org',
+      newData: JSON.stringify({
+        workEntryId: workEntry.id,
+        videoId: params.videoId,
+        editingStartDate: params.editingStartDate,
+        editingEndDate: params.editingEndDate,
+        status: finalStatus,
+        duration: params.duration,
+        finalVideoLink: params.finalVideoLink,
+        reviewComments: params.reviewComments
+      })
+    });
+
+    safeRevalidate();
+    return {
+      success: true,
+      message: params.isSubmit
+        ? 'Post-production editing submitted as Completed! Deliverable is now live in the Overall Tracker and Video Library.'
+        : 'Post-production editing draft saved successfully.'
+    };
+  } catch (error: any) {
+    console.error('Error in saveEditorPostProductionEntry:', error);
+    return { success: false, error: error.message };
+  }
+}

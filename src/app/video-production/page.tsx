@@ -1,7 +1,7 @@
 import React from 'react';
 import { getTopicProductionRecords } from './actions';
 import VideoProductionClient from './VideoProductionClient';
-import { getRole, requireAuth } from '@/lib/auth';
+import { getRole, requireAuth, getCurrentUser } from '@/lib/auth';
 
 export const metadata = {
   title: 'Video Production Tracker - PM e-Vidya',
@@ -13,6 +13,7 @@ export const revalidate = 0;
 export default async function VideoProductionPage() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
   const role = await getRole();
+  const currentUser = await getCurrentUser();
   const result = await getTopicProductionRecords();
   const records = (result.success ? result.data : []) || [];
   const errorMsg = !result.success ? result.error : null;
@@ -24,7 +25,7 @@ export default async function VideoProductionPage() {
           <strong>Error Loading Records:</strong> {errorMsg}
         </div>
       )}
-      <VideoProductionClient initialRecords={records} role={role} />
+      <VideoProductionClient initialRecords={records} role={role} currentUser={currentUser} />
     </>
   );
 }
