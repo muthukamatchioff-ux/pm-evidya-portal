@@ -25,7 +25,9 @@ export default async function VideoProductionPage() {
           <strong>Error Loading Records:</strong> {errorMsg}
         </div>
       )}
-      <VideoProductionClient initialRecords={records} role={role} currentUser={currentUser} />
+      <React.Suspense fallback={null}>
+        <VideoProductionClient initialRecords={records} role={role} currentUser={currentUser} />
+      </React.Suspense>
     </>
   );
 }

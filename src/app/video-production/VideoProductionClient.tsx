@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import styles from './video-production.module.css';
 import { 
   getTopicProductionRecords, 
@@ -152,6 +152,28 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const router = useRouter();
   const [workEntries, setWorkEntries] = useState<any[]>(initialRecords);
   const [viewOverallTrackerAsStaff, setViewOverallTrackerAsStaff] = useState(false);
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get('tab');
+
+  useEffect(() => {
+    if (currentTab === 'TRACKER') {
+      setViewOverallTrackerAsStaff(true);
+    } else if (currentTab && ['SHOOTING_ENTRY', 'POST_PRODUCTION_ENTRY', 'DASHBOARD', 'ASSIGNMENTS', 'PROFILE'].includes(currentTab)) {
+      setViewOverallTrackerAsStaff(false);
+    }
+  }, [currentTab]);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      if (e.detail?.tab === 'TRACKER') {
+        setViewOverallTrackerAsStaff(true);
+      } else {
+        setViewOverallTrackerAsStaff(false);
+      }
+    };
+    window.addEventListener('portalTabChange', handler);
+    return () => window.removeEventListener('portalTabChange', handler);
+  }, []);
   const [isAdminAssignModalOpen, setIsAdminAssignModalOpen] = useState(false);
   const [adminAssignInitialEpic, setAdminAssignInitialEpic] = useState<string>('');
   const [isAssignmentSectionCollapsed, setIsAssignmentSectionCollapsed] = useState(false);
@@ -865,7 +887,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
             type="button"
             className={styles.btnDraft}
             style={{ padding: '6px 14px', fontSize: '12px', background: '#0284c7', color: 'white', borderColor: '#0284c7' }}
-            onClick={() => setViewOverallTrackerAsStaff(false)}
+            onClick={() => {
+              setViewOverallTrackerAsStaff(false);
+              router.push('/video-production?tab=' + (role === 'CAMERAMAN' ? 'SHOOTING_ENTRY' : 'POST_PRODUCTION_ENTRY'));
+            }}
           >
             ← Return to {role === 'CAMERAMAN' ? 'Cameraman Portal' : 'Video Editor Portal'}
           </button>

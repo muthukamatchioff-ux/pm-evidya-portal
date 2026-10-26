@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import styles from './Sidebar.module.css';
 import LogoutButton from './LogoutButton';
 
@@ -14,34 +14,109 @@ interface MenuItem {
   allowedRoles?: string[];
 }
 
+interface StaffMenuItem {
+  name: string;
+  tabId: string;
+  icon: string;
+}
+
 const menuItems: MenuItem[] = [
   { name: 'Dashboard', path: '/dashboard', icon: '📊', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   
-  { isHeader: true, name: 'Core Modules', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR', 'HIGHER_OFFICIAL_VIEWER'] },
+  { isHeader: true, name: 'Core Modules', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   { name: 'SME Records', path: '/smes', icon: '👨‍🏫', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
-  { name: 'Video Production Tracker', path: '/video-production', icon: '🎬', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR', 'HIGHER_OFFICIAL_VIEWER'] },
-  { name: 'Video Content Library', path: '/content', icon: '📼', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR', 'HIGHER_OFFICIAL_VIEWER'] },
+  { name: 'Video Production Tracker', path: '/video-production', icon: '🎬', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
+  { name: 'Video Content Library', path: '/content', icon: '📼', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   { name: 'Document Management', path: '/accounts', icon: '📁', allowedRoles: ['ADMIN', 'HIGHER_OFFICIAL_VIEWER'] },
   { name: 'Document Registry', path: '/documents', icon: '📄', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   
   { isHeader: true, name: 'Communications', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   { name: 'SME Document Workflow', path: '/generator/deputation', icon: '✉️', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   
-  { isHeader: true, name: 'System', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR', 'HIGHER_OFFICIAL_VIEWER'] },
-  { name: 'Reports', path: '/reports', icon: '📈', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR', 'HIGHER_OFFICIAL_VIEWER'] },
+  { isHeader: true, name: 'System', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
+  { name: 'Reports', path: '/reports', icon: '📈', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   { name: 'Legacy Data', path: '/legacy', icon: '🗄️', allowedRoles: ['ADMIN', 'HIGHER_OFFICIAL_VIEWER'] },
   { name: 'Settings', path: '/settings', icon: '⚙️', allowedRoles: ['ADMIN'] }
 ];
 
-export default function SidebarClient({ role, email }: { role: string, email: string | null }) {
+const cameramanItems: StaffMenuItem[] = [
+  { name: 'Shooting Entry', tabId: 'SHOOTING_ENTRY', icon: '🎥' },
+  { name: 'Dashboard', tabId: 'DASHBOARD', icon: '📊' },
+  { name: 'My Assignments', tabId: 'ASSIGNMENTS', icon: '📋' },
+  { name: 'Overall Tracker (View Only)', tabId: 'TRACKER', icon: '👁️' },
+  { name: 'Profile', tabId: 'PROFILE', icon: '👤' },
+];
+
+const editorItems: StaffMenuItem[] = [
+  { name: 'Post-Production Entry', tabId: 'POST_PRODUCTION_ENTRY', icon: '🎬' },
+  { name: 'Dashboard', tabId: 'DASHBOARD', icon: '📊' },
+  { name: 'My Assignments', tabId: 'ASSIGNMENTS', icon: '📋' },
+  { name: 'Overall Tracker (View Only)', tabId: 'TRACKER', icon: '👁️' },
+  { name: 'Profile', tabId: 'PROFILE', icon: '👤' },
+];
+
+export default function SidebarClient({
+  role,
+  email,
+  initialAssignmentCount = 0
+}: {
+  role: string;
+  email: string | null;
+  initialAssignmentCount?: number;
+}) {
   const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [assignmentCount, setAssignmentCount] = useState<number>(initialAssignmentCount);
 
   const normalizedRole = (role || 'VIEWER').toUpperCase().trim();
+  const isCameraman = normalizedRole === 'CAMERAMAN';
+  const isEditor = normalizedRole === 'EDITOR';
+  const isStaff = isCameraman || isEditor;
 
-  // Filter items matching role
-  const renderedItems = useMemo(() => {
+  // Real-time synchronization of persisted assignment count from portal components
+  useEffect(() => {
+    const handleCount = (e: any) => {
+      if (typeof e.detail?.count === 'number') {
+        setAssignmentCount(e.detail.count);
+      }
+    };
+    window.addEventListener('portalAssignmentCount', handleCount);
+    return () => window.removeEventListener('portalAssignmentCount', handleCount);
+  }, []);
+
+  // Update initial count when prop updates
+  useEffect(() => {
+    if (initialAssignmentCount > 0 && assignmentCount === 0) {
+      setAssignmentCount(initialAssignmentCount);
+    }
+  }, [initialAssignmentCount]);
+
+  // Determine active tab for staff
+  const currentTabParam = searchParams.get('tab');
+  const activeStaffTab = useMemo(() => {
+    if (isCameraman) {
+      if (!currentTabParam || currentTabParam === 'SHOOTING_ENTRY') return 'SHOOTING_ENTRY';
+      return currentTabParam;
+    }
+    if (isEditor) {
+      if (!currentTabParam || currentTabParam === 'POST_PRODUCTION_ENTRY') return 'POST_PRODUCTION_ENTRY';
+      return currentTabParam;
+    }
+    return '';
+  }, [isCameraman, isEditor, currentTabParam]);
+
+  const handleStaffItemClick = (e: React.MouseEvent, tabId: string) => {
+    e.preventDefault();
+    closeMobile();
+    window.dispatchEvent(new CustomEvent('portalTabChange', { detail: { tab: tabId } }));
+    router.push(`/video-production?tab=${tabId}`);
+  };
+
+  // Filter items matching role for Admin / other roles
+  const renderedAdminItems = useMemo(() => {
     const roleFiltered = menuItems.filter(item => {
       if (item.allowedRoles && !item.allowedRoles.includes(normalizedRole)) {
         return false;
@@ -49,7 +124,6 @@ export default function SidebarClient({ role, email }: { role: string, email: st
       return true;
     });
 
-    // Remove any section header that has no visible items beneath it
     return roleFiltered.filter((item, idx) => {
       if (!item.isHeader) return true;
       for (let i = idx + 1; i < roleFiltered.length; i++) {
@@ -98,43 +172,83 @@ export default function SidebarClient({ role, email }: { role: string, email: st
           </button>
         </div>
         
-        <nav className={styles.nav}>
-          {renderedItems.map((item, index) => {
-            if (item.isHeader) {
-              return (
-                <div 
-                  key={`header-${index}`} 
-                  style={{ 
-                    marginTop: '20px', 
-                    marginBottom: '8px', 
-                    paddingLeft: '16px', 
-                    fontSize: '11px', 
-                    color: '#94a3b8', 
-                    fontWeight: 'bold', 
-                    textTransform: 'uppercase', 
-                    letterSpacing: '0.05em',
-                    display: collapsed ? 'none' : 'block'
-                  }}
-                >
-                  {item.name}
-                </div>
-              );
-            }
-
-            const isActive = pathname === item.path || pathname?.startsWith(`${item.path}/`);
-            return (
-              <Link 
-                key={item.path} 
-                href={item.path!} 
-                prefetch={true}
-                onClick={closeMobile}
-                className={`${styles.navLink} ${isActive ? styles.active : ''}`}
+        <nav className={styles.nav} aria-label={isStaff ? 'Portal Navigation' : 'Main Navigation'}>
+          {isStaff ? (
+            <>
+              <div
+                style={{
+                  marginTop: '12px',
+                  marginBottom: '8px',
+                  paddingLeft: '16px',
+                  fontSize: '11px',
+                  color: '#94a3b8',
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  display: collapsed ? 'none' : 'block'
+                }}
               >
-                <span className={styles.iconPlaceholder}>{item.icon}</span>
-                <span className={styles.navLinkText}>{item.name}</span>
-              </Link>
-            );
-          })}
+                {isCameraman ? 'Cameraman Portal' : 'Video Editor Portal'}
+              </div>
+              {(isCameraman ? cameramanItems : editorItems).map((item) => {
+                const isActive = activeStaffTab === item.tabId;
+                return (
+                  <a
+                    key={item.tabId}
+                    href={`/video-production?tab=${item.tabId}`}
+                    onClick={(e) => handleStaffItemClick(e, item.tabId)}
+                    className={`${styles.navLink} ${isActive ? styles.active : ''}`}
+                    title={item.name}
+                  >
+                    <span className={styles.iconPlaceholder}>{item.icon}</span>
+                    <span className={styles.navLinkText}>{item.name}</span>
+                    {item.tabId === 'ASSIGNMENTS' && (
+                      <span className={styles.badge} title={`${assignmentCount} assigned topics`}>
+                        {assignmentCount}
+                      </span>
+                    )}
+                  </a>
+                );
+              })}
+            </>
+          ) : (
+            renderedAdminItems.map((item, index) => {
+              if (item.isHeader) {
+                return (
+                  <div
+                    key={`header-${index}`}
+                    style={{
+                      marginTop: '20px',
+                      marginBottom: '8px',
+                      paddingLeft: '16px',
+                      fontSize: '11px',
+                      color: '#94a3b8',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      display: collapsed ? 'none' : 'block'
+                    }}
+                  >
+                    {item.name}
+                  </div>
+                );
+              }
+
+              const isActive = pathname === item.path || pathname?.startsWith(`${item.path}/`);
+              return (
+                <Link
+                  key={item.path}
+                  href={item.path!}
+                  prefetch={true}
+                  onClick={closeMobile}
+                  className={`${styles.navLink} ${isActive ? styles.active : ''}`}
+                >
+                  <span className={styles.iconPlaceholder}>{item.icon}</span>
+                  <span className={styles.navLinkText}>{item.name}</span>
+                </Link>
+              );
+            })
+          )}
         </nav>
         
         <div className={styles.bottomSection}>

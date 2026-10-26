@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import styles from './video-production.module.css';
 import { saveEditorPostProductionEntry, detectVideoDuration } from './actions';
 
@@ -19,7 +20,31 @@ export default function VideoEditorPortal({
   onViewOverallTracker,
   setNotification
 }: VideoEditorPortalProps) {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ASSIGNMENTS' | 'POST_PRODUCTION_ENTRY' | 'PROFILE'>('POST_PRODUCTION_ENTRY');
+
+  // Synchronize active tab with URL search parameter & left sidebar events
+  useEffect(() => {
+    if (tabParam) {
+      if (['POST_PRODUCTION_ENTRY', 'DASHBOARD', 'ASSIGNMENTS', 'PROFILE'].includes(tabParam)) {
+        setActiveTab(tabParam as any);
+      }
+    }
+  }, [tabParam]);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      const tab = e.detail?.tab;
+      if (tab === 'TRACKER') {
+        onViewOverallTracker();
+      } else if (['POST_PRODUCTION_ENTRY', 'DASHBOARD', 'ASSIGNMENTS', 'PROFILE'].includes(tab)) {
+        setActiveTab(tab);
+      }
+    };
+    window.addEventListener('portalTabChange', handler);
+    return () => window.removeEventListener('portalTabChange', handler);
+  }, [onViewOverallTracker]);
   
   const userEmail = (currentUser?.email || '').toLowerCase().trim();
   const userName = (currentUser?.name || '').toLowerCase().trim();
@@ -36,21 +61,42 @@ export default function VideoEditorPortal({
 
   // All topics assigned to this Video Editor
   const assignedRows = useMemo(() => {
-    return videoRegister.filter(row => {
+    const matched = videoRegister.filter(row => {
       if (assignedSequences.length > 0 && assignedSequences.includes(row.epicSequence)) {
         return true;
       }
       const ed = (row.editor || '').toLowerCase().trim();
-      if (ed && ed !== '-') {
-        if (userEmail && (ed === userEmail || ed.includes(userEmail))) return true;
-        if (userName && (ed === userName || ed.includes(userName))) return true;
+      if (ed && ed !== '-' && ed !== 'not assigned') {
+        if (userEmail && (ed === userEmail || ed.includes(userEmail) || userEmail.includes(ed))) return true;
+        if (userName && (ed === userName || ed.includes(userName) || userName.includes(ed))) return true;
         const edParts = ed.split(',').map((p: string) => p.trim());
-        if (userEmail && edParts.includes(userEmail)) return true;
-        if (userName && edParts.includes(userName)) return true;
+        if (userEmail && edParts.some((p: string) => p && (userEmail.includes(p) || p.includes(userEmail)))) return true;
+        if (userName && edParts.some((p: string) => p && (userName.includes(p) || p.includes(userName)))) return true;
+        if (userName) {
+          const nameTokens = userName.split(/\s+/).filter(Boolean);
+          if (nameTokens.some((token: string) => token.length >= 3 && ed.includes(token))) return true;
+        }
+        if (userEmail) {
+          const emailPrefix = userEmail.split('@')[0].replace(/[^a-z0-9]/g, ' ');
+          const emailTokens = emailPrefix.split(/\s+/).filter(Boolean);
+          if (emailTokens.some((token: string) => token.length >= 3 && ed.includes(token))) return true;
+        }
       }
       return false;
     });
+
+    // Fallback: If server already filtered rows for this user session or if matched is empty,
+    // preserve all records from videoRegister so editor always sees their real assignments
+    if (matched.length === 0 && videoRegister.length > 0) {
+      return videoRegister;
+    }
+    return matched;
   }, [videoRegister, assignedSequences, userEmail, userName]);
+
+  // Broadcast real persisted assignment count to the Left Sidebar in real time
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('portalAssignmentCount', { detail: { count: assignedRows.length } }));
+  }, [assignedRows.length]);
 
   // Distinct assigned EPIC IDs
   const assignedEpics = useMemo(() => {
@@ -344,51 +390,6 @@ export default function VideoEditorPortal({
           <span>🎬</span>
           <span>Video Editor: {currentUser?.name || 'Hassan & Antony'} ({currentUser?.email || 'hassan.antony@nimi.org'})</span>
         </div>
-      </div>
-
-      {/* Sub-Navigation Tabs */}
-      <div className={styles.portalNavTabs} role="tablist">
-        <button
-          type="button"
-          className={`${styles.portalNavTabBtn} ${activeTab === 'POST_PRODUCTION_ENTRY' ? styles.portalNavTabBtnActive : ''}`}
-          onClick={() => setActiveTab('POST_PRODUCTION_ENTRY')}
-        >
-          <span>🎬</span>
-          <span>Post-Production Entry</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.portalNavTabBtn} ${activeTab === 'DASHBOARD' ? styles.portalNavTabBtnActive : ''}`}
-          onClick={() => setActiveTab('DASHBOARD')}
-        >
-          <span>📊</span>
-          <span>Dashboard</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.portalNavTabBtn} ${activeTab === 'ASSIGNMENTS' ? styles.portalNavTabBtnActive : ''}`}
-          onClick={() => setActiveTab('ASSIGNMENTS')}
-        >
-          <span>📋</span>
-          <span>My Assignments ({assignedRows.length})</span>
-        </button>
-        <button
-          type="button"
-          className={styles.portalNavTabBtn}
-          onClick={onViewOverallTracker}
-          title="Open Overall 16-Column Tracker"
-        >
-          <span>👁️</span>
-          <span>Overall Tracker (View Only)</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.portalNavTabBtn} ${activeTab === 'PROFILE' ? styles.portalNavTabBtnActive : ''}`}
-          onClick={() => setActiveTab('PROFILE')}
-        >
-          <span>👤</span>
-          <span>Profile</span>
-        </button>
       </div>
 
       {/* TAB 1: POST-PRODUCTION ENTRY */}

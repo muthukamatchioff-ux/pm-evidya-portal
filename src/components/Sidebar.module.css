@@ -100,6 +100,31 @@
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
+.badge {
+  margin-left: auto;
+  background-color: #2563eb;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  min-width: 20px;
+  text-align: center;
+  line-height: 1.4;
+  letter-spacing: 0;
+  transition: all 0.2s ease;
+}
+
+.navLink.active .badge {
+  background-color: white;
+  color: #2563eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.sidebar.collapsed .badge {
+  display: none;
+}
+
 .iconPlaceholder {
   width: 20px;
   height: 20px;

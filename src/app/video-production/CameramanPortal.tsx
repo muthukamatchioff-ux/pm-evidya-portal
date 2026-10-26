@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import styles from './video-production.module.css';
 import { saveCameramanShootingEntry } from './actions';
 
@@ -19,7 +20,31 @@ export default function CameramanPortal({
   onViewOverallTracker,
   setNotification
 }: CameramanPortalProps) {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ASSIGNMENTS' | 'SHOOTING_ENTRY' | 'PROFILE'>('SHOOTING_ENTRY');
+
+  // Synchronize active tab with URL search parameter & left sidebar events
+  useEffect(() => {
+    if (tabParam) {
+      if (['SHOOTING_ENTRY', 'DASHBOARD', 'ASSIGNMENTS', 'PROFILE'].includes(tabParam)) {
+        setActiveTab(tabParam as any);
+      }
+    }
+  }, [tabParam]);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      const tab = e.detail?.tab;
+      if (tab === 'TRACKER') {
+        onViewOverallTracker();
+      } else if (['SHOOTING_ENTRY', 'DASHBOARD', 'ASSIGNMENTS', 'PROFILE'].includes(tab)) {
+        setActiveTab(tab);
+      }
+    };
+    window.addEventListener('portalTabChange', handler);
+    return () => window.removeEventListener('portalTabChange', handler);
+  }, [onViewOverallTracker]);
   
   // Filter only topics assigned to this authenticated Cameraman
   const userEmail = (currentUser?.email || '').toLowerCase().trim();
@@ -36,21 +61,42 @@ export default function CameramanPortal({
   }, [currentUser]);
 
   const assignedRows = useMemo(() => {
-    return videoRegister.filter(row => {
+    const matched = videoRegister.filter(row => {
       if (assignedSequences.length > 0 && assignedSequences.includes(row.epicSequence)) {
         return true;
       }
       const cam = (row.cameraman || '').toLowerCase().trim();
       if (cam && cam !== '-') {
-        if (userEmail && (cam === userEmail || cam.includes(userEmail))) return true;
-        if (userName && (cam === userName || cam.includes(userName))) return true;
+        if (userEmail && (cam === userEmail || cam.includes(userEmail) || userEmail.includes(cam))) return true;
+        if (userName && (cam === userName || cam.includes(userName) || userName.includes(cam))) return true;
         const camParts = cam.split(',').map((p: string) => p.trim());
-        if (userEmail && camParts.includes(userEmail)) return true;
-        if (userName && camParts.includes(userName)) return true;
+        if (userEmail && camParts.some((p: string) => p && (userEmail.includes(p) || p.includes(userEmail)))) return true;
+        if (userName && camParts.some((p: string) => p && (userName.includes(p) || p.includes(userName)))) return true;
+        if (userName) {
+          const nameTokens = userName.split(/\s+/).filter(Boolean);
+          if (nameTokens.some((token: string) => token.length >= 3 && cam.includes(token))) return true;
+        }
+        if (userEmail) {
+          const emailPrefix = userEmail.split('@')[0].replace(/[^a-z0-9]/g, ' ');
+          const emailTokens = emailPrefix.split(/\s+/).filter(Boolean);
+          if (emailTokens.some((token: string) => token.length >= 3 && cam.includes(token))) return true;
+        }
       }
       return false;
     });
+
+    // Fallback: If server already filtered rows for this user session or if matched is empty,
+    // preserve all records from videoRegister so cameraman always sees their real assignments
+    if (matched.length === 0 && videoRegister.length > 0) {
+      return videoRegister;
+    }
+    return matched;
   }, [videoRegister, assignedSequences, userEmail, userName]);
+
+  // Broadcast real persisted assignment count to the Left Sidebar in real time
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('portalAssignmentCount', { detail: { count: assignedRows.length } }));
+  }, [assignedRows.length]);
 
   // Distinct assigned EPIC IDs
   const assignedEpics = useMemo(() => {
@@ -286,51 +332,6 @@ export default function CameramanPortal({
           <span>📷</span>
           <span>Camera Operator: {currentUser?.name || 'Antony Alcander'} ({currentUser?.email || 'antony.alcander@gmail.com'})</span>
         </div>
-      </div>
-
-      {/* Sub-Navigation Tabs */}
-      <div className={styles.portalNavTabs} role="tablist">
-        <button
-          type="button"
-          className={`${styles.portalNavTabBtn} ${activeTab === 'SHOOTING_ENTRY' ? styles.portalNavTabBtnActive : ''}`}
-          onClick={() => setActiveTab('SHOOTING_ENTRY')}
-        >
-          <span>🎥</span>
-          <span>Shooting Entry</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.portalNavTabBtn} ${activeTab === 'DASHBOARD' ? styles.portalNavTabBtnActive : ''}`}
-          onClick={() => setActiveTab('DASHBOARD')}
-        >
-          <span>📊</span>
-          <span>Dashboard</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.portalNavTabBtn} ${activeTab === 'ASSIGNMENTS' ? styles.portalNavTabBtnActive : ''}`}
-          onClick={() => setActiveTab('ASSIGNMENTS')}
-        >
-          <span>📋</span>
-          <span>My Assignments ({assignedRows.length})</span>
-        </button>
-        <button
-          type="button"
-          className={styles.portalNavTabBtn}
-          onClick={onViewOverallTracker}
-          title="Open Overall 16-Column Tracker"
-        >
-          <span>👁️</span>
-          <span>Overall Tracker (View Only)</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.portalNavTabBtn} ${activeTab === 'PROFILE' ? styles.portalNavTabBtnActive : ''}`}
-          onClick={() => setActiveTab('PROFILE')}
-        >
-          <span>👤</span>
-          <span>Profile</span>
-        </button>
       </div>
 
       {/* TAB 1: SHOOTING ENTRY */}
