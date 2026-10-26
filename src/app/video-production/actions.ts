@@ -51,12 +51,18 @@ async function verifyEpicPermission(workEntryId: string, allowedRoles: string[])
   const userNameLower = (user.name || '').toLowerCase().trim();
   const userEmailLower = user.email.toLowerCase().trim();
 
+  const isNameOrEmailMatch = (fieldVal?: string | null) => {
+    if (!fieldVal) return false;
+    const lower = fieldVal.toLowerCase().trim();
+    if (lower === userNameLower || lower === userEmailLower) return true;
+    if (lower.includes(userNameLower) || lower.includes(userEmailLower)) return true;
+    const parts = lower.split(',').map(p => p.trim());
+    return parts.includes(userNameLower) || parts.includes(userEmailLower);
+  };
+
   if (role === 'CAMERAMAN') {
     const isAssigned = assignedSequences.includes(entry.epicSequence) ||
-      entry.shootingSchedules.some((s: any) => {
-        const cam = (s.cameraman || '').toLowerCase().trim();
-        return cam && (cam === userNameLower || cam === userEmailLower);
-      });
+      entry.shootingSchedules.some((s: any) => isNameOrEmailMatch(s.cameraman));
 
     if (!isAssigned) {
       return { 
@@ -69,10 +75,7 @@ async function verifyEpicPermission(workEntryId: string, allowedRoles: string[])
 
   if (role === 'EDITOR') {
     const isAssigned = assignedSequences.includes(entry.epicSequence) ||
-      entry.videoEditorRecords.some((e: any) => {
-        const ed = (e.editorName || '').toLowerCase().trim();
-        return ed && (ed === userNameLower || ed === userEmailLower);
-      });
+      entry.videoEditorRecords.some((e: any) => isNameOrEmailMatch(e.editorName));
 
     if (!isAssigned) {
       return { 
@@ -412,7 +415,11 @@ export async function getTopicProductionRecords() {
         const matchesSequence = assignedSequences.includes(entry.epicSequence);
         const matchesCameraman = entry.shootingSchedules?.some((s: any) => {
           const cam = (s.cameraman || '').toLowerCase().trim();
-          return cam && (cam === userNameLower || cam === userEmailLower);
+          if (!cam) return false;
+          if (cam === userNameLower || cam === userEmailLower) return true;
+          if (cam.includes(userNameLower) || cam.includes(userEmailLower)) return true;
+          const parts = cam.split(',').map((p: string) => p.trim());
+          return parts.includes(userNameLower) || parts.includes(userEmailLower);
         });
         return matchesSequence || matchesCameraman;
       });
@@ -424,7 +431,11 @@ export async function getTopicProductionRecords() {
         const matchesSequence = assignedSequences.includes(entry.epicSequence);
         const matchesEditor = entry.videoEditorRecords?.some((e: any) => {
           const ed = (e.editorName || '').toLowerCase().trim();
-          return ed && (ed === userNameLower || ed === userEmailLower);
+          if (!ed) return false;
+          if (ed === userNameLower || ed === userEmailLower) return true;
+          if (ed.includes(userNameLower) || ed.includes(userEmailLower)) return true;
+          const parts = ed.split(',').map((p: string) => p.trim());
+          return parts.includes(userNameLower) || parts.includes(userEmailLower);
         });
         return matchesSequence || matchesEditor;
       });
@@ -1449,8 +1460,12 @@ export async function assignProductionPersonnel(params: {
   videoId?: string;
   cameramanName?: string;
   cameramanEmail?: string;
+  cameramanNames?: string[];
+  cameramanEmails?: string[];
   editorName?: string;
   editorEmail?: string;
+  editorNames?: string[];
+  editorEmails?: string[];
   changeReason: string;
 }) {
   const auth = await checkAuth(['ADMIN', 'TEAM_MEMBER']);
@@ -1482,8 +1497,27 @@ export async function assignProductionPersonnel(params: {
       editors: workEntry.videoEditorRecords.map((e: any) => ({ id: e.id, editor: e.editorName, title: e.assignedVideo }))
     };
 
+    // Determine target lists for Cameramen
+    let camNamesList: string[] = [];
+    if (params.cameramanNames && Array.isArray(params.cameramanNames) && params.cameramanNames.length > 0) {
+      camNamesList = params.cameramanNames.filter(Boolean);
+    } else if (params.cameramanName && params.cameramanName.trim()) {
+      camNamesList = params.cameramanName.split(',').map(s => s.trim()).filter(Boolean);
+    }
+
+    // Determine target lists for Editors
+    let edNamesList: string[] = [];
+    if (params.editorNames && Array.isArray(params.editorNames) && params.editorNames.length > 0) {
+      edNamesList = params.editorNames.filter(Boolean);
+    } else if (params.editorName && params.editorName.trim()) {
+      edNamesList = params.editorName.split(',').map(s => s.trim()).filter(Boolean);
+    }
+
+    const finalCamString = camNamesList.join(', ');
+    const finalEdString = edNamesList.join(', ');
+
     // 1. Update Cameraman on ShootingSchedule
-    if (params.cameramanName) {
+    if (camNamesList.length > 0) {
       if (params.videoId && params.videoId !== 'ALL') {
         const matchingSchedule = workEntry.shootingSchedules.find((s: any) => 
           s.id === params.videoId || 
@@ -1494,13 +1528,13 @@ export async function assignProductionPersonnel(params: {
         if (matchingSchedule) {
           await prisma.shootingSchedule.update({
             where: { id: matchingSchedule.id },
-            data: { cameraman: params.cameramanName }
+            data: { cameraman: finalCamString }
           });
         } else {
           await prisma.shootingSchedule.create({
             data: {
               workEntryId: params.workEntryId,
-              cameraman: params.cameramanName,
+              cameraman: finalCamString,
               status: 'PLANNED',
               videoTitle: workEntry.videoLibraries.find((vl: any) => vl.id === params.videoId)?.title || workEntry.topic
             }
@@ -1509,13 +1543,21 @@ export async function assignProductionPersonnel(params: {
       } else {
         await prisma.shootingSchedule.updateMany({
           where: { workEntryId: params.workEntryId },
-          data: { cameraman: params.cameramanName }
+          data: { cameraman: finalCamString }
         });
       }
 
-      if (params.cameramanEmail) {
-        const camUser = await prisma.user.findUnique({ where: { email: params.cameramanEmail.toLowerCase().trim() } });
-        if (camUser) {
+      // Sync EPIC access for all assigned Cameramen accounts
+      const camUsers = await prisma.user.findMany({ where: { role: 'CAMERAMAN' } });
+      const targetCamEmails = (params.cameramanEmails || []).map(e => e.toLowerCase().trim());
+      const targetCamNames = camNamesList.map(n => n.toLowerCase().trim());
+
+      for (const camUser of camUsers) {
+        const uEmail = (camUser.email || '').toLowerCase().trim();
+        const uName = (camUser.name || '').toLowerCase().trim();
+        const isTarget = targetCamEmails.includes(uEmail) || targetCamNames.includes(uName);
+
+        if (isTarget) {
           const currentEpics = parseAssignedEpics(camUser.department);
           if (!currentEpics.includes(workEntry.epicSequence)) {
             const updatedEpics = [...currentEpics, workEntry.epicSequence].sort((a: number, b: number) => a - b);
@@ -1529,7 +1571,7 @@ export async function assignProductionPersonnel(params: {
     }
 
     // 2. Update Editor on VideoEditorRecord
-    if (params.editorName) {
+    if (edNamesList.length > 0) {
       if (params.videoId && params.videoId !== 'ALL') {
         const matchingEditor = workEntry.videoEditorRecords.find((e: any) => 
           e.id === params.videoId || 
@@ -1540,13 +1582,13 @@ export async function assignProductionPersonnel(params: {
         if (matchingEditor) {
           await prisma.videoEditorRecord.update({
             where: { id: matchingEditor.id },
-            data: { editorName: params.editorName }
+            data: { editorName: finalEdString }
           });
         } else {
           await prisma.videoEditorRecord.create({
             data: {
               workEntryId: params.workEntryId,
-              editorName: params.editorName,
+              editorName: finalEdString,
               status: 'NOT_STARTED',
               assignedVideo: workEntry.videoLibraries.find((vl: any) => vl.id === params.videoId)?.title || workEntry.topic
             }
@@ -1555,13 +1597,21 @@ export async function assignProductionPersonnel(params: {
       } else {
         await prisma.videoEditorRecord.updateMany({
           where: { workEntryId: params.workEntryId },
-          data: { editorName: params.editorName }
+          data: { editorName: finalEdString }
         });
       }
 
-      if (params.editorEmail) {
-        const edUser = await prisma.user.findUnique({ where: { email: params.editorEmail.toLowerCase().trim() } });
-        if (edUser) {
+      // Sync EPIC access for all assigned Editor accounts
+      const edUsers = await prisma.user.findMany({ where: { role: 'EDITOR' } });
+      const targetEdEmails = (params.editorEmails || []).map(e => e.toLowerCase().trim());
+      const targetEdNames = edNamesList.map(n => n.toLowerCase().trim());
+
+      for (const edUser of edUsers) {
+        const uEmail = (edUser.email || '').toLowerCase().trim();
+        const uName = (edUser.name || '').toLowerCase().trim();
+        const isTarget = targetEdEmails.includes(uEmail) || targetEdNames.includes(uName);
+
+        if (isTarget) {
           const currentEpics = parseAssignedEpics(edUser.department);
           if (!currentEpics.includes(workEntry.epicSequence)) {
             const updatedEpics = [...currentEpics, workEntry.epicSequence].sort((a: number, b: number) => a - b);
@@ -1585,8 +1635,8 @@ export async function assignProductionPersonnel(params: {
         epicSequence: workEntry.epicSequence,
         workEntryId: params.workEntryId,
         videoId: params.videoId || 'ALL_VIDEOS',
-        assignedCameraman: params.cameramanName || null,
-        assignedEditor: params.editorName || null,
+        assignedCameramen: camNamesList,
+        assignedEditors: edNamesList,
         changeReason: params.changeReason.trim()
       })
     });

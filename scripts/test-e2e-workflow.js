@@ -202,7 +202,54 @@ async function runE2ETests() {
   assert(!editorRoles.includes('CAMERAMAN'), 'Editor cannot act as Cameraman');
   assert(adminRoles.includes('ADMIN'), 'Admin has overall management privileges');
 
-  console.log('  -> Test D Completed Successfully!\n');
+  // -------------------------------------------------------------------------
+  // TEST E: MULTI-USER ASSIGNMENT & 57 BASELINE INTEGRITY VERIFICATION
+  // -------------------------------------------------------------------------
+  console.log('---------------------------------------------------------------');
+  console.log('TEST E: MULTI-USER ASSIGNMENT & 57 BASELINE INTEGRITY');
+  console.log('---------------------------------------------------------------');
+
+  // 1. Verify 57 canonical video records
+  const totalCanonicalVideos = await prisma.videoLibrary.count();
+  assert(totalCanonicalVideos === 57, `Canonical video records count is strictly 57 (verified: ${totalCanonicalVideos})`);
+
+  // 2. Multi-user assignment to EPIC 04
+  const epic4 = await prisma.sMEWorkEntry.findFirst({
+    where: { epicSequence: 4 },
+    include: { shootingSchedules: true, videoEditorRecords: true }
+  });
+  assert(!!epic4, 'Found EPIC-2026-PMeVidya 04 in PostgreSQL database');
+
+  const multiCamNames = ['Antony Alcander', 'Parasuraman'];
+  const multiEdNames = ['Hassan & Antony', 'Bala'];
+
+  await prisma.shootingSchedule.updateMany({
+    where: { workEntryId: epic4.id },
+    data: { cameraman: multiCamNames.join(', ') }
+  });
+
+  await prisma.videoEditorRecord.updateMany({
+    where: { workEntryId: epic4.id },
+    data: { editorName: multiEdNames.join(', ') }
+  });
+
+  // Verify multiple names persisted on schedules
+  const epic4Schedules = await prisma.shootingSchedule.findMany({ where: { workEntryId: epic4.id } });
+  assert(epic4Schedules.every(s => s.cameraman.includes('Antony Alcander') && s.cameraman.includes('Parasuraman')),
+    'EPIC 04 shooting schedule has both Antony Alcander and Parasuraman assigned');
+
+  const epic4Editors = await prisma.videoEditorRecord.findMany({ where: { workEntryId: epic4.id } });
+  assert(epic4Editors.every(e => e.editorName.includes('Hassan & Antony') && e.editorName.includes('Bala')),
+    'EPIC 04 editor record has both Hassan & Antony and Bala assigned');
+
+  // Verify multi-user access permissions
+  const parasuramanUser = await prisma.user.findUnique({ where: { email: 'parasuraman.cam@nimi.org' } });
+  assert(!!parasuramanUser, 'Parasuraman account is registered and active');
+
+  const balaUser = await prisma.user.findUnique({ where: { email: 'bala@nimi.org' } });
+  assert(!!balaUser, 'Bala account is registered and active');
+
+  console.log('  -> Test E Completed Successfully!\n');
 
   console.log('===============================================================');
   console.log(`ALL TESTS PASSED: ${passedTests} / ${totalTests} assertions verified!`);

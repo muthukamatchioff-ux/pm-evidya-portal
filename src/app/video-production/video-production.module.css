@@ -2388,3 +2388,423 @@
   flex-direction: column;
   gap: 16px;
 }
+
+/* =========================================================================
+   ADMIN DASHBOARD: SUMMARY CARDS & MONTH SUMMARY
+   ========================================================================= */
+
+.adminDashboardContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.summaryCardsGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 1024px) {
+  .summaryCardsGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .summaryCardsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.summaryKpiCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.summaryKpiCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+  border-color: #cbd5e1;
+}
+
+.summaryKpiCardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.summaryKpiLabel {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #64748b;
+}
+
+.summaryKpiIconWrapper {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.summaryKpiValue {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #0f172a;
+}
+
+.summaryKpiSub {
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* Month Summary Section */
+.monthSummaryCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 18px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.monthSummaryHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.monthSummaryTitle {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.monthSummarySubtitle {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.monthCardsGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .monthCardsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.monthMiniCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.monthMiniCard:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.monthMiniCardActive {
+  background: #eff6ff !important;
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 1px #0284c7;
+}
+
+.monthMiniCardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.monthMiniCardName {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.monthMiniCardBadge {
+  background: #0284c7;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 12px;
+}
+
+.monthMiniCardBreakdown {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-wrap: wrap;
+}
+
+.monthBadgeComp {
+  color: #059669;
+}
+
+.monthBadgeProg {
+  color: #d97706;
+}
+
+.monthBadgePend {
+  color: #64748b;
+}
+
+/* =========================================================================
+   PROMINENT WORK ASSIGNMENT SECTION (MULTI-USER)
+   ========================================================================= */
+
+.adminAssignmentCard {
+  background: #ffffff;
+  border: 1.5px solid #0284c7;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.08);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.adminAssignmentHeader {
+  background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
+  color: #ffffff;
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.adminAssignmentTitleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.adminAssignmentTitle {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.adminAssignmentSubtitle {
+  font-size: 12px;
+  color: #e0f2fe;
+  margin: 0;
+}
+
+.adminAssignmentToggleBtn {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.adminAssignmentToggleBtn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.adminAssignmentBody {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.epicDetailInfoCard {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  font-size: 12.5px;
+}
+
+.epicDetailItemLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #0369a1;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.epicDetailItemValue {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.assignmentColumnsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+@media (max-width: 768px) {
+  .assignmentColumnsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.assignmentColCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.assignmentColTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chipsContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  align-items: center;
+}
+
+.userChip {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  animation: fadeIn 0.15s ease-in-out;
+}
+
+.userChipRemove {
+  background: none;
+  border: none;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.userChipRemove:hover {
+  color: #991b1b;
+}
+
+.searchSelectWrapper {
+  position: relative;
+  width: 100%;
+}
+
+.searchSelectDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 50;
+  margin-top: 4px;
+}
+
+.searchSelectOption {
+  padding: 8px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.searchSelectOption:hover {
+  background: #f0f9ff;
+}
+
+.searchSelectOptionName {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.searchSelectOptionMeta {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.assignmentFooterBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 6px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.reasonInputWrapper {
+  flex: 1;
+  min-width: 280px;
+}
+
+.assignmentActionsGroup {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}

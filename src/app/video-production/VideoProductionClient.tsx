@@ -17,6 +17,7 @@ import {
 import CameramanPortal from './CameramanPortal';
 import VideoEditorPortal from './VideoEditorPortal';
 import AdminWorkAssignmentModal from './AdminWorkAssignmentModal';
+import AdminWorkAssignmentSection from './AdminWorkAssignmentSection';
 
 // =========================================================================
 // SAFE DATE & STRING HELPERS MATCHING USER'S EXACT REFERENCE UI
@@ -153,6 +154,9 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const [viewOverallTrackerAsStaff, setViewOverallTrackerAsStaff] = useState(false);
   const [isAdminAssignModalOpen, setIsAdminAssignModalOpen] = useState(false);
   const [adminAssignInitialEpic, setAdminAssignInitialEpic] = useState<string>('');
+  const [isAssignmentSectionCollapsed, setIsAssignmentSectionCollapsed] = useState(false);
+  const [selectedAssignmentEpic, setSelectedAssignmentEpic] = useState<string>('');
+  const assignmentSectionRef = useRef<HTMLDivElement>(null);
 
   const refreshTopicRecords = async () => {
     const res = await getTopicProductionRecords();
@@ -396,6 +400,79 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     rows.sort((a, b) => a.sNo - b.sNo);
     return rows;
   }, [workEntries]);
+
+  // Computed KPI Summary Statistics (derived strictly from actual 57 persisted records, no double counting)
+  const dashboardKpis = useMemo(() => {
+    const total = videoRegister.length;
+    let completed = 0;
+    let inProgress = 0;
+    let pending = 0;
+
+    videoRegister.forEach(r => {
+      const edStatus = (r.editingStatus || '').toLowerCase();
+      const shootStatus = (r.shootingStatus || '').toLowerCase();
+
+      if (edStatus.includes('completed') || r.hasLink) {
+        completed++;
+      } else if (
+        shootStatus.includes('completed') ||
+        shootStatus.includes('in progress') ||
+        edStatus.includes('in progress')
+      ) {
+        inProgress++;
+      } else {
+        pending++;
+      }
+    });
+
+    const completionRate = total > 0 ? ((completed / total) * 100).toFixed(1) : '0';
+
+    return {
+      total,
+      completed,
+      inProgress,
+      pending,
+      completionRate
+    };
+  }, [videoRegister]);
+
+  // Month-wise Production Summary (June-October 2026 from actual saved records)
+  const monthBreakdown = useMemo(() => {
+    const months = ['June 2026', 'July 2026', 'August 2026', 'September 2026', 'October 2026'];
+    return months.map(mLabel => {
+      const baseMonth = mLabel.split(' ')[0].toLowerCase();
+      const monthRows = videoRegister.filter(r => (r.month || '').toLowerCase().includes(baseMonth));
+      const total = monthRows.length;
+      let completed = 0;
+      let inProgress = 0;
+      let pending = 0;
+
+      monthRows.forEach(r => {
+        const edStatus = (r.editingStatus || '').toLowerCase();
+        const shootStatus = (r.shootingStatus || '').toLowerCase();
+
+        if (edStatus.includes('completed') || r.hasLink) {
+          completed++;
+        } else if (
+          shootStatus.includes('completed') ||
+          shootStatus.includes('in progress') ||
+          edStatus.includes('in progress')
+        ) {
+          inProgress++;
+        } else {
+          pending++;
+        }
+      });
+
+      return {
+        label: mLabel,
+        total,
+        completed,
+        inProgress,
+        pending
+      };
+    });
+  }, [videoRegister]);
 
   // Distinct filter lists
   const availableMonths = ['June 2026', 'July 2026', 'August 2026', 'September 2026', 'October 2026'];
@@ -901,6 +978,127 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       )}
 
       {/* ========================================================
+          ADMIN DASHBOARD: SUMMARY CARDS, MONTH BREAKDOWN & WORK ASSIGNMENT
+         ======================================================== */}
+      {isAdmin && (
+        <div className={styles.adminDashboardContainer}>
+          {/* 1. Summary KPI Cards (Calculated from actual persisted records) */}
+          <div className={styles.summaryCardsGrid}>
+            {/* Card 1: Total Videos */}
+            <div className={styles.summaryKpiCard}>
+              <div className={styles.summaryKpiCardTop}>
+                <span className={styles.summaryKpiLabel}>Total Videos</span>
+                <span className={styles.summaryKpiIconWrapper} style={{ background: '#eff6ff', color: '#0284c7' }}>
+                  📹
+                </span>
+              </div>
+              <div className={styles.summaryKpiValue}>{dashboardKpis.total}</div>
+              <div className={styles.summaryKpiSub}>Canonical topics across 16 EPICs</div>
+            </div>
+
+            {/* Card 2: Completed */}
+            <div className={styles.summaryKpiCard}>
+              <div className={styles.summaryKpiCardTop}>
+                <span className={styles.summaryKpiLabel}>Completed</span>
+                <span className={styles.summaryKpiIconWrapper} style={{ background: '#ecfdf5', color: '#059669' }}>
+                  ✅
+                </span>
+              </div>
+              <div className={styles.summaryKpiValue} style={{ color: '#059669' }}>{dashboardKpis.completed}</div>
+              <div className={styles.summaryKpiSub}>Shooting &amp; Editing Completed</div>
+            </div>
+
+            {/* Card 3: In Progress */}
+            <div className={styles.summaryKpiCard}>
+              <div className={styles.summaryKpiCardTop}>
+                <span className={styles.summaryKpiLabel}>In Progress</span>
+                <span className={styles.summaryKpiIconWrapper} style={{ background: '#fffbeb', color: '#d97706' }}>
+                  ⏳
+                </span>
+              </div>
+              <div className={styles.summaryKpiValue} style={{ color: '#d97706' }}>{dashboardKpis.inProgress}</div>
+              <div className={styles.summaryKpiSub}>Active in Shooting / Editing Stage</div>
+            </div>
+
+            {/* Card 4: Pending / Planned */}
+            <div className={styles.summaryKpiCard}>
+              <div className={styles.summaryKpiCardTop}>
+                <span className={styles.summaryKpiLabel}>Pending / Planned</span>
+                <span className={styles.summaryKpiIconWrapper} style={{ background: '#f8fafc', color: '#64748b' }}>
+                  📋
+                </span>
+              </div>
+              <div className={styles.summaryKpiValue} style={{ color: '#64748b' }}>{dashboardKpis.pending}</div>
+              <div className={styles.summaryKpiSub}>Scheduled for upcoming stages</div>
+            </div>
+
+            {/* Card 5: Completion Rate */}
+            <div className={styles.summaryKpiCard}>
+              <div className={styles.summaryKpiCardTop}>
+                <span className={styles.summaryKpiLabel}>Completion Rate</span>
+                <span className={styles.summaryKpiIconWrapper} style={{ background: '#f5f3ff', color: '#7c3aed' }}>
+                  📊
+                </span>
+              </div>
+              <div className={styles.summaryKpiValue} style={{ color: '#7c3aed' }}>{dashboardKpis.completionRate}%</div>
+              <div className={styles.summaryKpiSub}>{dashboardKpis.completed} of {dashboardKpis.total} videos delivered</div>
+            </div>
+          </div>
+
+          {/* 2. Month-wise Summary Cards */}
+          <div className={styles.monthSummaryCard}>
+            <div className={styles.monthSummaryHeader}>
+              <div className={styles.monthSummaryTitle}>
+                <span>📅</span>
+                <span>Month-wise Video Production Summary</span>
+              </div>
+              <span className={styles.monthSummarySubtitle}>
+                💡 Click any month card to filter the Overall Production Tracker below
+              </span>
+            </div>
+
+            <div className={styles.monthCardsGrid}>
+              {monthBreakdown.map(m => {
+                const isSelected = selectedMonths.includes(m.label);
+                return (
+                  <div
+                    key={m.label}
+                    className={`${styles.monthMiniCard} ${isSelected ? styles.monthMiniCardActive : ''}`}
+                    onClick={() => handleToggleMonth(m.label)}
+                    title={`Click to filter by ${m.label}`}
+                  >
+                    <div className={styles.monthMiniCardTop}>
+                      <span className={styles.monthMiniCardName}>{m.label}</span>
+                      <span className={styles.monthMiniCardBadge}>{m.total} videos</span>
+                    </div>
+                    <div className={styles.monthMiniCardBreakdown}>
+                      <span className={styles.monthBadgeComp}>✓ {m.completed} Done</span>
+                      <span className={styles.monthBadgeProg}>• {m.inProgress} Prog</span>
+                      <span className={styles.monthBadgePend}>• {m.pending} Pend</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 3. Prominent Work Assignment Section (Multi-User Assignment) */}
+          <div ref={assignmentSectionRef}>
+            <AdminWorkAssignmentSection
+              videoRegister={videoRegister}
+              authorizedStaff={authorizedStaff}
+              onSaveSuccess={refreshTopicRecords}
+              setNotification={setNotification}
+              isCollapsed={isAssignmentSectionCollapsed}
+              onToggleCollapse={() => setIsAssignmentSectionCollapsed(prev => !prev)}
+              selectedEpicCode={selectedAssignmentEpic}
+              onSelectEpicCode={setSelectedAssignmentEpic}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
           1. EXACT TOOLBAR MATCHING REFERENCE SCREENSHOT
          ======================================================== */}
       <div className={styles.toolbarCard}>
@@ -1050,10 +1248,15 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                 className={styles.pageSquareBtn} 
                 style={{ width: 'auto', padding: '0 10px', height: '38px', gap: '6px', fontWeight: 600 }}
                 onClick={() => {
-                  setAdminAssignInitialEpic(paginatedRows[0]?.epicCode || 'EPIC-2026-PMeVidya 01');
-                  setIsAdminAssignModalOpen(true);
+                  setIsAssignmentSectionCollapsed(false);
+                  if (assignmentSectionRef.current) {
+                    assignmentSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+                  } else {
+                    setAdminAssignInitialEpic(paginatedRows[0]?.epicCode || 'EPIC-2026-PMeVidya 01');
+                    setIsAdminAssignModalOpen(true);
+                  }
                 }}
-                title="Open Work Assignment Modal"
+                title="Work Assignment — Camera Man & Video Editor"
               >
                 <span>👤</span>
                 <span>Work Assignment</span>
