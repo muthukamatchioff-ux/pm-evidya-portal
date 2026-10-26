@@ -209,20 +209,12 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const monthDropdownRef = useRef<HTMLDivElement>(null);
-  const trackerTableWrapperRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = role === 'ADMIN' || role === 'TEAM_MEMBER';
   const [activeStageTab, setActiveStageTab] = useState<'SHOOTING' | 'POST_PRODUCTION'>('SHOOTING');
 
   const handleStageTabClick = (stage: 'SHOOTING' | 'POST_PRODUCTION') => {
     setActiveStageTab(stage);
-    if (trackerTableWrapperRef.current) {
-      if (stage === 'SHOOTING') {
-        trackerTableWrapperRef.current.scrollTo({ left: 450, behavior: 'smooth' });
-      } else {
-        trackerTableWrapperRef.current.scrollTo({ left: 1000, behavior: 'smooth' });
-      }
-    }
   };
 
   // Close month dropdown when clicking outside
@@ -990,7 +982,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       {/* ========================================================
           2. EXACT 16-COLUMN PRODUCTION TRACKER TABLE
          ======================================================== */}
-      <div className={styles.trackerTableWrapper} ref={trackerTableWrapperRef}>
+      <div className={styles.trackerTableWrapper}>
         <table className={styles.trackerTable}>
           <thead>
             <tr>
