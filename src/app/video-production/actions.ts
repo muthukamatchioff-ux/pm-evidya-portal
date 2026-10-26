@@ -1942,13 +1942,22 @@ export async function saveCameramanShootingEntry(params: {
     }
 
     // Match schedule
+    const cleanVidId = (params.videoId || '').replace(/^(shoot-|ed-)/, '');
     let matchingSchedule = workEntry.shootingSchedules.find((s: any) =>
       s.id === params.videoId ||
-      s.id === `shoot-${params.videoId}` ||
-      (params.videoId && workEntry.videoLibraries.some((vl: any) => vl.id === params.videoId && vl.title === s.videoTitle))
+      s.id === cleanVidId ||
+      s.id === `shoot-${cleanVidId}` ||
+      (cleanVidId && workEntry.videoLibraries.some((vl: any) => (vl.id === cleanVidId || vl.id === params.videoId) && vl.title === s.videoTitle))
     );
 
-    if (!matchingSchedule && workEntry.shootingSchedules.length > 0) {
+    if (!matchingSchedule) {
+      const targetLib = workEntry.videoLibraries.find((vl: any) => vl.id === cleanVidId || vl.id === params.videoId);
+      if (targetLib) {
+        matchingSchedule = workEntry.shootingSchedules.find((s: any) => s.videoTitle === targetLib.title);
+      }
+    }
+
+    if (!matchingSchedule && workEntry.shootingSchedules.length === 1) {
       matchingSchedule = workEntry.shootingSchedules[0];
     }
 
@@ -2079,13 +2088,22 @@ export async function saveEditorPostProductionEntry(params: {
     }
 
     // Match editor record
+    const cleanVidId = (params.videoId || '').replace(/^(ed-|shoot-)/, '');
     let matchingEditor = workEntry.videoEditorRecords.find((e: any) =>
       e.id === params.videoId ||
-      e.id === `ed-${params.videoId}` ||
-      (params.videoId && workEntry.videoLibraries.some((vl: any) => vl.id === params.videoId && vl.title === e.assignedVideo))
+      e.id === cleanVidId ||
+      e.id === `ed-${cleanVidId}` ||
+      (cleanVidId && workEntry.videoLibraries.some((vl: any) => (vl.id === cleanVidId || vl.id === params.videoId) && vl.title === e.assignedVideo))
     );
 
-    if (!matchingEditor && workEntry.videoEditorRecords.length > 0) {
+    if (!matchingEditor) {
+      const targetLib = workEntry.videoLibraries.find((vl: any) => vl.id === cleanVidId || vl.id === params.videoId);
+      if (targetLib) {
+        matchingEditor = workEntry.videoEditorRecords.find((e: any) => e.assignedVideo === targetLib.title);
+      }
+    }
+
+    if (!matchingEditor && workEntry.videoEditorRecords.length === 1) {
       matchingEditor = workEntry.videoEditorRecords[0];
     }
 
@@ -2112,15 +2130,23 @@ export async function saveEditorPostProductionEntry(params: {
           duration: params.duration || null,
           finalVideoFile: params.finalVideoLink || null,
           reviewComments: params.reviewComments || null,
-          assignedVideo: workEntry.videoLibraries.find((vl: any) => vl.id === params.videoId)?.title || workEntry.topic
+          assignedVideo: workEntry.videoLibraries.find((vl: any) => vl.id === cleanVidId || vl.id === params.videoId)?.title || workEntry.topic
         }
       });
     }
 
     // Synchronize canonical VideoLibrary deliverable record so it reflects across Overall Tracker & Library
-    const matchingLib = params.videoId && params.videoId !== 'ALL'
-      ? workEntry.videoLibraries.find((v: any) => v.id === params.videoId)
-      : workEntry.videoLibraries[0];
+    let matchingLib = cleanVidId && cleanVidId !== 'ALL'
+      ? workEntry.videoLibraries.find((v: any) => v.id === cleanVidId || v.id === params.videoId)
+      : null;
+
+    if (!matchingLib && matchingEditor?.assignedVideo) {
+      matchingLib = workEntry.videoLibraries.find((v: any) => v.title === matchingEditor.assignedVideo);
+    }
+
+    if (!matchingLib && workEntry.videoLibraries.length === 1) {
+      matchingLib = workEntry.videoLibraries[0];
+    }
 
     if (matchingLib) {
       await prisma.videoLibrary.update({

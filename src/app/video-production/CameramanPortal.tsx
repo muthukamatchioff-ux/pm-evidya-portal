@@ -42,9 +42,11 @@ export default function CameramanPortal({
       }
       const cam = (row.cameraman || '').toLowerCase().trim();
       if (cam && cam !== '-') {
-        if (userEmail && cam.includes(userEmail)) return true;
-        if (userName && cam.includes(userName)) return true;
-        if (cam.includes('antony') || cam.includes('parasuraman')) return true;
+        if (userEmail && (cam === userEmail || cam.includes(userEmail))) return true;
+        if (userName && (cam === userName || cam.includes(userName))) return true;
+        const camParts = cam.split(',').map((p: string) => p.trim());
+        if (userEmail && camParts.includes(userEmail)) return true;
+        if (userName && camParts.includes(userName)) return true;
       }
       return false;
     });

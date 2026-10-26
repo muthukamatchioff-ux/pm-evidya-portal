@@ -1439,13 +1439,15 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                 {/* 17. Actions */}
                 <td>
                   <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                    <button 
-                      className={styles.actionSquareBtn}
-                      onClick={() => handleOpenWorkAssignment(row)}
-                      title="Work Assignment & Edit Row"
-                    >
-                      ✏️
-                    </button>
+                    {isAdmin && (
+                      <button
+                        className={styles.actionSquareBtn}
+                        onClick={() => handleOpenWorkAssignment(row)}
+                        title="Work Assignment & Edit Row"
+                      >
+                        ✏️
+                      </button>
+                    )}
                     <button 
                       className={styles.actionSquareBtn}
                       onClick={() => handleOpenDetails(row)}

@@ -19,7 +19,7 @@ export default function VideoEditorPortal({
   onViewOverallTracker,
   setNotification
 }: VideoEditorPortalProps) {
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ASSIGNMENTS' | 'EDITING_QUEUE' | 'PROFILE'>('EDITING_QUEUE');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ASSIGNMENTS' | 'POST_PRODUCTION_ENTRY' | 'PROFILE'>('POST_PRODUCTION_ENTRY');
   
   const userEmail = (currentUser?.email || '').toLowerCase().trim();
   const userName = (currentUser?.name || '').toLowerCase().trim();
@@ -42,9 +42,11 @@ export default function VideoEditorPortal({
       }
       const ed = (row.editor || '').toLowerCase().trim();
       if (ed && ed !== '-') {
-        if (userEmail && ed.includes(userEmail)) return true;
-        if (userName && ed.includes(userName)) return true;
-        if (ed.includes('hassan') || ed.includes('bala') || ed.includes('post')) return true;
+        if (userEmail && (ed === userEmail || ed.includes(userEmail))) return true;
+        if (userName && (ed === userName || ed.includes(userName))) return true;
+        const edParts = ed.split(',').map((p: string) => p.trim());
+        if (userEmail && edParts.includes(userEmail)) return true;
+        if (userName && edParts.includes(userName)) return true;
       }
       return false;
     });
@@ -348,11 +350,11 @@ export default function VideoEditorPortal({
       <div className={styles.portalNavTabs} role="tablist">
         <button
           type="button"
-          className={`${styles.portalNavTabBtn} ${activeTab === 'EDITING_QUEUE' ? styles.portalNavTabBtnActive : ''}`}
-          onClick={() => setActiveTab('EDITING_QUEUE')}
+          className={`${styles.portalNavTabBtn} ${activeTab === 'POST_PRODUCTION_ENTRY' ? styles.portalNavTabBtnActive : ''}`}
+          onClick={() => setActiveTab('POST_PRODUCTION_ENTRY')}
         >
-          <span>✂️</span>
-          <span>Editing Queue</span>
+          <span>🎬</span>
+          <span>Post-Production Entry</span>
         </button>
         <button
           type="button"
@@ -389,8 +391,8 @@ export default function VideoEditorPortal({
         </button>
       </div>
 
-      {/* TAB 1: EDITING QUEUE */}
-      {activeTab === 'EDITING_QUEUE' && (
+      {/* TAB 1: POST-PRODUCTION ENTRY */}
+      {activeTab === 'POST_PRODUCTION_ENTRY' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* EPIC Selector Card */}
           <div className={styles.epicSelectCard}>
@@ -686,10 +688,10 @@ export default function VideoEditorPortal({
                         style={{ padding: '4px 10px', fontSize: '12px' }}
                         onClick={() => {
                           setSelectedEpic(epic);
-                          setActiveTab('EDITING_QUEUE');
+                          setActiveTab('POST_PRODUCTION_ENTRY');
                         }}
                       >
-                        Open Queue ➔
+                        Open Post-Production ➔
                       </button>
                     </div>
                   </div>
@@ -765,7 +767,7 @@ export default function VideoEditorPortal({
                         style={{ padding: '4px 10px', fontSize: '12px' }}
                         onClick={() => {
                           setSelectedEpic(row.epicCode);
-                          setActiveTab('EDITING_QUEUE');
+                          setActiveTab('POST_PRODUCTION_ENTRY');
                         }}
                       >
                         Edit ➔
