@@ -209,6 +209,21 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const monthDropdownRef = useRef<HTMLDivElement>(null);
+  const trackerTableWrapperRef = useRef<HTMLDivElement>(null);
+
+  const isAdmin = role === 'ADMIN' || role === 'TEAM_MEMBER';
+  const [activeStageTab, setActiveStageTab] = useState<'SHOOTING' | 'POST_PRODUCTION'>('SHOOTING');
+
+  const handleStageTabClick = (stage: 'SHOOTING' | 'POST_PRODUCTION') => {
+    setActiveStageTab(stage);
+    if (trackerTableWrapperRef.current) {
+      if (stage === 'SHOOTING') {
+        trackerTableWrapperRef.current.scrollTo({ left: 450, behavior: 'smooth' });
+      } else {
+        trackerTableWrapperRef.current.scrollTo({ left: 1000, behavior: 'smooth' });
+      }
+    }
+  };
 
   // Close month dropdown when clicking outside
   useEffect(() => {
@@ -671,6 +686,57 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+      {/* Header Section (Role-Aware) */}
+      {isAdmin ? (
+        <div className={styles.adminHeaderSection}>
+          <div className={styles.adminHeaderTopRow}>
+            <div className={styles.adminHeaderTitleCol}>
+              <h1 className={styles.pageTitle}>
+                <span className={styles.titleIcon}>🎬</span>
+                <span>Video Production Tracker (Admin View – Shooting &amp; Post Production)</span>
+              </h1>
+              <p className={styles.headerSubtitle}>
+                Manage complete EPIC ID workflows for SME Document Compliance, Production &amp; Telecast Tracking
+              </p>
+            </div>
+
+            {/* Admin Header Stage Navigation Tabs */}
+            <div className={styles.adminStageTabs} role="tablist" aria-label="Production Stages">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeStageTab === 'SHOOTING'}
+                className={`${styles.adminStageTabBtn} ${activeStageTab === 'SHOOTING' ? styles.adminStageTabBtnActive : ''}`}
+                onClick={() => handleStageTabClick('SHOOTING')}
+              >
+                <span className={styles.adminStageTabIcon}>🎥</span>
+                <span>Shooting Stage</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeStageTab === 'POST_PRODUCTION'}
+                className={`${styles.adminStageTabBtn} ${activeStageTab === 'POST_PRODUCTION' ? styles.adminStageTabBtnActive : ''}`}
+                onClick={() => handleStageTabClick('POST_PRODUCTION')}
+              >
+                <span className={styles.adminStageTabIcon}>✂️</span>
+                <span>Post Production Stage</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className={styles.standardHeaderSection}>
+          <h1 className={styles.pageTitle}>
+            <span className={styles.titleIcon}>🎬</span>
+            <span>Video Production Tracker</span>
+          </h1>
+          <p className={styles.headerSubtitle}>
+            Manage complete EPIC ID workflows for SME Document Compliance, Production &amp; Telecast Tracking
+          </p>
+        </div>
+      )}
+
       {/* Toast Notification */}
       {notification && (
         <div style={{
@@ -924,7 +990,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       {/* ========================================================
           2. EXACT 16-COLUMN PRODUCTION TRACKER TABLE
          ======================================================== */}
-      <div className={styles.trackerTableWrapper}>
+      <div className={styles.trackerTableWrapper} ref={trackerTableWrapperRef}>
         <table className={styles.trackerTable}>
           <thead>
             <tr>
