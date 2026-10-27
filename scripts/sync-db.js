@@ -33,6 +33,23 @@ async function main() {
   });
 
   try {
+    // Ensure all required columns exist in production Neon database before any operations
+    try {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "SME" ADD COLUMN IF NOT EXISTS "email" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "SME" ADD COLUMN IF NOT EXISTS "contactNumber" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "VideoEditorRecord" ADD COLUMN IF NOT EXISTS "editingEndDate" TIMESTAMP(3);`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "VideoEditorRecord" ADD COLUMN IF NOT EXISTS "editingStartDate" TIMESTAMP(3);`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "ShootingSchedule" ADD COLUMN IF NOT EXISTS "scheduledStart" TIMESTAMP(3);`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "ShootingSchedule" ADD COLUMN IF NOT EXISTS "scheduledEnd" TIMESTAMP(3);`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "ShootingSchedule" ADD COLUMN IF NOT EXISTS "cameraman" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "VideoLibrary" ADD COLUMN IF NOT EXISTS "epicId" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "VideoLibrary" ADD COLUMN IF NOT EXISTS "duration" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "VideoLibrary" ADD COLUMN IF NOT EXISTS "trade" TEXT;`);
+      console.log('[Sync DB Script] Verified production database columns successfully.');
+    } catch (colErr) {
+      console.warn('[Sync DB Script] Column check notice:', colErr.message);
+    }
+
     const rawPass = process.env.HIGHER_OFFICIAL_PASSWORD || 'Nimi@2026';
     const hashedPassword = await bcrypt.hash(rawPass, 10);
 
@@ -523,6 +540,120 @@ async function syncRestoredSmes(prisma) {
     } catch (e) {
       console.warn(`[Sync DB Script] Notice: SME ${item.entry.epicSequence} sync skipped:`, e.message);
     }
+  }
+
+  // Synchronize 76 Tracker Records into VideoLibrary, ShootingSchedule, and VideoEditorRecord
+  try {
+    const trackerData = require('./tracker-data.json');
+    console.log(`[Sync DB Script] Synchronizing ${trackerData.length} Video Production Tracker records...`);
+
+    const dbWorkEntries = await prisma.sMEWorkEntry.findMany();
+    const entryBySeq = new Map();
+    for (const e of dbWorkEntries) {
+      entryBySeq.set(e.epicSequence, e);
+    }
+
+    for (const row of trackerData) {
+      const workEntry = entryBySeq.get(row.epicSeq);
+      if (!workEntry) {
+        continue;
+      }
+
+      const vidId = `VID-${String(row.rowNumber).padStart(3, '0')}`;
+      const shootId = `shoot-VID-${String(row.rowNumber).padStart(3, '0')}`;
+      const edId = `ed-VID-${String(row.rowNumber).padStart(3, '0')}`;
+
+      const metaJson = JSON.stringify({
+        sNo: row.sNo,
+        monthSNo: row.monthSNo,
+        month: row.month,
+        epicCode: row.epicCode,
+        excelRow: row.excelRow,
+        originalTopic: row.videoTopic
+      });
+
+      const shootStart = row.shootStartDate ? new Date(row.shootStartDate) : null;
+      const shootEnd = row.shootEndDate ? new Date(row.shootEndDate) : null;
+      const editStart = row.editStartDate ? new Date(row.editStartDate) : null;
+      const editEnd = row.editEndDate ? new Date(row.editEndDate) : null;
+
+      await prisma.videoLibrary.upsert({
+        where: { id: vidId },
+        update: {
+          epicId: workEntry.id,
+          title: row.videoTopic,
+          smeName: row.smeName,
+          trade: row.trade,
+          duration: row.duration,
+          videoLink: row.videoLink || ''
+        },
+        create: {
+          id: vidId,
+          epicId: workEntry.id,
+          title: row.videoTopic,
+          smeName: row.smeName,
+          trade: row.trade,
+          duration: row.duration,
+          videoLink: row.videoLink || ''
+        }
+      });
+
+      await prisma.shootingSchedule.upsert({
+        where: { id: shootId },
+        update: {
+          workEntryId: workEntry.id,
+          videoTitle: row.videoTopic,
+          cameraman: row.cameraman,
+          scheduledStart: shootStart,
+          scheduledEnd: shootEnd,
+          status: row.shootStatus,
+          location: row.month,
+          productionNotes: metaJson
+        },
+        create: {
+          id: shootId,
+          workEntryId: workEntry.id,
+          videoTitle: row.videoTopic,
+          cameraman: row.cameraman,
+          scheduledStart: shootStart,
+          scheduledEnd: shootEnd,
+          status: row.shootStatus,
+          location: row.month,
+          productionNotes: metaJson
+        }
+      });
+
+      await prisma.videoEditorRecord.upsert({
+        where: { id: edId },
+        update: {
+          workEntryId: workEntry.id,
+          assignedVideo: row.videoTopic,
+          editorName: row.editorName,
+          editingStartDate: editStart,
+          editingEndDate: editEnd,
+          status: row.editStatus,
+          duration: row.duration,
+          finalVideoFile: row.videoLink,
+          reviewComments: metaJson
+        },
+        create: {
+          id: edId,
+          workEntryId: workEntry.id,
+          assignedVideo: row.videoTopic,
+          editorName: row.editorName,
+          editingStartDate: editStart,
+          editingEndDate: editEnd,
+          status: row.editStatus,
+          duration: row.duration,
+          finalVideoFile: row.videoLink,
+          reviewComments: metaJson
+        }
+      });
+    }
+
+    console.log(`[Sync DB Script] Successfully synchronized all 76 Tracker records into production Neon DB!`);
+  } catch (err) {
+    console.warn(`[Sync DB Script] Notice: Tracker sync check:`, err.message);
   }
 }
 
