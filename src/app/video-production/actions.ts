@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { checkAuth, getRole, getEmail } from '@/lib/auth';
 import { parseAssignedEpics, matchesCameramanName, matchesEditorName } from '@/lib/epicHelpers';
+import { syncTrackerIfNeeded } from '@/lib/syncTracker';
 import { revalidatePath } from 'next/cache';
 import { logAudit } from '@/lib/audit';
 
@@ -167,7 +168,7 @@ export async function getTopicProductionRecords() {
 
   try {
     // Concurrently fetch work entries, videos, and staff mapping in a single parallel batch
-    const [allEntries, allVideos, cameramen, editors] = await Promise.all([
+    let [allEntries, allVideos, cameramen, editors] = await Promise.all([
       prisma.sMEWorkEntry.findMany({
         include: {
           sme: true,
@@ -191,6 +192,30 @@ export async function getTopicProductionRecords() {
         select: { name: true, email: true, department: true }
       }).catch(() => [])
     ]);
+
+    // Self-healing: If live database is missing the 76 imported tracker records, synchronize now
+    const trackerVids = allVideos.filter((v: any) => v.id.startsWith('VID-'));
+    if (trackerVids.length < 76) {
+      await syncTrackerIfNeeded(prisma, true);
+      const [reEntries, reVideos] = await Promise.all([
+        prisma.sMEWorkEntry.findMany({
+          include: {
+            sme: true,
+            videoLibraries: true,
+            videoEditorRecords: true,
+            shootingSchedules: true,
+          },
+          orderBy: {
+            epicSequence: 'asc'
+          }
+        }),
+        prisma.videoLibrary.findMany({
+          orderBy: { id: 'asc' }
+        })
+      ]);
+      allEntries = reEntries;
+      allVideos = reVideos;
+    }
 
     const trackerSequences = [1, 2, 3, 4, 5, 6, 8, 10, 11, 12, 15, 16, 17];
     const trackerEntries = allEntries.filter((e: any) => trackerSequences.includes(e.epicSequence));
