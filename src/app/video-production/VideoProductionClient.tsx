@@ -177,6 +177,8 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   }, []);
   const [isAdminAssignModalOpen, setIsAdminAssignModalOpen] = useState(false);
   const [adminAssignInitialEpic, setAdminAssignInitialEpic] = useState<string>('');
+  const [adminAssignModalTab, setAdminAssignModalTab] = useState<'ASSIGN' | 'UNASSIGNED' | 'ASSIGNED'>('ASSIGN');
+  const [adminAssignInitialTopicId, setAdminAssignInitialTopicId] = useState<string>('');
   const [isAssignmentSectionCollapsed, setIsAssignmentSectionCollapsed] = useState(false);
   const [selectedAssignmentEpic, setSelectedAssignmentEpic] = useState<string>('');
   const assignmentSectionRef = useRef<HTMLDivElement>(null);
@@ -256,7 +258,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState<number>(25);
 
   // Work Assignment Modal State
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -605,6 +607,115 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     const start = (currentPage - 1) * pageSize;
     return filteredRows.slice(start, start + pageSize);
   }, [filteredRows, currentPage, pageSize]);
+
+  // Requirement 3: Dedicated Unassigned Work count (missing Cameraman or Editor)
+  const unassignedCount = useMemo(() => {
+    return videoRegister.filter(r => {
+      const cam = (r.cameraman || '').trim().toLowerCase();
+      const ed = (r.editor || '').trim().toLowerCase();
+      const noCam = !cam || cam === '-' || cam === '—' || cam === 'null';
+      const noEd = !ed || ed === '-' || ed === '—' || ed === 'null' || ed === 'not assigned';
+      return noCam || noEd;
+    }).length;
+  }, [videoRegister]);
+
+  // Requirement 1: Map each distinct EPIC in filteredRows to a 1-based sequential group number
+  const epicGroupIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    let groupNum = 1;
+    filteredRows.forEach(row => {
+      const key = row.epicCode || row.epicId;
+      if (!map.has(key)) {
+        map.set(key, groupNum++);
+      }
+    });
+    return map;
+  }, [filteredRows]);
+
+  // Requirement 1: Calculate dynamic rowSpans for paginatedRows (S.No, Month, EPIC ID, SME, Trade)
+  const tableSpans = useMemo(() => {
+    const displayRows = paginatedRows;
+    const n = displayRows.length;
+    const spans = displayRows.map((r, idx) => ({
+      sNoSpan: 0,
+      sNoValue: epicGroupIndexMap.get(r.epicCode || r.epicId) || (idx + 1),
+      monthSpan: 0,
+      epicSpan: 0,
+      smeSpan: 0,
+      tradeSpan: 0,
+      isGroupStart: false
+    }));
+
+    let i = 0;
+    while (i < n) {
+      let j = i + 1;
+      const currentEpic = displayRows[i].epicCode || displayRows[i].epicId;
+      while (j < n && (displayRows[j].epicCode || displayRows[j].epicId) === currentEpic) {
+        j++;
+      }
+      const epicCount = j - i;
+      spans[i].epicSpan = epicCount;
+      spans[i].sNoSpan = epicCount;
+      spans[i].isGroupStart = true;
+      for (let k = i + 1; k < j; k++) {
+        spans[k].epicSpan = 0;
+        spans[k].sNoSpan = 0;
+        spans[k].isGroupStart = false;
+      }
+
+      // 1. Month spans: Merge identical consecutive months within this EPIC group
+      let mStart = i;
+      while (mStart < j) {
+        let mEnd = mStart + 1;
+        const currentMonth = displayRows[mStart].month;
+        while (mEnd < j && displayRows[mEnd].month === currentMonth) {
+          mEnd++;
+        }
+        const mCount = mEnd - mStart;
+        spans[mStart].monthSpan = mCount;
+        for (let k = mStart + 1; k < mEnd; k++) {
+          spans[k].monthSpan = 0;
+        }
+        mStart = mEnd;
+      }
+
+      // 2. SME spans: Merge identical consecutive SME names within this EPIC group
+      let sStart = i;
+      while (sStart < j) {
+        let sEnd = sStart + 1;
+        const currentSme = displayRows[sStart].smeName;
+        while (sEnd < j && displayRows[sEnd].smeName === currentSme) {
+          sEnd++;
+        }
+        const sCount = sEnd - sStart;
+        spans[sStart].smeSpan = sCount;
+        for (let k = sStart + 1; k < sEnd; k++) {
+          spans[k].smeSpan = 0;
+        }
+        sStart = sEnd;
+      }
+
+      // 3. Trade spans: Merge identical consecutive Trade names within this EPIC group
+      let tStart = i;
+      while (tStart < j) {
+        let tEnd = tStart + 1;
+        const currentTrade = displayRows[tStart].trade;
+        while (tEnd < j && displayRows[tEnd].trade === currentTrade) {
+          tEnd++;
+        }
+        const tCount = tEnd - tStart;
+        spans[tStart].tradeSpan = tCount;
+        for (let k = tStart + 1; k < tEnd; k++) {
+          spans[k].tradeSpan = 0;
+        }
+        tStart = tEnd;
+      }
+
+      i = j;
+    }
+
+    return spans;
+  }, [paginatedRows, epicGroupIndexMap]);
 
   // Handlers
   const handleToggleMonth = (monthLabel: string) => {
@@ -1136,23 +1247,6 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
               })}
             </div>
           </div>
-
-          {/* 3. Prominent Work Assignment Section (Multi-User Assignment) */}
-          <div ref={assignmentSectionRef}>
-            <AdminWorkAssignmentSection
-              videoRegister={videoRegister}
-              authorizedStaff={authorizedStaff}
-              onSaveSuccess={async () => {
-                await refreshTopicRecords();
-                broadcastSync();
-              }}
-              setNotification={setNotification}
-              isCollapsed={isAssignmentSectionCollapsed}
-              onToggleCollapse={() => setIsAssignmentSectionCollapsed(prev => !prev)}
-              selectedEpicCode={selectedAssignmentEpic}
-              onSelectEpicCode={setSelectedAssignmentEpic}
-            />
-          </div>
         </div>
       )}
 
@@ -1300,24 +1394,40 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
           </div>
 
           {/* Top Utility Actions */}
-          <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
+          <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto', flexWrap: 'wrap', alignItems: 'center' }}>
             {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
               <button 
+                type="button"
                 className={styles.pageSquareBtn} 
-                style={{ width: 'auto', padding: '0 10px', height: '38px', gap: '6px', fontWeight: 600 }}
+                style={{ width: 'auto', padding: '0 12px', height: '38px', gap: '6px', fontWeight: 600 }}
                 onClick={() => {
-                  setIsAssignmentSectionCollapsed(false);
-                  if (assignmentSectionRef.current) {
-                    assignmentSectionRef.current.scrollIntoView({ behavior: 'smooth' });
-                  } else {
-                    setAdminAssignInitialEpic(paginatedRows[0]?.epicCode || 'EPIC-2026-PMeVidya 01');
-                    setIsAdminAssignModalOpen(true);
-                  }
+                  setAdminAssignInitialEpic(paginatedRows[0]?.epicCode || 'EPIC-2026-PMeVidya 01');
+                  setAdminAssignInitialTopicId('');
+                  setAdminAssignModalTab('ASSIGN');
+                  setIsAdminAssignModalOpen(true);
                 }}
-                title="Work Assignment — Camera Man & Video Editor"
+                title="Work Assignment — Cameraman & Video Editor"
               >
                 <span>👤</span>
                 <span>Work Assignment</span>
+              </button>
+            )}
+
+            {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
+              <button 
+                type="button"
+                className={styles.btnToolbarUnassigned}
+                onClick={() => {
+                  setAdminAssignInitialEpic(paginatedRows[0]?.epicCode || 'EPIC-2026-PMeVidya 01');
+                  setAdminAssignInitialTopicId('');
+                  setAdminAssignModalTab('UNASSIGNED');
+                  setIsAdminAssignModalOpen(true);
+                }}
+                title="View Dedicated Unassigned & Partially Assigned Work Queue"
+              >
+                <span>📋</span>
+                <span>Unassigned Work</span>
+                <span className={styles.unassignedCountBadge}>{unassignedCount}</span>
               </button>
             )}
 
@@ -1390,123 +1500,176 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
             </tr>
           </thead>
           <tbody>
-            {paginatedRows.map(row => (
-              <tr key={row.uniqueKey}>
-                {/* 1. S.No */}
-                <td style={{ fontWeight: 600, color: '#334155', textAlign: 'center' }}>
-                  {row.sNo}
-                </td>
-
-                {/* 2. Month */}
-                <td className={styles.monthCellHighlight} style={{ textAlign: 'center' }}>
-                  {row.month}
-                </td>
-
-                {/* 3. EPIC ID */}
-                <td style={{ color: '#0f172a', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                  {row.epicCode}
-                </td>
-
-                {/* 4. SME / Resource Person */}
-                <td style={{ color: '#1e293b', fontWeight: 500 }}>
-                  {row.smeName}
-                </td>
-
-                {/* 5. Trade */}
-                <td style={{ fontWeight: 500, color: '#475569' }}>
-                  {row.trade}
-                </td>
-
-                {/* 6. Video Topic (wrapped gracefully within its own cell) */}
-                <td style={{ maxWidth: '300px', wordBreak: 'break-word', whiteSpace: 'normal', lineHeight: '1.45', fontWeight: 500, color: '#0f172a' }}>
-                  {row.videoTitle}
-                </td>
-
-                {/* 7. Start date (Shooting) */}
-                <td style={{ whiteSpace: 'nowrap', color: '#334155' }}>
-                  {formatDateDotDisplay(row.shootingStartDate)}
-                </td>
-
-                {/* 8. End date (Shooting) */}
-                <td style={{ whiteSpace: 'nowrap', color: '#334155' }}>
-                  {formatDateDotDisplay(row.shootingEndDate)}
-                </td>
-
-                {/* 9. Cameraman */}
-                <td style={{ color: '#1e293b', fontWeight: 500 }}>
-                  {row.cameraman}
-                </td>
-
-                {/* 10. Current Status (Shooting) */}
-                <td>
-                  {renderShootingBadge(row.shootingStatus)}
-                </td>
-
-                {/* 11. Start date (Editing) */}
-                <td style={{ whiteSpace: 'nowrap', color: '#334155' }}>
-                  {formatDateDotDisplay(row.editingStartDate)}
-                </td>
-
-                {/* 12. End date (Editing) */}
-                <td style={{ whiteSpace: 'nowrap', color: '#334155' }}>
-                  {formatDateDotDisplay(row.editingEndDate)}
-                </td>
-
-                {/* 13. Video Editor */}
-                <td style={{ color: '#1e293b', fontWeight: 500 }}>
-                  {row.editor}
-                </td>
-
-                {/* 14. Current Status (Editing) */}
-                <td>
-                  {renderEditingBadge(row.editingStatus)}
-                </td>
-
-                {/* 15. Duration */}
-                <td style={{ whiteSpace: 'nowrap', color: '#334155', fontWeight: 500 }}>
-                  {row.duration || '—'}
-                </td>
-
-                {/* 16. Video Link */}
-                <td>
-                  {row.hasLink && row.finalVideoLink ? (
-                    <a 
-                      href={row.finalVideoLink} 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className={styles.videoLinkText}
-                      title={row.finalVideoLink}
+            {paginatedRows.map((row, idx) => {
+              const span = tableSpans[idx];
+              return (
+                <tr 
+                  key={row.uniqueKey}
+                  className={span?.isGroupStart ? styles.epicGroupStartRow : undefined}
+                >
+                  {/* 1. S.No (Vertically merged per EPIC group) */}
+                  {span && span.sNoSpan > 0 && (
+                    <td 
+                      rowSpan={span.sNoSpan}
+                      className={styles.mergedCell}
+                      style={{ fontWeight: 600, color: '#334155', textAlign: 'center' }}
                     >
-                      🔗 Link
-                    </a>
-                  ) : (
-                    <span style={{ color: '#94a3b8' }}>—</span>
+                      {span.sNoValue}
+                    </td>
                   )}
-                </td>
 
-                {/* 17. Actions */}
-                <td>
-                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                    {isAdmin && (
-                      <button
-                        className={styles.actionSquareBtn}
-                        onClick={() => handleOpenWorkAssignment(row)}
-                        title="Work Assignment & Edit Row"
-                      >
-                        ✏️
-                      </button>
-                    )}
-                    <button 
-                      className={styles.actionSquareBtn}
-                      onClick={() => handleOpenDetails(row)}
-                      title="View Details"
+                  {/* 2. Month (Vertically merged for identical consecutive months in EPIC group) */}
+                  {span && span.monthSpan > 0 && (
+                    <td 
+                      rowSpan={span.monthSpan}
+                      className={`${styles.monthCellHighlight} ${styles.mergedCell}`} 
+                      style={{ textAlign: 'center' }}
                     >
-                      👁️
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                      {row.month}
+                    </td>
+                  )}
+
+                  {/* 3. EPIC ID (Vertically merged across all records in EPIC group) */}
+                  {span && span.epicSpan > 0 && (
+                    <td 
+                      rowSpan={span.epicSpan}
+                      className={styles.mergedCell}
+                      style={{ color: '#0f172a', fontWeight: 600, whiteSpace: 'nowrap' }}
+                    >
+                      {row.epicCode}
+                    </td>
+                  )}
+
+                  {/* 4. SME / Resource Person (Vertically merged for consecutive identical SME in EPIC group) */}
+                  {span && span.smeSpan > 0 && (
+                    <td 
+                      rowSpan={span.smeSpan}
+                      className={styles.mergedCell}
+                      style={{ color: '#1e293b', fontWeight: 500 }}
+                    >
+                      {row.smeName}
+                    </td>
+                  )}
+
+                  {/* 5. Trade (Vertically merged for consecutive identical Trade in EPIC group) */}
+                  {span && span.tradeSpan > 0 && (
+                    <td 
+                      rowSpan={span.tradeSpan}
+                      className={styles.mergedCell}
+                      style={{ fontWeight: 500, color: '#475569' }}
+                    >
+                      {row.trade}
+                    </td>
+                  )}
+
+                  {/* 6. Video Topic (wrapped gracefully within its own cell) */}
+                  <td style={{ maxWidth: '300px', wordBreak: 'break-word', whiteSpace: 'normal', lineHeight: '1.45', fontWeight: 500, color: '#0f172a' }}>
+                    {row.videoTitle}
+                  </td>
+
+                  {/* 7. Start date (Shooting) */}
+                  <td style={{ whiteSpace: 'nowrap', color: '#334155' }}>
+                    {formatDateDotDisplay(row.shootingStartDate)}
+                  </td>
+
+                  {/* 8. End date (Shooting) */}
+                  <td style={{ whiteSpace: 'nowrap', color: '#334155' }}>
+                    {formatDateDotDisplay(row.shootingEndDate)}
+                  </td>
+
+                  {/* 9. Cameraman */}
+                  <td style={{ color: '#1e293b', fontWeight: 500 }}>
+                    {row.cameraman}
+                  </td>
+
+                  {/* 10. Current Status (Shooting) */}
+                  <td>
+                    {renderShootingBadge(row.shootingStatus)}
+                  </td>
+
+                  {/* 11. Start date (Editing) */}
+                  <td style={{ whiteSpace: 'nowrap', color: '#334155' }}>
+                    {formatDateDotDisplay(row.editingStartDate)}
+                  </td>
+
+                  {/* 12. End date (Editing) */}
+                  <td style={{ whiteSpace: 'nowrap', color: '#334155' }}>
+                    {formatDateDotDisplay(row.editingEndDate)}
+                  </td>
+
+                  {/* 13. Video Editor */}
+                  <td style={{ color: '#1e293b', fontWeight: 500 }}>
+                    {row.editor}
+                  </td>
+
+                  {/* 14. Current Status (Editing) */}
+                  <td>
+                    {renderEditingBadge(row.editingStatus)}
+                  </td>
+
+                  {/* 15. Duration */}
+                  <td style={{ whiteSpace: 'nowrap', color: '#334155', fontWeight: 500 }}>
+                    {row.duration || '—'}
+                  </td>
+
+                  {/* 16. Video Link */}
+                  <td>
+                    {row.hasLink && row.finalVideoLink ? (
+                      <a 
+                        href={row.finalVideoLink} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className={styles.videoLinkText}
+                        title={row.finalVideoLink}
+                      >
+                        🔗 Link
+                      </a>
+                    ) : (
+                      <span style={{ color: '#94a3b8' }}>—</span>
+                    )}
+                  </td>
+
+                  {/* 17. Actions */}
+                  <td>
+                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className={styles.actionSquareBtn}
+                          onClick={() => {
+                            setAdminAssignInitialEpic(row.epicCode);
+                            setAdminAssignInitialTopicId(row.videoId);
+                            setAdminAssignModalTab('ASSIGN');
+                            setIsAdminAssignModalOpen(true);
+                          }}
+                          title="Work Assignment — Cameraman & Editor"
+                        >
+                          👤
+                        </button>
+                      )}
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className={styles.actionSquareBtn}
+                          onClick={() => handleOpenWorkAssignment(row)}
+                          title="Work Assignment & Edit Row"
+                        >
+                          ✏️
+                        </button>
+                      )}
+                      <button 
+                        type="button"
+                        className={styles.actionSquareBtn}
+                        onClick={() => handleOpenDetails(row)}
+                        title="View Details"
+                      >
+                        👁️
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
 
             {filteredRows.length === 0 && (
               <tr>
@@ -1526,8 +1689,34 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
             PAGINATION ROW MATCHING SCREENSHOT
            ======================================================== */}
         <div className={styles.tablePaginationBar}>
-          <div>
-            Showing {filteredRows.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} to {Math.min(currentPage * pageSize, filteredRows.length)} of {filteredRows.length} entries
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+            <span>
+              Showing {filteredRows.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} to {Math.min(currentPage * pageSize, filteredRows.length)} of {filteredRows.length} entries
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <label style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>Rows per page:</label>
+              <select
+                value={pageSize}
+                onChange={e => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '12px',
+                  background: '#ffffff',
+                  color: '#334155',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>All ({filteredRows.length})</option>
+              </select>
+            </div>
           </div>
 
           <div className={styles.paginationButtonsGroup}>
@@ -2060,7 +2249,12 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
           videoRegister={videoRegister}
           authorizedStaff={authorizedStaff}
           initialEpicCode={adminAssignInitialEpic}
-          onSaveSuccess={refreshTopicRecords}
+          initialTab={adminAssignModalTab}
+          initialTopicId={adminAssignInitialTopicId}
+          onSaveSuccess={async () => {
+            await refreshTopicRecords();
+            broadcastSync();
+          }}
           setNotification={setNotification}
         />
       )}

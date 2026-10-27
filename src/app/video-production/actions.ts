@@ -218,7 +218,15 @@ export async function getTopicProductionRecords() {
     }
 
     const trackerSequences = [1, 2, 3, 4, 5, 6, 8, 10, 11, 12, 15, 16, 17];
-    const trackerEntries = allEntries.filter((e: any) => trackerSequences.includes(e.epicSequence));
+    const trackerEntries = allEntries.filter((e: any) => {
+      if (trackerSequences.includes(e.epicSequence)) return true;
+      // Requirement 4: Eligible when required fields defined by workflow are complete
+      const hasRequiredFields = e.trade && e.trade !== 'Not Specified' && e.topic && e.topic !== 'Not Specified' && e.sme;
+      const hasProductionRecords = (e.videoLibraries && e.videoLibraries.length > 0) || 
+                                  (e.shootingSchedules && e.shootingSchedules.length > 0) || 
+                                  (e.videoEditorRecords && e.videoEditorRecords.length > 0);
+      return Boolean(hasRequiredFields && hasProductionRecords);
+    });
 
     const allRecords = trackerEntries.map((entry: any) => {
       const videoMap = new Map<string, any>();
