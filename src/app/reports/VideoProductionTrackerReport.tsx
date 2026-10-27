@@ -110,18 +110,18 @@ function formatSecondsToHHMMSS(totalSeconds: number): string {
 }
 
 function cleanCameraman(name?: string | null): string {
-  if (!name) return 'Unassigned';
+  if (!name) return '—';
   const trimmed = name.trim();
   const lower = trimmed.toLowerCase();
-  if (!trimmed || trimmed === '-' || lower === 'null') return 'Unassigned';
+  if (!trimmed || trimmed === '-' || trimmed === '—' || lower === 'null' || lower === 'unassigned') return '—';
   return trimmed;
 }
 
 function cleanEditor(name?: string | null): string {
-  if (!name) return 'Not assigned';
+  if (!name) return '—';
   const trimmed = name.trim();
   const lower = trimmed.toLowerCase();
-  if (!trimmed || trimmed === '-' || lower === 'null' || lower === 'not assigned') return 'Not assigned';
+  if (!trimmed || trimmed === '-' || trimmed === '—' || lower === 'null' || lower === 'not assigned') return '—';
   return trimmed;
 }
 
@@ -235,8 +235,8 @@ export default function VideoProductionTrackerReport({
         const smeName = lib?.smeName || entry.sme?.name || 'Unassigned';
         const title = lib?.title || sched?.videoTitle || ed?.assignedVideo || entry.topic || 'Untitled Topic';
 
-        const shootingStartDate = sched?.scheduledStart || sched?.shootDate || entry.attendanceFrom || null;
-        const shootingEndDate = sched?.scheduledEnd || entry.attendanceTo || null;
+        const shootingStartDate = sched?.scheduledStart || sched?.shootDate || null;
+        const shootingEndDate = sched?.scheduledEnd || null;
         const shootingStatus = sched?.status || 'Yet to shoot';
         const cameraman = cleanCameraman(sched?.cameraman);
 

@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import styles from './video-production.module.css';
 import { saveCameramanShootingEntry } from './actions';
+import { matchesCameramanName } from '@/lib/epicHelpers';
 
 interface CameramanPortalProps {
   currentUser: any;
@@ -61,36 +62,12 @@ export default function CameramanPortal({
   }, [currentUser]);
 
   const assignedRows = useMemo(() => {
-    const matched = videoRegister.filter(row => {
+    return videoRegister.filter(row => {
       if (assignedSequences.length > 0 && assignedSequences.includes(row.epicSequence)) {
         return true;
       }
-      const cam = (row.cameraman || '').toLowerCase().trim();
-      if (cam && cam !== '-') {
-        if (userEmail && (cam === userEmail || cam.includes(userEmail) || userEmail.includes(cam))) return true;
-        if (userName && (cam === userName || cam.includes(userName) || userName.includes(cam))) return true;
-        const camParts = cam.split(',').map((p: string) => p.trim());
-        if (userEmail && camParts.some((p: string) => p && (userEmail.includes(p) || p.includes(userEmail)))) return true;
-        if (userName && camParts.some((p: string) => p && (userName.includes(p) || p.includes(userName)))) return true;
-        if (userName) {
-          const nameTokens = userName.split(/\s+/).filter(Boolean);
-          if (nameTokens.some((token: string) => token.length >= 3 && cam.includes(token))) return true;
-        }
-        if (userEmail) {
-          const emailPrefix = userEmail.split('@')[0].replace(/[^a-z0-9]/g, ' ');
-          const emailTokens = emailPrefix.split(/\s+/).filter(Boolean);
-          if (emailTokens.some((token: string) => token.length >= 3 && cam.includes(token))) return true;
-        }
-      }
-      return false;
+      return matchesCameramanName(row.cameraman, userName, userEmail);
     });
-
-    // Fallback: If server already filtered rows for this user session or if matched is empty,
-    // preserve all records from videoRegister so cameraman always sees their real assignments
-    if (matched.length === 0 && videoRegister.length > 0) {
-      return videoRegister;
-    }
-    return matched;
   }, [videoRegister, assignedSequences, userEmail, userName]);
 
   // Broadcast real persisted assignment count to the Left Sidebar in real time
@@ -163,6 +140,16 @@ export default function CameramanPortal({
     }));
   };
 
+  const broadcastSync = () => {
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const channel = new BroadcastChannel('pmevidya_video_production_sync');
+        channel.postMessage({ type: 'RECORD_SAVED', timestamp: Date.now() });
+        channel.close();
+      } catch (_) {}
+    }
+  };
+
   // Save Draft (In Progress)
   const handleSaveDraft = async (row: any) => {
     const form = topicForms[row.uniqueKey] || {
@@ -200,6 +187,7 @@ export default function CameramanPortal({
           message: `Saved shooting draft for "${row.videoTitle}".`
         });
         await onRefreshData();
+        broadcastSync();
       } else {
         alert(res.error || 'Failed to save shooting draft.');
       }
@@ -255,6 +243,7 @@ export default function CameramanPortal({
           message: `🎉 Shooting successfully submitted as Completed for "${row.videoTitle}"! Topic is now in the Video Editor's Queue.`
         });
         await onRefreshData();
+        broadcastSync();
       } else {
         alert(res.error || 'Failed to submit shooting.');
       }

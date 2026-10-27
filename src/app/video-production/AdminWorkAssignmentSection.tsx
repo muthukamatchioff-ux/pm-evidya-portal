@@ -99,7 +99,7 @@ export default function AdminWorkAssignmentSection({
       const firstRow = epicRows[0];
 
       // Parse current Cameramen
-      const camStr = firstRow.cameraman !== '-' ? firstRow.cameraman : '';
+      const camStr = firstRow.cameraman !== '-' && firstRow.cameraman !== '—' ? firstRow.cameraman : '';
       const existingCamNames = camStr ? camStr.split(',').map(s => s.trim().toLowerCase()) : [];
       const initialCams: StaffUser[] = [];
 
@@ -115,13 +115,12 @@ export default function AdminWorkAssignmentSection({
       });
 
       // If none currently assigned, default to first authorized Cameraman
-      if (initialCams.length === 0 && authorizedStaff.cameramen.length > 0) {
-        initialCams.push(authorizedStaff.cameramen[0]);
-      }
+      // Keep initialCams empty if none assigned
+      // (Do not forcibly push first cameraman)
       setSelectedCameramen(initialCams);
 
       // Parse current Editors
-      const edStr = firstRow.editor !== '-' ? firstRow.editor : '';
+      const edStr = firstRow.editor !== '-' && firstRow.editor !== '—' ? firstRow.editor : '';
       const existingEdNames = edStr ? edStr.split(',').map(s => s.trim().toLowerCase()) : [];
       const initialEds: StaffUser[] = [];
 
@@ -137,9 +136,8 @@ export default function AdminWorkAssignmentSection({
       });
 
       // If none currently assigned, default to first authorized Editor
-      if (initialEds.length === 0 && authorizedStaff.editors.length > 0) {
-        initialEds.push(authorizedStaff.editors[0]);
-      }
+      // Keep initialEds empty if none assigned
+      // (Do not forcibly push first editor)
       setSelectedEditors(initialEds);
     }
   }, [currentEpic, epicRows, authorizedStaff]);

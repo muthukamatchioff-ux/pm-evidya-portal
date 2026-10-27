@@ -1630,6 +1630,7 @@
 
 .trackerTable {
   width: 100%;
+  min-width: 1950px;
   border-collapse: collapse;
   text-align: left;
   font-size: 12.5px;

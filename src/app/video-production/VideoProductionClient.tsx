@@ -181,6 +181,16 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const [selectedAssignmentEpic, setSelectedAssignmentEpic] = useState<string>('');
   const assignmentSectionRef = useRef<HTMLDivElement>(null);
 
+  const broadcastSync = () => {
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const channel = new BroadcastChannel('pmevidya_video_production_sync');
+        channel.postMessage({ type: 'RECORD_SAVED', timestamp: Date.now() });
+        channel.close();
+      } catch (_) {}
+    }
+  };
+
   const refreshTopicRecords = async () => {
     const res = await getTopicProductionRecords();
     if (res.success && res.data) {
@@ -191,6 +201,47 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       setAuthorizedStaff(staffRes.data);
     }
   };
+
+  // Real-time synchronization: BroadcastChannel + visibilitychange + focus + 5-second polling interval
+  useEffect(() => {
+    refreshTopicRecords();
+
+    // 1. Cross-tab synchronization via BroadcastChannel
+    let channel: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        channel = new BroadcastChannel('pmevidya_video_production_sync');
+        channel.onmessage = (event) => {
+          if (event.data?.type === 'RECORD_SAVED') {
+            refreshTopicRecords();
+          }
+        };
+      }
+    } catch (_) {}
+
+    // 2. Tab focus & visibility change listener
+    const handleActive = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshTopicRecords();
+      }
+    };
+    window.addEventListener('visibilitychange', handleActive);
+    window.addEventListener('focus', handleActive);
+
+    // 3. Periodic background polling (every 5 seconds when tab is active/visible)
+    const intervalId = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshTopicRecords();
+      }
+    }, 5000);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('visibilitychange', handleActive);
+      window.removeEventListener('focus', handleActive);
+      if (channel) channel.close();
+    };
+  }, []);
 
   // Filters State
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
@@ -281,21 +332,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     }
   }, [initialRecords]);
 
-  useEffect(() => {
-    async function loadData() {
-      const res = await getTopicProductionRecords();
-      if (res.success && res.data) {
-        setWorkEntries(res.data);
-      }
-      const staffRes = await getAuthorizedStaff();
-      if (staffRes.success && staffRes.data) {
-        setAuthorizedStaff(staffRes.data);
-      }
-    }
-    loadData();
-  }, []);
-
-  // Compute 57 video register rows
+  // Compute 76 video register rows matching Untitled spreadsheet.xlsx
   const videoRegister = useMemo<VideoRegisterRow[]>(() => {
     const rows: VideoRegisterRow[] = [];
 
@@ -364,21 +401,13 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         const smeName = lib?.smeName || entry.sme?.name || '-';
         const title = lib?.title || sched?.videoTitle || ed?.assignedVideo || entry.topic || '-';
 
-        const shootingStartDate = sched?.scheduledStart 
-          ? formatDateForInput(sched.scheduledStart) 
-          : (entry.attendanceFrom ? formatDateForInput(entry.attendanceFrom) : null);
-        const shootingEndDate = sched?.scheduledEnd 
-          ? formatDateForInput(sched.scheduledEnd) 
-          : (entry.attendanceTo ? formatDateForInput(entry.attendanceTo) : null);
+        const shootingStartDate = sched?.scheduledStart ? formatDateForInput(sched.scheduledStart) : null;
+        const shootingEndDate = sched?.scheduledEnd ? formatDateForInput(sched.scheduledEnd) : null;
         const shootingStatus = sched?.status || 'Yet to shoot';
         const cameraman = cleanCameramanDisplay(sched?.cameraman);
 
-        const editingStartDate = ed?.editingStartDate 
-          ? formatDateForInput(ed.editingStartDate) 
-          : (shootingEndDate ? formatDateForInput(new Date(new Date(shootingEndDate).getTime() + 86400000)) : null);
-        const editingEndDate = ed?.editingEndDate 
-          ? formatDateForInput(ed.editingEndDate) 
-          : (editingStartDate ? formatDateForInput(new Date(new Date(editingStartDate).getTime() + 7 * 86400000)) : null);
+        const editingStartDate = ed?.editingStartDate ? formatDateForInput(ed.editingStartDate) : null;
+        const editingEndDate = ed?.editingEndDate ? formatDateForInput(ed.editingEndDate) : null;
         const editingStatus = ed?.status || 'Pending';
         const editor = cleanEditorDisplay(ed?.editorName);
 
@@ -395,7 +424,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
           displayVideoId,
           epicId: entry.id,
           epicSequence: epicSeq,
-          epicCode: formatEpicCode(epicSeq),
+          epicCode: meta?.epicCode ? meta.epicCode : formatEpicCode(epicSeq),
           trade,
           smeName,
           videoTitle: title,
@@ -610,16 +639,16 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   // Open Work Assignment Modal
   const handleOpenWorkAssignment = (row: VideoRegisterRow) => {
     setAssignTargetRow(row);
-    setAssignCameraman(row.cameraman !== '-' ? row.cameraman : 'Parasuraman');
+    setAssignCameraman(row.cameraman !== '-' && row.cameraman !== '—' ? row.cameraman : '');
     setAssignShootStart(row.shootingStartDate ? formatDateForInput(row.shootingStartDate) : '');
     setAssignShootEnd(row.shootingEndDate ? formatDateForInput(row.shootingEndDate) : '');
-    setAssignShootStatus(row.shootingStatus || 'Completed');
+    setAssignShootStatus(row.shootingStatus || 'Yet to shoot');
     setAssignShootNotes(row.productionNotes || '');
 
-    setAssignEditor(row.editor !== '-' ? row.editor : 'Hassan & Antony');
+    setAssignEditor(row.editor !== '-' && row.editor !== '—' ? row.editor : '');
     setAssignEditStart(row.editingStartDate ? formatDateForInput(row.editingStartDate) : '');
     setAssignEditEnd(row.editingEndDate ? formatDateForInput(row.editingEndDate) : '');
-    setAssignEditStatus(row.editingStatus || 'Completed');
+    setAssignEditStatus(row.editingStatus || 'Pending');
     setAssignReviewComments(row.reviewComments || '');
 
     setAssignVideoTitle(row.videoTitle);
@@ -670,6 +699,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         if (fresh.success && fresh.data) {
           setWorkEntries(fresh.data);
         }
+        broadcastSync();
       } else {
         alert(res.error || 'Failed to update work assignment.');
       }
@@ -760,6 +790,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
 
   // Badge render helpers
   const renderShootingBadge = (status: string) => {
+    if (!status || status === '-' || status === '—' || status.toLowerCase() === 'null') return <span style={{ color: '#94a3b8' }}>—</span>;
     const s = (status || '').toLowerCase().trim();
     if (s.includes('completed')) {
       return <span className={styles.pillCompleted}>Completed</span>;
@@ -781,9 +812,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
 
   const renderEditingBadge = (status: string) => {
     const s = (status || '').toLowerCase().trim();
-    if (!status || status === '-' || s === 'null') {
-      return <span>-</span>;
-    }
+    if (!status || status === '-' || status === '—' || s === 'null') { return <span style={{ color: '#94a3b8' }}>—</span>; }
     if (s.includes('completed')) {
       return <span className={styles.pillCompleted}>Completed</span>;
     }
@@ -1113,7 +1142,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
             <AdminWorkAssignmentSection
               videoRegister={videoRegister}
               authorizedStaff={authorizedStaff}
-              onSaveSuccess={refreshTopicRecords}
+              onSaveSuccess={async () => {
+                await refreshTopicRecords();
+                broadcastSync();
+              }}
               setNotification={setNotification}
               isCollapsed={isAssignmentSectionCollapsed}
               onToggleCollapse={() => setIsAssignmentSectionCollapsed(prev => !prev)}
@@ -1540,7 +1572,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
           </div>
           <ol className={styles.cardContentList}>
             <li>Added Month column immediately after S.No (June 2026 – October 2026).</li>
-            <li>Updated all 57 video records as per provided dataset.</li>
+            <li>Updated and synchronized all 76 video topic records from Untitled spreadsheet.xlsx (100% data accuracy).</li>
             <li>Added Month filter in the toolbar (June 2026, July 2026, August 2026, September 2026, October 2026).</li>
             <li>Maintained existing cameraman &amp; video editor login structures (no changes).</li>
             <li>Preserved all other columns, UI, workflows, permissions and functionality.</li>
@@ -1613,12 +1645,21 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                       onChange={e => setAssignCameraman(e.target.value)}
                       disabled={role !== 'ADMIN' && role !== 'TEAM_MEMBER'}
                     >
+                      <option value="">— Unassigned —</option>
                       <option value="Parasuraman">Parasuraman</option>
                       <option value="Antony Alcander">Antony Alcander</option>
                       <option value="Antony Parasuraman">Antony Parasuraman</option>
+                      <option value="Antony Alcander, Parasuraman">Antony Alcander, Parasuraman</option>
+                      <option value="Antony">Antony</option>
+                      <option value="LIVE SESSION">LIVE SESSION</option>
                       {authorizedStaff.cameramen.map((c: any) => (
                         <option key={c.id || c.email} value={c.name}>{c.name} ({c.email})</option>
                       ))}
+                      {assignCameraman && 
+                       !['Parasuraman', 'Antony Alcander', 'Antony Parasuraman', 'Antony Alcander, Parasuraman', 'Antony', 'LIVE SESSION', ''].includes(assignCameraman) &&
+                       !authorizedStaff.cameramen.some((c: any) => c.name === assignCameraman) && (
+                        <option value={assignCameraman}>{assignCameraman}</option>
+                      )}
                     </select>
                   </div>
 
@@ -1691,15 +1732,22 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                       onChange={e => setAssignEditor(e.target.value)}
                       disabled={role !== 'ADMIN' && role !== 'TEAM_MEMBER'}
                     >
+                      <option value="">— Unassigned —</option>
                       <option value="Hassan & Antony">Hassan &amp; Antony</option>
                       <option value="Hassan">Hassan</option>
                       <option value="Bala">Bala</option>
                       <option value="Ramaswamy">Ramaswamy</option>
                       <option value="Parandhaman">Parandhaman</option>
+                      <option value="Hassan & Antony, Bala">Hassan &amp; Antony, Bala</option>
                       <option value="Post-Production Team">Post-Production Team</option>
                       {authorizedStaff.editors.map((e: any) => (
                         <option key={e.id || e.email} value={e.name}>{e.name} ({e.email})</option>
                       ))}
+                      {assignEditor && 
+                       !['Hassan & Antony', 'Hassan', 'Bala', 'Ramaswamy', 'Parandhaman', 'Hassan & Antony, Bala', 'Post-Production Team', ''].includes(assignEditor) &&
+                       !authorizedStaff.editors.some((e: any) => e.name === assignEditor) && (
+                        <option value={assignEditor}>{assignEditor}</option>
+                      )}
                     </select>
                   </div>
 

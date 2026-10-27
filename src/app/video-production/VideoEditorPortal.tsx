@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import styles from './video-production.module.css';
 import { saveEditorPostProductionEntry, detectVideoDuration } from './actions';
+import { matchesEditorName } from '@/lib/epicHelpers';
 
 interface VideoEditorPortalProps {
   currentUser: any;
@@ -61,36 +62,12 @@ export default function VideoEditorPortal({
 
   // All topics assigned to this Video Editor
   const assignedRows = useMemo(() => {
-    const matched = videoRegister.filter(row => {
+    return videoRegister.filter(row => {
       if (assignedSequences.length > 0 && assignedSequences.includes(row.epicSequence)) {
         return true;
       }
-      const ed = (row.editor || '').toLowerCase().trim();
-      if (ed && ed !== '-' && ed !== 'not assigned') {
-        if (userEmail && (ed === userEmail || ed.includes(userEmail) || userEmail.includes(ed))) return true;
-        if (userName && (ed === userName || ed.includes(userName) || userName.includes(ed))) return true;
-        const edParts = ed.split(',').map((p: string) => p.trim());
-        if (userEmail && edParts.some((p: string) => p && (userEmail.includes(p) || p.includes(userEmail)))) return true;
-        if (userName && edParts.some((p: string) => p && (userName.includes(p) || p.includes(userName)))) return true;
-        if (userName) {
-          const nameTokens = userName.split(/\s+/).filter(Boolean);
-          if (nameTokens.some((token: string) => token.length >= 3 && ed.includes(token))) return true;
-        }
-        if (userEmail) {
-          const emailPrefix = userEmail.split('@')[0].replace(/[^a-z0-9]/g, ' ');
-          const emailTokens = emailPrefix.split(/\s+/).filter(Boolean);
-          if (emailTokens.some((token: string) => token.length >= 3 && ed.includes(token))) return true;
-        }
-      }
-      return false;
+      return matchesEditorName(row.editor, userName, userEmail);
     });
-
-    // Fallback: If server already filtered rows for this user session or if matched is empty,
-    // preserve all records from videoRegister so editor always sees their real assignments
-    if (matched.length === 0 && videoRegister.length > 0) {
-      return videoRegister;
-    }
-    return matched;
   }, [videoRegister, assignedSequences, userEmail, userName]);
 
   // Broadcast real persisted assignment count to the Left Sidebar in real time
@@ -121,7 +98,13 @@ export default function VideoEditorPortal({
     return selectedEpicRows.filter(r => {
       const shootStatus = (r.shootingStatus || '').toLowerCase();
       const editStatus = (r.editingStatus || '').toLowerCase();
-      return shootStatus.includes('completed') || editStatus.includes('progress') || editStatus.includes('completed');
+      return shootStatus.includes('completed') || 
+             shootStatus.includes('received') || 
+             shootStatus.includes('digital') || 
+             editStatus.includes('progress') || 
+             editStatus.includes('process') || 
+             editStatus.includes('completed') ||
+             !!r.finalVideoLink;
     });
   }, [selectedEpicRows]);
 
@@ -130,7 +113,13 @@ export default function VideoEditorPortal({
     return selectedEpicRows.filter(r => {
       const shootStatus = (r.shootingStatus || '').toLowerCase();
       const editStatus = (r.editingStatus || '').toLowerCase();
-      return !shootStatus.includes('completed') && !editStatus.includes('progress') && !editStatus.includes('completed');
+      return !shootStatus.includes('completed') && 
+             !shootStatus.includes('received') && 
+             !shootStatus.includes('digital') && 
+             !editStatus.includes('progress') && 
+             !editStatus.includes('process') && 
+             !editStatus.includes('completed') &&
+             !r.finalVideoLink;
     });
   }, [selectedEpicRows]);
 
@@ -200,6 +189,16 @@ export default function VideoEditorPortal({
     }
   };
 
+  const broadcastSync = () => {
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        const channel = new BroadcastChannel('pmevidya_video_production_sync');
+        channel.postMessage({ type: 'RECORD_SAVED', timestamp: Date.now() });
+        channel.close();
+      } catch (_) {}
+    }
+  };
+
   // Save Draft (In Progress)
   const handleSaveDraft = async (row: any) => {
     const form = topicForms[row.uniqueKey] || {
@@ -241,6 +240,7 @@ export default function VideoEditorPortal({
           message: `Saved post-production draft for "${row.videoTitle}".`
         });
         await onRefreshData();
+        broadcastSync();
       } else {
         alert(res.error || 'Failed to save post-production draft.');
       }
@@ -308,6 +308,7 @@ export default function VideoEditorPortal({
           message: `🎉 Post-production deliverable submitted as Completed for "${row.videoTitle}"! Live in Overall Tracker & Library.`
         });
         await onRefreshData();
+        broadcastSync();
       } else {
         alert(res.error || 'Failed to submit editing deliverable.');
       }

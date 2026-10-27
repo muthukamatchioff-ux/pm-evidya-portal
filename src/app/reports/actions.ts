@@ -95,22 +95,22 @@ function matchVideosForEpic(epic: any, allVideos: any[]): any[] {
   return Array.from(videoMap.values());
 }
 
-function cleanCameraman(name?: string | null, fallbackName: string = 'Antony Alcander'): string {
-  if (!name) return fallbackName;
+function cleanCameraman(name?: string | null): string {
+  if (!name) return '—';
   const trimmed = name.trim();
   const lower = trimmed.toLowerCase();
-  if (!trimmed || trimmed === '-' || trimmed === 'null' || lower === 'production team' || lower === 'production' || lower === 'team') {
-    return fallbackName;
+  if (!trimmed || trimmed === '-' || trimmed === '—' || lower === 'null' || lower === 'production team' || lower === 'production' || lower === 'team') {
+    return '—';
   }
   return trimmed;
 }
 
-function cleanEditorName(name?: string | null, fallbackName: string = 'Post-Production Team'): string {
-  if (!name) return fallbackName;
+function cleanEditorName(name?: string | null): string {
+  if (!name) return '—';
   const trimmed = name.trim();
   const lower = trimmed.toLowerCase();
-  if (!trimmed || trimmed === '-' || trimmed === 'null' || lower === 'not assigned') {
-    return fallbackName;
+  if (!trimmed || trimmed === '-' || trimmed === '—' || lower === 'null' || lower === 'not assigned') {
+    return '—';
   }
   return trimmed;
 }
@@ -124,10 +124,7 @@ function extractEndDate(reviewComments?: string | null): string | null {
 function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
   const realSchedules: any[] = entry.shootingSchedules || [];
   const realEditorRecs: any[] = entry.videoEditorRecords || [];
-  const defaultCam = 'Antony Alcander';
-  const defaultEd = 'Post-Production Team';
-  const defaultStartDate = new Date('2026-10-05T00:00:00.000Z');
-  const defaultEndDate = new Date('2026-10-15T00:00:00.000Z');
+  // No artificial fallbacks: rely on real persisted values only
 
   let shootingSchedules: any[] = [];
   if (combinedVideos.length > 0) {
@@ -139,7 +136,7 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
       if (matchSched) {
         return {
           ...matchSched,
-          cameraman: cleanCameraman(matchSched.cameraman, defaultCam),
+          cameraman: cleanCameraman(matchSched.cameraman),
         };
       }
       return {
@@ -150,7 +147,7 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
         scheduledStart: entry.attendanceFrom || v.createdAt,
         scheduledEnd: entry.attendanceTo || v.createdAt,
         location: 'Studio - NIMI Chennai',
-        cameraman: defaultCam,
+        cameraman: '—',
         status: 'COMPLETED',
         productionNotes: `Trade: ${v.trade || entry.trade} | Topic: ${v.title}`,
         createdAt: v.createdAt || entry.createdAt,
@@ -162,14 +159,14 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
       if (!shootingSchedules.some((sc: any) => sc.id === s.id || (sc.videoTitle && s.videoTitle && sc.videoTitle.trim() === s.videoTitle.trim()))) {
         shootingSchedules.push({
           ...s,
-          cameraman: cleanCameraman(s.cameraman, defaultCam),
+          cameraman: cleanCameraman(s.cameraman),
         });
       }
     });
   } else if (realSchedules.length > 0) {
     shootingSchedules = realSchedules.map((s: any) => ({
       ...s,
-      cameraman: cleanCameraman(s.cameraman, defaultCam),
+      cameraman: cleanCameraman(s.cameraman),
     }));
   } else {
     shootingSchedules = [{
@@ -180,7 +177,7 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
       scheduledStart: entry.attendanceFrom || entry.createdAt,
       scheduledEnd: entry.attendanceTo || entry.createdAt,
       location: 'Studio - NIMI Chennai',
-      cameraman: defaultCam,
+      cameraman: '—',
       status: entry.status === 'COMPLETED' ? 'COMPLETED' : 'PLANNED',
       productionNotes: `Trade: ${entry.trade}`,
       createdAt: entry.createdAt,
@@ -198,12 +195,12 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
       );
       if (matchRec) {
         const rawEnd = matchRec.editingEndDate 
-          || (extractEndDate(matchRec.reviewComments) ? new Date(extractEndDate(matchRec.reviewComments)!) : defaultEndDate);
+          || (extractEndDate(matchRec.reviewComments) ? new Date(extractEndDate(matchRec.reviewComments)!) : null);
         return {
           ...matchRec,
           assignedVideo: matchRec.assignedVideo || title,
-          editorName: cleanEditorName(matchRec.editorName, defaultEd),
-          editingStartDate: matchRec.editingStartDate || defaultStartDate,
+          editorName: cleanEditorName(matchRec.editorName),
+          editingStartDate: matchRec.editingStartDate || null,
           editingEndDate: rawEnd,
           finalVideoFile: matchRec.finalVideoFile || v.videoLink || null,
           duration: matchRec.duration || v.duration || null,
@@ -213,9 +210,9 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
         id: `ed-${v.id || idx}`,
         workEntryId: entry.id,
         assignedVideo: title,
-        editorName: defaultEd,
-        editingStartDate: defaultStartDate,
-        editingEndDate: defaultEndDate,
+        editorName: '—',
+        editingStartDate: null,
+        editingEndDate: null,
         duration: v.duration || null,
         status: 'COMPLETED',
         finalVideoFile: v.videoLink || null,
@@ -228,11 +225,11 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
     realEditorRecs.forEach((e: any) => {
       if (!videoEditorRecords.some((vr: any) => vr.id === e.id || (vr.assignedVideo && e.assignedVideo && vr.assignedVideo.trim() === e.assignedVideo.trim()))) {
         const rawEnd = e.editingEndDate 
-          || (extractEndDate(e.reviewComments) ? new Date(extractEndDate(e.reviewComments)!) : defaultEndDate);
+          || (extractEndDate(e.reviewComments) ? new Date(extractEndDate(e.reviewComments)!) : null);
         videoEditorRecords.push({
           ...e,
-          editorName: cleanEditorName(e.editorName, defaultEd),
-          editingStartDate: e.editingStartDate || defaultStartDate,
+          editorName: cleanEditorName(e.editorName),
+          editingStartDate: e.editingStartDate || null,
           editingEndDate: rawEnd,
         });
       }
@@ -240,11 +237,11 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
   } else if (realEditorRecs.length > 0) {
     videoEditorRecords = realEditorRecs.map((e: any) => {
       const rawEnd = e.editingEndDate 
-        || (extractEndDate(e.reviewComments) ? new Date(extractEndDate(e.reviewComments)!) : defaultEndDate);
+        || (extractEndDate(e.reviewComments) ? new Date(extractEndDate(e.reviewComments)!) : null);
       return {
         ...e,
-        editorName: cleanEditorName(e.editorName, defaultEd),
-        editingStartDate: e.editingStartDate || defaultStartDate,
+        editorName: cleanEditorName(e.editorName),
+        editingStartDate: e.editingStartDate || null,
         editingEndDate: rawEnd,
       };
     });
@@ -253,9 +250,9 @@ function buildEpicWorkflowRecords(entry: any, combinedVideos: any[]) {
       id: `ed-${entry.id}`,
       workEntryId: entry.id,
       assignedVideo: entry.topic,
-      editorName: defaultEd,
-      editingStartDate: defaultStartDate,
-      editingEndDate: defaultEndDate,
+      editorName: '—',
+      editingStartDate: null,
+      editingEndDate: null,
       duration: null,
       status: entry.status === 'COMPLETED' ? 'COMPLETED' : 'NOT_STARTED',
       finalVideoFile: null,
