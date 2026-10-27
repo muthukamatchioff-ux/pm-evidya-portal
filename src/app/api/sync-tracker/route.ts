@@ -78,12 +78,25 @@ export async function GET(request: Request) {
     const editorCount = await prisma.videoEditorRecord.count({
       where: { id: { startsWith: 'ed-VID-' } }
     });
+    const linksCount = await prisma.videoLibrary.count({
+      where: { id: { startsWith: 'VID-' }, videoLink: { not: '' } }
+    });
+    const durationsCount = await prisma.videoLibrary.count({
+      where: { id: { startsWith: 'VID-' }, duration: { not: null } }
+    });
+    const sampleVideos = await prisma.videoLibrary.findMany({
+      where: { id: { in: ['VID-001', 'VID-037', 'VID-067', 'VID-072', 'VID-076'] } },
+      select: { id: true, title: true, videoLink: true, duration: true, trade: true }
+    });
     return NextResponse.json({
       success: true,
       videoCount,
       shootCount,
       editorCount,
-      isFullySynced: videoCount >= 76
+      linksCount,
+      durationsCount,
+      isFullySynced: videoCount >= 76,
+      sampleVideos
     });
   }
 
