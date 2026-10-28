@@ -375,7 +375,21 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         if (videoIdMap.has(rawId)) {
           videoIdMap.get(rawId)!.schedule = s;
         } else {
-          videoIdMap.set(s.id, { schedule: s });
+          // If rawId doesn't match directly, try to attach by title to an existing video in videoIdMap
+          let attached = false;
+          const sTitle = (s.videoTitle || '').trim().toLowerCase();
+          if (sTitle) {
+            for (const [, val] of videoIdMap) {
+              if (val.lib?.title && val.lib.title.trim().toLowerCase() === sTitle) {
+                val.schedule = s;
+                attached = true;
+                break;
+              }
+            }
+          }
+          if (!attached) {
+            videoIdMap.set(s.id, { schedule: s });
+          }
         }
       });
 
@@ -384,7 +398,22 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         if (videoIdMap.has(rawId)) {
           videoIdMap.get(rawId)!.editor = e;
         } else {
-          videoIdMap.set(e.id, { editor: e });
+          // If rawId doesn't match directly, try to attach by title to an existing video in videoIdMap
+          let attached = false;
+          const eTitle = (e.assignedVideo || '').trim().toLowerCase();
+          if (eTitle) {
+            for (const [, val] of videoIdMap) {
+              if ((val.lib?.title && val.lib.title.trim().toLowerCase() === eTitle) ||
+                  (val.schedule?.videoTitle && val.schedule.videoTitle.trim().toLowerCase() === eTitle)) {
+                val.editor = e;
+                attached = true;
+                break;
+              }
+            }
+          }
+          if (!attached) {
+            videoIdMap.set(e.id, { editor: e });
+          }
         }
       });
 
@@ -474,14 +503,19 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     const seenTopics = new Set<string>();
     const deduplicatedRows: VideoRegisterRow[] = [];
 
-    // Prioritize canonical VID- IDs and rows with actual dates
+    // Prioritize rows with actual assigned staff, dates, and canonical VID- IDs
     rows.sort((a, b) => {
-      const aIsVid = a.videoId.startsWith('VID-') ? 1 : 0;
-      const bIsVid = b.videoId.startsWith('VID-') ? 1 : 0;
-      if (aIsVid !== bIsVid) return bIsVid - aIsVid;
+      const aHasStaff = ((a.cameraman && a.cameraman !== '—' && a.cameraman !== '-') || (a.editor && a.editor !== '—' && a.editor !== '-')) ? 1 : 0;
+      const bHasStaff = ((b.cameraman && b.cameraman !== '—' && b.cameraman !== '-') || (b.editor && b.editor !== '—' && b.editor !== '-')) ? 1 : 0;
+      if (aHasStaff !== bHasStaff) return bHasStaff - aHasStaff;
+
       const aHasDates = (a.shootingStartDate || a.editingStartDate) ? 1 : 0;
       const bHasDates = (b.shootingStartDate || b.editingStartDate) ? 1 : 0;
-      return bHasDates - aHasDates;
+      if (aHasDates !== bHasDates) return bHasDates - aHasDates;
+
+      const aIsVid = a.videoId.startsWith('VID-') ? 1 : 0;
+      const bIsVid = b.videoId.startsWith('VID-') ? 1 : 0;
+      return bIsVid - aIsVid;
     });
 
     for (const r of rows) {
@@ -823,28 +857,43 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     setAssignShootStart(row.shootingStartDate ? formatDateForInput(row.shootingStartDate) : '');
     setAssignShootEnd(row.shootingEndDate ? formatDateForInput(row.shootingEndDate) : '');
     setAssignShootStatus(row.shootingStatus || 'Yet to shoot');
-    setAssignShootNotes(row.productionNotes || '');
+
+    let cleanNotes = row.productionNotes || '';
+    if (cleanNotes.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(cleanNotes);
+        cleanNotes = parsed.notes || parsed.remarks || '';
+      } catch (_) {}
+    }
+    setAssignShootNotes(cleanNotes);
 
     setAssignEditor(row.editor !== '-' && row.editor !== '—' ? row.editor : '');
     setAssignEditStart(row.editingStartDate ? formatDateForInput(row.editingStartDate) : '');
     setAssignEditEnd(row.editingEndDate ? formatDateForInput(row.editingEndDate) : '');
     setAssignEditStatus(row.editingStatus || 'Pending');
-    setAssignReviewComments(row.reviewComments || '');
+
+    let cleanReview = row.reviewComments || '';
+    if (cleanReview.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(cleanReview);
+        cleanReview = parsed.remarks || parsed.comments || '';
+      } catch (_) {}
+    }
+    setAssignReviewComments(cleanReview);
 
     setAssignVideoTitle(row.videoTitle);
     setAssignDuration(row.duration || '');
     setAssignVideoLink(row.finalVideoLink || '');
-    setAssignChangeReason('');
+    setAssignChangeReason('Admin updated production details');
     setIsAssignModalOpen(true);
   };
 
   // Save Work Assignment & Production Details
   const handleSaveWorkAssignment = async () => {
     if (!assignTargetRow) return;
-    if (assignChangeReason.trim().length < 5) {
-      alert('Please provide a mandatory change reason of at least 5 characters for audit compliance.');
-      return;
-    }
+    const finalReason = assignChangeReason.trim().length >= 5
+      ? assignChangeReason.trim()
+      : 'Admin updated production details';
 
     setAssignLoading(true);
     try {
@@ -864,7 +913,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         videoTitle: assignVideoTitle,
         duration: assignDuration || null,
         finalVideoLink: assignVideoLink || null,
-        changeReason: assignChangeReason.trim()
+        changeReason: finalReason
       });
 
       if (res.success) {
@@ -872,9 +921,122 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
           type: 'success',
           message: `Successfully updated work assignment and production details for ${assignTargetRow.videoTitle}!`
         });
+
+        // 1. Immediate optimistic and authoritative local update of workEntries state
+        setWorkEntries(prevEntries => {
+          return prevEntries.map(entry => {
+            if (entry.id !== assignTargetRow.epicId) return entry;
+
+            const targetVid = (assignTargetRow.videoId || '').replace(/^(shoot-|ed-)/, '');
+            const targetTitle = (assignVideoTitle || assignTargetRow.videoTitle || '').trim().toLowerCase();
+
+            // Update or add Shooting Schedule
+            let schedFound = false;
+            const updatedSchedules = (entry.shootingSchedules || []).map((s: any) => {
+              const sClean = (s.id || '').replace(/^shoot-/, '');
+              const sTitle = (s.videoTitle || '').trim().toLowerCase();
+              if (s.id === assignTargetRow.videoId || sClean === targetVid || (sTitle && sTitle === targetTitle)) {
+                schedFound = true;
+                return {
+                  ...s,
+                  cameraman: assignCameraman || s.cameraman,
+                  scheduledStart: assignShootStart ? new Date(assignShootStart).toISOString() : null,
+                  scheduledEnd: assignShootEnd ? new Date(assignShootEnd).toISOString() : null,
+                  status: assignShootStatus,
+                  productionNotes: assignShootNotes || s.productionNotes,
+                  videoTitle: assignVideoTitle || s.videoTitle
+                };
+              }
+              return s;
+            });
+            if (!schedFound && targetVid) {
+              updatedSchedules.push({
+                id: `shoot-${targetVid}`,
+                workEntryId: entry.id,
+                videoTitle: assignVideoTitle || assignTargetRow.videoTitle,
+                cameraman: assignCameraman || null,
+                scheduledStart: assignShootStart ? new Date(assignShootStart).toISOString() : null,
+                scheduledEnd: assignShootEnd ? new Date(assignShootEnd).toISOString() : null,
+                status: assignShootStatus,
+                productionNotes: assignShootNotes || null
+              });
+            }
+
+            // Update or add Video Editor Record
+            let edFound = false;
+            const updatedEditors = (entry.videoEditorRecords || []).map((e: any) => {
+              const eClean = (e.id || '').replace(/^ed-/, '');
+              const eTitle = (e.assignedVideo || '').trim().toLowerCase();
+              if (e.id === assignTargetRow.videoId || eClean === targetVid || (eTitle && eTitle === targetTitle)) {
+                edFound = true;
+                return {
+                  ...e,
+                  editorName: assignEditor || e.editorName,
+                  editingStartDate: assignEditStart ? new Date(assignEditStart).toISOString() : null,
+                  editingEndDate: assignEditEnd ? new Date(assignEditEnd).toISOString() : null,
+                  status: assignEditStatus,
+                  duration: assignDuration || e.duration,
+                  finalVideoFile: assignVideoLink || e.finalVideoFile,
+                  reviewComments: assignReviewComments || e.reviewComments,
+                  assignedVideo: assignVideoTitle || e.assignedVideo
+                };
+              }
+              return e;
+            });
+            if (!edFound && targetVid) {
+              updatedEditors.push({
+                id: `ed-${targetVid}`,
+                workEntryId: entry.id,
+                assignedVideo: assignVideoTitle || assignTargetRow.videoTitle,
+                editorName: assignEditor || null,
+                editingStartDate: assignEditStart ? new Date(assignEditStart).toISOString() : null,
+                editingEndDate: assignEditEnd ? new Date(assignEditEnd).toISOString() : null,
+                status: assignEditStatus,
+                duration: assignDuration || null,
+                finalVideoFile: assignVideoLink || null,
+                reviewComments: assignReviewComments || null
+              });
+            }
+
+            // Update or add Video Library
+            let libFound = false;
+            const updatedLibs = (entry.videoLibraries || []).map((v: any) => {
+              const vTitle = (v.title || '').trim().toLowerCase();
+              if (v.id === assignTargetRow.videoId || v.id === targetVid || (vTitle && vTitle === targetTitle)) {
+                libFound = true;
+                return {
+                  ...v,
+                  title: assignVideoTitle || v.title,
+                  duration: assignDuration !== undefined ? assignDuration : v.duration,
+                  videoLink: assignVideoLink !== undefined ? assignVideoLink : v.videoLink
+                };
+              }
+              return v;
+            });
+            if (!libFound && targetVid) {
+              updatedLibs.push({
+                id: targetVid,
+                epicId: entry.id,
+                title: assignVideoTitle || assignTargetRow.videoTitle,
+                smeName: assignTargetRow.smeName,
+                trade: assignTargetRow.trade,
+                duration: assignDuration || null,
+                videoLink: assignVideoLink || ''
+              });
+            }
+
+            return {
+              ...entry,
+              shootingSchedules: updatedSchedules,
+              videoEditorRecords: updatedEditors,
+              videoLibraries: updatedLibs
+            };
+          });
+        });
+
         setIsAssignModalOpen(false);
 
-        // Reload fresh records
+        // 2. Refresh from server asynchronously
         const fresh = await getTopicProductionRecords();
         if (fresh.success && fresh.data) {
           setWorkEntries(fresh.data);
@@ -2069,10 +2231,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                 </div>
               </div>
 
-              {/* Mandatory Audit Reason */}
+              {/* Audit Reason */}
               <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '14px' }}>
                 <label className={styles.formLabel} style={{ color: '#92400e', fontWeight: 700 }}>
-                  Mandatory Change Reason (Required for Audit Compliance, min 5 characters):
+                  Change Reason (Audit History):
                 </label>
                 <input 
                   type="text" 
@@ -2096,7 +2258,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
               <button 
                 className={styles.btnSave} 
                 onClick={handleSaveWorkAssignment}
-                disabled={assignLoading || assignChangeReason.trim().length < 5}
+                disabled={assignLoading}
               >
                 {assignLoading ? 'Saving...' : '💾 Save & Update Assignment'}
               </button>

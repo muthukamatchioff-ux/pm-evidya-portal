@@ -251,9 +251,12 @@ export async function getTopicProductionRecords() {
       if (combinedVideos.length > 0) {
         shootingSchedules = combinedVideos.map((v: any, idx: number) => {
           const title = v.title || entry.topic;
+          const normTitle = (title || '').trim().toLowerCase();
           const matchSched = realSchedules.find((s: any) => 
-            s.id === v.id || s.id === `shoot-${v.id}` || 
-            (s.videoTitle && title && s.videoTitle.trim().toLowerCase() === title.trim().toLowerCase())
+            s.id === v.id || 
+            s.id === `shoot-${v.id}` || 
+            (s.id && s.id.replace(/^shoot-/, '') === v.id) ||
+            (s.videoTitle && s.videoTitle.trim().toLowerCase() === normTitle)
           );
           if (matchSched) {
             return {
@@ -311,8 +314,12 @@ export async function getTopicProductionRecords() {
       if (combinedVideos.length > 0) {
         videoEditorRecords = combinedVideos.map((v: any, idx: number) => {
           const title = v.title || entry.topic;
+          const normTitle = (title || '').trim().toLowerCase();
           const matchRec = realEditorRecs.find((e: any) =>
-            e.id === v.id || e.id === `ed-${v.id}` || (e.assignedVideo && e.assignedVideo.trim() === title.trim()) ||
+            e.id === v.id || 
+            e.id === `ed-${v.id}` || 
+            (e.id && e.id.replace(/^ed-/, '') === v.id) ||
+            (e.assignedVideo && e.assignedVideo.trim().toLowerCase() === normTitle) ||
             (combinedVideos.length === 1 && realEditorRecs.length === 1)
           );
 
@@ -1482,9 +1489,9 @@ export async function assignProductionPersonnel(params: {
 
   const email = await getEmail();
 
-  if (!params.changeReason || params.changeReason.trim().length < 5) {
-    return { success: false, error: 'A mandatory change reason (min 5 characters) is required for audit history compliance.' };
-  }
+  const finalReason = (params.changeReason && params.changeReason.trim().length >= 5)
+    ? params.changeReason.trim()
+    : 'Admin work assignment';
 
   if (!params.workEntryId) {
     return { success: false, error: 'Valid EPIC ID is required.' };
@@ -1524,14 +1531,18 @@ export async function assignProductionPersonnel(params: {
 
     const finalCamString = camNamesList.join(', ');
     const finalEdString = edNamesList.join(', ');
+    const cleanVidId = (params.videoId || '').replace(/^(shoot-|ed-)/, '');
 
     // 1. Update Cameraman on ShootingSchedule
     if (camNamesList.length > 0) {
       if (params.videoId && params.videoId !== 'ALL') {
+        const canonicalShootId = cleanVidId ? `shoot-${cleanVidId}` : null;
         const matchingSchedule = workEntry.shootingSchedules.find((s: any) => 
           s.id === params.videoId || 
-          s.id === `shoot-${params.videoId}` ||
-          (params.videoId && workEntry.videoLibraries.some((vl: any) => vl.id === params.videoId && vl.title === s.videoTitle))
+          s.id === cleanVidId ||
+          (canonicalShootId && s.id === canonicalShootId) ||
+          (s.id && s.id.replace(/^shoot-/, '') === cleanVidId) ||
+          (params.videoId && workEntry.videoLibraries.some((vl: any) => (vl.id === cleanVidId || vl.id === params.videoId) && vl.title === s.videoTitle))
         );
 
         if (matchingSchedule) {
@@ -1542,10 +1553,11 @@ export async function assignProductionPersonnel(params: {
         } else {
           await prisma.shootingSchedule.create({
             data: {
+              ...(canonicalShootId ? { id: canonicalShootId } : {}),
               workEntryId: params.workEntryId,
               cameraman: finalCamString,
               status: 'PLANNED',
-              videoTitle: workEntry.videoLibraries.find((vl: any) => vl.id === params.videoId)?.title || workEntry.topic
+              videoTitle: workEntry.videoLibraries.find((vl: any) => vl.id === cleanVidId || vl.id === params.videoId)?.title || workEntry.topic
             }
           }).catch(() => null);
         }
@@ -1582,10 +1594,13 @@ export async function assignProductionPersonnel(params: {
     // 2. Update Editor on VideoEditorRecord
     if (edNamesList.length > 0) {
       if (params.videoId && params.videoId !== 'ALL') {
+        const canonicalEdId = cleanVidId ? `ed-${cleanVidId}` : null;
         const matchingEditor = workEntry.videoEditorRecords.find((e: any) => 
           e.id === params.videoId || 
-          e.id === `ed-${params.videoId}` ||
-          (params.videoId && workEntry.videoLibraries.some((vl: any) => vl.id === params.videoId && vl.title === e.assignedVideo))
+          e.id === cleanVidId ||
+          (canonicalEdId && e.id === canonicalEdId) ||
+          (e.id && e.id.replace(/^ed-/, '') === cleanVidId) ||
+          (params.videoId && workEntry.videoLibraries.some((vl: any) => (vl.id === cleanVidId || vl.id === params.videoId) && vl.title === e.assignedVideo))
         );
 
         if (matchingEditor) {
@@ -1596,10 +1611,11 @@ export async function assignProductionPersonnel(params: {
         } else {
           await prisma.videoEditorRecord.create({
             data: {
+              ...(canonicalEdId ? { id: canonicalEdId } : {}),
               workEntryId: params.workEntryId,
               editorName: finalEdString,
               status: 'NOT_STARTED',
-              assignedVideo: workEntry.videoLibraries.find((vl: any) => vl.id === params.videoId)?.title || workEntry.topic
+              assignedVideo: workEntry.videoLibraries.find((vl: any) => vl.id === cleanVidId || vl.id === params.videoId)?.title || workEntry.topic
             }
           }).catch(() => null);
         }
@@ -1646,7 +1662,7 @@ export async function assignProductionPersonnel(params: {
         videoId: params.videoId || 'ALL_VIDEOS',
         assignedCameramen: camNamesList,
         assignedEditors: edNamesList,
-        changeReason: params.changeReason.trim()
+        changeReason: finalReason
       })
     });
 
@@ -1717,9 +1733,9 @@ export async function updateProductionRowDetails(params: {
     return { success: false, error: 'Authentication required.' };
   }
 
-  if (!params.changeReason || params.changeReason.trim().length < 5) {
-    return { success: false, error: 'A mandatory change reason (min 5 characters) is required for audit history compliance.' };
-  }
+  const effectiveReason = (params.changeReason && params.changeReason.trim().length >= 5)
+    ? params.changeReason.trim()
+    : 'Admin manual production update';
 
   if (!params.workEntryId) {
     return { success: false, error: 'Valid EPIC ID is required.' };
@@ -1769,19 +1785,24 @@ export async function updateProductionRowDetails(params: {
     }
 
     const cleanVidId = (params.videoId || '').replace(/^(shoot-|ed-)/, '');
+    const canonicalShootId = cleanVidId ? `shoot-${cleanVidId}` : null;
+    const canonicalEdId = cleanVidId ? `ed-${cleanVidId}` : null;
+    const targetTitleNorm = (params.videoTitle || '').trim().toLowerCase();
 
     // 1. UPDATE OR CREATE SHOOTING SCHEDULE (Cameraman Portion)
     let matchingSchedule = workEntry.shootingSchedules.find((s: any) => 
       s.id === params.videoId || 
       s.id === cleanVidId ||
-      s.id === `shoot-${cleanVidId}` ||
-      (cleanVidId && workEntry.videoLibraries.some((vl: any) => (vl.id === cleanVidId || vl.id === params.videoId) && vl.title === s.videoTitle))
+      (canonicalShootId && s.id === canonicalShootId) ||
+      (s.id && s.id.replace(/^shoot-/, '') === cleanVidId) ||
+      (cleanVidId && workEntry.videoLibraries.some((vl: any) => (vl.id === cleanVidId || vl.id === params.videoId) && vl.title === s.videoTitle)) ||
+      (targetTitleNorm && s.videoTitle && s.videoTitle.trim().toLowerCase() === targetTitleNorm)
     );
 
     if (!matchingSchedule && cleanVidId) {
       const targetLib = workEntry.videoLibraries.find((vl: any) => vl.id === cleanVidId || vl.id === params.videoId);
       if (targetLib) {
-        matchingSchedule = workEntry.shootingSchedules.find((s: any) => s.videoTitle === targetLib.title);
+        matchingSchedule = workEntry.shootingSchedules.find((s: any) => s.videoTitle && s.videoTitle.trim().toLowerCase() === targetLib.title.trim().toLowerCase());
       }
     }
 
@@ -1819,6 +1840,7 @@ export async function updateProductionRowDetails(params: {
     } else if (role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'CAMERAMAN') {
       await prisma.shootingSchedule.create({
         data: {
+          ...(canonicalShootId ? { id: canonicalShootId } : {}),
           workEntryId: workEntry.id,
           cameraman: finalCam || null,
           scheduledStart: schedStart,
@@ -1834,14 +1856,16 @@ export async function updateProductionRowDetails(params: {
     let matchingEditor = workEntry.videoEditorRecords.find((e: any) => 
       e.id === params.videoId || 
       e.id === cleanVidId ||
-      e.id === `ed-${cleanVidId}` ||
-      (cleanVidId && workEntry.videoLibraries.some((vl: any) => (vl.id === cleanVidId || vl.id === params.videoId) && vl.title === e.assignedVideo))
+      (canonicalEdId && e.id === canonicalEdId) ||
+      (e.id && e.id.replace(/^ed-/, '') === cleanVidId) ||
+      (cleanVidId && workEntry.videoLibraries.some((vl: any) => (vl.id === cleanVidId || vl.id === params.videoId) && vl.title === e.assignedVideo)) ||
+      (targetTitleNorm && e.assignedVideo && e.assignedVideo.trim().toLowerCase() === targetTitleNorm)
     );
 
     if (!matchingEditor && cleanVidId) {
       const targetLib = workEntry.videoLibraries.find((vl: any) => vl.id === cleanVidId || vl.id === params.videoId);
       if (targetLib) {
-        matchingEditor = workEntry.videoEditorRecords.find((e: any) => e.assignedVideo === targetLib.title);
+        matchingEditor = workEntry.videoEditorRecords.find((e: any) => e.assignedVideo && e.assignedVideo.trim().toLowerCase() === targetLib.title.trim().toLowerCase());
       }
     }
 
@@ -1868,6 +1892,7 @@ export async function updateProductionRowDetails(params: {
     } else if (role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'EDITOR') {
       await prisma.videoEditorRecord.create({
         data: {
+          ...(canonicalEdId ? { id: canonicalEdId } : {}),
           workEntryId: workEntry.id,
           editorName: finalEd || null,
           editingStartDate: editStart,
@@ -1883,11 +1908,13 @@ export async function updateProductionRowDetails(params: {
 
     // 3. UPDATE VIDEO LIBRARY (Deliverable & link)
     if (role !== 'CAMERAMAN') {
+      const canonicalVidId = cleanVidId && cleanVidId.startsWith('VID-') ? cleanVidId : null;
       let matchingLib = workEntry.videoLibraries.find((v: any) =>
         v.id === params.videoId ||
         v.id === cleanVidId ||
-        (matchingEditor?.assignedVideo && v.title === matchingEditor.assignedVideo) ||
-        (matchingSchedule?.videoTitle && v.title === matchingSchedule.videoTitle)
+        (targetTitleNorm && v.title && v.title.trim().toLowerCase() === targetTitleNorm) ||
+        (matchingEditor?.assignedVideo && v.title && v.title.trim().toLowerCase() === matchingEditor.assignedVideo.trim().toLowerCase()) ||
+        (matchingSchedule?.videoTitle && v.title && v.title.trim().toLowerCase() === matchingSchedule.videoTitle.trim().toLowerCase())
       );
 
       if (!matchingLib && workEntry.videoLibraries.length === 1 && (!params.videoId || params.videoId === 'ALL')) {
@@ -1903,14 +1930,15 @@ export async function updateProductionRowDetails(params: {
             ...(finalLink !== undefined ? { videoLink: finalLink } : {})
           }
         });
-      } else if (finalLink && (role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'EDITOR')) {
+      } else if (role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'EDITOR') {
         await prisma.videoLibrary.create({
           data: {
+            ...(canonicalVidId ? { id: canonicalVidId } : {}),
             epicId: workEntry.id,
             smeName: workEntry.sme?.name || workEntry.topic || 'SME',
             trade: workEntry.trade || 'General',
             title: params.videoTitle || workEntry.topic,
-            videoLink: finalLink,
+            videoLink: finalLink || '',
             duration: finalDur || null
           }
         });
@@ -1938,7 +1966,7 @@ export async function updateProductionRowDetails(params: {
         videoTitle: params.videoTitle,
         duration: params.duration,
         finalVideoLink: params.finalVideoLink,
-        changeReason: params.changeReason
+        changeReason: effectiveReason
       })
     });
 

@@ -328,10 +328,9 @@ export default function AdminWorkAssignmentModal({
       return;
     }
 
-    if (!changeReason || changeReason.trim().length < 5) {
-      alert('Please provide a mandatory change reason of at least 5 characters for audit compliance.');
-      return;
-    }
+    const finalReason = (changeReason && changeReason.trim().length >= 5)
+      ? changeReason.trim()
+      : 'Admin work assignment';
 
     const targetVideoId = scope === 'TOPIC' && selectedTopicId !== 'ALL' ? selectedTopicId : 'ALL';
 
@@ -344,7 +343,7 @@ export default function AdminWorkAssignmentModal({
         cameramanEmails: selectedCameramen.map(c => c.email),
         editorNames: selectedEditors.map(e => e.name),
         editorEmails: selectedEditors.map(e => e.email),
-        changeReason: changeReason.trim()
+        changeReason: finalReason
       });
 
       if (res.success) {

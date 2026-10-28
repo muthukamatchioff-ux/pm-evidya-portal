@@ -219,10 +219,9 @@ export default function AdminWorkAssignmentSection({
       return;
     }
 
-    if (!changeReason || changeReason.trim().length < 5) {
-      alert('Please provide a mandatory change reason (minimum 5 characters) for audit compliance.');
-      return;
-    }
+    const finalReason = (changeReason && changeReason.trim().length >= 5)
+      ? changeReason.trim()
+      : 'Admin work assignment';
 
     setSaving(true);
     try {
@@ -234,7 +233,7 @@ export default function AdminWorkAssignmentSection({
         cameramanEmails: selectedCameramen.map(c => c.email),
         editorNames: selectedEditors.map(e => e.name),
         editorEmails: selectedEditors.map(e => e.email),
-        changeReason: changeReason.trim()
+        changeReason: finalReason
       });
 
       if (res.success) {

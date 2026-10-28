@@ -577,16 +577,10 @@ async function syncRestoredSmes(prisma) {
       const editStart = row.editStartDate ? new Date(row.editStartDate) : null;
       const editEnd = row.editEndDate ? new Date(row.editEndDate) : null;
 
+      // Never overwrite existing records during build/sync - only insert if missing
       await prisma.videoLibrary.upsert({
         where: { id: vidId },
-        update: {
-          epicId: workEntry.id,
-          title: row.videoTopic,
-          smeName: row.smeName,
-          trade: row.trade,
-          duration: row.duration,
-          videoLink: row.videoLink || ''
-        },
+        update: {},
         create: {
           id: vidId,
           epicId: workEntry.id,
@@ -600,16 +594,7 @@ async function syncRestoredSmes(prisma) {
 
       await prisma.shootingSchedule.upsert({
         where: { id: shootId },
-        update: {
-          workEntryId: workEntry.id,
-          videoTitle: row.videoTopic,
-          cameraman: row.cameraman,
-          scheduledStart: shootStart,
-          scheduledEnd: shootEnd,
-          status: row.shootStatus,
-          location: row.month,
-          productionNotes: metaJson
-        },
+        update: {},
         create: {
           id: shootId,
           workEntryId: workEntry.id,
@@ -625,17 +610,7 @@ async function syncRestoredSmes(prisma) {
 
       await prisma.videoEditorRecord.upsert({
         where: { id: edId },
-        update: {
-          workEntryId: workEntry.id,
-          assignedVideo: row.videoTopic,
-          editorName: row.editorName,
-          editingStartDate: editStart,
-          editingEndDate: editEnd,
-          status: row.editStatus,
-          duration: row.duration,
-          finalVideoFile: row.videoLink,
-          reviewComments: metaJson
-        },
+        update: {},
         create: {
           id: edId,
           workEntryId: workEntry.id,
