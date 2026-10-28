@@ -176,24 +176,35 @@ export async function syncTrackerIfNeeded(customPrisma?: any, force: boolean = f
       .map(seq => entryBySeq.get(seq)?.id)
       .filter(Boolean);
 
+    const canonicalTitles = TRACKER_SOURCE_RECORDS.map(r => r.videoTopic.trim());
+
+    // 1. Delete non-canonical video libraries for tracker EPICs or matching canonical titles
     await p.videoLibrary.deleteMany({
       where: {
-        epicId: { in: trackerEpicIds },
-        id: { notIn: Array.from(validVidIds) }
+        OR: [
+          { epicId: { in: trackerEpicIds }, id: { notIn: Array.from(validVidIds) } },
+          { id: { notIn: Array.from(validVidIds) }, title: { in: canonicalTitles } }
+        ]
       }
     });
 
+    // 2. Delete non-canonical shooting schedules for tracker EPICs or matching canonical titles
     await p.shootingSchedule.deleteMany({
       where: {
-        workEntryId: { in: trackerEpicIds },
-        id: { notIn: Array.from(validShootIds) }
+        OR: [
+          { workEntryId: { in: trackerEpicIds }, id: { notIn: Array.from(validShootIds) } },
+          { id: { notIn: Array.from(validShootIds) }, videoTitle: { in: canonicalTitles } }
+        ]
       }
     });
 
+    // 3. Delete non-canonical editor records for tracker EPICs or matching canonical titles
     await p.videoEditorRecord.deleteMany({
       where: {
-        workEntryId: { in: trackerEpicIds },
-        id: { notIn: Array.from(validEdIds) }
+        OR: [
+          { workEntryId: { in: trackerEpicIds }, id: { notIn: Array.from(validEdIds) } },
+          { id: { notIn: Array.from(validEdIds) }, assignedVideo: { in: canonicalTitles } }
+        ]
       }
     });
 

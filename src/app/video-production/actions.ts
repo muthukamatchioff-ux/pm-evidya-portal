@@ -217,27 +217,36 @@ export async function getTopicProductionRecords() {
       allVideos = reVideos;
     }
 
-    const trackerSequences = [1, 2, 3, 4, 5, 6, 8, 10, 11, 12, 15, 16, 17];
-    const trackerEntries = allEntries.filter((e: any) => {
-      if (trackerSequences.includes(e.epicSequence)) return true;
-      // Requirement 4: Eligible when required fields defined by workflow are complete
-      const hasRequiredFields = e.trade && e.trade !== 'Not Specified' && e.topic && e.topic !== 'Not Specified' && e.sme;
-      const hasProductionRecords = (e.videoLibraries && e.videoLibraries.length > 0) || 
-                                  (e.shootingSchedules && e.shootingSchedules.length > 0) || 
-                                  (e.videoEditorRecords && e.videoEditorRecords.length > 0);
-      return Boolean(hasRequiredFields && hasProductionRecords);
-    });
+    const trackerSequences = [17, 16, 15, 12, 11, 10, 8, 6, 5, 4, 3, 2, 1];
+    const trackerEntries = allEntries
+      .filter((e: any) => trackerSequences.includes(e.epicSequence))
+      .sort((a: any, b: any) => b.epicSequence - a.epicSequence);
 
     const allRecords = trackerEntries.map((entry: any) => {
       const videoMap = new Map<string, any>();
       (entry.videoLibraries || []).forEach((v: any) => videoMap.set(v.id, v));
       allVideos.filter((v: any) => v.epicId === entry.id).forEach((v: any) => videoMap.set(v.id, v));
-      const combinedVideos = Array.from(videoMap.values());
+      let combinedVideos = Array.from(videoMap.values());
+
+      // Deduplicate combinedVideos by video title (case-insensitive trimmed), prioritizing VID-xxx IDs
+      combinedVideos.sort((a: any, b: any) => {
+        const aIsVid = (a.id || '').startsWith('VID-') ? 1 : 0;
+        const bIsVid = (b.id || '').startsWith('VID-') ? 1 : 0;
+        return bIsVid - aIsVid;
+      });
+
+      const seenTitles = new Set<string>();
+      combinedVideos = combinedVideos.filter((v: any) => {
+        const norm = (v.title || '').trim().toLowerCase();
+        if (!norm || seenTitles.has(norm)) return false;
+        seenTitles.add(norm);
+        return true;
+      });
 
       const realSchedules: any[] = entry.shootingSchedules || [];
       const realEditorRecs: any[] = entry.videoEditorRecords || [];
 
-      // Construct shooting schedules from real database records
+      // Construct shooting schedules matched directly to canonical videos
       let shootingSchedules: any[] = [];
       if (combinedVideos.length > 0) {
         shootingSchedules = combinedVideos.map((v: any, idx: number) => {
@@ -271,19 +280,6 @@ export async function getTopicProductionRecords() {
             updatedAt: v.updatedAt || entry.updatedAt,
           };
         });
-
-        // Add any standalone real schedules not matching combinedVideos
-        realSchedules.forEach((s: any) => {
-          if (!shootingSchedules.some((sc: any) => sc.id === s.id || (sc.videoTitle && s.videoTitle && sc.videoTitle.trim().toLowerCase() === s.videoTitle.trim().toLowerCase()))) {
-            shootingSchedules.push({
-              ...s,
-              scheduledStart: s.scheduledStart || null,
-              scheduledEnd: s.scheduledEnd || null,
-              cameraman: s.cameraman || null,
-              month: s.location || null
-            });
-          }
-        });
       } else if (realSchedules.length > 0) {
         shootingSchedules = realSchedules.map((s: any) => ({
           ...s,
@@ -310,7 +306,7 @@ export async function getTopicProductionRecords() {
         }];
       }
 
-      // Construct post-production editor records
+      // Construct post-production editor records matched directly to canonical videos
       let videoEditorRecords: any[] = [];
       if (combinedVideos.length > 0) {
         videoEditorRecords = combinedVideos.map((v: any, idx: number) => {
@@ -346,18 +342,6 @@ export async function getTopicProductionRecords() {
             createdAt: v.createdAt || entry.createdAt,
             updatedAt: v.updatedAt || entry.updatedAt,
           };
-        });
-
-        // Add any standalone real editor records not matching combinedVideos
-        realEditorRecs.forEach((e: any) => {
-          if (!videoEditorRecords.some((vr: any) => vr.id === e.id || (vr.assignedVideo && e.assignedVideo && vr.assignedVideo.trim() === e.assignedVideo.trim()))) {
-            videoEditorRecords.push({
-              ...e,
-              editorName: e.editorName || null,
-              editingStartDate: e.editingStartDate || null,
-              editingEndDate: e.editingEndDate || null,
-            });
-          }
         });
       } else if (realEditorRecs.length > 0) {
         videoEditorRecords = realEditorRecs.map((e: any) => ({

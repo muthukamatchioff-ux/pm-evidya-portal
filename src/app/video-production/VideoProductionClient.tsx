@@ -93,6 +93,25 @@ function formatEpicCode(epicSeq: any): string {
   return `EPIC-2026-PMeVidya ${String(num).padStart(2, '0')}`;
 }
 
+function getCanonicalMonthForEpic(epicSeq: number): string {
+  switch (epicSeq) {
+    case 4: return 'June';
+    case 1:
+    case 2:
+    case 3: return 'July';
+    case 5:
+    case 6:
+    case 8:
+    case 10: return 'August';
+    case 11:
+    case 12:
+    case 15: return 'September';
+    case 16:
+    case 17: return 'October';
+    default: return 'June';
+  }
+}
+
 function cleanCameramanDisplay(name?: string | null): string {
   if (!name) return '—';
   const trimmed = name.trim();
@@ -258,7 +277,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState<number>(25);
+  const [pageSize, setPageSize] = useState<number>(100);
 
   // Work Assignment Modal State
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -398,7 +417,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         const rawVideoId = id;
         const displayVideoId = vidMatch ? `VID-${vidMatch[1]}` : `VID-${epicSeq.toString().padStart(2, '0')}-${subIdx.toString().padStart(2, '0')}`;
 
-        const month = sched?.location || meta?.month || 'June';
+        const month = sched?.location || meta?.month || getCanonicalMonthForEpic(epicSeq);
         const trade = lib?.trade || entry.trade || '-';
         const smeName = lib?.smeName || entry.sme?.name || '-';
         const title = lib?.title || sched?.videoTitle || ed?.assignedVideo || entry.topic || '-';
@@ -426,7 +445,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
           displayVideoId,
           epicId: entry.id,
           epicSequence: epicSeq,
-          epicCode: meta?.epicCode ? meta.epicCode : formatEpicCode(epicSeq),
+          epicCode: meta?.epicCode && meta.epicCode !== 'NA' && meta.epicCode !== '-' ? meta.epicCode : formatEpicCode(epicSeq),
           trade,
           smeName,
           videoTitle: title,
@@ -450,9 +469,59 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       });
     });
 
-    // Sort strictly by S.No ascending
-    rows.sort((a, b) => a.sNo - b.sNo);
-    return rows;
+    // 1. Deduplicate strictly by video topic (case-insensitive trimmed):
+    // Delete all duplicate entries based on video topic so actual entries are 76 canonical topics only
+    const seenTopics = new Set<string>();
+    const deduplicatedRows: VideoRegisterRow[] = [];
+
+    // Prioritize canonical VID- IDs and rows with actual dates
+    rows.sort((a, b) => {
+      const aIsVid = a.videoId.startsWith('VID-') ? 1 : 0;
+      const bIsVid = b.videoId.startsWith('VID-') ? 1 : 0;
+      if (aIsVid !== bIsVid) return bIsVid - aIsVid;
+      const aHasDates = (a.shootingStartDate || a.editingStartDate) ? 1 : 0;
+      const bHasDates = (b.shootingStartDate || b.editingStartDate) ? 1 : 0;
+      return bHasDates - aHasDates;
+    });
+
+    for (const r of rows) {
+      const normTitle = (r.videoTitle || '').trim().toLowerCase();
+      if (!normTitle || normTitle === '-' || normTitle === '—') continue;
+      if (seenTopics.has(normTitle)) {
+        continue; // Discard duplicate topic entry
+      }
+      seenTopics.add(normTitle);
+      deduplicatedRows.push(r);
+    }
+
+    // 2. Sort by latest EPIC ID first:
+    // Month descending (October -> September -> August -> July -> June),
+    // then epicSequence descending (17 -> 16 -> 15 -> 12 -> 11 -> 10 -> 8 -> 6 -> 5 -> 4 -> 3 -> 2 -> 1),
+    // then video sequence within that EPIC.
+    // This ensures:
+    // - Every EPIC ID has ALL its video details together in one place ("oru epic id na athoda motha videos detailum ore idathula than irukkanum")
+    // - Latest EPIC IDs are shown first ("show aagurathu epic id latest based kamikkanum")
+    const monthOrder: Record<string, number> = {
+      'october': 5,
+      'september': 4,
+      'august': 3,
+      'july': 2,
+      'june': 1
+    };
+
+    deduplicatedRows.sort((a, b) => {
+      const aMonthWeight = monthOrder[(a.month || '').toLowerCase()] || 0;
+      const bMonthWeight = monthOrder[(b.month || '').toLowerCase()] || 0;
+      if (aMonthWeight !== bMonthWeight) {
+        return bMonthWeight - aMonthWeight; // Latest Month first (October down to June)
+      }
+      if (b.epicSequence !== a.epicSequence) {
+        return b.epicSequence - a.epicSequence; // Latest EPIC ID first within month
+      }
+      return a.sNo - b.sNo; // Video order within that EPIC
+    });
+
+    return deduplicatedRows;
   }, [workEntries]);
 
   // Computed KPI Summary Statistics (derived strictly from actual 57 persisted records, no double counting)
@@ -1159,7 +1228,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                 </span>
               </div>
               <div className={styles.summaryKpiValue}>{dashboardKpis.total}</div>
-              <div className={styles.summaryKpiSub}>Canonical topics across 16 EPICs</div>
+              <div className={styles.summaryKpiSub}>Canonical topics across {epicsList.length} EPICs</div>
             </div>
 
             {/* Card 2: Completed */}
@@ -1746,51 +1815,6 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
               &gt;
             </button>
           </div>
-        </div>
-      </div>
-
-      {/* ========================================================
-          3. THREE BOTTOM SUMMARY CARDS MATCHING REFERENCE SCREENSHOT
-         ======================================================== */}
-      <div className={styles.bottomCardsGrid}>
-        {/* Card 1: Key Changes Implemented */}
-        <div className={styles.cardPurple}>
-          <div className={styles.cardHeaderRow}>
-            <div className={styles.cardIconCirclePurple}>✓</div>
-            <h3 className={styles.cardTitlePurple}>Key Changes Implemented</h3>
-          </div>
-          <ol className={styles.cardContentList}>
-            <li>Added Month column immediately after S.No (June 2026 – October 2026).</li>
-            <li>Updated and synchronized all 76 video topic records from Untitled spreadsheet.xlsx (100% data accuracy).</li>
-            <li>Added Month filter in the toolbar (June 2026, July 2026, August 2026, September 2026, October 2026).</li>
-            <li>Maintained existing cameraman &amp; video editor login structures (no changes).</li>
-            <li>Preserved all other columns, UI, workflows, permissions and functionality.</li>
-          </ol>
-        </div>
-
-        {/* Card 2: Cameraman & Video Editor Login Support */}
-        <div className={styles.cardBlue}>
-          <div className={styles.cardHeaderRow}>
-            <div className={styles.cardIconCircleBlue}>👤</div>
-            <h3 className={styles.cardTitleBlue}>Cameraman &amp; Video Editor Login Support</h3>
-          </div>
-          <ul className={styles.cardContentList} style={{ listStyleType: 'disc' }}>
-            <li>Existing login structure retained</li>
-            <li>No changes to user roles, permissions or access</li>
-            <li>Relevant insert portions created for cameraman &amp; editor data entry</li>
-            <li>Works seamlessly with the updated 16-column tracker</li>
-          </ul>
-        </div>
-
-        {/* Card 3: Master Prompt */}
-        <div className={styles.cardRose}>
-          <div className={styles.cardHeaderRow}>
-            <div className={styles.cardIconCircleRose}>&lt;/&gt;</div>
-            <h3 className={styles.cardTitleRose}>Master Prompt</h3>
-          </div>
-          <p className={styles.cardContentText}>
-            Update the PM e-Vidya Video Production Tracker with the provided 57 records (June–October 2026). Add a Month column immediately after S.No, enable a Month filter, and preserve the existing 16-column structure. Keep the cameraman &amp; video editor login support structures unchanged, creating only the relevant insert portion for their data. Do not modify any other UI, headings, columns, workflows, permissions, or portal modules.
-          </p>
         </div>
       </div>
 

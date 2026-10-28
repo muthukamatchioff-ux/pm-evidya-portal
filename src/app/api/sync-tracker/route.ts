@@ -20,7 +20,7 @@ export async function GET(request: Request) {
         `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'VideoLibrary' ORDER BY ordinal_position;`
       )) as any[];
       const smeEntries = (await prisma.$queryRawUnsafe(
-        `SELECT id, "epicSequence", "epicCode", trade, topic FROM "SMEWorkEntry" ORDER BY "epicSequence";`
+        `SELECT id, "epicSequence", trade, topic FROM "SMEWorkEntry" ORDER BY "epicSequence";`
       )) as any[];
       return NextResponse.json({
         success: true,
