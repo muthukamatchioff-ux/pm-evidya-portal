@@ -28,13 +28,13 @@ export async function uploadDocument(
       throw new Error('File size exceeds 10MB limit');
     }
 
-    // Check if document of this type already exists for this work entry
     const existing = await prisma.document.findFirst({
-      where: { workEntryId, type }
+      where: { workEntryId, type },
+      orderBy: { version: 'desc' }
     });
 
     // General Viewer protection: strictly block overwriting or replacing existing documents
-    if (authCheck.role === 'VIEWER' && existing) {
+    if (authCheck.role === 'VIEWER' && existing && existing.status === 'UPLOADED') {
       return {
         success: false,
         error: 'A document of this type already exists for this Epic ID. As a General Viewer, you cannot overwrite, replace, or modify existing documents. Please contact the Administrator for corrections.'
@@ -49,17 +49,31 @@ export async function uploadDocument(
 
     let savedDoc;
     if (existing) {
-      // Replace existing
-      savedDoc = await prisma.document.update({
-        where: { id: existing.id },
-        data: {
-          name: file.name,
-          filePath,
-          status: 'UPLOADED',
-          version: { increment: 1 }
-        }
-      });
-      // Optionally delete old file from storage here (if we track old storageKey)
+      if (existing.status === 'UPLOADED') {
+        // Create new version to preserve original file of each version
+        const nextVersion = (existing.version || 1) + 1;
+        savedDoc = await prisma.document.create({
+          data: {
+            name: file.name,
+            type,
+            status: 'UPLOADED',
+            filePath,
+            workEntryId,
+            version: nextVersion
+          }
+        });
+      } else {
+        // Upgrade existing metadata/placeholder to UPLOADED with the actual file
+        savedDoc = await prisma.document.update({
+          where: { id: existing.id },
+          data: {
+            name: file.name,
+            filePath,
+            status: 'UPLOADED',
+            version: 1
+          }
+        });
+      }
     } else {
       // Create new
       savedDoc = await prisma.document.create({

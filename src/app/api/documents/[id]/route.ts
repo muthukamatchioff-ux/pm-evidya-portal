@@ -1,35 +1,255 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { storage } from '@/lib/storage';
+import { verifySession } from '@/lib/session';
 
-function numberToWords(num: number): string {
-  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
-  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-  if (num === 0) return 'Zero';
-  if (num < 0) return '';
-  const n = ('000000000' + Math.round(num)).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
-  if (!n) return '';
-  let str = '';
-  str += (Number(n[1]) !== 0) ? (a[Number(n[1])] || b[Number(n[1][0])] + ' ' + a[Number(n[1][1])]) + 'Crore ' : '';
-  str += (Number(n[2]) !== 0) ? (a[Number(n[2])] || b[Number(n[2][0])] + ' ' + a[Number(n[2][1])]) + 'Lakh ' : '';
-  str += (Number(n[3]) !== 0) ? (a[Number(n[3])] || b[Number(n[3][0])] + ' ' + a[Number(n[3][1])]) + 'Thousand ' : '';
-  str += (Number(n[4]) !== 0) ? (a[Number(n[4])] || b[Number(n[4][0])] + ' ' + a[Number(n[4][1])]) + 'Hundred ' : '';
-  str += (Number(n[5]) !== 0) ? ((str !== '') ? 'and ' : '') + (a[Number(n[5])] || b[Number(n[5][0])] + ' ' + a[Number(n[5][1])]) : '';
-  return str.trim() + ' Only';
+function getContentType(filename: string): string {
+  const ext = filename?.split('.').pop()?.toLowerCase() || '';
+  switch (ext) {
+    case 'pdf':
+      return 'application/pdf';
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return 'image/webp';
+    case 'gif':
+      return 'image/gif';
+    case 'svg':
+      return 'image/svg+xml';
+    case 'doc':
+      return 'application/msword';
+    case 'docx':
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    case 'xls':
+      return 'application/vnd.ms-excel';
+    case 'xlsx':
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    case 'ppt':
+      return 'application/vnd.ms-powerpoint';
+    case 'pptx':
+      return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    case 'txt':
+      return 'text/plain; charset=utf-8';
+    case 'csv':
+      return 'text/csv; charset=utf-8';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
+function renderNotUploadedHtml(doc: any): string {
+  const epicSeq = doc.workEntry?.epicSequence || 1;
+  const epicStr = `EPIC-2026-PMeVidya ${String(epicSeq).padStart(2, '0')}`;
+  const smeName = doc.workEntry?.sme?.name || 'Subject Matter Expert';
+  const docName = doc.name || 'Document';
+  const version = doc.version || 1;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document Not Uploaded - ${docName}</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      margin: 0;
+      padding: 40px 20px;
+      color: #0f172a;
+      background: #f8fafc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 80vh;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      max-width: 520px;
+      width: 100%;
+      padding: 36px 32px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+      text-align: center;
+    }
+    .icon {
+      font-size: 44px;
+      margin-bottom: 16px;
+    }
+    h2 {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 0 0 8px;
+      color: #1e293b;
+    }
+    p {
+      font-size: 14px;
+      color: #64748b;
+      line-height: 1.5;
+      margin: 0 0 24px;
+    }
+    .meta-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 14px 18px;
+      text-align: left;
+      font-size: 13px;
+      margin-bottom: 24px;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .meta-row:last-child {
+      border-bottom: none;
+    }
+    .meta-label {
+      color: #64748b;
+      font-weight: 500;
+    }
+    .meta-value {
+      color: #0f172a;
+      font-weight: 600;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+    .btn {
+      display: inline-block;
+      background: #2563eb;
+      color: #ffffff;
+      padding: 10px 22px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      transition: background 0.15s;
+    }
+    .btn:hover {
+      background: #1d4ed8;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📁</div>
+    <h2>Original Document Not Uploaded</h2>
+    <p>This registry entry currently contains metadata only. The original signed file has not yet been uploaded for this document.</p>
+    <div class="meta-box">
+      <div class="meta-row">
+        <span class="meta-label">Document Name</span>
+        <span class="meta-value">${docName}</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label">EPIC ID</span>
+        <span class="meta-value" style="color: #2563eb;">${epicStr}</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label">SME Name</span>
+        <span class="meta-value">${smeName}</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label">Version</span>
+        <span class="meta-value">v${version}</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label">Status</span>
+        <span class="badge">PENDING UPLOAD</span>
+      </div>
+    </div>
+    <a href="/accounts" class="btn" target="_top">Go to Document Upload</a>
+  </div>
+</body>
+</html>`;
+}
+
+function renderStorageErrorHtml(docName: string, errorMsg?: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document Unavailable - ${docName}</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 40px 20px;
+      color: #0f172a;
+      background: #f8fafc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 80vh;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid #fee2e2;
+      border-radius: 12px;
+      max-width: 500px;
+      width: 100%;
+      padding: 32px;
+      text-align: center;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+    }
+    .icon { font-size: 40px; margin-bottom: 12px; }
+    h2 { font-size: 18px; color: #991b1b; margin: 0 0 8px; }
+    p { font-size: 13.5px; color: #64748b; line-height: 1.5; margin: 0 0 16px; }
+    .err-box { background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 10px; font-size: 12px; color: #b91c1c; font-family: monospace; word-break: break-all; margin-bottom: 20px; text-align: left; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">⚠️</div>
+    <h2>Original Document Temporarily Unavailable</h2>
+    <p>The stored file for <strong>${docName}</strong> could not be retrieved from storage. Please verify the storage service or re-upload the document.</p>
+    ${errorMsg ? `<div class="err-box">${errorMsg}</div>` : ''}
+  </div>
+</body>
+</html>`;
 }
 
 export async function GET(
   request: NextRequest,
   props: { params: Promise<{ id: string }> }
 ) {
+  // 1. Security & Access Control: verify active session
+  const token = request.cookies.get('session_token')?.value;
+  const session = await verifySession(token);
+  if (!session || !session.role) {
+    return new NextResponse('Unauthorized: Please log in to access portal documents.', {
+      status: 401,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+    });
+  }
+
   const rawParams = await props?.params;
   const pathId = request.nextUrl.pathname.split('/').filter(Boolean).pop() || '';
   const id = rawParams?.id || pathId;
 
+  if (!id) {
+    return new NextResponse('Document ID required', { status: 400 });
+  }
+
+  const isDownload = request.nextUrl.searchParams.get('download') === '1';
+
   try {
     let document: any = null;
 
-    // 1. Direct Prisma lookup by primary key ID
+    // 2. Lookup Document by ID
     try {
       document = await prisma.document.findUnique({
         where: { id },
@@ -38,6 +258,7 @@ export async function GET(
             include: {
               sme: true,
               payments: true,
+              documents: true,
             }
           }
         }
@@ -46,7 +267,7 @@ export async function GET(
       console.warn('Prisma document findUnique failed:', dbErr);
     }
 
-    // 2. Fallback Prisma lookup by workEntryId or name match
+    // Fallback lookup if ID was not primary key
     if (!document) {
       try {
         document = await prisma.document.findFirst({
@@ -62,6 +283,7 @@ export async function GET(
               include: {
                 sme: true,
                 payments: true,
+                documents: true,
               }
             }
           }
@@ -69,7 +291,7 @@ export async function GET(
       } catch {}
     }
 
-    // 3. Fallback to authentic in-memory / fallback data
+    // In-memory fallback dataset lookup
     if (!document) {
       try {
         const { REAL_PM_EVIDYA_SME_WORK_ENTRIES, REAL_PM_EVIDYA_SMES } = await import('@/lib/fallbackData');
@@ -88,25 +310,6 @@ export async function GET(
             break;
           }
         }
-
-        // Check if id matches an epic sequence or workEntry id directly
-        if (!document) {
-          const matchedEntry = (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).find((we: any) =>
-            we.id === id ||
-            String(we.epicSequence) === id ||
-            `EPIC-2026-PMeVidya ${String(we.epicSequence).padStart(2, '0')}`.toLowerCase() === id.toLowerCase()
-          );
-          if (matchedEntry && matchedEntry.documents && matchedEntry.documents.length > 0) {
-            const firstDoc = matchedEntry.documents[0];
-            document = {
-              ...firstDoc,
-              workEntry: {
-                ...matchedEntry,
-                sme: matchedEntry.sme || REAL_PM_EVIDYA_SMES.find((s: any) => s.id === matchedEntry.smeId)
-              }
-            };
-          }
-        }
       } catch {}
     }
 
@@ -114,353 +317,98 @@ export async function GET(
       return new NextResponse('Document not found', { status: 404 });
     }
 
-    const isDownload = request.nextUrl.searchParams.get('download') === '1';
+    // 3. Resolve the actual uploaded file
+    let targetDoc = document;
+    const hasDirectFile = targetDoc.filePath && !targetDoc.filePath.startsWith('{');
 
-    // 1. If document is marked as UPLOADED or has an external file URL / data URI
-    const isUploadedDoc = document.status === 'UPLOADED' || (document.filePath && (document.filePath.startsWith('http') || document.filePath.startsWith('data:')));
+    // If this registry record only stores metadata/parameters, connect to the uploaded document on the same work entry
+    if (!hasDirectFile && targetDoc.workEntryId) {
+      const typeCandidates = [targetDoc.type];
+      if (targetDoc.type === 'APPROVAL_LETTER' || targetDoc.type === 'STAGE_A_APPROVAL_LETTER') {
+        typeCandidates.push('APPROVAL_LETTER', 'STAGE_A_APPROVAL_LETTER');
+      } else if (targetDoc.type === 'WORK_COMPLETION' || targetDoc.type === 'STAGE_B_WORK_COMPLETION') {
+        typeCandidates.push('WORK_COMPLETION', 'STAGE_B_WORK_COMPLETION');
+      } else if (targetDoc.type === 'SME_ATTENDANCE' || targetDoc.type === 'ATTENDANCE' || targetDoc.type === 'TRADE_DETAILS') {
+        typeCandidates.push('SME_ATTENDANCE', 'ATTENDANCE', 'TRADE_DETAILS');
+      } else if (targetDoc.type === 'PAYMENT_NOTE' || targetDoc.type === 'STAGE_C_REMUNERATION') {
+        typeCandidates.push('PAYMENT_NOTE', 'STAGE_C_REMUNERATION');
+      }
 
-    if (isUploadedDoc && document.filePath) {
       try {
-        const fileBuffer = await storage.download(document.filePath);
-        const ext = document.name?.split('.').pop()?.toLowerCase() || 'pdf';
-
-        let contentType = 'application/pdf';
-        if (ext === 'jpg' || ext === 'jpeg') contentType = 'image/jpeg';
-        if (ext === 'png') contentType = 'image/png';
-        if (ext === 'docx') contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-        if (ext === 'doc') contentType = 'application/msword';
-
-        const disposition = isDownload
-          ? 'attachment'
-          : (ext === 'pdf' || ext === 'jpg' || ext === 'jpeg' || ext === 'png' ? 'inline' : 'attachment');
-
-        return new NextResponse(fileBuffer as any, {
-          headers: {
-            'Content-Type': contentType,
-            'Content-Disposition': `${disposition}; filename="${document.name}"`,
+        const companionUpload = await prisma.document.findFirst({
+          where: {
+            workEntryId: targetDoc.workEntryId,
+            type: { in: typeCandidates },
+            status: 'UPLOADED',
+            filePath: { not: null }
           },
+          orderBy: [{ version: 'desc' }, { createdAt: 'desc' }]
         });
-      } catch (blobErr: any) {
-        console.warn('Storage download fallback:', document.id, blobErr?.message);
-        // Continue to official HTML view so user can view the document
-      }
-    }
 
-    // 2. Official Generated / Parameters Document View
-    const sme = document.workEntry?.sme;
-    const workEntry = document.workEntry;
-    const payment = workEntry?.payments?.[0];
-    const epicSequence = workEntry?.epicSequence || 1;
-    const epicIdStr = `EPIC-2026-PMeVidya ${String(epicSequence).padStart(2, '0')}`;
-    const smeName = sme?.name || 'Subject Matter Expert';
-    const trade = workEntry?.trade || 'General';
-    const docDate = document.createdAt ? new Date(document.createdAt).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN');
-
-    // Parse parameters if JSON
-    let parsedParams: any = null;
-    if (document.filePath && typeof document.filePath === 'string' && document.filePath.startsWith('{')) {
-      try {
-        parsedParams = JSON.parse(document.filePath);
-      } catch {
-        parsedParams = null;
-      }
-    }
-
-    // If parameters not in this document, look for companion stage parameters on the same work entry
-    // If parameters not in this document, look for companion stage parameters on the same work entry
-    if (!parsedParams && document.workEntryId) {
-      let companionType = '';
-      if (document.type === 'PAYMENT_NOTE' || document.type === 'STAGE_C_REMUNERATION') companionType = 'STAGE_C_REMUNERATION';
-      if (document.type === 'WORK_COMPLETION' || document.type === 'STAGE_B_WORK_COMPLETION') companionType = 'STAGE_B_WORK_COMPLETION';
-      if (document.type === 'APPROVAL_LETTER' || document.type === 'STAGE_A_APPROVAL_LETTER') companionType = 'STAGE_A_APPROVAL_LETTER';
-
-      if (companionType) {
-        // Try Prisma first
-        try {
-          const companion = await prisma.document.findFirst({
-            where: { workEntryId: document.workEntryId, type: companionType, filePath: { not: null } },
-            orderBy: { updatedAt: 'desc' }
-          });
-          if (companion && companion.filePath && companion.filePath.startsWith('{')) {
-            parsedParams = JSON.parse(companion.filePath);
-          }
-        } catch {}
-
-        // If still empty, check documents array on workEntry
-        if (!parsedParams && document.workEntry?.documents && Array.isArray(document.workEntry.documents)) {
-          const companion = document.workEntry.documents.find((d: any) => d.type === companionType && d.filePath && d.filePath.startsWith('{'));
-          if (companion) {
-            try {
-              parsedParams = JSON.parse(companion.filePath);
-            } catch {}
-          }
+        if (companionUpload && companionUpload.filePath && !companionUpload.filePath.startsWith('{')) {
+          targetDoc = companionUpload;
         }
+      } catch (companionErr) {
+        console.warn('Error querying companion uploaded document:', companionErr);
       }
     }
 
-    // Synthesize structured params from work entry if still empty
-    if (!parsedParams && workEntry) {
-      const gross = (workEntry.days || 0) * (workEntry.ratePerDay || 1500);
-      const ta = workEntry.taAmount || 0;
-      const other = workEntry.otherAmount || 0;
-      const total = payment?.totalAmount || (gross + ta + other) || 13000;
-      parsedParams = {
-        programmeName: 'PM e-Vidya Classroom Teaching Video Production',
-        workTitle: 'Classroom Teaching Video Production for PM e-Vidya',
-        location: sme?.institute || 'National Instructional Media Institute (NIMI), Chennai',
-        trade: workEntry.trade,
-        topicsCovered: workEntry.topic,
-        totalDays: workEntry.days || 0,
-        ratePerDay: workEntry.ratePerDay || 1500,
-        grossAmount: gross,
-        taAmount: ta,
-        otherAmount: other,
-        totalAmount: total,
-        amountInWords: numberToWords(total),
-        startDate: workEntry.attendanceFrom ? new Date(workEntry.attendanceFrom).toISOString().split('T')[0] : '',
-        endDate: workEntry.attendanceTo ? new Date(workEntry.attendanceTo).toISOString().split('T')[0] : '',
-        submissionDate: docDate,
-        verifierName: 'Joint Director / HOO',
-        verifierDesignation: 'Head of Office'
-      };
+    const hasResolvedFile = targetDoc.filePath && !targetDoc.filePath.startsWith('{');
+
+    // 4. Handle records with no uploaded file:
+    // DO NOT generate "SME Approval Letter" HTML template. Handle gracefully!
+    if (!hasResolvedFile) {
+      if (isDownload) {
+        return new NextResponse(
+          `Original document file not found for "${document.name}". The actual document file has not yet been uploaded for this registry entry.`,
+          {
+            status: 404,
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          }
+        );
+      }
+
+      return new NextResponse(renderNotUploadedHtml(document), {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      });
     }
 
-    const isWorkComp = document.type === 'WORK_COMPLETION' || document.type === 'STAGE_B_WORK_COMPLETION';
-    const isPayNote = document.type === 'PAYMENT_NOTE' || document.type === 'STAGE_C_REMUNERATION';
-    const isAppLetter = document.type === 'APPROVAL_LETTER' || document.type === 'STAGE_A_APPROVAL_LETTER';
+    // 5. Retrieve and serve the exact original uploaded document
+    try {
+      const fileBuffer = await storage.download(targetDoc.filePath);
+      const filename = targetDoc.name || 'document.pdf';
+      const contentType = getContentType(filename);
+      const ext = filename.split('.').pop()?.toLowerCase() || '';
 
-    const htmlContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${document.name}</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      margin: 0;
-      padding: 30px;
-      color: #0f172a;
-      background: #f8fafc;
-      display: flex;
-      justify-content: center;
-    }
-    .document-page {
-      background: #ffffff;
-      width: 100%;
-      max-width: 820px;
-      padding: 40px;
-      border-radius: 8px;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-      border: 1px solid #e2e8f0;
-      box-sizing: border-box;
-    }
-    .official-header {
-      text-align: center;
-      border-bottom: 2px solid #1e3a8a;
-      padding-bottom: 16px;
-      margin-bottom: 24px;
-    }
-    .institute-title {
-      font-size: 16px;
-      font-weight: 800;
-      color: #1e3a8a;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin: 0;
-    }
-    .portal-title {
-      font-size: 12.5px;
-      color: #475569;
-      margin-top: 4px;
-      font-weight: 600;
-    }
-    .doc-headline {
-      text-align: center;
-      font-size: 18px;
-      font-weight: 700;
-      color: #0f172a;
-      text-decoration: underline;
-      margin: 20px 0;
-      text-transform: uppercase;
-    }
-    .meta-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      background: #f1f5f9;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
-      padding: 14px 18px;
-      margin-bottom: 24px;
-      font-size: 13.5px;
-    }
-    .meta-row {
-      display: flex;
-      gap: 6px;
-    }
-    .meta-label {
-      font-weight: 700;
-      color: #475569;
-    }
-    .meta-val {
-      color: #0f172a;
-    }
-    .badge-verified {
-      display: inline-block;
-      background: #dcfce7;
-      color: #15803d;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-weight: 700;
-      font-size: 11.5px;
-    }
-    .doc-body {
-      font-size: 13.5px;
-      line-height: 1.8;
-      color: #334155;
-      margin-bottom: 24px;
-      text-align: justify;
-    }
-    .topics-box {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      padding: 14px 18px;
-      margin: 14px 0;
-      font-size: 13px;
-      line-height: 1.6;
-    }
-    .official-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 16px 0;
-      font-size: 13px;
-    }
-    .official-table th, .official-table td {
-      border: 1px solid #cbd5e1;
-      padding: 8px 12px;
-      text-align: left;
-    }
-    .official-table th {
-      background: #f8fafc;
-      font-weight: 700;
-    }
-    .footer-signatures {
-      margin-top: 36px;
-      display: flex;
-      justify-content: space-between;
-      border-top: 1px dashed #cbd5e1;
-      padding-top: 20px;
-      font-size: 13px;
-    }
-    .sig-box {
-      text-align: center;
-    }
-    .sig-line {
-      font-weight: 700;
-      margin-top: 28px;
-    }
-  </style>
-</head>
-<body>
-  <div class="document-page">
-    <div class="official-header">
-      <div class="institute-title">National Instructional Media Institute (NIMI)</div>
-      <div class="portal-title">Ministry of Skill Development & Entrepreneurship • Government of India</div>
-      <div style="font-size: 11.5px; color: #64748b; margin-top: 2px;">PM e-Vidya Educational Broadcast & Digital Content Portal</div>
-    </div>
+      const inlineSupported = ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'txt'];
+      const disposition = isDownload || !inlineSupported.includes(ext) ? 'attachment' : 'inline';
+      const cleanFilename = filename.replace(/["\r\n]/g, '_');
 
-    <div class="meta-grid">
-      <div class="meta-row"><span class="meta-label">EPIC ID:</span> <span class="meta-val" style="font-weight: 700; color: #1d4ed8;">${epicIdStr}</span></div>
-      <div class="meta-row"><span class="meta-label">Date:</span> <span class="meta-val">${docDate}</span></div>
-      <div class="meta-row"><span class="meta-label">SME Name:</span> <span class="meta-val">${smeName}</span></div>
-      <div class="meta-row"><span class="meta-label">Designation:</span> <span class="meta-val">${sme?.designation || 'Subject Matter Expert'}</span></div>
-      <div class="meta-row"><span class="meta-label">Trade:</span> <span class="meta-val">${parsedParams?.trade || trade}</span></div>
-      <div class="meta-row"><span class="meta-label">Status:</span> <span class="badge-verified">✓ ${document.status || 'ACTIVE'}</span></div>
-    </div>
-
-    <div class="doc-headline">${document.name}</div>
-
-    <div class="doc-body">
-      ${isWorkComp ? `
-        <p>This is to certify that <strong>${smeName}</strong>, <strong>Guest Expert / Subject Matter Expert (SME)</strong>, has successfully completed the <strong>${parsedParams?.programmeName || 'PM e-Vidya Classroom Teaching Video Production'}</strong> for the <strong>${parsedParams?.trade || trade}</strong> trade at the <strong>${parsedParams?.location || 'National Instructional Media Institute (NIMI), Chennai'}</strong>, during the period from <strong>${parsedParams?.startDate ? new Date(parsedParams.startDate).toLocaleDateString('en-IN') : '21.09.2026'}</strong> to <strong>${parsedParams?.endDate ? new Date(parsedParams.endDate).toLocaleDateString('en-IN') : '23.10.2026'}</strong>.</p>
-        <p>As the Guest Expert / Subject Matter Expert (SME), <strong>${smeName}</strong> effectively delivered the assigned classroom sessions in accordance with the approved curriculum, ensuring technical accuracy, instructional quality, and compliance with the applicable standards for PM e-Vidya digital learning content.</p>
-        ${parsedParams?.topicsCovered ? `
-          <div class="topics-box">
-            <strong>Curriculum Topics Covered:</strong><br/>
-            ${String(parsedParams.topicsCovered).split('\n').filter(Boolean).map((t: string, i: number) => `<div>${i + 1}. ${t}</div>`).join('')}
-          </div>
-        ` : ''}
-        <p>This certificate is issued upon complete verification of the recorded video content and instructional delivery for official archive and records.</p>
-      ` : isPayNote ? `
-        <p>Sanction may kindly be accorded for a sum of <strong>Rs. ${Number(parsedParams?.totalAmount || payment?.totalAmount || 13000).toLocaleString('en-IN')}/- (Rupees ${parsedParams?.amountInWords || numberToWords(parsedParams?.totalAmount || payment?.totalAmount || 13000)})</strong> towards the remuneration of <strong>${smeName}</strong>, <strong>${sme?.designation || 'Subject Matter Expert'}</strong>, <strong>${sme?.institute || 'National Instructional Media Institute (NIMI), Chennai'}</strong>, who served as the <strong>Guest Expert / Subject Matter Expert (SME)</strong> for the <strong>${parsedParams?.programmeName || 'PM e-Vidya Classroom Teaching Video Production'}</strong> for the <strong>${parsedParams?.trade || trade}</strong> trade. The <strong>${parsedParams?.workTitle || 'Classroom Teaching Video Production for PM e-Vidya'}</strong> was successfully conducted and completed at the <strong>${parsedParams?.location || 'NIMI Chennai'}</strong>.</p>
-        <table class="official-table">
-          <thead>
-            <tr>
-              <th>Attendance Date / Period</th>
-              <th>Total Days</th>
-              <th>Remuneration / Day</th>
-              <th>Total Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>${parsedParams?.startDate ? new Date(parsedParams.startDate).toLocaleDateString('en-IN') : '21.09.2026'} to ${parsedParams?.endDate ? new Date(parsedParams.endDate).toLocaleDateString('en-IN') : '23.10.2026'}</td>
-              <td style="text-align: center; font-weight: bold;">${parsedParams?.totalDays || workEntry?.days || 7} Days</td>
-              <td style="text-align: right;">Rs. ${Number(parsedParams?.ratePerDay || 1500).toLocaleString('en-IN')}/-</td>
-              <td style="text-align: right; font-weight: bold; color: #15803d;">Rs. ${Number(parsedParams?.totalAmount || payment?.totalAmount || 13000).toLocaleString('en-IN')}/-</td>
-            </tr>
-          </tbody>
-        </table>
-      ` : `
-        <p>This official compliance record confirms the verified registration of <strong>${document.name}</strong> under PM e-Vidya for Subject Matter Expert <strong>${smeName}</strong> (${sme?.designation || 'SME'}), associated with trade <strong>${trade}</strong> at <strong>${sme?.institute || 'NIMI Chennai'}</strong>.</p>
-        <p>All administrative and academic requirements for this document entry have been validated in the PM e-Vidya Document Registry.</p>
-      `}
-    </div>
-
-    <table class="official-table">
-      <thead>
-        <tr>
-          <th>Parameter</th>
-          <th>Details</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr><td>Document Name</td><td>${document.name}</td></tr>
-        <tr><td>Document Type</td><td>${document.type}</td></tr>
-        <tr><td>EPIC Work Sequence</td><td>${epicIdStr}</td></tr>
-        <tr><td>Subject Matter Expert</td><td>${smeName}</td></tr>
-        <tr><td>Assigned Domain / Trade</td><td>${parsedParams?.trade || trade}</td></tr>
-        <tr><td>Institution / Location</td><td>${sme?.institute || 'NIMI Chennai'}${sme?.location ? `, ${sme.location}` : ''}</td></tr>
-        <tr><td>Document Version</td><td>Version ${document.version || 1}</td></tr>
-      </tbody>
-    </table>
-
-    <div class="footer-signatures">
-      <div class="sig-box">
-        <div>Verified by</div>
-        <div class="sig-line">NIMI PM e-Vidya Admin</div>
-      </div>
-      <div class="sig-box">
-        <div>Authorized Authority</div>
-        <div class="sig-line">Joint Director / HOO</div>
-      </div>
-    </div>
-  </div>
-</body>
-</html>`;
-
-    const disposition = isDownload ? `attachment; filename="${document.name}.html"` : `inline; filename="${document.name}.html"`;
-
-    return new NextResponse(htmlContent, {
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Content-Disposition': disposition,
-      },
-    });
-  } catch (error) {
-    console.error('Document preview/download error:', error);
+      return new NextResponse(fileBuffer as any, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Content-Disposition': `${disposition}; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`,
+          'Content-Length': fileBuffer.length.toString(),
+          'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+        },
+      });
+    } catch (storageErr: any) {
+      console.error('Storage download failed for document', targetDoc.id, storageErr?.message);
+      if (isDownload) {
+        return new NextResponse(`Error downloading original file: ${storageErr?.message || 'Storage error'}`, {
+          status: 502,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        });
+      }
+      return new NextResponse(renderStorageErrorHtml(targetDoc.name, storageErr?.message), {
+        status: 502,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      });
+    }
+  } catch (error: any) {
+    console.error('Document route error:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }

@@ -37,9 +37,51 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
     return map;
   }, [smes]);
 
+  // Pre-build index of uploaded documents by workEntryId and normalized document type
+  const uploadedDocsByEntryAndType = useMemo(() => {
+    const map = new Map<string, any>();
+    const normalizeType = (t: string) => {
+      if (t === 'APPROVAL_LETTER' || t === 'STAGE_A_APPROVAL_LETTER') return 'APPROVAL_LETTER';
+      if (t === 'WORK_COMPLETION' || t === 'STAGE_B_WORK_COMPLETION') return 'WORK_COMPLETION';
+      if (t === 'SME_ATTENDANCE' || t === 'ATTENDANCE' || t === 'TRADE_DETAILS') return 'SME_ATTENDANCE';
+      if (t === 'PAYMENT_NOTE' || t === 'STAGE_C_REMUNERATION') return 'PAYMENT_NOTE';
+      return t;
+    };
+
+    const registerUploaded = (d: any) => {
+      if (!d || !d.workEntryId) return;
+      const isRealFile = d.status === 'UPLOADED' && d.filePath && !d.filePath.startsWith('{');
+      if (!isRealFile) return;
+      const key = `${d.workEntryId}:${normalizeType(d.type)}`;
+      const existing = map.get(key);
+      if (!existing || (d.version || 1) > (existing.version || 1)) {
+        map.set(key, d);
+      }
+    };
+
+    if (Array.isArray(documents)) {
+      documents.forEach(registerUploaded);
+    }
+    smes.forEach(sme => {
+      (sme.workEntries || []).forEach((we: any) => {
+        (we.documents || []).forEach(registerUploaded);
+      });
+    });
+
+    return map;
+  }, [smes, documents]);
+
   // Collect all uploaded documents across all SMEs and direct document queries, deduplicated by doc.id
   const processedDocs = useMemo(() => {
     const docMap = new Map<string, any>();
+
+    const normalizeType = (t: string) => {
+      if (t === 'APPROVAL_LETTER' || t === 'STAGE_A_APPROVAL_LETTER') return 'APPROVAL_LETTER';
+      if (t === 'WORK_COMPLETION' || t === 'STAGE_B_WORK_COMPLETION') return 'WORK_COMPLETION';
+      if (t === 'SME_ATTENDANCE' || t === 'ATTENDANCE' || t === 'TRADE_DETAILS') return 'SME_ATTENDANCE';
+      if (t === 'PAYMENT_NOTE' || t === 'STAGE_C_REMUNERATION') return 'PAYMENT_NOTE';
+      return t;
+    };
 
     const registerDoc = (doc: any, fallbackEntry?: any, fallbackSme?: any) => {
       if (!doc || !doc.id || docMap.has(doc.id)) return;
@@ -50,7 +92,20 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
 
       const epicSequence = entry?.epicSequence || (doc.workEntry?.epicSequence ?? 1);
       const friendlyEpicId = getEpicId(epicSequence);
-      const isStoredFile = !!(doc.filePath && (doc.filePath.startsWith('http') || doc.filePath.startsWith('data:')));
+      const isDirectUploaded = !!(
+        (doc.status === 'UPLOADED' || doc.filePath?.startsWith('http') || doc.filePath?.startsWith('data:')) &&
+        doc.filePath &&
+        !doc.filePath.startsWith('{')
+      );
+
+      const companionUpload = (!isDirectUploaded && doc.workEntryId)
+        ? uploadedDocsByEntryAndType.get(`${doc.workEntryId}:${normalizeType(doc.type)}`)
+        : null;
+
+      const hasStoredFile = isDirectUploaded || !!companionUpload;
+      const targetFileId = isDirectUploaded ? doc.id : (companionUpload?.id || doc.id);
+      const originalFileName = isDirectUploaded ? doc.name : (companionUpload?.name || doc.name);
+      const effectiveVersion = isDirectUploaded ? (doc.version || 1) : (companionUpload?.version || doc.version || 1);
 
       docMap.set(doc.id, {
         ...doc,
@@ -63,7 +118,10 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
         epicSequence,
         friendlyEpicId,
         friendlyDocName: getFriendlyDocName(doc.type, doc.name),
-        hasStoredFile: isStoredFile
+        hasStoredFile,
+        targetFileId,
+        originalFileName,
+        effectiveVersion
       });
     };
 
@@ -84,7 +142,7 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
     return Array.from(docMap.values()).sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
-  }, [smes, documents, workEntryMap]);
+  }, [smes, documents, workEntryMap, uploadedDocsByEntryAndType]);
 
   // Extract all unique EPIC IDs registered across all SMEs and processed documents
   const epicOptions = useMemo(() => {
@@ -211,11 +269,18 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
   const hasActiveFilters = !!(selectedEpicId || selectedDocType);
 
   const openPreview = (doc: any) => {
+    const fileId = doc.targetFileId || doc.id;
     const fileUrl =
       doc.filePath?.startsWith('data:')
         ? doc.filePath
-        : `/api/documents/${doc.id}`;
-    setPreviewDoc({ ...doc, previewUrl: fileUrl });
+        : `/api/documents/${fileId}`;
+    setPreviewDoc({
+      ...doc,
+      id: fileId,
+      previewUrl: fileUrl,
+      actualFilename: doc.originalFileName || doc.name,
+      displayVersion: doc.effectiveVersion || doc.version || 1
+    });
   };
 
   const closePreview = () => {
@@ -509,10 +574,11 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
                 </tr>
               ) : (
                 filteredDocs.map(doc => {
-                  const downloadHref =
-                    doc.filePath?.startsWith('data:')
-                      ? doc.filePath
-                      : `/api/documents/${doc.id}?download=1`;
+                  const downloadHref = doc.hasStoredFile
+                    ? (doc.filePath?.startsWith('data:')
+                        ? doc.filePath
+                        : `/api/documents/${doc.targetFileId || doc.id}?download=1`)
+                    : '#';
 
                   return (
                     <tr key={doc.id}>
@@ -555,8 +621,11 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
                             color: '#1e293b',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px'
+                            gap: '6px',
+                            cursor: 'pointer'
                           }}
+                          onClick={() => openPreview(doc)}
+                          title="Click to view original document"
                         >
                           <span>📄</span>
                           <span
@@ -564,11 +633,14 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
                               maxWidth: '260px',
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
-                              textOverflow: 'ellipsis'
+                              textOverflow: 'ellipsis',
+                              color: doc.hasStoredFile ? '#2563eb' : '#334155',
+                              fontWeight: doc.hasStoredFile ? 600 : 500,
+                              textDecoration: doc.hasStoredFile ? 'underline' : 'none'
                             }}
-                            title={doc.name}
+                            title={doc.originalFileName || doc.name}
                           >
-                            {doc.name}
+                            {doc.originalFileName || doc.name}
                           </span>
                         </div>
                         <div
@@ -578,7 +650,7 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
                             marginTop: '2px'
                           }}
                         >
-                          Version v{doc.version || 1}
+                          Version v{doc.effectiveVersion || doc.version || 1}
                         </div>
                       </td>
                       <td style={{ fontSize: '13px', color: '#475569' }}>
@@ -589,7 +661,7 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
                         })}
                       </td>
                       <td>
-                        {doc.status === 'UPLOADED' || doc.hasStoredFile ? (
+                        {doc.hasStoredFile ? (
                           <span
                             style={{
                               background: '#dcfce7',
@@ -641,7 +713,7 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
                               gap: '4px'
                             }}
                           >
-                            <span>⚡</span> GENERATED
+                            <span>⏳</span> PENDING UPLOAD
                           </span>
                         )}
                       </td>
@@ -659,15 +731,31 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
                           >
                             View
                           </button>
-                          <a
-                            href={downloadHref}
-                            download={doc.name}
-                            className={styles.btnDownload}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Download
-                          </a>
+                          {doc.hasStoredFile ? (
+                            <a
+                              href={downloadHref}
+                              download={doc.originalFileName || doc.name}
+                              className={styles.btnDownload}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Download
+                            </a>
+                          ) : (
+                            <button
+                              className={styles.btnDownload}
+                              style={{
+                                opacity: 0.5,
+                                cursor: 'not-allowed',
+                                background: '#94a3b8',
+                                borderColor: '#94a3b8'
+                              }}
+                              onClick={() => alert('No original document file has been uploaded for this entry yet. Please upload it via Document Upload.')}
+                              title="Original file not uploaded yet"
+                            >
+                              Download
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -679,7 +767,7 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
         </div>
       </div>
 
-      {/* PDF Preview Modal */}
+      {/* Original Document Preview Modal */}
       {previewDoc && (
         <div
           className={styles.modalOverlay}
@@ -707,6 +795,22 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
               </div>
 
               <div>
+                <div className={styles.modalMetaLabel}>Original Filename</div>
+                <div
+                  className={styles.modalMetaValue}
+                  style={{
+                    maxWidth: '260px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}
+                  title={previewDoc.actualFilename || previewDoc.name}
+                >
+                  {previewDoc.actualFilename || previewDoc.name}
+                </div>
+              </div>
+
+              <div>
                 <div className={styles.modalMetaLabel}>Document Type</div>
                 <div className={styles.modalMetaValue}>
                   {previewDoc.friendlyDocName ||
@@ -717,14 +821,18 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
               <div>
                 <div className={styles.modalMetaLabel}>Version</div>
                 <div className={styles.modalMetaValue}>
-                  v{previewDoc.version || 1}
+                  v{previewDoc.displayVersion || previewDoc.version || 1}
                 </div>
               </div>
 
               <div>
-                <div className={styles.modalMetaLabel}>Uploaded On</div>
+                <div className={styles.modalMetaLabel}>Status</div>
                 <div className={styles.modalMetaValue}>
-                  {new Date(previewDoc.createdAt).toLocaleDateString('en-IN')}
+                  {previewDoc.hasStoredFile ? (
+                    <span style={{ color: '#4ade80' }}>✓ Uploaded</span>
+                  ) : (
+                    <span style={{ color: '#fbbf24' }}>Pending Upload</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -736,15 +844,35 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
                 alignItems: 'center'
               }}
             >
-              <a
-                href={previewDoc.filePath?.startsWith('data:') ? previewDoc.previewUrl : `/api/documents/${previewDoc.id}?download=1`}
-                download={previewDoc.name}
-                className={styles.btnDownload}
-                target="_blank"
-                rel="noreferrer"
-              >
-                ⬇ Download
-              </a>
+              {previewDoc.hasStoredFile ? (
+                <a
+                  href={
+                    previewDoc.filePath?.startsWith('data:')
+                      ? previewDoc.previewUrl
+                      : `/api/documents/${previewDoc.id}?download=1`
+                  }
+                  download={previewDoc.actualFilename || previewDoc.name}
+                  className={styles.btnDownload}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  ⬇ Download
+                </a>
+              ) : (
+                <button
+                  className={styles.btnDownload}
+                  style={{
+                    opacity: 0.5,
+                    cursor: 'not-allowed',
+                    background: '#64748b',
+                    borderColor: '#475569'
+                  }}
+                  disabled
+                  title="Original file not uploaded yet"
+                >
+                  ⬇ File Not Uploaded
+                </button>
+              )}
               <button
                 onClick={closePreview}
                 className={styles.modalCloseBtn}
@@ -756,13 +884,190 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
           </div>
 
           <div className={styles.modalBody}>
-            <div className={styles.modalIframeWrap}>
-              <iframe
-                src={previewDoc.previewUrl}
-                style={{ width: '100%', height: '100%', border: 'none' }}
-                title="PDF Preview"
-              />
-            </div>
+            {!previewDoc.hasStoredFile ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '100%',
+                  padding: '40px'
+                }}
+              >
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '12px',
+                    padding: '36px 32px',
+                    maxWidth: '480px',
+                    width: '100%',
+                    textAlign: 'center',
+                    boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
+                  }}
+                >
+                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>📁</div>
+                  <h3 style={{ fontSize: '19px', fontWeight: 700, margin: '0 0 8px', color: '#0f172a' }}>
+                    Original Document Not Uploaded
+                  </h3>
+                  <p style={{ fontSize: '13.5px', color: '#64748b', margin: '0 0 20px', lineHeight: 1.5 }}>
+                    This registry entry currently contains metadata only. The original signed/approved document file has not yet been uploaded.
+                  </p>
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', textAlign: 'left', fontSize: '13px', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                      <span style={{ color: '#64748b' }}>Document:</span>
+                      <strong>{previewDoc.name}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                      <span style={{ color: '#64748b' }}>EPIC ID:</span>
+                      <strong style={{ color: '#2563eb' }}>{previewDoc.friendlyEpicId}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                      <span style={{ color: '#64748b' }}>SME Name:</span>
+                      <strong>{previewDoc.smeName}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                      <span style={{ color: '#64748b' }}>Status:</span>
+                      <span style={{ color: '#d97706', fontWeight: 700 }}>Pending Upload</span>
+                    </div>
+                  </div>
+                  <Link
+                    href="/accounts"
+                    style={{
+                      display: 'inline-block',
+                      background: '#2563eb',
+                      color: '#ffffff',
+                      padding: '10px 22px',
+                      borderRadius: '8px',
+                      textDecoration: 'none',
+                      fontWeight: 600,
+                      fontSize: '13.5px'
+                    }}
+                  >
+                    Go to Document Upload
+                  </Link>
+                </div>
+              </div>
+            ) : (() => {
+              const fname = (previewDoc.actualFilename || previewDoc.name || '').toLowerCase();
+              const isWord = fname.endsWith('.docx') || fname.endsWith('.doc');
+              const isImage = fname.endsWith('.jpg') || fname.endsWith('.jpeg') || fname.endsWith('.png') || fname.endsWith('.webp') || fname.endsWith('.svg');
+
+              if (isWord) {
+                return (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '100%',
+                      padding: '40px'
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: '#ffffff',
+                        borderRadius: '12px',
+                        padding: '36px 32px',
+                        maxWidth: '520px',
+                        width: '100%',
+                        textAlign: 'center',
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
+                      }}
+                    >
+                      <div style={{ fontSize: '52px', marginBottom: '16px' }}>📝</div>
+                      <h3 style={{ fontSize: '19px', fontWeight: 700, margin: '0 0 8px', color: '#0f172a' }}>
+                        Microsoft Word Document
+                      </h3>
+                      <p style={{ fontSize: '13.5px', color: '#64748b', margin: '0 0 16px', lineHeight: 1.5 }}>
+                        <strong>{previewDoc.actualFilename || previewDoc.name}</strong>
+                      </p>
+                      <p style={{ fontSize: '13px', color: '#475569', margin: '0 0 24px', lineHeight: 1.5 }}>
+                        Word documents are opened or downloaded directly using your desktop application or viewer.
+                      </p>
+                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                        <a
+                          href={`/api/documents/${previewDoc.id}?download=1`}
+                          download={previewDoc.actualFilename || previewDoc.name}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: '#2563eb',
+                            color: '#ffffff',
+                            padding: '10px 22px',
+                            borderRadius: '8px',
+                            textDecoration: 'none',
+                            fontWeight: 600,
+                            fontSize: '13.5px'
+                          }}
+                        >
+                          ⬇ Download Original File
+                        </a>
+                        <a
+                          href={`/api/documents/${previewDoc.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: '#f1f5f9',
+                            color: '#1e293b',
+                            border: '1px solid #cbd5e1',
+                            padding: '10px 18px',
+                            borderRadius: '8px',
+                            textDecoration: 'none',
+                            fontWeight: 600,
+                            fontSize: '13.5px'
+                          }}
+                        >
+                          ↗ Open File
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (isImage) {
+                return (
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: '#0f172a',
+                      padding: '24px',
+                      overflow: 'auto'
+                    }}
+                  >
+                    <img
+                      src={previewDoc.previewUrl}
+                      alt={previewDoc.actualFilename || previewDoc.name}
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '100%',
+                        objectFit: 'contain',
+                        borderRadius: '6px',
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.6)'
+                      }}
+                    />
+                  </div>
+                );
+              }
+
+              return (
+                <div className={styles.modalIframeWrap}>
+                  <iframe
+                    src={previewDoc.previewUrl}
+                    style={{ width: '100%', height: '100%', border: 'none', background: '#525659' }}
+                    title={previewDoc.actualFilename || previewDoc.name}
+                  />
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

@@ -30,37 +30,64 @@ export class VercelBlobStorageProvider implements StorageProvider {
   }
 
   async download(key: string): Promise<Buffer> {
+    if (!key) {
+      throw new Error('No storage key or file path provided');
+    }
+
     if (key.startsWith('data:')) {
       const b64Data = key.split(',')[1];
       return Buffer.from(b64Data, 'base64');
     }
 
+    // Check if key points to a local file on disk
+    try {
+      const fs = await import('fs');
+      if (fs.existsSync(key) && fs.statSync(key).isFile()) {
+        return await fs.promises.readFile(key);
+      }
+    } catch {}
+
+    // Check if key is a remote URL
+    const isHttpUrl = key.startsWith('http://') || key.startsWith('https://');
+
     try {
       const token = process.env.BLOB_READ_WRITE_TOKEN || blobToken;
-      if (!token) throw new Error('No token configured');
+      if (token) {
+        let result = null;
+        try {
+          result = await get(key, {
+            access: 'private',
+            token,
+          });
+        } catch (e) {
+          if (isHttpUrl) {
+            try {
+              const pathname = new URL(key).pathname.slice(1);
+              result = await get(pathname, {
+                access: 'private',
+                token,
+              });
+            } catch {}
+          }
+        }
 
-      let result = null;
-      try {
-        result = await get(key, {
-          access: 'private',
-          token,
-        });
-      } catch (e) {
-        const pathname = new URL(key).pathname.slice(1);
-        result = await get(pathname, {
-          access: 'private',
-          token,
-        });
+        if (result && result.stream) {
+          return Buffer.from(await new Response(result.stream).arrayBuffer());
+        }
       }
 
-      if (!result || !result.stream) {
-        throw new Error('Blob not found');
+      // If Vercel Blob get failed or no token was available, try direct fetch if HTTP URL
+      if (isHttpUrl) {
+        const resp = await fetch(key);
+        if (resp.ok) {
+          return Buffer.from(await resp.arrayBuffer());
+        }
       }
 
-      return Buffer.from(await new Response(result.stream).arrayBuffer());
-    } catch (error) {
-      console.error('Download failed:', error);
-      throw new Error('File download failed. Please ensure the storage is correctly configured.');
+      throw new Error('Blob not found or inaccessible');
+    } catch (error: any) {
+      console.error('Storage download failed for key:', key, error?.message);
+      throw new Error(`File download failed: ${error?.message || 'Storage error'}`);
     }
   }
 
