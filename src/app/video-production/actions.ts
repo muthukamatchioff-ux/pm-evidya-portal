@@ -193,10 +193,10 @@ export async function getTopicProductionRecords() {
       }).catch(() => [])
     ]);
 
-    // Self-healing: If live database is missing the 76 imported tracker records, synchronize now
+    // Self-healing: Only initialize tracker records if live database has 0 tracker records
     const trackerVids = allVideos.filter((v: any) => v.id.startsWith('VID-'));
-    if (trackerVids.length < 76) {
-      await syncTrackerIfNeeded(prisma, true);
+    if (trackerVids.length === 0) {
+      await syncTrackerIfNeeded(prisma, false);
       const [reEntries, reVideos] = await Promise.all([
         prisma.sMEWorkEntry.findMany({
           include: {
@@ -215,6 +215,39 @@ export async function getTopicProductionRecords() {
       ]);
       allEntries = reEntries;
       allVideos = reVideos;
+    }
+
+    // Query deleted records from AuditLog to ensure permanently deleted entries NEVER reappear
+    const deletedLogs = await prisma.auditLog.findMany({
+      where: { action: 'DELETE_PRODUCTION_ENTRY' },
+      select: { entityId: true, newData: true }
+    }).catch(() => []);
+
+    const deletedIds = new Set<string>();
+    const deletedTitles = new Set<string>();
+
+    for (const log of deletedLogs) {
+      if (log.entityId && log.entityId !== 'UNKNOWN') {
+        const eid = log.entityId.toLowerCase().trim();
+        deletedIds.add(eid);
+        deletedIds.add(eid.replace(/^(shoot-|ed-)/, ''));
+      }
+      if (log.newData) {
+        try {
+          const parsed = JSON.parse(log.newData);
+          if (parsed.videoId) {
+            const vid = parsed.videoId.toLowerCase().trim();
+            deletedIds.add(vid);
+            deletedIds.add(vid.replace(/^(shoot-|ed-)/, ''));
+          }
+          if (parsed.cleanVidId) {
+            deletedIds.add(parsed.cleanVidId.toLowerCase().trim());
+          }
+          if (parsed.videoTitle) {
+            deletedTitles.add(parsed.videoTitle.trim().toLowerCase());
+          }
+        } catch (_) {}
+      }
     }
 
     const trackerSequences = [17, 16, 15, 12, 11, 10, 8, 6, 5, 4, 3, 2, 1];
@@ -237,14 +270,27 @@ export async function getTopicProductionRecords() {
 
       const seenTitles = new Set<string>();
       combinedVideos = combinedVideos.filter((v: any) => {
+        const vidIdLower = (v.id || '').toLowerCase().trim();
         const norm = (v.title || '').trim().toLowerCase();
+        if (deletedIds.has(vidIdLower) || deletedTitles.has(norm)) return false;
         if (!norm || seenTitles.has(norm)) return false;
         seenTitles.add(norm);
         return true;
       });
 
-      const realSchedules: any[] = entry.shootingSchedules || [];
-      const realEditorRecs: any[] = entry.videoEditorRecords || [];
+      const realSchedules: any[] = (entry.shootingSchedules || []).filter((s: any) => {
+        const sId = (s.id || '').toLowerCase().trim();
+        const sClean = sId.replace(/^shoot-/, '');
+        const sTitle = (s.videoTitle || '').trim().toLowerCase();
+        return !deletedIds.has(sId) && !deletedIds.has(sClean) && !deletedTitles.has(sTitle);
+      });
+
+      const realEditorRecs: any[] = (entry.videoEditorRecords || []).filter((e: any) => {
+        const eId = (e.id || '').toLowerCase().trim();
+        const eClean = eId.replace(/^ed-/, '');
+        const eTitle = (e.assignedVideo || '').trim().toLowerCase();
+        return !deletedIds.has(eId) && !deletedIds.has(eClean) && !deletedTitles.has(eTitle);
+      });
 
       // Construct shooting schedules matched directly to canonical videos
       let shootingSchedules: any[] = [];
@@ -292,21 +338,7 @@ export async function getTopicProductionRecords() {
           month: s.location || null
         }));
       } else {
-        shootingSchedules = [{
-          id: `shoot-${entry.id}`,
-          workEntryId: entry.id,
-          videoTitle: entry.topic,
-          shootDate: null,
-          scheduledStart: null,
-          scheduledEnd: null,
-          location: null,
-          month: null,
-          cameraman: null,
-          status: 'Yet to Shoot',
-          productionNotes: `Trade: ${entry.trade}`,
-          createdAt: entry.createdAt,
-          updatedAt: entry.updatedAt,
-        }];
+        shootingSchedules = [];
       }
 
       // Construct post-production editor records matched directly to canonical videos
@@ -358,20 +390,7 @@ export async function getTopicProductionRecords() {
           editingEndDate: e.editingEndDate || null,
         }));
       } else {
-        videoEditorRecords = [{
-          id: `ed-${entry.id}`,
-          workEntryId: entry.id,
-          assignedVideo: entry.topic,
-          editorName: null,
-          editingStartDate: null,
-          editingEndDate: null,
-          duration: null,
-          status: 'Pending',
-          finalVideoFile: null,
-          reviewComments: null,
-          createdAt: entry.createdAt,
-          updatedAt: entry.updatedAt,
-        }];
+        videoEditorRecords = [];
       }
 
       // Construct final video records
@@ -389,19 +408,7 @@ export async function getTopicProductionRecords() {
             createdAt: combinedVideos[0].createdAt || entry.createdAt,
             updatedAt: combinedVideos[0].updatedAt || entry.updatedAt,
           }]
-        : [{
-            id: `final-${entry.id}`,
-            workEntryId: entry.id,
-            finalVideoStatus: entry.status === 'COMPLETED' ? 'APPROVED' : 'PENDING',
-            finalVideoFile: null,
-            finalDuration: null,
-            telecastStatus: 'PENDING',
-            telecastChannel: 'PM eVidya Channel',
-            telecastDate: null,
-            telecastEpisode: `EP-${entry.epicSequence}`,
-            createdAt: entry.createdAt,
-            updatedAt: entry.updatedAt,
-          }];
+        : [];
 
       return {
         ...entry,
@@ -2017,6 +2024,9 @@ export async function deleteProductionEntry(params: {
     if (workEntryId && title) {
       vidConditions.push({ epicId: workEntryId, title: { equals: title, mode: 'insensitive' } });
     }
+    if (title) {
+      vidConditions.push({ title: { equals: title, mode: 'insensitive' } });
+    }
     if (vidConditions.length > 0) {
       await prisma.videoLibrary.deleteMany({
         where: { OR: vidConditions }
@@ -2032,6 +2042,9 @@ export async function deleteProductionEntry(params: {
     }
     if (workEntryId && title) {
       shootConditions.push({ workEntryId, videoTitle: { equals: title, mode: 'insensitive' } });
+    }
+    if (title) {
+      shootConditions.push({ videoTitle: { equals: title, mode: 'insensitive' } });
     }
     if (shootConditions.length > 0) {
       await prisma.shootingSchedule.deleteMany({
@@ -2049,21 +2062,37 @@ export async function deleteProductionEntry(params: {
     if (workEntryId && title) {
       edConditions.push({ workEntryId, assignedVideo: { equals: title, mode: 'insensitive' } });
     }
+    if (title) {
+      edConditions.push({ assignedVideo: { equals: title, mode: 'insensitive' } });
+    }
     if (edConditions.length > 0) {
       await prisma.videoEditorRecord.deleteMany({
         where: { OR: edConditions }
       }).catch(() => null);
     }
 
-    // 4. Log Audit Trail
+    // 4. Delete matching FinalVideoRecord records if applicable
+    if (rawId || workEntryId) {
+      await prisma.finalVideoRecord.deleteMany({
+        where: {
+          OR: [
+            ...(rawId ? [{ id: rawId }] : []),
+            ...(workEntryId ? [{ workEntryId }] : [])
+          ]
+        }
+      }).catch(() => null);
+    }
+
+    // 5. Log Audit Trail
     await logAudit({
       action: 'DELETE_PRODUCTION_ENTRY',
       entity: 'VIDEO_PRODUCTION',
-      entityId: rawId || workEntryId || 'UNKNOWN',
+      entityId: cleanVidId || rawId || 'UNKNOWN',
       userEmail: email || 'admin@nimi.org',
       newData: JSON.stringify({
         deletedBy: email,
         videoId: rawId,
+        cleanVidId: cleanVidId,
         videoTitle: title,
         workEntryId: workEntryId,
         timestamp: new Date().toISOString()

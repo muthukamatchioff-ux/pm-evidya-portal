@@ -9,7 +9,7 @@ export async function syncTrackerIfNeeded(customPrisma?: any, force: boolean = f
       where: { id: { startsWith: 'VID-' } }
     });
 
-    if (!force && trackerVidCount === 76) {
+    if (!force && trackerVidCount > 0) {
       return {
         success: true,
         synced: false,
@@ -18,7 +18,40 @@ export async function syncTrackerIfNeeded(customPrisma?: any, force: boolean = f
       };
     }
 
-    console.log(`[SyncTracker] Starting synchronization (current count: ${trackerVidCount}, target: 76)...`);
+    console.log(`[SyncTracker] Starting synchronization (current count: ${trackerVidCount})...`);
+
+    // Fetch all admin deletion records from AuditLog so deleted entries are NEVER re-seeded
+    const deletedLogs = await p.auditLog.findMany({
+      where: { action: 'DELETE_PRODUCTION_ENTRY' },
+      select: { entityId: true, newData: true }
+    }).catch(() => []);
+
+    const deletedIds = new Set<string>();
+    const deletedTitles = new Set<string>();
+
+    for (const log of deletedLogs) {
+      if (log.entityId && log.entityId !== 'UNKNOWN') {
+        const eid = log.entityId.toLowerCase().trim();
+        deletedIds.add(eid);
+        deletedIds.add(eid.replace(/^(shoot-|ed-)/, ''));
+      }
+      if (log.newData) {
+        try {
+          const parsed = JSON.parse(log.newData);
+          if (parsed.videoId) {
+            const vid = parsed.videoId.toLowerCase().trim();
+            deletedIds.add(vid);
+            deletedIds.add(vid.replace(/^(shoot-|ed-)/, ''));
+          }
+          if (parsed.cleanVidId) {
+            deletedIds.add(parsed.cleanVidId.toLowerCase().trim());
+          }
+          if (parsed.videoTitle) {
+            deletedTitles.add(parsed.videoTitle.trim().toLowerCase());
+          }
+        } catch (_) {}
+      }
+    }
 
     // 1. Ensure staff accounts exist
     const passwordHash = "$2b$12$5YWrRpEsXi87uO/N6FccFuFEAmEyuNz6zu/UliFwepyjJtw4Luigu";
@@ -60,7 +93,7 @@ export async function syncTrackerIfNeeded(customPrisma?: any, force: boolean = f
       entryBySeq.set(e.epicSequence, e);
     }
 
-    // 3. Upsert each topic record into DB
+    // 3. Upsert each topic record into DB (excluding explicitly deleted records)
     const validVidIds = new Set<string>();
     const validShootIds = new Set<string>();
     const validEdIds = new Set<string>();
@@ -75,6 +108,18 @@ export async function syncTrackerIfNeeded(customPrisma?: any, force: boolean = f
       const vidId = `VID-${String(row.rowNumber).padStart(3, '0')}`;
       const shootId = `shoot-VID-${String(row.rowNumber).padStart(3, '0')}`;
       const edId = `ed-VID-${String(row.rowNumber).padStart(3, '0')}`;
+      const topicNorm = (row.videoTopic || '').trim().toLowerCase();
+
+      // If this record was explicitly deleted by Admin, DO NOT re-seed it!
+      if (
+        deletedIds.has(vidId.toLowerCase()) ||
+        deletedIds.has(shootId.toLowerCase()) ||
+        deletedIds.has(edId.toLowerCase()) ||
+        deletedTitles.has(topicNorm)
+      ) {
+        console.log(`[SyncTracker] Skipping deleted record: ${vidId} - ${row.videoTopic}`);
+        continue;
+      }
 
       validVidIds.add(vidId);
       validShootIds.add(shootId);
@@ -184,6 +229,34 @@ export async function syncTrackerIfNeeded(customPrisma?: any, force: boolean = f
         ]
       }
     });
+
+    // 4. Ensure explicitly deleted records are purged from DB
+    if (deletedIds.size > 0 || deletedTitles.size > 0) {
+      await p.videoLibrary.deleteMany({
+        where: {
+          OR: [
+            { id: { in: Array.from(deletedIds) } },
+            { title: { in: Array.from(deletedTitles), mode: 'insensitive' } }
+          ]
+        }
+      }).catch(() => null);
+      await p.shootingSchedule.deleteMany({
+        where: {
+          OR: [
+            { id: { in: Array.from(deletedIds) } },
+            { videoTitle: { in: Array.from(deletedTitles), mode: 'insensitive' } }
+          ]
+        }
+      }).catch(() => null);
+      await p.videoEditorRecord.deleteMany({
+        where: {
+          OR: [
+            { id: { in: Array.from(deletedIds) } },
+            { assignedVideo: { in: Array.from(deletedTitles), mode: 'insensitive' } }
+          ]
+        }
+      }).catch(() => null);
+    }
 
     const finalCount = await p.videoLibrary.count({
       where: { id: { in: Array.from(validVidIds) } }

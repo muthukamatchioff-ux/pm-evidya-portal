@@ -419,11 +419,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       });
 
       if (videoIdMap.size === 0) {
-        videoIdMap.set(`${entry.id}-default`, {
-          schedule: schedules[0],
-          editor: editors[0],
-          lib: combinedVideos[0]
-        });
+        return;
       }
 
       let subIdx = 1;
@@ -432,6 +428,8 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         const sched = data.schedule;
         const ed = data.editor;
         const fin = finals[0];
+
+        if (!lib && !sched && !ed) return;
 
         let meta: any = null;
         try {
@@ -1078,6 +1076,33 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       if (res.success) {
         setNotification({ type: 'success', message: res.message || 'Entry deleted successfully.' });
         setIsAssignModalOpen(false);
+
+        // Optimistically remove the deleted record from client state immediately
+        const deletedVid = (row.videoId || '').toLowerCase().trim();
+        const deletedTitle = (row.videoTitle || '').toLowerCase().trim();
+
+        setWorkEntries(prev => prev.map(entry => {
+          if (entry.id !== row.epicId) return entry;
+          return {
+            ...entry,
+            videoLibraries: (entry.videoLibraries || []).filter((v: any) => {
+              const vId = (v.id || '').toLowerCase().trim();
+              const vTitle = (v.title || '').toLowerCase().trim();
+              return vId !== deletedVid && vTitle !== deletedTitle;
+            }),
+            shootingSchedules: (entry.shootingSchedules || []).filter((s: any) => {
+              const sId = (s.id || '').toLowerCase().trim();
+              const sTitle = (s.videoTitle || '').toLowerCase().trim();
+              return sId !== deletedVid && sId !== `shoot-${deletedVid}` && sTitle !== deletedTitle;
+            }),
+            videoEditorRecords: (entry.videoEditorRecords || []).filter((e: any) => {
+              const eId = (e.id || '').toLowerCase().trim();
+              const eTitle = (e.assignedVideo || '').toLowerCase().trim();
+              return eId !== deletedVid && eId !== `ed-${deletedVid}` && eTitle !== deletedTitle;
+            })
+          };
+        }));
+
         broadcastSync();
         await refreshTopicRecords();
       } else {
@@ -1736,10 +1761,11 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       </div>
 
       {/* ========================================================
-          2. EXACT 16-COLUMN PRODUCTION TRACKER TABLE
+          2. EXACT 16-COLUMN PRODUCTION TRACKER TABLE CONTAINER
          ======================================================== */}
-      <div className={styles.trackerTableWrapper}>
-        <table className={styles.trackerTable}>
+      <div className={styles.trackerCardContainer}>
+        <div className={styles.trackerTableWrapper}>
+          <table className={styles.trackerTable}>
           <thead>
             <tr>
               {/* S.No */}
@@ -1963,6 +1989,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
             )}
           </tbody>
         </table>
+        </div>
 
         {/* ========================================================
             PAGINATION ROW MATCHING SCREENSHOT
