@@ -21,6 +21,10 @@ model User {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   auditLogs   AuditLog[]
+  cameramanEntries   SMEWorkEntry[]     @relation("CameramanAssignments")
+  editorEntries      SMEWorkEntry[]     @relation("EditorAssignments")
+  cameramanSchedules ShootingSchedule[]
+  editorRecords      VideoEditorRecord[]
 }
 
 model SME {
@@ -55,6 +59,15 @@ model SMEWorkEntry {
   updatedAt      DateTime   @updatedAt
   topicId        String?
   epicSequence   Int        @default(autoincrement())
+  cameramanId         String?
+  cameraman           User?              @relation("CameramanAssignments", fields: [cameramanId], references: [id])
+  editorId            String?
+  editor              User?              @relation("EditorAssignments", fields: [editorId], references: [id])
+  cameramanAssignedAt DateTime?
+  editorAssignedAt    DateTime?
+  isPublished         Boolean            @default(false)
+  publishedAt         DateTime?
+  publishedBy         String?
   documents      Document[]
   payments       Payment[]
   sme            SME        @relation(fields: [smeId], references: [id], onDelete: Cascade)
@@ -475,6 +488,8 @@ model ShootingSchedule {
   actualStart     DateTime?
   actualEnd       DateTime?
   cameraman       String?
+  cameramanId     String?
+  cameramanUser   User?    @relation(fields: [cameramanId], references: [id])
   status          String   @default("PLANNED")
   productionNotes String?
   createdAt       DateTime @default(now())
@@ -486,6 +501,8 @@ model VideoEditorRecord {
   id               String   @id @default(cuid())
   workEntryId      String
   editorName       String?
+  editorId         String?
+  editorUser       User?    @relation(fields: [editorId], references: [id])
   assignedVideo    String?
   editingStartDate DateTime?
   editingEndDate   DateTime?
@@ -531,4 +548,19 @@ model FinalVideoRecord {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   workEntry        SMEWorkEntry @relation(fields: [workEntryId], references: [id], onDelete: Cascade)
+}
+
+
+model NotificationLog {
+  id             String    @id @default(cuid())
+  epicId         String?
+  type           String
+  recipientEmail String
+  recipientName  String?
+  status         String    @default("PENDING")
+  subject        String
+  message        String
+  error          String?
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
 }

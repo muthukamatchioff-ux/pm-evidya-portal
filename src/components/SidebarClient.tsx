@@ -23,6 +23,10 @@ interface StaffMenuItem {
 const menuItems: MenuItem[] = [
   { name: 'Dashboard', path: '/dashboard', icon: '📊', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   
+  { isHeader: true, name: 'Production Workflow', allowedRoles: ['ADMIN'] },
+  { name: 'Work Assignment', path: '/production-workflow', icon: '📋', allowedRoles: ['ADMIN'] },
+  { name: 'Unassigned Work', path: '/production-workflow?tab=unassigned', icon: '⏳', allowedRoles: ['ADMIN'] },
+
   { isHeader: true, name: 'Core Modules', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   { name: 'SME Records', path: '/smes', icon: '👨‍🏫', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   { name: 'Video Production Tracker', path: '/video-production', icon: '🎬', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
@@ -48,9 +52,9 @@ const cameramanItems: StaffMenuItem[] = [
 ];
 
 const editorItems: StaffMenuItem[] = [
+  { name: 'My Assignments', tabId: 'ASSIGNMENTS', icon: '📋' },
   { name: 'Post-Production Entry', tabId: 'POST_PRODUCTION_ENTRY', icon: '🎬' },
   { name: 'Dashboard', tabId: 'DASHBOARD', icon: '📊' },
-  { name: 'My Assignments', tabId: 'ASSIGNMENTS', icon: '📋' },
   { name: 'Overall Tracker (View Only)', tabId: 'TRACKER', icon: '👁️' },
   { name: 'Profile', tabId: 'PROFILE', icon: '👤' },
 ];
@@ -58,11 +62,13 @@ const editorItems: StaffMenuItem[] = [
 export default function SidebarClient({
   role,
   email,
-  initialAssignmentCount = 0
+  initialAssignmentCount = 0,
+  unassignedCount = 0
 }: {
   role: string;
   email: string | null;
   initialAssignmentCount?: number;
+  unassignedCount?: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -234,7 +240,19 @@ export default function SidebarClient({
                 );
               }
 
-              const isActive = pathname === item.path || pathname?.startsWith(`${item.path}/`);
+              const currentTabParam = searchParams.get('tab');
+              const isUnassignedItem = item.path?.includes('tab=unassigned');
+              const isWorkAssignmentItem = item.path === '/production-workflow';
+              
+              let isActive = false;
+              if (isUnassignedItem) {
+                isActive = pathname === '/production-workflow' && currentTabParam?.toLowerCase() === 'unassigned';
+              } else if (isWorkAssignmentItem) {
+                isActive = pathname === '/production-workflow' && (!currentTabParam || currentTabParam.toLowerCase() !== 'unassigned');
+              } else {
+                isActive = pathname === item.path || (item.path !== '/' && pathname?.startsWith(`${item.path}/`));
+              }
+
               return (
                 <Link
                   key={item.path}
@@ -245,6 +263,23 @@ export default function SidebarClient({
                 >
                   <span className={styles.iconPlaceholder}>{item.icon}</span>
                   <span className={styles.navLinkText}>{item.name}</span>
+                  {item.name === 'Unassigned Work' && (
+                    <span 
+                      style={{
+                        marginLeft: 'auto',
+                        backgroundColor: '#fee2e2',
+                        color: '#dc2626',
+                        fontWeight: 800,
+                        fontSize: '11px',
+                        padding: '1px 6px',
+                        borderRadius: '9999px',
+                        border: '1px solid #fca5a5'
+                      }}
+                      title={`${unassignedCount} unassigned EPICs`}
+                    >
+                      [{unassignedCount}]
+                    </span>
+                  )}
                 </Link>
               );
             })

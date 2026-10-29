@@ -45,6 +45,30 @@ async function main() {
       await prisma.$executeRawUnsafe(`ALTER TABLE "VideoLibrary" ADD COLUMN IF NOT EXISTS "epicId" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "VideoLibrary" ADD COLUMN IF NOT EXISTS "duration" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "VideoLibrary" ADD COLUMN IF NOT EXISTS "trade" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "cameramanId" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "editorId" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "cameramanAssignedAt" TIMESTAMP(3);`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "editorAssignedAt" TIMESTAMP(3);`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "isPublished" BOOLEAN DEFAULT FALSE;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "publishedAt" TIMESTAMP(3);`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "publishedBy" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "ShootingSchedule" ADD COLUMN IF NOT EXISTS "cameramanId" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "VideoEditorRecord" ADD COLUMN IF NOT EXISTS "editorId" TEXT;`);
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "NotificationLog" (
+          "id" TEXT PRIMARY KEY,
+          "epicId" TEXT,
+          "type" TEXT NOT NULL,
+          "recipientEmail" TEXT NOT NULL,
+          "recipientName" TEXT,
+          "status" TEXT NOT NULL DEFAULT 'PENDING',
+          "subject" TEXT NOT NULL,
+          "message" TEXT NOT NULL,
+          "error" TEXT,
+          "sentAt" TIMESTAMP(3),
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
       console.log('[Sync DB Script] Verified production database columns successfully.');
     } catch (colErr) {
       console.warn('[Sync DB Script] Column check notice:', colErr.message);

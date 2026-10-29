@@ -62,8 +62,9 @@ async function verifyEpicPermission(workEntryId: string, allowedRoles: string[])
   };
 
   if (role === 'CAMERAMAN') {
-    const isAssigned = assignedSequences.includes(entry.epicSequence) ||
-      entry.shootingSchedules.some((s: any) => isNameOrEmailMatch(s.cameraman));
+    const isAssigned = (entry.cameramanId && entry.cameramanId === user.id) ||
+      assignedSequences.includes(entry.epicSequence) ||
+      entry.shootingSchedules.some((s: any) => (s.cameramanId && s.cameramanId === user.id) || isNameOrEmailMatch(s.cameraman));
 
     if (!isAssigned) {
       return { 
@@ -75,8 +76,9 @@ async function verifyEpicPermission(workEntryId: string, allowedRoles: string[])
   }
 
   if (role === 'EDITOR') {
-    const isAssigned = assignedSequences.includes(entry.epicSequence) ||
-      entry.videoEditorRecords.some((e: any) => isNameOrEmailMatch(e.editorName));
+    const isAssigned = (entry.editorId && entry.editorId === user.id) ||
+      assignedSequences.includes(entry.epicSequence) ||
+      entry.videoEditorRecords.some((e: any) => (e.editorId && e.editorId === user.id) || isNameOrEmailMatch(e.editorName));
 
     if (!isAssigned) {
       return { 
@@ -442,22 +444,26 @@ export async function getTopicProductionRecords() {
 
     if (role === 'CAMERAMAN') {
       const filtered = allRecords.filter((entry: any) => {
+        const matchesCanonical = (entry.cameramanId && entry.cameramanId === user.id) ||
+          entry.shootingSchedules?.some((s: any) => s.cameramanId === user.id);
         const matchesSequence = assignedSequences.includes(entry.epicSequence);
         const matchesCameraman = entry.shootingSchedules?.some((s: any) => {
           return matchesCameramanName(s.cameraman, user);
         });
-        return matchesSequence || matchesCameraman;
+        return matchesCanonical || matchesSequence || matchesCameraman;
       });
       return { success: true, data: filtered };
     }
 
     if (role === 'EDITOR') {
       const filtered = allRecords.filter((entry: any) => {
+        const matchesCanonical = (entry.editorId && entry.editorId === user.id) ||
+          entry.videoEditorRecords?.some((e: any) => e.editorId === user.id);
         const matchesSequence = assignedSequences.includes(entry.epicSequence);
         const matchesEditor = entry.videoEditorRecords?.some((e: any) => {
           return matchesEditorName(e.editorName, user);
         });
-        return matchesSequence || matchesEditor;
+        return matchesCanonical || matchesSequence || matchesEditor;
       });
       return { success: true, data: filtered };
     }
@@ -2212,7 +2218,8 @@ export async function saveCameramanShootingEntry(params: {
         await prisma.videoEditorRecord.create({
           data: {
             workEntryId: workEntry.id,
-            editorName: 'Hassan & Antony',
+            editorId: workEntry.editorId || null,
+            editorName: workEntry.editor?.name || null,
             status: 'Pending',
             assignedVideo: workEntry.videoLibraries.find((vl: any) => vl.id === params.videoId)?.title || workEntry.topic
           }
@@ -2234,6 +2241,24 @@ export async function saveCameramanShootingEntry(params: {
         productionNotes: params.shootingNotes
       })
     });
+
+    if (params.isSubmit && finalStatus === 'Completed') {
+      const allSchedules = await prisma.shootingSchedule.findMany({
+        where: { workEntryId: workEntry.id }
+      });
+      const allCompleted = allSchedules.length > 0 && allSchedules.every((s: any) => (s.status || '').toLowerCase() === 'completed');
+      if (allCompleted) {
+        const { queueNotification } = await import('@/lib/notifications');
+        await queueNotification({
+          epicId: workEntry.id,
+          type: 'READY_FOR_EDITOR',
+          recipientEmail: 'admin@nimi.org',
+          recipientName: 'Administrator',
+          subject: `[PM e-Vidya] All Shooting Topics Completed — Ready for Editor: EPIC-${workEntry.epicSequence} (${workEntry.trade})`,
+          message: `All ${allSchedules.length} shooting topics for EPIC-${workEntry.epicSequence} have been submitted as Completed by Cameraman ${perm.user?.name || 'Cameraman'}.\n\nAction Required: Please assign an active registered Video Editor in Production Workflow.\n\nWorkflow Link: https://pmevidyanimi.online/production-workflow?tab=ready_for_editor`
+        }).catch(() => null);
+      }
+    }
 
     safeRevalidate();
     return {
@@ -2404,6 +2429,24 @@ export async function saveEditorPostProductionEntry(params: {
         reviewComments: params.reviewComments
       })
     });
+
+    if (params.isSubmit && finalStatus === 'Completed') {
+      const allEditorRecords = await prisma.videoEditorRecord.findMany({
+        where: { workEntryId: workEntry.id }
+      });
+      const allCompleted = allEditorRecords.length > 0 && allEditorRecords.every((e: any) => (e.status || '').toLowerCase() === 'completed' && Boolean(e.finalVideoFile));
+      if (allCompleted) {
+        const { queueNotification } = await import('@/lib/notifications');
+        await queueNotification({
+          epicId: workEntry.id,
+          type: 'EDITING_COMPLETED',
+          recipientEmail: 'admin@nimi.org',
+          recipientName: 'Administrator',
+          subject: `[PM e-Vidya] Post-Production Completed — Ready for Review & Publication: EPIC-${workEntry.epicSequence} (${workEntry.trade})`,
+          message: `All ${allEditorRecords.length} video deliverables for EPIC-${workEntry.epicSequence} have been finalized by Editor ${perm.user?.name || 'Editor'}.\n\nAction Required: Please perform final review and publish to Video Content Library.\n\nWorkflow Link: https://pmevidyanimi.online/production-workflow?tab=completed`
+        }).catch(() => null);
+      }
+    }
 
     safeRevalidate();
     return {
