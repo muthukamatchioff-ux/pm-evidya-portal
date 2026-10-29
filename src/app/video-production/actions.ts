@@ -1982,6 +1982,107 @@ export async function updateProductionRowDetails(params: {
   }
 }
 
+export async function deleteProductionEntry(params: {
+  videoId: string;
+  workEntryId?: string;
+  videoTitle?: string;
+}) {
+  const role = await getRole();
+  const email = await getEmail();
+
+  // STRICT ACCESS CONTROL: Only ADMIN or TEAM_MEMBER can delete entries
+  if (role !== 'ADMIN' && role !== 'TEAM_MEMBER') {
+    return {
+      success: false,
+      error: 'Unauthorized: Only Administrator accounts can delete video production tracker entries.'
+    };
+  }
+
+  if (!params.videoId && !params.videoTitle && !params.workEntryId) {
+    return { success: false, error: 'Target video identifier is required for deletion.' };
+  }
+
+  try {
+    const rawId = (params.videoId || '').trim();
+    const cleanVidId = rawId.replace(/^(shoot-|ed-)/, '');
+    const title = (params.videoTitle || '').trim();
+    const workEntryId = params.workEntryId;
+
+    // 1. Delete matching VideoLibrary records
+    const vidConditions: any[] = [];
+    if (rawId) {
+      vidConditions.push({ id: rawId });
+      if (cleanVidId) vidConditions.push({ id: cleanVidId });
+    }
+    if (workEntryId && title) {
+      vidConditions.push({ epicId: workEntryId, title: { equals: title, mode: 'insensitive' } });
+    }
+    if (vidConditions.length > 0) {
+      await prisma.videoLibrary.deleteMany({
+        where: { OR: vidConditions }
+      }).catch(() => null);
+    }
+
+    // 2. Delete matching ShootingSchedule records
+    const shootConditions: any[] = [];
+    if (rawId) {
+      shootConditions.push({ id: rawId });
+      shootConditions.push({ id: `shoot-${cleanVidId}` });
+      if (cleanVidId) shootConditions.push({ id: cleanVidId });
+    }
+    if (workEntryId && title) {
+      shootConditions.push({ workEntryId, videoTitle: { equals: title, mode: 'insensitive' } });
+    }
+    if (shootConditions.length > 0) {
+      await prisma.shootingSchedule.deleteMany({
+        where: { OR: shootConditions }
+      }).catch(() => null);
+    }
+
+    // 3. Delete matching VideoEditorRecord records
+    const edConditions: any[] = [];
+    if (rawId) {
+      edConditions.push({ id: rawId });
+      edConditions.push({ id: `ed-${cleanVidId}` });
+      if (cleanVidId) edConditions.push({ id: cleanVidId });
+    }
+    if (workEntryId && title) {
+      edConditions.push({ workEntryId, assignedVideo: { equals: title, mode: 'insensitive' } });
+    }
+    if (edConditions.length > 0) {
+      await prisma.videoEditorRecord.deleteMany({
+        where: { OR: edConditions }
+      }).catch(() => null);
+    }
+
+    // 4. Log Audit Trail
+    await logAudit({
+      action: 'DELETE_PRODUCTION_ENTRY',
+      entity: 'VIDEO_PRODUCTION',
+      entityId: rawId || workEntryId || 'UNKNOWN',
+      userEmail: email || 'admin@nimi.org',
+      newData: JSON.stringify({
+        deletedBy: email,
+        videoId: rawId,
+        videoTitle: title,
+        workEntryId: workEntryId,
+        timestamp: new Date().toISOString()
+      })
+    });
+
+    safeRevalidate();
+
+    return {
+      success: true,
+      message: `Video production entry "${title || rawId}" has been deleted successfully.`
+    };
+  } catch (error: any) {
+    console.error('Error in deleteProductionEntry:', error);
+    return { success: false, error: error.message || 'Failed to delete entry.' };
+  }
+}
+
+
 // =========================================================================
 // CAMERAMAN PORTAL — DEDICATED SHOOTING STAGE ENTRY
 // =========================================================================

@@ -12,7 +12,8 @@ import {
   detectVideoDuration,
   saveCameramanShootingEntry,
   saveEditorPostProductionEntry,
-  assignProductionPersonnel
+  assignProductionPersonnel,
+  deleteProductionEntry
 } from './actions';
 import CameramanPortal from './CameramanPortal';
 import VideoEditorPortal from './VideoEditorPortal';
@@ -1052,6 +1053,43 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     }
   };
 
+  // Delete Video Production Entry (Strictly Admin / Team Member Only)
+  const handleDeleteRow = async (row: VideoRegisterRow) => {
+    if (!isAdmin) {
+      alert('Unauthorized: Only Admin users can delete video production entries.');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Are you sure you want to delete this video production entry?\n\n` +
+      `Topic: ${row.videoTitle}\n` +
+      `EPIC: ${row.epicCode} (${row.trade})\n` +
+      `Month: ${row.month}\n\n` +
+      `This action will remove this entry from the tracker and cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setLoading(true);
+    try {
+      const res = await deleteProductionEntry({
+        videoId: row.videoId,
+        workEntryId: row.epicId,
+        videoTitle: row.videoTitle
+      });
+      if (res.success) {
+        setNotification({ type: 'success', message: res.message || 'Entry deleted successfully.' });
+        setIsAssignModalOpen(false);
+        broadcastSync();
+        await refreshTopicRecords();
+      } else {
+        setNotification({ type: 'error', message: res.error || 'Failed to delete entry.' });
+      }
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Error deleting entry.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Open Details Modal
   const handleOpenDetails = (row: VideoRegisterRow) => {
     setDetailsTargetRow(row);
@@ -1888,6 +1926,16 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                           ✏️
                         </button>
                       )}
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className={`${styles.actionSquareBtn} ${styles.actionDeleteBtn}`}
+                          onClick={() => handleDeleteRow(row)}
+                          title="Delete Entry (Admin Only)"
+                        >
+                          🗑️
+                        </button>
+                      )}
                       <button 
                         type="button"
                         className={styles.actionSquareBtn}
@@ -2248,6 +2296,30 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
             </div>
 
             <div className={styles.modalFooter}>
+              {isAdmin && (
+                <button 
+                  type="button"
+                  onClick={() => handleDeleteRow(assignTargetRow)}
+                  disabled={assignLoading}
+                  style={{
+                    background: '#fee2e2',
+                    color: '#dc2626',
+                    border: '1px solid #fecaca',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    marginRight: 'auto',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  title="Delete this entry completely (Admin only)"
+                >
+                  🗑️ Delete Entry
+                </button>
+              )}
               <button 
                 className={styles.btnCancel} 
                 onClick={() => setIsAssignModalOpen(false)}
