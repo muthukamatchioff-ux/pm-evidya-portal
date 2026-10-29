@@ -9,7 +9,7 @@ export async function syncTrackerIfNeeded(customPrisma?: any, force: boolean = f
       where: { id: { startsWith: 'VID-' } }
     });
 
-    if (!force && trackerVidCount >= 76) {
+    if (!force && trackerVidCount === 76) {
       return {
         success: true,
         synced: false,
@@ -157,7 +157,8 @@ export async function syncTrackerIfNeeded(customPrisma?: any, force: boolean = f
       where: {
         OR: [
           { epicId: { in: trackerEpicIds }, id: { notIn: Array.from(validVidIds) } },
-          { id: { notIn: Array.from(validVidIds) }, title: { in: canonicalTitles } }
+          { id: { notIn: Array.from(validVidIds) }, title: { in: canonicalTitles } },
+          { id: { startsWith: 'VID-', notIn: Array.from(validVidIds) } }
         ]
       }
     });
@@ -167,7 +168,8 @@ export async function syncTrackerIfNeeded(customPrisma?: any, force: boolean = f
       where: {
         OR: [
           { workEntryId: { in: trackerEpicIds }, id: { notIn: Array.from(validShootIds) } },
-          { id: { notIn: Array.from(validShootIds) }, videoTitle: { in: canonicalTitles } }
+          { id: { notIn: Array.from(validShootIds) }, videoTitle: { in: canonicalTitles } },
+          { id: { startsWith: 'shoot-VID-', notIn: Array.from(validShootIds) } }
         ]
       }
     });
@@ -177,7 +179,8 @@ export async function syncTrackerIfNeeded(customPrisma?: any, force: boolean = f
       where: {
         OR: [
           { workEntryId: { in: trackerEpicIds }, id: { notIn: Array.from(validEdIds) } },
-          { id: { notIn: Array.from(validEdIds) }, assignedVideo: { in: canonicalTitles } }
+          { id: { notIn: Array.from(validEdIds) }, assignedVideo: { in: canonicalTitles } },
+          { id: { startsWith: 'ed-VID-', notIn: Array.from(validEdIds) } }
         ]
       }
     });

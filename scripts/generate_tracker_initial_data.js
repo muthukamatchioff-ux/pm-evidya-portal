@@ -169,4 +169,5 @@ export const TRACKER_SOURCE_RECORDS: TrackerSourceRecord[] = ${JSON.stringify(pa
 `;
 
 fs.writeFileSync('src/lib/trackerInitialData.ts', fileContent, 'utf8');
-console.log(`Generated src/lib/trackerInitialData.ts with ${parsedRows.length} records.`);
+fs.writeFileSync('scripts/tracker-data.json', JSON.stringify(parsedRows, null, 2), 'utf8');
+console.log(`Generated src/lib/trackerInitialData.ts and scripts/tracker-data.json with ${parsedRows.length} records.`);

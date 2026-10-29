@@ -310,22 +310,28 @@ async function runImport() {
 
   const staleVideoLibs = await prisma.videoLibrary.deleteMany({
     where: {
-      epicId: { in: trackerEpicIds },
-      id: { notIn: Array.from(validVidIds) }
+      OR: [
+        { epicId: { in: trackerEpicIds }, id: { notIn: Array.from(validVidIds) } },
+        { id: { startsWith: 'VID-', notIn: Array.from(validVidIds) } }
+      ]
     }
   });
 
   const staleSchedules = await prisma.shootingSchedule.deleteMany({
     where: {
-      workEntryId: { in: trackerEpicIds },
-      id: { notIn: Array.from(validShootIds) }
+      OR: [
+        { workEntryId: { in: trackerEpicIds }, id: { notIn: Array.from(validShootIds) } },
+        { id: { startsWith: 'shoot-VID-', notIn: Array.from(validShootIds) } }
+      ]
     }
   });
 
   const staleEditors = await prisma.videoEditorRecord.deleteMany({
     where: {
-      workEntryId: { in: trackerEpicIds },
-      id: { notIn: Array.from(validEdIds) }
+      OR: [
+        { workEntryId: { in: trackerEpicIds }, id: { notIn: Array.from(validEdIds) } },
+        { id: { startsWith: 'ed-VID-', notIn: Array.from(validEdIds) } }
+      ]
     }
   });
 
