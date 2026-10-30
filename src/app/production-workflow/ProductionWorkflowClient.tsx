@@ -10,10 +10,14 @@ import {
   getProductionWorkflowDashboardData,
   assignCameramanToEpic,
   assignEditorToEpic,
+  assignCameramanToVideo,
+  assignEditorToVideo,
   publishEpicToLibrary,
   retryNotificationAction,
   reviewEditorSubmission
 } from './actions';
+
+type TopicItem = WorkflowEpicItem['topics'][0];
 
 export default function ProductionWorkflowClient({
   initialData,
@@ -29,7 +33,7 @@ export default function ProductionWorkflowClient({
   const [loading, setLoading] = useState(false);
   const [notificationToast, setNotificationToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Tabs: ALL, UNASSIGNED, SHOOTING, READY_FOR_EDITOR, EDITING, COMPLETED, PUBLISHED, NOTIFICATIONS
+  // Tabs: ALL, UNASSIGNED, SHOOTING, READY_FOR_EDITOR, EDITING, SUBMITTED, REVISION_REQUIRED, APPROVED, COMPLETED, PUBLISHED
   const tabParam = (searchParams.get('tab') || '').toUpperCase();
   const [activeTab, setActiveTab] = useState<string>(
     tabParam === 'UNASSIGNED' ? 'UNASSIGNED' :
@@ -44,19 +48,30 @@ export default function ProductionWorkflowClient({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTrade, setSelectedTrade] = useState('ALL');
 
-  // Modals
+  // Level 2 Expansion State (supports expanding one or multiple EPICs)
+  const [expandedEpicId, setExpandedEpicId] = useState<string | null>(null);
+
+  // Modals - EPIC Level
   const [cameramanModalOpen, setCameramanModalOpen] = useState(false);
   const [editorModalOpen, setEditorModalOpen] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [notificationsModalOpen, setNotificationsModalOpen] = useState(false);
+
+  // Modals - Video Level
+  const [videoCamModalOpen, setVideoCamModalOpen] = useState(false);
+  const [videoEdModalOpen, setVideoEdModalOpen] = useState(false);
+  const [timelineModalOpen, setTimelineModalOpen] = useState(false);
+  const [targetTopicItem, setTargetTopicItem] = useState<{ epic: WorkflowEpicItem; topic: TopicItem } | null>(null);
+
+  // Admin Review / Revision Modal
   const [revisionModalOpen, setRevisionModalOpen] = useState(false);
   const [revisionTarget, setRevisionTarget] = useState<{ workEntryId: string; videoId: string; title: string } | null>(null);
   const [revisionComments, setRevisionComments] = useState('');
 
   const [targetEpic, setTargetEpic] = useState<WorkflowEpicItem | null>(null);
 
-  // Dropdown Search & Selection
+  // User Selection States (Cameramen & Editors)
   const [cameramanSearch, setCameramanSearch] = useState('');
   const [selectedCameramanId, setSelectedCameramanId] = useState('');
   const [cameramanSendEmail, setCameramanSendEmail] = useState(true);
@@ -66,60 +81,35 @@ export default function ProductionWorkflowClient({
   const [editorSendEmail, setEditorSendEmail] = useState(true);
 
   const [actionLoading, setActionLoading] = useState(false);
-  const [expandedEpicId, setExpandedEpicId] = useState<string | null>(null);
 
-  const handleApproveSubmission = async (workEntryId: string, videoId: string) => {
-    setActionLoading(true);
+  // Date Formatter Helper (DD.MM.YYYY matching executive portal style)
+  const formatDate = (isoString?: string | null): string => {
+    if (!isoString) return '—';
     try {
-      const res = await reviewEditorSubmission({
-        workEntryId,
-        videoId,
-        action: 'APPROVE'
-      });
-      if (res.success) {
-        setNotificationToast({ type: 'success', message: res.message || 'Submission approved successfully!' });
-        await handleRefresh();
-      } else {
-        setNotificationToast({ type: 'error', message: res.error || 'Failed to approve.' });
-      }
-    } catch (err: any) {
-      setNotificationToast({ type: 'error', message: err.message });
-    } finally {
-      setActionLoading(false);
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return '—';
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}.${month}.${year}`;
+    } catch {
+      return '—';
     }
   };
 
-  const handleOpenRevisionModal = (workEntryId: string, videoId: string, title: string) => {
-    setRevisionTarget({ workEntryId, videoId, title });
-    setRevisionComments('');
-    setRevisionModalOpen(true);
-  };
-
-  const handleSubmitRevision = async () => {
-    if (!revisionTarget) return;
-    if (!revisionComments.trim()) {
-      alert('Please enter review remarks explaining what corrections are needed.');
-      return;
-    }
-    setActionLoading(true);
+  const formatDateTime = (isoString?: string | null): string => {
+    if (!isoString) return '—';
     try {
-      const res = await reviewEditorSubmission({
-        workEntryId: revisionTarget.workEntryId,
-        videoId: revisionTarget.videoId,
-        action: 'REQUEST_REVISION',
-        adminComments: revisionComments.trim()
-      });
-      if (res.success) {
-        setNotificationToast({ type: 'success', message: res.message || 'Revision requested from Editor.' });
-        setRevisionModalOpen(false);
-        await handleRefresh();
-      } else {
-        setNotificationToast({ type: 'error', message: res.error || 'Failed to request revision.' });
-      }
-    } catch (err: any) {
-      setNotificationToast({ type: 'error', message: err.message });
-    } finally {
-      setActionLoading(false);
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return '—';
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      const hours = String(d.getHours()).padStart(2, '0');
+      const mins = String(d.getMinutes()).padStart(2, '0');
+      return `${day}.${month}.${year} ${hours}:${mins}`;
+    } catch {
+      return '—';
     }
   };
 
@@ -147,6 +137,28 @@ export default function ProductionWorkflowClient({
     return Array.from(set).sort();
   }, [data.epics]);
 
+  // Dynamic counts for all filter tabs
+  const tabCounts = useMemo(() => {
+    const total = data.epics.length;
+    const unassigned = data.epics.filter(e => e.workflowStage === 'UNASSIGNED').length;
+    const shooting = data.epics.filter(e => e.workflowStage === 'SHOOTING').length;
+    const readyForEditor = data.epics.filter(e => e.workflowStage === 'READY_FOR_EDITOR').length;
+    const editing = data.epics.filter(e => e.workflowStage === 'EDITING').length;
+    const completed = data.epics.filter(e => e.workflowStage === 'COMPLETED').length;
+    const published = data.epics.filter(e => e.workflowStage === 'PUBLISHED').length;
+    const submitted = data.epics.filter(e =>
+      e.topics.some(t => t.submissionStatus === 'Submitted – Awaiting Admin Approval')
+    ).length;
+    const revisionRequired = data.epics.filter(e =>
+      e.topics.some(t => t.submissionStatus === 'Revision Required')
+    ).length;
+    const approved = data.epics.filter(e =>
+      e.topics.some(t => t.submissionStatus === 'Admin Approved')
+    ).length;
+
+    return { total, unassigned, shooting, readyForEditor, editing, completed, published, submitted, revisionRequired, approved };
+  }, [data.epics]);
+
   // Filtered EPICs
   const filteredEpics = useMemo(() => {
     return data.epics.filter(e => {
@@ -157,6 +169,9 @@ export default function ProductionWorkflowClient({
       if (activeTab === 'EDITING' && e.workflowStage !== 'EDITING') return false;
       if (activeTab === 'COMPLETED' && e.workflowStage !== 'COMPLETED') return false;
       if (activeTab === 'PUBLISHED' && e.workflowStage !== 'PUBLISHED') return false;
+      if (activeTab === 'SUBMITTED' && !e.topics.some(t => t.submissionStatus === 'Submitted – Awaiting Admin Approval')) return false;
+      if (activeTab === 'REVISION_REQUIRED' && !e.topics.some(t => t.submissionStatus === 'Revision Required')) return false;
+      if (activeTab === 'APPROVED' && !e.topics.some(t => t.submissionStatus === 'Admin Approved')) return false;
 
       // Trade filter
       if (selectedTrade !== 'ALL' && e.trade !== selectedTrade) return false;
@@ -168,8 +183,10 @@ export default function ProductionWorkflowClient({
         const matchTopic = (e.topic || '').toLowerCase().includes(q);
         const matchSme = (e.sme?.name || '').toLowerCase().includes(q);
         const matchTrade = (e.trade || '').toLowerCase().includes(q);
-        const matchSubtopic = e.topics.some(t => t.title.toLowerCase().includes(q));
-        if (!matchCode && !matchTopic && !matchSme && !matchTrade && !matchSubtopic) {
+        const matchCam = (e.cameraman?.name || '').toLowerCase().includes(q) || e.topics.some(t => (t.cameraman || '').toLowerCase().includes(q));
+        const matchEd = (e.editor?.name || '').toLowerCase().includes(q) || e.topics.some(t => (t.editor || '').toLowerCase().includes(q));
+        const matchSubtopic = e.topics.some(t => t.title.toLowerCase().includes(q) || t.id.toLowerCase().includes(q));
+        if (!matchCode && !matchTopic && !matchSme && !matchTrade && !matchCam && !matchEd && !matchSubtopic) {
           return false;
         }
       }
@@ -178,7 +195,7 @@ export default function ProductionWorkflowClient({
     });
   }, [data.epics, activeTab, selectedTrade, searchTerm]);
 
-  // Search-filtered Cameramen
+  // Search-filtered registered Cameramen
   const filteredCameramen = useMemo(() => {
     if (!cameramanSearch.trim()) return data.registeredCameramen;
     const q = cameramanSearch.toLowerCase().trim();
@@ -187,7 +204,7 @@ export default function ProductionWorkflowClient({
     );
   }, [data.registeredCameramen, cameramanSearch]);
 
-  // Search-filtered Editors
+  // Search-filtered registered Editors
   const filteredEditors = useMemo(() => {
     if (!editorSearch.trim()) return data.registeredEditors;
     const q = editorSearch.toLowerCase().trim();
@@ -196,8 +213,182 @@ export default function ProductionWorkflowClient({
     );
   }, [data.registeredEditors, editorSearch]);
 
-  // Open Cameraman Modal
-  const handleOpenAssignCameraman = (epic: WorkflowEpicItem) => {
+  // Helpers to test topic progress
+  const isTopicShootingDone = (t: TopicItem) => {
+    const s = (t.shootingStatus || '').toLowerCase();
+    return s.includes('completed') || s.includes('received');
+  };
+
+  const isTopicEditingDone = (t: TopicItem) => {
+    const e = (t.editingStatus || '').toLowerCase();
+    const s = (t.shootingStatus || '').toLowerCase();
+    const hasLink = Boolean(t.finalVideoLink);
+    if (hasLink && (e === 'completed' || e.startsWith('completed') || e === 'na' || e === 'received' || s.includes('received'))) {
+      return true;
+    }
+    return e === 'completed' && hasLink;
+  };
+
+  // ==========================================
+  // ACTION HANDLERS
+  // ==========================================
+
+  // 1. Admin Approve Deliverable
+  const handleApproveSubmission = async (workEntryId: string, videoId: string) => {
+    setActionLoading(true);
+    try {
+      const res = await reviewEditorSubmission({
+        workEntryId,
+        videoId,
+        action: 'APPROVE'
+      });
+      if (res.success) {
+        setNotificationToast({ type: 'success', message: res.message || 'Submission approved successfully!' });
+        await handleRefresh();
+      } else {
+        setNotificationToast({ type: 'error', message: res.error || 'Failed to approve.' });
+      }
+    } catch (err: any) {
+      setNotificationToast({ type: 'error', message: err.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 2. Open Revision Modal
+  const handleOpenRevisionModal = (workEntryId: string, videoId: string, title: string) => {
+    setRevisionTarget({ workEntryId, videoId, title });
+    setRevisionComments('');
+    setRevisionModalOpen(true);
+  };
+
+  // 3. Submit Revision Request
+  const handleSubmitRevision = async () => {
+    if (!revisionTarget) return;
+    if (!revisionComments.trim()) {
+      alert('Please enter correction remarks explaining what needs revision.');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await reviewEditorSubmission({
+        workEntryId: revisionTarget.workEntryId,
+        videoId: revisionTarget.videoId,
+        action: 'REQUEST_REVISION',
+        adminComments: revisionComments.trim()
+      });
+      if (res.success) {
+        setNotificationToast({ type: 'success', message: res.message || 'Revision requested from Editor.' });
+        setRevisionModalOpen(false);
+        await handleRefresh();
+      } else {
+        setNotificationToast({ type: 'error', message: res.error || 'Failed to request revision.' });
+      }
+    } catch (err: any) {
+      setNotificationToast({ type: 'error', message: err.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 4. Open Video-Wise Cameraman Assignment Modal
+  const handleOpenAssignCameramanVideo = (epic: WorkflowEpicItem, topic: TopicItem) => {
+    setTargetTopicItem({ epic, topic });
+    setSelectedCameramanId(topic.cameramanId || epic.cameraman?.id || '');
+    setCameramanSearch('');
+    setCameramanSendEmail(true);
+    setVideoCamModalOpen(true);
+  };
+
+  // 5. Submit Video-Wise Cameraman Assignment
+  const handleSaveVideoCameraman = async () => {
+    if (!targetTopicItem) return;
+    if (!selectedCameramanId) {
+      alert('Please select an active registered Cameraman from the list.');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const res = await assignCameramanToVideo({
+        workEntryId: targetTopicItem.epic.id,
+        videoId: targetTopicItem.topic.id,
+        cameramanUserId: selectedCameramanId,
+        sendNotification: cameramanSendEmail
+      });
+
+      if (res.success) {
+        setNotificationToast({
+          type: 'success',
+          message: `${res.message} ${res.notificationNotice ? `(${res.notificationNotice})` : ''}`
+        });
+        setVideoCamModalOpen(false);
+        await handleRefresh();
+      } else {
+        setNotificationToast({ type: 'error', message: res.error || 'Failed to assign Cameraman.' });
+      }
+    } catch (err: any) {
+      setNotificationToast({ type: 'error', message: err.message || 'Error assigning Cameraman.' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 6. Open Video-Wise Editor Assignment Modal
+  const handleOpenAssignEditorVideo = (epic: WorkflowEpicItem, topic: TopicItem) => {
+    if (!isTopicShootingDone(topic)) {
+      alert(`Validation Notice: Shooting for topic "${topic.title}" is currently "${topic.shootingStatus}". Shooting must be completed before assigning an Editor.`);
+      return;
+    }
+    setTargetTopicItem({ epic, topic });
+    setSelectedEditorId(topic.editorId || epic.editor?.id || '');
+    setEditorSearch('');
+    setEditorSendEmail(true);
+    setVideoEdModalOpen(true);
+  };
+
+  // 7. Submit Video-Wise Editor Assignment
+  const handleSaveVideoEditor = async () => {
+    if (!targetTopicItem) return;
+    if (!selectedEditorId) {
+      alert('Please select an active registered Editor from the list.');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const res = await assignEditorToVideo({
+        workEntryId: targetTopicItem.epic.id,
+        videoId: targetTopicItem.topic.id,
+        editorUserId: selectedEditorId,
+        sendNotification: editorSendEmail
+      });
+
+      if (res.success) {
+        setNotificationToast({
+          type: 'success',
+          message: `${res.message} ${res.notificationNotice ? `(${res.notificationNotice})` : ''}`
+        });
+        setVideoEdModalOpen(false);
+        await handleRefresh();
+      } else {
+        setNotificationToast({ type: 'error', message: res.error || 'Failed to assign Editor.' });
+      }
+    } catch (err: any) {
+      setNotificationToast({ type: 'error', message: err.message || 'Error assigning Editor.' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 8. Open Production Timeline Modal
+  const handleOpenTimeline = (epic: WorkflowEpicItem, topic: TopicItem) => {
+    setTargetTopicItem({ epic, topic });
+    setTimelineModalOpen(true);
+  };
+
+  // 9. Open EPIC-Level Assign Cameraman
+  const handleOpenAssignCameramanEpic = (epic: WorkflowEpicItem) => {
     setTargetEpic(epic);
     setSelectedCameramanId(epic.cameraman?.id || '');
     setCameramanSearch('');
@@ -205,8 +396,8 @@ export default function ProductionWorkflowClient({
     setCameramanModalOpen(true);
   };
 
-  // Submit Cameraman Assignment
-  const handleSaveCameraman = async () => {
+  // 10. Submit EPIC-Level Cameraman Assignment
+  const handleSaveCameramanEpic = async () => {
     if (!targetEpic) return;
     if (!selectedCameramanId) {
       alert('Please select an active registered Cameraman from the list.');
@@ -238,10 +429,10 @@ export default function ProductionWorkflowClient({
     }
   };
 
-  // Open Editor Modal
-  const handleOpenAssignEditor = (epic: WorkflowEpicItem) => {
+  // 11. Open EPIC-Level Assign Editor
+  const handleOpenAssignEditorEpic = (epic: WorkflowEpicItem) => {
     if (epic.completedShootingTopics < epic.totalTopics && epic.totalTopics > 0) {
-      alert(`Validation Notice: Cannot assign Editor. Only ${epic.completedShootingTopics} of ${epic.totalTopics} shooting topics are completed.`);
+      alert(`Validation Notice: Cannot assign Editor to EPIC. Only ${epic.completedShootingTopics} of ${epic.totalTopics} shooting topics are completed.`);
       return;
     }
     setTargetEpic(epic);
@@ -251,8 +442,8 @@ export default function ProductionWorkflowClient({
     setEditorModalOpen(true);
   };
 
-  // Submit Editor Assignment
-  const handleSaveEditor = async () => {
+  // 12. Submit EPIC-Level Editor Assignment
+  const handleSaveEditorEpic = async () => {
     if (!targetEpic) return;
     if (!selectedEditorId) {
       alert('Please select an active registered Editor from the list.');
@@ -284,13 +475,7 @@ export default function ProductionWorkflowClient({
     }
   };
 
-  // Open Publish Modal
-  const handleOpenPublish = (epic: WorkflowEpicItem) => {
-    setTargetEpic(epic);
-    setPublishModalOpen(true);
-  };
-
-  // Submit Publish
+  // 13. Submit Publish to Library
   const handlePublish = async () => {
     if (!targetEpic) return;
     setActionLoading(true);
@@ -310,7 +495,7 @@ export default function ProductionWorkflowClient({
     }
   };
 
-  // Retry Notification
+  // 14. Retry Notification Action
   const handleRetryNotification = async (notifId: string) => {
     setActionLoading(true);
     try {
@@ -356,7 +541,7 @@ export default function ProductionWorkflowClient({
             gap: '12px',
             fontSize: '13.5px',
             fontWeight: 600,
-            maxWidth: '450px'
+            maxWidth: '480px'
           }}
         >
           <span>{notificationToast.type === 'success' ? '✅' : '⚠️'}</span>
@@ -375,7 +560,7 @@ export default function ProductionWorkflowClient({
         <div className={styles.titleArea}>
           <h1>🎬 Production Workflow &amp; Work Assignment</h1>
           <p>
-            End-to-End EPIC Video Production Lifecycle: SME Entry → Cameraman Assignment → Shooting Entry → Admin Monitoring → Editor Assignment → Post-Production → Review &amp; Publication
+            Executive Production Management · Two-Level Workload Monitoring: EPIC Summary &amp; Video-Wise Assignment Lifecycle
           </p>
         </div>
         <div className={styles.headerActions}>
@@ -402,11 +587,11 @@ export default function ProductionWorkflowClient({
         </div>
       </div>
 
-      {/* Notice Banner */}
+      {/* Single Source of Truth Notice Banner */}
       <div className={styles.noticeBanner}>
         <span>ℹ️</span>
         <div>
-          <strong>Single Source of Truth:</strong> Tracking all 76 canonical production topics across 13 EPICs whose shooting stage is completed. Deliverables currently in progress or not yet started remain here for assignment and monitoring, and reflect in the Video Content Library only after post-production completion and Admin publication.
+          <strong>Executive Production Overview:</strong> All video topics remain managed and monitored here through field shooting and post-production editing. Assignments can be managed individually per video topic or at the EPIC level. Deliverables synchronize live into the Video Content Library upon Admin publication.
         </div>
       </div>
 
@@ -503,30 +688,30 @@ export default function ProductionWorkflowClient({
         </div>
       </div>
 
-      {/* Stage Navigation Tabs */}
+      {/* Stage Navigation Tabs with Detailed Sub-Filters */}
       <div className={styles.tabNav}>
         <button 
           className={`${styles.tabBtn} ${activeTab === 'ALL' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveTab('ALL')}
         >
           <span>All EPICs</span>
-          <span className={styles.tabBadge}>{data.counts.total}</span>
+          <span className={styles.tabBadge}>{tabCounts.total}</span>
         </button>
         <button 
           className={`${styles.tabBtn} ${activeTab === 'UNASSIGNED' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveTab('UNASSIGNED')}
         >
-          <span>⏳ Unassigned Work</span>
+          <span>⏳ Unassigned</span>
           <span className={styles.tabBadge} style={{ backgroundColor: '#fee2e2', color: '#b91c1c' }}>
-            {data.counts.unassigned}
+            {tabCounts.unassigned}
           </span>
         </button>
         <button 
           className={`${styles.tabBtn} ${activeTab === 'SHOOTING' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveTab('SHOOTING')}
         >
-          <span>🎥 Shooting in Progress</span>
-          <span className={styles.tabBadge}>{data.counts.shooting}</span>
+          <span>🎥 Shooting</span>
+          <span className={styles.tabBadge}>{tabCounts.shooting}</span>
         </button>
         <button 
           className={`${styles.tabBtn} ${activeTab === 'READY_FOR_EDITOR' ? styles.tabBtnActive : ''}`}
@@ -534,40 +719,70 @@ export default function ProductionWorkflowClient({
         >
           <span>✂️ Ready for Editor</span>
           <span className={styles.tabBadge} style={{ backgroundColor: '#ede9fe', color: '#6d28d9' }}>
-            {data.counts.readyForEditor}
+            {tabCounts.readyForEditor}
           </span>
         </button>
         <button 
           className={`${styles.tabBtn} ${activeTab === 'EDITING' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveTab('EDITING')}
         >
-          <span>💻 Editing in Progress</span>
-          <span className={styles.tabBadge}>{data.counts.editing}</span>
+          <span>💻 Editing</span>
+          <span className={styles.tabBadge}>{tabCounts.editing}</span>
+        </button>
+        <button 
+          className={`${styles.tabBtn} ${activeTab === 'SUBMITTED' ? styles.tabBtnActive : ''}`}
+          onClick={() => setActiveTab('SUBMITTED')}
+          title="EPICs with topics submitted awaiting Admin review"
+        >
+          <span>📤 Submitted for Approval</span>
+          <span className={styles.tabBadge} style={{ backgroundColor: '#f3e8ff', color: '#6b21a8' }}>
+            {tabCounts.submitted}
+          </span>
+        </button>
+        <button 
+          className={`${styles.tabBtn} ${activeTab === 'REVISION_REQUIRED' ? styles.tabBtnActive : ''}`}
+          onClick={() => setActiveTab('REVISION_REQUIRED')}
+          title="EPICs with topics requiring editor corrections"
+        >
+          <span>⚠️ Revision Required</span>
+          <span className={styles.tabBadge} style={{ backgroundColor: '#fee2e2', color: '#991b1b' }}>
+            {tabCounts.revisionRequired}
+          </span>
+        </button>
+        <button 
+          className={`${styles.tabBtn} ${activeTab === 'APPROVED' ? styles.tabBtnActive : ''}`}
+          onClick={() => setActiveTab('APPROVED')}
+          title="EPICs with topics approved by Admin"
+        >
+          <span>✓ Approved</span>
+          <span className={styles.tabBadge} style={{ backgroundColor: '#dcfce7', color: '#166534' }}>
+            {tabCounts.approved}
+          </span>
         </button>
         <button 
           className={`${styles.tabBtn} ${activeTab === 'COMPLETED' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveTab('COMPLETED')}
         >
-          <span>🏆 Completed / Review</span>
-          <span className={styles.tabBadge}>{data.counts.completed}</span>
+          <span>🏆 Completed</span>
+          <span className={styles.tabBadge}>{tabCounts.completed}</span>
         </button>
         <button 
           className={`${styles.tabBtn} ${activeTab === 'PUBLISHED' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveTab('PUBLISHED')}
         >
           <span>📼 Published</span>
-          <span className={styles.tabBadge}>{data.counts.published}</span>
+          <span className={styles.tabBadge}>{tabCounts.published}</span>
         </button>
       </div>
 
-      {/* Toolbar */}
+      {/* Toolbar: Search and Filter */}
       <div className={styles.toolbar}>
         <div className={styles.searchGroup}>
           <span>🔍</span>
           <input 
             type="text"
             className={styles.searchInput}
-            placeholder="Search EPIC ID, topic title, SME name, trade..."
+            placeholder="Search EPIC ID, video topic title, SME, trade, cameraman, editor..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -610,496 +825,649 @@ export default function ProductionWorkflowClient({
         </div>
       </div>
 
-      {/* Table Container */}
+      {/* ========================================================
+          LEVEL 1 – EPIC SUMMARY TABLE (Executive Compact Row)
+         ======================================================== */}
       <div className={styles.cardContainer}>
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th style={{ width: '40px', textAlign: 'center' }}>#</th>
-                <th style={{ width: '170px' }}>EPIC ID</th>
+                <th style={{ width: '40px', textAlign: 'center' }}>S.No</th>
+                <th style={{ width: '160px' }}>EPIC ID</th>
                 <th style={{ width: '180px' }}>SME / Resource Person</th>
-                <th style={{ width: '160px' }}>Trade</th>
-                <th style={{ minWidth: '240px' }}>Topic &amp; Production Details</th>
-                <th style={{ width: '120px', textAlign: 'center' }}>Topics</th>
-                <th style={{ width: '180px' }}>Cameraman Assignment</th>
-                <th style={{ width: '130px', textAlign: 'center' }}>Shooting</th>
-                <th style={{ width: '180px' }}>Editor Assignment</th>
-                <th style={{ width: '130px', textAlign: 'center' }}>Editing</th>
-                <th style={{ width: '150px' }}>Workflow Status</th>
-                <th style={{ width: '180px', textAlign: 'center' }}>Actions</th>
+                <th style={{ width: '150px' }}>Trade</th>
+                <th style={{ width: '110px', textAlign: 'center' }}>Total Videos</th>
+                <th style={{ width: '130px', textAlign: 'center' }}>Shooting Progress</th>
+                <th style={{ width: '160px' }}>Cameraman</th>
+                <th style={{ width: '160px' }}>Editor</th>
+                <th style={{ width: '130px', textAlign: 'center' }}>Editing Progress</th>
+                <th style={{ width: '140px' }}>Current Workflow Status</th>
+                <th style={{ width: '140px' }}>Start Date</th>
+                <th style={{ width: '140px', textAlign: 'center' }}>Action</th>
               </tr>
             </thead>
             <tbody>
               {filteredEpics.map((epic, idx) => {
-                const shootingProgress = epic.totalTopics > 0 
-                  ? `${epic.completedShootingTopics}/${epic.totalTopics}`
-                  : '—';
-                const editingProgress = epic.totalTopics > 0 
-                  ? `${epic.completedEditingTopics}/${epic.totalTopics}`
-                  : '—';
+                const isExpanded = expandedEpicId === epic.id;
+                const shootPct = epic.totalTopics > 0 ? Math.round((epic.completedShootingTopics / epic.totalTopics) * 100) : 0;
+                const editPct = epic.totalTopics > 0 ? Math.round((epic.completedEditingTopics / epic.totalTopics) * 100) : 0;
+
+                // Aggregate cameramen and editors across topics
+                const topicCameramen = Array.from(new Set(epic.topics.map(t => t.cameraman).filter(Boolean))) as string[];
+                const topicEditors = Array.from(new Set(epic.topics.map(t => t.editor).filter(Boolean))) as string[];
 
                 return (
                   <React.Fragment key={epic.id}>
-                    <tr>
-                    {/* Index */}
-                    <td style={{ textAlign: 'center', color: '#64748b', fontWeight: 600 }}>
-                      {idx + 1}
-                    </td>
+                    <tr 
+                      style={{ 
+                        backgroundColor: isExpanded ? '#f0f9ff' : undefined,
+                        cursor: 'pointer',
+                        transition: 'background-color 0.15s ease'
+                      }}
+                      onClick={() => setExpandedEpicId(isExpanded ? null : epic.id)}
+                    >
+                      {/* 1. S.No */}
+                      <td style={{ textAlign: 'center', color: '#64748b', fontWeight: 600 }}>
+                        {idx + 1}
+                      </td>
 
-                    {/* EPIC ID */}
-                    <td>
-                      <div style={{ fontWeight: 700, color: '#0f2942' }}>
-                        {epic.epicCode}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#64748b' }}>
-                        Seq #{epic.epicSequence}
-                      </div>
-                    </td>
-
-                    {/* SME Name */}
-                    <td>
-                      <div style={{ fontWeight: 600, color: '#1e293b' }}>
-                        {epic.sme?.name || 'SME Not Specified'}
-                      </div>
-                      {epic.sme?.designation && (
+                      {/* 2. EPIC ID */}
+                      <td>
+                        <div style={{ fontWeight: 700, color: '#0f2942' }}>
+                          {epic.epicCode}
+                        </div>
                         <div style={{ fontSize: '11px', color: '#64748b' }}>
-                          {epic.sme.designation}
+                          Seq #{epic.epicSequence}
                         </div>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Trade */}
-                    <td>
-                      <div style={{ fontWeight: 500, color: '#334155' }}>
-                        {epic.trade || '—'}
-                      </div>
-                    </td>
-
-                    {/* Topic */}
-                    <td>
-                      <div 
-                        style={{ 
-                          fontWeight: 500, 
-                          color: '#0f172a',
-                          maxHeight: '44px',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical'
-                        }}
-                        title={epic.topic}
-                      >
-                        {epic.topic}
-                      </div>
-                    </td>
-
-                    {/* Topics Count */}
-                    <td style={{ textAlign: 'center' }}>
-                      <button 
-                        type="button"
-                        onClick={() => setExpandedEpicId(expandedEpicId === epic.id ? null : epic.id)}
-                        style={{ 
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          padding: '3px 8px',
-                          borderRadius: '12px',
-                          backgroundColor: expandedEpicId === epic.id ? '#0284c7' : '#f1f5f9',
-                          color: expandedEpicId === epic.id ? '#ffffff' : '#334155',
-                          fontWeight: 700,
-                          fontSize: '11.5px',
-                          border: 'none',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
-                        }}
-                        title="Click to view/collapse topic breakdown"
-                      >
-                        <span>{epic.totalTopics} {epic.totalTopics === 1 ? 'Video' : 'Videos'}</span>
-                        <span style={{ fontSize: '9px' }}>{expandedEpicId === epic.id ? '▲' : '▼'}</span>
-                      </button>
-                    </td>
-
-                    {/* Cameraman Assignment */}
-                    <td>
-                      {epic.cameraman ? (
-                        <div>
-                          <div style={{ fontWeight: 600, color: '#0284c7', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span>🎥</span>
-                            <span>{epic.cameraman.name}</span>
-                          </div>
+                      {/* 3. SME / Resource Person */}
+                      <td>
+                        <div style={{ fontWeight: 600, color: '#1e293b' }}>
+                          {epic.sme?.name || 'SME Not Specified'}
+                        </div>
+                        {epic.sme?.designation && (
                           <div style={{ fontSize: '11px', color: '#64748b' }}>
-                            {epic.cameraman.email}
+                            {epic.sme.designation}
                           </div>
+                        )}
+                      </td>
+
+                      {/* 4. Trade */}
+                      <td>
+                        <div style={{ fontWeight: 500, color: '#334155' }}>
+                          {epic.trade || '—'}
                         </div>
-                      ) : epic.workflowStage === 'UNASSIGNED' ? (
-                        <button 
-                          className={`${styles.actionBtn} ${styles.btnAssignCam}`}
-                          onClick={() => handleOpenAssignCameraman(epic)}
-                        >
-                          <span>+</span>
-                          <span>Assign Cameraman</span>
-                        </button>
-                      ) : (
-                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>
-                          {epic.workflowStage === 'COMPLETED' || epic.workflowStage === 'PUBLISHED' ? 'Digital / Completed' : '—'}
-                        </span>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Shooting Progress */}
-                    <td style={{ textAlign: 'center' }}>
-                      <span 
-                        style={{
-                          fontWeight: 700,
-                          fontSize: '12px',
-                          color: epic.completedShootingTopics === epic.totalTopics && epic.totalTopics > 0 ? '#16a34a' : '#0284c7'
-                        }}
-                      >
-                        {shootingProgress}
-                      </span>
-                    </td>
-
-                    {/* Editor Assignment */}
-                    <td>
-                      {epic.workflowStage === 'READY_FOR_EDITOR' || epic.notStartedEditingTopics > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          {epic.editor && (
-                            <div style={{ fontSize: '11px', color: '#64748b' }}>
-                              Current: <strong>{epic.editor.name}</strong>
-                            </div>
-                          )}
-                          <button 
-                            className={`${styles.actionBtn} ${styles.btnAssignEd}`}
-                            onClick={() => handleOpenAssignEditor(epic)}
-                            title="Assign Registered Video Editor to pending topics"
-                          >
-                            <span>✂️</span>
-                            <span>Assign Editor {epic.notStartedEditingTopics > 0 ? `(${epic.notStartedEditingTopics} pending)` : ''}</span>
-                          </button>
-                        </div>
-                      ) : epic.editor ? (
-                        <div>
-                          <div style={{ fontWeight: 600, color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span>✂️</span>
-                            <span>{epic.editor.name}</span>
-                          </div>
-                          <div style={{ fontSize: '11px', color: '#64748b' }}>
-                            {epic.editor.email}
-                          </div>
-                        </div>
-                      ) : epic.workflowStage === 'COMPLETED' || epic.workflowStage === 'PUBLISHED' ? (
-                        <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600 }}>
-                          ✓ Completed
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>
-                          Awaiting Shoot
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Editing Progress */}
-                    <td style={{ textAlign: 'center' }}>
-                      <span 
-                        style={{
-                          fontWeight: 700,
-                          fontSize: '12px',
-                          color: epic.completedEditingTopics === epic.totalTopics && epic.totalTopics > 0 ? '#16a34a' : '#d97706'
-                        }}
-                      >
-                        {editingProgress}
-                      </span>
-                    </td>
-
-                    {/* Workflow Status Badge */}
-                    <td>
-                      {epic.workflowStage === 'UNASSIGNED' && (
-                        <span className={`${styles.badge} ${styles.badgeUnassigned}`}>
-                          ⏳ Unassigned
-                        </span>
-                      )}
-                      {epic.workflowStage === 'SHOOTING' && (
-                        <span className={`${styles.badge} ${styles.badgeShooting}`}>
-                          🎥 Shooting
-                        </span>
-                      )}
-                      {epic.workflowStage === 'READY_FOR_EDITOR' && (
-                        <span className={`${styles.badge} ${styles.badgeReadyEditor}`}>
-                          ✂️ Ready for Editor
-                        </span>
-                      )}
-                      {epic.workflowStage === 'EDITING' && (
-                        <span className={`${styles.badge} ${styles.badgeEditing}`}>
-                          💻 Editing
-                        </span>
-                      )}
-                      {epic.workflowStage === 'COMPLETED' && (
-                        <span className={`${styles.badge} ${styles.badgeCompleted}`}>
-                          🏆 Ready to Publish
-                        </span>
-                      )}
-                      {epic.workflowStage === 'PUBLISHED' && (
-                        <span className={`${styles.badge} ${styles.badgePublished}`}>
-                          ✓ Published
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Actions Column */}
-                    <td style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
-                        {epic.workflowStage === 'COMPLETED' && (
-                          <button 
-                            className={`${styles.actionBtn} ${styles.btnPublish}`}
-                            onClick={() => handleOpenPublish(epic)}
-                            title="Review & Publish Deliverables to Video Content Library"
-                          >
-                            <span>🚀</span>
-                            <span>Publish</span>
-                          </button>
-                        )}
-
-                        {epic.workflowStage === 'READY_FOR_EDITOR' && !epic.editor && (
-                          <button 
-                            className={`${styles.actionBtn} ${styles.btnAssignEd}`}
-                            onClick={() => handleOpenAssignEditor(epic)}
-                            title="Assign Registered Video Editor"
-                          >
-                            <span>✂️</span>
-                            <span>Assign</span>
-                          </button>
-                        )}
-
-                        {epic.workflowStage === 'UNASSIGNED' && (
-                          <button 
-                            className={`${styles.actionBtn} ${styles.btnAssignCam}`}
-                            onClick={() => handleOpenAssignCameraman(epic)}
-                            title="Assign Registered Cameraman"
-                          >
-                            <span>🎥</span>
-                            <span>Assign</span>
-                          </button>
-                        )}
-
-                        {epic.cameraman && epic.workflowStage === 'SHOOTING' && (
-                          <button 
-                            className={`${styles.actionBtn} ${styles.btnDetails}`}
-                            onClick={() => handleOpenAssignCameraman(epic)}
-                            title="Reassign Cameraman"
-                          >
-                            <span>↻</span>
-                          </button>
-                        )}
-
-                        {epic.editor && epic.workflowStage === 'EDITING' && (
-                          <button 
-                            className={`${styles.actionBtn} ${styles.btnDetails}`}
-                            onClick={() => handleOpenAssignEditor(epic)}
-                            title="Reassign Video Editor"
-                          >
-                            <span>↻</span>
-                          </button>
-                        )}
-
-                        <button 
-                          className={`${styles.actionBtn} ${styles.btnDetails}`}
-                          onClick={() => {
-                            setTargetEpic(epic);
-                            setDetailsModalOpen(true);
+                      {/* 5. Total Videos (Interactive Expand Toggle) */}
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedEpicId(isExpanded ? null : epic.id);
                           }}
-                          title="View Topic Breakdown"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 10px',
+                            borderRadius: '12px',
+                            backgroundColor: isExpanded ? '#0284c7' : '#f1f5f9',
+                            color: isExpanded ? '#ffffff' : '#334155',
+                            fontWeight: 700,
+                            fontSize: '11.5px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          title="Click to view/collapse video breakdown"
                         >
-                          <span>👁️</span>
+                          <span>{epic.totalTopics} {epic.totalTopics === 1 ? 'Video' : 'Videos'}</span>
+                          <span style={{ fontSize: '9px' }}>{isExpanded ? '▲' : '▼'}</span>
                         </button>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
 
-                  {expandedEpicId === epic.id && (
-                    <tr style={{ backgroundColor: '#f8fafc' }}>
-                      <td colSpan={12} style={{ padding: '16px 20px', borderBottom: '2px solid #cbd5e1' }}>
-                        <div style={{ background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                            <div style={{ fontWeight: 700, color: '#0f2942', fontSize: '13.5px' }}>
-                              📋 {epic.epicCode} — Topic Production Breakdown ({epic.totalTopics} Videos)
-                            </div>
-                            {epic.notStartedEditingTopics > 0 && (
-                              <button
-                                className={`${styles.actionBtn} ${styles.btnAssignEd}`}
-                                onClick={() => handleOpenAssignEditor(epic)}
-                                style={{ padding: '5px 12px', fontSize: '12px' }}
-                              >
-                                <span>✂️</span>
-                                <span>Assign Editor to {epic.notStartedEditingTopics} Pending Topics</span>
-                              </button>
-                            )}
-                          </div>
-                          <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                              <thead style={{ background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>
-                                <tr>
-                                  <th style={{ padding: '8px 10px', textAlign: 'left', width: '30px' }}>#</th>
-                                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Topic Title</th>
-                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '110px' }}>Shooting Status</th>
-                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '110px' }}>Editing Status</th>
-                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '150px' }}>Submission Status</th>
-                                  <th style={{ padding: '8px 10px', textAlign: 'left', width: '140px' }}>Assigned Editor</th>
-                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '120px' }}>Deliverable</th>
-                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '150px' }}>Admin Approval</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {epic.topics.map((t, tIdx) => {
-                                  const shootDone = t.shootingStatus.toLowerCase().includes('completed') || t.shootingStatus.toLowerCase().includes('received');
-                                  const editDone = (t.editingStatus.toLowerCase().includes('completed') || t.editingStatus.toLowerCase() === 'na' || t.editingStatus.toLowerCase() === 'received') && t.finalVideoLink;
-                                  const inProg = t.editingStatus.toLowerCase().includes('progress') || t.editingStatus.toLowerCase().includes('process');
-                                  const subStatus = t.submissionStatus || (editDone ? 'Completed' : inProg ? 'In Progress' : 'Pending');
-                                  const isAwaitingAdmin = subStatus === 'Submitted – Awaiting Admin Approval';
-                                  const isAdminApproved = subStatus === 'Admin Approved';
-                                  const isRevisionRequired = subStatus === 'Revision Required';
-
-                                  return (
-                                    <tr key={t.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                      <td style={{ padding: '8px 10px', color: '#64748b', fontWeight: 600 }}>{tIdx + 1}</td>
-                                      <td style={{ padding: '8px 10px', fontWeight: 600, color: '#1e293b' }}>
-                                        <div>{t.title}</div>
-                                        {t.editorialComments && (
-                                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontStyle: 'italic' }}>
-                                            💬 Editor: {t.editorialComments}
-                                          </div>
-                                        )}
-                                        {t.adminReviewComments && (
-                                          <div style={{ fontSize: '11px', color: isRevisionRequired ? '#b91c1c' : '#15803d', marginTop: '2px', fontWeight: 600 }}>
-                                            {isRevisionRequired ? '⚠️ Revision Note: ' : '✓ Admin Note: '}
-                                            {t.adminReviewComments}
-                                          </div>
-                                        )}
-                                      </td>
-                                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                        <span style={{ 
-                                          display: 'inline-block',
-                                          padding: '2px 8px',
-                                          borderRadius: '10px',
-                                          fontSize: '11px',
-                                          fontWeight: 700,
-                                          backgroundColor: shootDone ? '#dcfce7' : '#e0f2fe',
-                                          color: shootDone ? '#166534' : '#0369a1'
-                                        }}>
-                                          {shootDone ? '✓ ' : ''}{t.shootingStatus}
-                                        </span>
-                                      </td>
-                                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                        <span style={{ 
-                                          display: 'inline-block',
-                                          padding: '2px 8px',
-                                          borderRadius: '10px',
-                                          fontSize: '11px',
-                                          fontWeight: 700,
-                                          backgroundColor: editDone ? '#dcfce7' : inProg ? '#fef3c7' : '#fee2e2',
-                                          color: editDone ? '#166534' : inProg ? '#b45309' : '#991b1b'
-                                        }}>
-                                          {editDone ? '✓ Completed' : inProg ? '💻 In Progress' : '⏳ Not Yet Started'}
-                                        </span>
-                                      </td>
-                                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                        <span style={{
-                                          display: 'inline-block',
-                                          padding: '3px 8px',
-                                          borderRadius: '10px',
-                                          fontSize: '11px',
-                                          fontWeight: 700,
-                                          backgroundColor: isAdminApproved ? '#dcfce7' : isAwaitingAdmin ? '#f3e8ff' : isRevisionRequired ? '#fee2e2' : subStatus === 'Completed' ? '#e0f2fe' : inProg ? '#fef3c7' : '#f1f5f9',
-                                          color: isAdminApproved ? '#166534' : isAwaitingAdmin ? '#6b21a8' : isRevisionRequired ? '#991b1b' : subStatus === 'Completed' ? '#0369a1' : inProg ? '#b45309' : '#64748b'
-                                        }}>
-                                          {isAdminApproved ? '✓ Admin Approved' : isAwaitingAdmin ? '📤 Awaiting Approval' : isRevisionRequired ? '⚠️ Revision Req.' : subStatus}
-                                        </span>
-                                      </td>
-                                      <td style={{ padding: '8px 10px', color: '#334155' }}>
-                                        {t.editor || (
-                                          <span style={{ color: '#dc2626', fontWeight: 600, fontSize: '11px' }}>
-                                            — Unassigned
-                                          </span>
-                                        )}
-                                      </td>
-                                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                                          {t.duration && <span style={{ fontSize: '11px', color: '#334155', fontWeight: 600 }}>⏱️ {t.duration}</span>}
-                                          {t.finalVideoLink ? (
-                                            <a href={t.finalVideoLink} target="_blank" rel="noopener noreferrer" style={{ color: '#0284c7', textDecoration: 'underline', fontWeight: 600 }}>
-                                              🔗 Link
-                                            </a>
-                                          ) : (
-                                            <span style={{ color: '#94a3b8' }}>—</span>
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                        {isAwaitingAdmin || (editDone && !isAdminApproved) ? (
-                                          <div style={{ display: 'inline-flex', gap: '4px' }}>
-                                            <button
-                                              type="button"
-                                              onClick={() => handleApproveSubmission(epic.id, t.id)}
-                                              disabled={actionLoading}
-                                              style={{
-                                                padding: '3px 8px',
-                                                backgroundColor: '#16a34a',
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '4px',
-                                                fontSize: '11px',
-                                                fontWeight: 700,
-                                                cursor: 'pointer'
-                                              }}
-                                              title="Approve deliverable"
-                                            >
-                                              ✓ Approve
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => handleOpenRevisionModal(epic.id, t.id, t.title)}
-                                              disabled={actionLoading}
-                                              style={{
-                                                padding: '3px 8px',
-                                                backgroundColor: '#ef4444',
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '4px',
-                                                fontSize: '11px',
-                                                fontWeight: 700,
-                                                cursor: 'pointer'
-                                              }}
-                                              title="Request revision with comments"
-                                            >
-                                              ⚠️ Revise
-                                            </button>
-                                          </div>
-                                        ) : isAdminApproved ? (
-                                          <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '11px' }}>
-                                            ✓ Approved
-                                          </span>
-                                        ) : isRevisionRequired ? (
-                                          <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '11px' }}>
-                                            ⚠️ Awaiting Edit
-                                          </span>
-                                        ) : (
-                                          <span style={{ color: '#94a3b8' }}>—</span>
-                                        )}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
+                      {/* 6. Shooting Progress */}
+                      <td style={{ textAlign: 'center' }}>
+                        <div className={styles.progressWrapper}>
+                          <span style={{
+                            fontWeight: 700,
+                            fontSize: '12px',
+                            color: epic.completedShootingTopics === epic.totalTopics && epic.totalTopics > 0 ? '#16a34a' : '#0284c7'
+                          }}>
+                            {epic.completedShootingTopics}/{epic.totalTopics}
+                          </span>
+                          <div className={styles.progressBar}>
+                            <div 
+                              className={styles.progressFill} 
+                              style={{ 
+                                width: `${shootPct}%`, 
+                                backgroundColor: shootPct === 100 ? '#16a34a' : '#0284c7' 
+                              }} 
+                            />
                           </div>
                         </div>
                       </td>
+
+                      {/* 7. Cameraman */}
+                      <td>
+                        {topicCameramen.length === 1 ? (
+                          <div style={{ fontWeight: 600, color: '#0284c7', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span>🎥</span>
+                            <span>{topicCameramen[0]}</span>
+                          </div>
+                        ) : topicCameramen.length > 1 ? (
+                          <div style={{ fontWeight: 600, color: '#0284c7' }}>
+                            🎥 {topicCameramen.length} Cameramen
+                            <div style={{ fontSize: '10.5px', color: '#64748b' }}>{topicCameramen.join(', ')}</div>
+                          </div>
+                        ) : epic.cameraman ? (
+                          <div style={{ fontWeight: 600, color: '#0284c7' }}>
+                            🎥 {epic.cameraman.name}
+                          </div>
+                        ) : (
+                          <span style={{ color: '#dc2626', fontWeight: 600, fontSize: '11.5px' }}>
+                            — Unassigned
+                          </span>
+                        )}
+                      </td>
+
+                      {/* 8. Editor */}
+                      <td>
+                        {topicEditors.length === 1 ? (
+                          <div style={{ fontWeight: 600, color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span>✂️</span>
+                            <span>{topicEditors[0]}</span>
+                          </div>
+                        ) : topicEditors.length > 1 ? (
+                          <div style={{ fontWeight: 600, color: '#8b5cf6' }}>
+                            ✂️ {topicEditors.length} Editors
+                            <div style={{ fontSize: '10.5px', color: '#64748b' }}>{topicEditors.join(', ')}</div>
+                          </div>
+                        ) : epic.editor ? (
+                          <div style={{ fontWeight: 600, color: '#8b5cf6' }}>
+                            ✂️ {epic.editor.name}
+                          </div>
+                        ) : epic.workflowStage === 'READY_FOR_EDITOR' || epic.notStartedEditingTopics > 0 ? (
+                          <span style={{ color: '#d97706', fontWeight: 600, fontSize: '11.5px' }}>
+                            Awaiting Assignment
+                          </span>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontSize: '11px' }}>
+                            Awaiting Shoot
+                          </span>
+                        )}
+                      </td>
+
+                      {/* 9. Editing Progress */}
+                      <td style={{ textAlign: 'center' }}>
+                        <div className={styles.progressWrapper}>
+                          <span style={{
+                            fontWeight: 700,
+                            fontSize: '12px',
+                            color: epic.completedEditingTopics === epic.totalTopics && epic.totalTopics > 0 ? '#16a34a' : '#d97706'
+                          }}>
+                            {epic.completedEditingTopics}/{epic.totalTopics}
+                          </span>
+                          <div className={styles.progressBar}>
+                            <div 
+                              className={styles.progressFill} 
+                              style={{ 
+                                width: `${editPct}%`, 
+                                backgroundColor: editPct === 100 ? '#16a34a' : '#f59e0b' 
+                              }} 
+                            />
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* 10. Current Workflow Status */}
+                      <td>
+                        {epic.workflowStage === 'UNASSIGNED' && (
+                          <span className={`${styles.badge} ${styles.badgeUnassigned}`}>
+                            ⏳ Unassigned
+                          </span>
+                        )}
+                        {epic.workflowStage === 'SHOOTING' && (
+                          <span className={`${styles.badge} ${styles.badgeShooting}`}>
+                            🎥 Shooting
+                          </span>
+                        )}
+                        {epic.workflowStage === 'READY_FOR_EDITOR' && (
+                          <span className={`${styles.badge} ${styles.badgeReadyEditor}`}>
+                            ✂️ Ready for Editor
+                          </span>
+                        )}
+                        {epic.workflowStage === 'EDITING' && (
+                          <span className={`${styles.badge} ${styles.badgeEditing}`}>
+                            💻 Editing
+                          </span>
+                        )}
+                        {epic.workflowStage === 'COMPLETED' && (
+                          <span className={`${styles.badge} ${styles.badgeCompleted}`}>
+                            🏆 Ready to Publish
+                          </span>
+                        )}
+                        {epic.workflowStage === 'PUBLISHED' && (
+                          <span className={`${styles.badge} ${styles.badgePublished}`}>
+                            ✓ Published
+                          </span>
+                        )}
+                      </td>
+
+                      {/* 11. Start Date (Stage-Aware Date Beside Current Status) */}
+                      <td>
+                        {epic.stageStartDate ? (
+                          <div>
+                            <div style={{ fontWeight: 600, color: '#0f2942' }}>
+                              {formatDate(epic.stageStartDate)}
+                            </div>
+                            <div style={{ fontSize: '10.5px', color: '#64748b' }}>
+                              {epic.stageStartDateLabel}
+                            </div>
+                          </div>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontSize: '11.5px' }}>
+                            — Not Started
+                          </span>
+                        )}
+                      </td>
+
+                      {/* 12. Action – View Details */}
+                      <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            className={`${styles.actionBtn} ${styles.btnDetails}`}
+                            onClick={() => setExpandedEpicId(isExpanded ? null : epic.id)}
+                            style={{
+                              backgroundColor: isExpanded ? '#0284c7' : '#f1f5f9',
+                              color: isExpanded ? '#ffffff' : '#334155'
+                            }}
+                          >
+                            <span>{isExpanded ? '▲ Hide Details' : '▼ View Details'}</span>
+                          </button>
+
+                          {epic.workflowStage === 'COMPLETED' && (
+                            <button 
+                              className={`${styles.actionBtn} ${styles.btnPublish}`}
+                              onClick={() => {
+                                setTargetEpic(epic);
+                                setPublishModalOpen(true);
+                              }}
+                              title="Review & Publish Deliverables to Video Content Library"
+                            >
+                              <span>🚀</span>
+                              <span>Publish</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
+
+                    {/* ========================================================
+                        LEVEL 2 – EXPANDABLE VIDEO-WISE DETAILS SUB-TABLE
+                       ======================================================== */}
+                    {isExpanded && (
+                      <tr style={{ backgroundColor: '#f8fafc' }}>
+                        <td colSpan={12} style={{ padding: '16px 20px', borderBottom: '2px solid #cbd5e1' }}>
+                          <div style={{ background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '16px', boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+                              <div>
+                                <div style={{ fontWeight: 700, color: '#0f2942', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span>📋</span>
+                                  <span>{epic.epicCode} — Video-Wise Workflow &amp; Timeline Monitoring ({epic.totalTopics} Videos)</span>
+                                </div>
+                                <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                                  Individual Video Assignment: Cameraman and Video Editor can be assigned separately for each video below.
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                {epic.workflowStage === 'UNASSIGNED' && (
+                                  <button
+                                    className={`${styles.actionBtn} ${styles.btnAssignCam}`}
+                                    onClick={() => handleOpenAssignCameramanEpic(epic)}
+                                  >
+                                    <span>🎥</span>
+                                    <span>Assign Cameraman to All</span>
+                                  </button>
+                                )}
+                                {epic.notStartedEditingTopics > 0 && (
+                                  <button
+                                    className={`${styles.actionBtn} ${styles.btnAssignEd}`}
+                                    onClick={() => handleOpenAssignEditorEpic(epic)}
+                                  >
+                                    <span>✂️</span>
+                                    <span>Assign Editor to All Pending ({epic.notStartedEditingTopics})</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Video-Wise Table (All 15 Required Columns) */}
+                            <div style={{ overflowX: 'auto' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                                <thead style={{ background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>
+                                  <tr>
+                                    <th style={{ padding: '8px 10px', textAlign: 'left', width: '30px' }}>S.No</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'left', width: '80px' }}>Video ID</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'left', minWidth: '200px' }}>Video Topic</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'left', width: '130px' }}>Cameraman</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '110px' }}>Shooting Status</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '100px' }}>Shooting Start</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '100px' }}>Shooting End</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'left', width: '130px' }}>Editor</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '110px' }}>Editing Status</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '100px' }}>Editing Start</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '100px' }}>Editing End</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '70px' }}>Duration</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '140px' }}>Submission Status</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '110px' }}>Admin Review</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', minWidth: '160px' }}>Action</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {epic.topics.map((t, tIdx) => {
+                                    const shootDone = isTopicShootingDone(t);
+                                    const editDone = isTopicEditingDone(t);
+                                    const inProg = (t.editingStatus || '').toLowerCase().includes('progress');
+                                    const subStatus = t.submissionStatus || (editDone ? 'Completed' : inProg ? 'In Progress' : 'Pending');
+                                    const isAwaitingAdmin = subStatus === 'Submitted – Awaiting Admin Approval';
+                                    const isAdminApproved = subStatus === 'Admin Approved';
+                                    const isRevisionRequired = subStatus === 'Revision Required';
+
+                                    const cleanVidDisplay = t.id.startsWith('shoot-') || t.id.startsWith('ed-')
+                                      ? `VID-${String(tIdx + 1).padStart(2, '0')}`
+                                      : t.id.length > 8 ? `VID-${String(tIdx + 1).padStart(2, '0')}` : t.id;
+
+                                    return (
+                                      <tr key={t.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                        {/* 1. S.No */}
+                                        <td style={{ padding: '8px 10px', color: '#64748b', fontWeight: 600 }}>
+                                          {tIdx + 1}
+                                        </td>
+
+                                        {/* 2. Video ID */}
+                                        <td style={{ padding: '8px 10px', fontWeight: 700, color: '#0f2942' }}>
+                                          {cleanVidDisplay}
+                                        </td>
+
+                                        {/* 3. Video Topic */}
+                                        <td style={{ padding: '8px 10px', fontWeight: 600, color: '#1e293b' }}>
+                                          <div>{t.title}</div>
+                                          {t.editorialComments && (
+                                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontStyle: 'italic' }}>
+                                              💬 Editor: {t.editorialComments}
+                                            </div>
+                                          )}
+                                          {t.adminReviewComments && (
+                                            <div style={{ fontSize: '11px', color: isRevisionRequired ? '#b91c1c' : '#15803d', marginTop: '2px', fontWeight: 600 }}>
+                                              {isRevisionRequired ? '⚠️ Revision Note: ' : '✓ Admin Note: '}
+                                              {t.adminReviewComments}
+                                            </div>
+                                          )}
+                                        </td>
+
+                                        {/* 4. Cameraman */}
+                                        <td style={{ padding: '8px 10px', color: '#334155' }}>
+                                          {t.cameraman ? (
+                                            <div style={{ fontWeight: 600, color: '#0284c7' }}>
+                                              🎥 {t.cameraman}
+                                            </div>
+                                          ) : (
+                                            <span style={{ color: '#dc2626', fontWeight: 600, fontSize: '11px' }}>
+                                              — Unassigned
+                                            </span>
+                                          )}
+                                        </td>
+
+                                        {/* 5. Shooting Status */}
+                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                          <span style={{ 
+                                            display: 'inline-block',
+                                            padding: '2px 8px',
+                                            borderRadius: '10px',
+                                            fontSize: '11px',
+                                            fontWeight: 700,
+                                            backgroundColor: shootDone ? '#dcfce7' : '#e0f2fe',
+                                            color: shootDone ? '#166534' : '#0369a1'
+                                          }}>
+                                            {shootDone ? '✓ ' : ''}{t.shootingStatus}
+                                          </span>
+                                        </td>
+
+                                        {/* 6. Shooting Start Date */}
+                                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#334155' }}>
+                                          {formatDate(t.shootStart)}
+                                        </td>
+
+                                        {/* 7. Shooting End Date */}
+                                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#334155' }}>
+                                          {formatDate(t.shootEnd)}
+                                        </td>
+
+                                        {/* 8. Editor */}
+                                        <td style={{ padding: '8px 10px', color: '#334155' }}>
+                                          {t.editor ? (
+                                            <div style={{ fontWeight: 600, color: '#8b5cf6' }}>
+                                              ✂️ {t.editor}
+                                            </div>
+                                          ) : (
+                                            <span style={{ color: shootDone ? '#d97706' : '#94a3b8', fontWeight: 600, fontSize: '11px' }}>
+                                              {shootDone ? '— Unassigned' : 'Awaiting Shoot'}
+                                            </span>
+                                          )}
+                                        </td>
+
+                                        {/* 9. Editing Status */}
+                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                          <span style={{ 
+                                            display: 'inline-block',
+                                            padding: '2px 8px',
+                                            borderRadius: '10px',
+                                            fontSize: '11px',
+                                            fontWeight: 700,
+                                            backgroundColor: editDone ? '#dcfce7' : inProg ? '#fef3c7' : '#fee2e2',
+                                            color: editDone ? '#166534' : inProg ? '#b45309' : '#991b1b'
+                                          }}>
+                                            {editDone ? '✓ Completed' : inProg ? '💻 In Progress' : '⏳ Not Started'}
+                                          </span>
+                                        </td>
+
+                                        {/* 10. Editing Start Date */}
+                                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#334155' }}>
+                                          {formatDate(t.editStart)}
+                                        </td>
+
+                                        {/* 11. Editing End Date */}
+                                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#334155' }}>
+                                          {formatDate(t.editEnd)}
+                                        </td>
+
+                                        {/* 12. Duration */}
+                                        <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: '#334155' }}>
+                                          {t.duration || '—'}
+                                        </td>
+
+                                        {/* 13. Submission Status */}
+                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                          <span style={{
+                                            display: 'inline-block',
+                                            padding: '3px 8px',
+                                            borderRadius: '10px',
+                                            fontSize: '11px',
+                                            fontWeight: 700,
+                                            backgroundColor: isAdminApproved ? '#dcfce7' : isAwaitingAdmin ? '#f3e8ff' : isRevisionRequired ? '#fee2e2' : subStatus === 'Completed' ? '#e0f2fe' : inProg ? '#fef3c7' : '#f1f5f9',
+                                            color: isAdminApproved ? '#166534' : isAwaitingAdmin ? '#6b21a8' : isRevisionRequired ? '#991b1b' : subStatus === 'Completed' ? '#0369a1' : inProg ? '#b45309' : '#64748b'
+                                          }}>
+                                            {isAdminApproved ? '✓ Admin Approved' : isAwaitingAdmin ? '📤 Awaiting Approval' : isRevisionRequired ? '⚠️ Revision Req.' : subStatus}
+                                          </span>
+                                        </td>
+
+                                        {/* 14. Admin Review */}
+                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                          {isAdminApproved ? (
+                                            <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '11px' }}>
+                                              ✓ Approved
+                                            </span>
+                                          ) : isAwaitingAdmin ? (
+                                            <span style={{ color: '#6b21a8', fontWeight: 700, fontSize: '11px' }}>
+                                              Pending Review
+                                            </span>
+                                          ) : isRevisionRequired ? (
+                                            <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '11px' }}>
+                                              Revision Req.
+                                            </span>
+                                          ) : (
+                                            <span style={{ color: '#94a3b8' }}>—</span>
+                                          )}
+                                        </td>
+
+                                        {/* 15. Action (View / Assign / Review / Timeline) */}
+                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                          <div style={{ display: 'inline-flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                            {/* Assign / Reassign Cameraman */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenAssignCameramanVideo(epic, t)}
+                                              title={t.cameraman ? `Reassign Cameraman (Current: ${t.cameraman})` : 'Assign Cameraman to this video'}
+                                              style={{
+                                                padding: '3px 7px',
+                                                backgroundColor: t.cameraman ? '#f1f5f9' : '#0284c7',
+                                                color: t.cameraman ? '#0284c7' : '#ffffff',
+                                                border: '1px solid #0284c7',
+                                                borderRadius: '4px',
+                                                fontSize: '11px',
+                                                fontWeight: 600,
+                                                cursor: 'pointer'
+                                              }}
+                                            >
+                                              🎥 {t.cameraman ? '↻' : '+ Assign'}
+                                            </button>
+
+                                            {/* Assign / Reassign Editor */}
+                                            {shootDone ? (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleOpenAssignEditorVideo(epic, t)}
+                                                title={t.editor ? `Reassign Editor (Current: ${t.editor})` : 'Assign Editor to this video'}
+                                                style={{
+                                                  padding: '3px 7px',
+                                                  backgroundColor: t.editor ? '#f1f5f9' : '#8b5cf6',
+                                                  color: t.editor ? '#8b5cf6' : '#ffffff',
+                                                  border: '1px solid #8b5cf6',
+                                                  borderRadius: '4px',
+                                                  fontSize: '11px',
+                                                  fontWeight: 600,
+                                                  cursor: 'pointer'
+                                                }}
+                                              >
+                                                ✂️ {t.editor ? '↻' : '+ Assign'}
+                                              </button>
+                                            ) : (
+                                              <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>—</span>
+                                            )}
+
+                                            {/* Admin Approve / Revise Actions */}
+                                            {(isAwaitingAdmin || (editDone && !isAdminApproved)) && (
+                                              <>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleApproveSubmission(epic.id, t.id)}
+                                                  disabled={actionLoading}
+                                                  style={{
+                                                    padding: '3px 7px',
+                                                    backgroundColor: '#16a34a',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    fontSize: '11px',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer'
+                                                  }}
+                                                  title="Approve deliverable"
+                                                >
+                                                  ✓ Approve
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleOpenRevisionModal(epic.id, t.id, t.title)}
+                                                  disabled={actionLoading}
+                                                  style={{
+                                                    padding: '3px 7px',
+                                                    backgroundColor: '#ef4444',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    fontSize: '11px',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer'
+                                                  }}
+                                                  title="Request revision with comments"
+                                                >
+                                                  ⚠️ Revise
+                                                </button>
+                                              </>
+                                            )}
+
+                                            {/* Production Timeline Button */}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenTimeline(epic, t)}
+                                              style={{
+                                                padding: '3px 7px',
+                                                backgroundColor: '#f1f5f9',
+                                                color: '#334155',
+                                                border: '1px solid #cbd5e1',
+                                                borderRadius: '4px',
+                                                fontSize: '11px',
+                                                fontWeight: 600,
+                                                cursor: 'pointer'
+                                              }}
+                                              title="View Complete Production Milestones & Timeline"
+                                            >
+                                              🕒 Timeline
+                                            </button>
+
+                                            {/* Deliverable Link */}
+                                            {t.finalVideoLink && (
+                                              <a
+                                                href={t.finalVideoLink}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{
+                                                  padding: '3px 6px',
+                                                  backgroundColor: '#e0f2fe',
+                                                  color: '#0284c7',
+                                                  borderRadius: '4px',
+                                                  fontSize: '11px',
+                                                  fontWeight: 700,
+                                                  textDecoration: 'none'
+                                                }}
+                                                title="Open Video Link"
+                                              >
+                                                🔗 Video
+                                              </a>
+                                            )}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
 
               {filteredEpics.length === 0 && (
                 <tr>
@@ -1118,25 +1486,23 @@ export default function ProductionWorkflowClient({
       </div>
 
       {/* ========================================================
-          MODAL 1: ASSIGN CAMERAMAN (Registered Users Only)
+          MODAL A: ASSIGN CAMERAMAN TO SPECIFIC VIDEO TOPIC
          ======================================================== */}
-      {cameramanModalOpen && targetEpic && (
-        <div className={styles.modalOverlay} onClick={() => setCameramanModalOpen(false)}>
+      {videoCamModalOpen && targetTopicItem && (
+        <div className={styles.modalOverlay} onClick={() => setVideoCamModalOpen(false)}>
           <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h3>🎥 Assign Registered Cameraman — {targetEpic.epicCode}</h3>
-              <button className={styles.modalClose} onClick={() => setCameramanModalOpen(false)}>✕</button>
+              <h3>🎥 Assign Cameraman to Video Topic</h3>
+              <button className={styles.modalClose} onClick={() => setVideoCamModalOpen(false)}>✕</button>
             </div>
             <div className={styles.modalBody}>
-              {/* EPIC Summary */}
               <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12.5px' }}>
-                <div><strong>Trade:</strong> {targetEpic.trade}</div>
-                <div><strong>SME:</strong> {targetEpic.sme?.name || 'SME Not Specified'}</div>
-                <div><strong>Primary Topic:</strong> {targetEpic.topic}</div>
-                <div><strong>Total Videos:</strong> {targetEpic.totalTopics}</div>
+                <div><strong>EPIC ID:</strong> {targetTopicItem.epic.epicCode}</div>
+                <div><strong>Trade:</strong> {targetTopicItem.epic.trade}</div>
+                <div><strong>Video Topic:</strong> {targetTopicItem.topic.title}</div>
+                <div><strong>Current Shooting Status:</strong> {targetTopicItem.topic.shootingStatus}</div>
               </div>
 
-              {/* Registered Cameramen Searchable Dropdown */}
               <div>
                 <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', marginBottom: '8px', color: '#0f2942' }}>
                   Select Registered Cameraman Account: <span style={{ color: '#dc2626' }}>*</span>
@@ -1167,7 +1533,7 @@ export default function ProductionWorkflowClient({
                       >
                         <div>
                           <div style={{ fontWeight: 700, color: '#0f2942', fontSize: '13px' }}>
-                            {c.name || 'Cameraman'} — Cameraman
+                            {c.name || 'Cameraman'}
                           </div>
                           <div style={{ fontSize: '11px', color: '#64748b' }}>
                             {c.email} (User ID: {c.id})
@@ -1179,37 +1545,31 @@ export default function ProductionWorkflowClient({
                       </div>
                     );
                   })}
-                  {filteredCameramen.length === 0 && (
-                    <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '12.5px' }}>
-                      No active registered Cameraman accounts match your search.
-                    </div>
-                  )}
                 </div>
               </div>
 
-              {/* Email Notification Option */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#334155' }}>
                 <input 
                   type="checkbox"
-                  id="camEmailToggle"
+                  id="vidCamEmailToggle"
                   checked={cameramanSendEmail}
                   onChange={e => setCameramanSendEmail(e.target.checked)}
                 />
-                <label htmlFor="camEmailToggle" style={{ cursor: 'pointer' }}>
-                  Queue assignment notification email to registered Cameraman
+                <label htmlFor="vidCamEmailToggle" style={{ cursor: 'pointer' }}>
+                  Queue shooting assignment notification email to registered Cameraman
                 </label>
               </div>
             </div>
             <div className={styles.modalFooter}>
-              <button className={styles.btnSecondary} onClick={() => setCameramanModalOpen(false)}>
+              <button className={styles.btnSecondary} onClick={() => setVideoCamModalOpen(false)}>
                 Cancel
               </button>
               <button 
                 className={styles.btnPrimary}
-                onClick={handleSaveCameraman}
+                onClick={handleSaveVideoCameraman}
                 disabled={actionLoading || !selectedCameramanId}
               >
-                {actionLoading ? 'Assigning...' : 'Confirm Assignment'}
+                {actionLoading ? 'Assigning...' : 'Confirm Topic Assignment'}
               </button>
             </div>
           </div>
@@ -1217,22 +1577,22 @@ export default function ProductionWorkflowClient({
       )}
 
       {/* ========================================================
-          MODAL 2: ASSIGN EDITOR (Registered Users Only)
+          MODAL B: ASSIGN EDITOR TO SPECIFIC VIDEO TOPIC
          ======================================================== */}
-      {editorModalOpen && targetEpic && (
-        <div className={styles.modalOverlay} onClick={() => setEditorModalOpen(false)}>
+      {videoEdModalOpen && targetTopicItem && (
+        <div className={styles.modalOverlay} onClick={() => setVideoEdModalOpen(false)}>
           <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h3>✂️ Assign Registered Video Editor — {targetEpic.epicCode}</h3>
-              <button className={styles.modalClose} onClick={() => setEditorModalOpen(false)}>✕</button>
+              <h3>✂️ Assign Video Editor to Topic</h3>
+              <button className={styles.modalClose} onClick={() => setVideoEdModalOpen(false)}>✕</button>
             </div>
             <div className={styles.modalBody}>
-              {/* Shooting Completion Notice */}
               <div style={{ background: '#ecfdf5', padding: '12px 16px', borderRadius: '8px', border: '1px solid #a7f3d0', fontSize: '12.5px', color: '#065f46' }}>
-                <strong>✓ Shooting Completed:</strong> All {targetEpic.totalTopics} topics for this shoot have been verified as completed by Cameraman {targetEpic.cameraman?.name || 'Cameraman'}.
+                <div><strong>EPIC ID:</strong> {targetTopicItem.epic.epicCode}</div>
+                <div><strong>Video Topic:</strong> {targetTopicItem.topic.title}</div>
+                <div><strong>Shooting Status:</strong> ✓ Completed ({targetTopicItem.topic.cameraman || 'Cameraman'})</div>
               </div>
 
-              {/* Registered Editors Searchable Dropdown */}
               <div>
                 <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', marginBottom: '8px', color: '#0f2942' }}>
                   Select Registered Editor Account: <span style={{ color: '#dc2626' }}>*</span>
@@ -1263,7 +1623,7 @@ export default function ProductionWorkflowClient({
                       >
                         <div>
                           <div style={{ fontWeight: 700, color: '#0f2942', fontSize: '13px' }}>
-                            {ed.name || 'Editor'} — Editor
+                            {ed.name || 'Editor'}
                           </div>
                           <div style={{ fontSize: '11px', color: '#64748b' }}>
                             {ed.email} (User ID: {ed.id})
@@ -1275,15 +1635,386 @@ export default function ProductionWorkflowClient({
                       </div>
                     );
                   })}
-                  {filteredEditors.length === 0 && (
-                    <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '12.5px' }}>
-                      No active registered Editor accounts match your search.
-                    </div>
-                  )}
                 </div>
               </div>
 
-              {/* Email Notification Option */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#334155' }}>
+                <input 
+                  type="checkbox"
+                  id="vidEdEmailToggle"
+                  checked={editorSendEmail}
+                  onChange={e => setEditorSendEmail(e.target.checked)}
+                />
+                <label htmlFor="vidEdEmailToggle" style={{ cursor: 'pointer' }}>
+                  Queue editing assignment notification email to registered Editor
+                </label>
+              </div>
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={styles.btnSecondary} onClick={() => setVideoEdModalOpen(false)}>
+                Cancel
+              </button>
+              <button 
+                className={styles.btnPrimary}
+                onClick={handleSaveVideoEditor}
+                disabled={actionLoading || !selectedEditorId}
+              >
+                {actionLoading ? 'Assigning...' : 'Confirm Topic Assignment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL C: PRODUCTION TIMELINE VIEW (9 MILESTONES)
+         ======================================================== */}
+      {timelineModalOpen && targetTopicItem && (
+        <div className={styles.modalOverlay} onClick={() => setTimelineModalOpen(false)}>
+          <div className={styles.modalContent} style={{ maxWidth: '680px' }} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3>🕒 Production Timeline &amp; Milestones</h3>
+              <button className={styles.modalClose} onClick={() => setTimelineModalOpen(false)}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              {/* Header Topic Context */}
+              <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12.5px' }}>
+                <div style={{ fontWeight: 700, color: '#0f2942', fontSize: '13.5px', marginBottom: '4px' }}>
+                  {targetTopicItem.topic.title}
+                </div>
+                <div style={{ display: 'flex', gap: '16px', color: '#64748b', flexWrap: 'wrap' }}>
+                  <span><strong>EPIC:</strong> {targetTopicItem.epic.epicCode}</span>
+                  <span><strong>Trade:</strong> {targetTopicItem.epic.trade}</span>
+                  <span><strong>SME:</strong> {targetTopicItem.epic.sme?.name || 'SME'}</span>
+                </div>
+              </div>
+
+              {/* 9 Milestones Stepper Track */}
+              <div className={styles.timelineContainer}>
+                {/* 1. Cameraman Assigned */}
+                <div className={styles.timelineStep}>
+                  <div className={styles.timelineLine} />
+                  <div className={`${styles.timelineNode} ${targetTopicItem.topic.cameraman ? styles.timelineNodeDone : styles.timelineNodePending}`}>
+                    {targetTopicItem.topic.cameraman ? '✓' : '1'}
+                  </div>
+                  <div className={styles.timelineContent}>
+                    <div className={styles.timelineHeader}>
+                      <span className={styles.timelineTitle}>1. Cameraman Assigned</span>
+                      <span className={styles.timelineDate}>{formatDate(targetTopicItem.topic.cameramanAssignedAt)}</span>
+                    </div>
+                    <p className={styles.timelineDesc}>
+                      {targetTopicItem.topic.cameraman ? `Assigned to ${targetTopicItem.topic.cameraman}` : 'Not yet assigned'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2. Shooting In Progress */}
+                <div className={styles.timelineStep}>
+                  <div className={styles.timelineLine} />
+                  <div className={`${styles.timelineNode} ${isTopicShootingDone(targetTopicItem.topic) ? styles.timelineNodeDone : targetTopicItem.topic.shootStart ? styles.timelineNodeActive : styles.timelineNodePending}`}>
+                    {isTopicShootingDone(targetTopicItem.topic) ? '✓' : '2'}
+                  </div>
+                  <div className={`${styles.timelineContent} ${targetTopicItem.topic.shootStart && !isTopicShootingDone(targetTopicItem.topic) ? styles.timelineContentActive : ''}`}>
+                    <div className={styles.timelineHeader}>
+                      <span className={styles.timelineTitle}>2. Shooting In Progress</span>
+                      <span className={styles.timelineDate}>{formatDate(targetTopicItem.topic.shootStart)}</span>
+                    </div>
+                    <p className={styles.timelineDesc}>
+                      Status: {targetTopicItem.topic.shootingStatus}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3. Shooting Completed */}
+                <div className={styles.timelineStep}>
+                  <div className={styles.timelineLine} />
+                  <div className={`${styles.timelineNode} ${isTopicShootingDone(targetTopicItem.topic) ? styles.timelineNodeDone : styles.timelineNodePending}`}>
+                    {isTopicShootingDone(targetTopicItem.topic) ? '✓' : '3'}
+                  </div>
+                  <div className={styles.timelineContent}>
+                    <div className={styles.timelineHeader}>
+                      <span className={styles.timelineTitle}>3. Shooting Completed</span>
+                      <span className={styles.timelineDate}>{formatDate(targetTopicItem.topic.shootEnd)}</span>
+                    </div>
+                    <p className={styles.timelineDesc}>
+                      {isTopicShootingDone(targetTopicItem.topic) ? 'Field recording finished by Cameraman' : 'Shooting pending or underway'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 4. Editor Assigned */}
+                <div className={styles.timelineStep}>
+                  <div className={styles.timelineLine} />
+                  <div className={`${styles.timelineNode} ${targetTopicItem.topic.editor ? styles.timelineNodeDone : styles.timelineNodePending}`}>
+                    {targetTopicItem.topic.editor ? '✓' : '4'}
+                  </div>
+                  <div className={styles.timelineContent}>
+                    <div className={styles.timelineHeader}>
+                      <span className={styles.timelineTitle}>4. Video Editor Assigned</span>
+                      <span className={styles.timelineDate}>{formatDate(targetTopicItem.topic.editorAssignedAt)}</span>
+                    </div>
+                    <p className={styles.timelineDesc}>
+                      {targetTopicItem.topic.editor ? `Assigned to ${targetTopicItem.topic.editor}` : isTopicShootingDone(targetTopicItem.topic) ? 'Ready for Editor Assignment' : 'Awaiting Shooting Completion'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 5. Editing In Progress */}
+                <div className={styles.timelineStep}>
+                  <div className={styles.timelineLine} />
+                  <div className={`${styles.timelineNode} ${isTopicEditingDone(targetTopicItem.topic) ? styles.timelineNodeDone : targetTopicItem.topic.editStart ? styles.timelineNodeActive : styles.timelineNodePending}`}>
+                    {isTopicEditingDone(targetTopicItem.topic) ? '✓' : '5'}
+                  </div>
+                  <div className={`${styles.timelineContent} ${targetTopicItem.topic.editStart && !isTopicEditingDone(targetTopicItem.topic) ? styles.timelineContentActive : ''}`}>
+                    <div className={styles.timelineHeader}>
+                      <span className={styles.timelineTitle}>5. Editing In Progress</span>
+                      <span className={styles.timelineDate}>{formatDate(targetTopicItem.topic.editStart)}</span>
+                    </div>
+                    <p className={styles.timelineDesc}>
+                      Status: {targetTopicItem.topic.editingStatus}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 6. Editing Completed */}
+                <div className={styles.timelineStep}>
+                  <div className={styles.timelineLine} />
+                  <div className={`${styles.timelineNode} ${isTopicEditingDone(targetTopicItem.topic) ? styles.timelineNodeDone : styles.timelineNodePending}`}>
+                    {isTopicEditingDone(targetTopicItem.topic) ? '✓' : '6'}
+                  </div>
+                  <div className={styles.timelineContent}>
+                    <div className={styles.timelineHeader}>
+                      <span className={styles.timelineTitle}>6. Editing Completed</span>
+                      <span className={styles.timelineDate}>{formatDate(targetTopicItem.topic.editEnd)}</span>
+                    </div>
+                    <p className={styles.timelineDesc}>
+                      {isTopicEditingDone(targetTopicItem.topic)
+                        ? `Deliverable produced (${targetTopicItem.topic.duration || 'duration pending'})`
+                        : 'Post-production cutting pending'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 7. Submitted – Awaiting Admin Approval */}
+                <div className={styles.timelineStep}>
+                  <div className={styles.timelineLine} />
+                  <div className={`${styles.timelineNode} ${targetTopicItem.topic.submittedAt || targetTopicItem.topic.submissionStatus === 'Admin Approved' ? styles.timelineNodeDone : styles.timelineNodePending}`}>
+                    {targetTopicItem.topic.submittedAt || targetTopicItem.topic.submissionStatus === 'Admin Approved' ? '✓' : '7'}
+                  </div>
+                  <div className={styles.timelineContent}>
+                    <div className={styles.timelineHeader}>
+                      <span className={styles.timelineTitle}>7. Formal Submission</span>
+                      <span className={styles.timelineDate}>{formatDateTime(targetTopicItem.topic.submittedAt)}</span>
+                    </div>
+                    <p className={styles.timelineDesc}>
+                      Submission Status: {targetTopicItem.topic.submissionStatus || 'Pending'}
+                      {targetTopicItem.topic.editorialComments && ` — "${targetTopicItem.topic.editorialComments}"`}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 8. Admin Approved */}
+                <div className={styles.timelineStep}>
+                  <div className={styles.timelineLine} />
+                  <div className={`${styles.timelineNode} ${targetTopicItem.topic.submissionStatus === 'Admin Approved' ? styles.timelineNodeDone : targetTopicItem.topic.submissionStatus === 'Revision Required' ? styles.timelineNodePending : styles.timelineNodePending}`}
+                    style={targetTopicItem.topic.submissionStatus === 'Revision Required' ? { backgroundColor: '#fee2e2', color: '#dc2626', borderColor: '#fca5a5' } : undefined}
+                  >
+                    {targetTopicItem.topic.submissionStatus === 'Admin Approved' ? '✓' : '8'}
+                  </div>
+                  <div className={styles.timelineContent}>
+                    <div className={styles.timelineHeader}>
+                      <span className={styles.timelineTitle}>8. Admin Approval &amp; Quality Review</span>
+                      <span className={styles.timelineDate}>{formatDate(targetTopicItem.topic.adminReviewedAt)}</span>
+                    </div>
+                    <p className={styles.timelineDesc}>
+                      {targetTopicItem.topic.submissionStatus === 'Admin Approved'
+                        ? `✓ Approved by Admin (${targetTopicItem.topic.adminReviewComments || 'Deliverable accepted'})`
+                        : targetTopicItem.topic.submissionStatus === 'Revision Required'
+                        ? `⚠️ Revision Requested: ${targetTopicItem.topic.adminReviewComments || 'Corrections requested'}`
+                        : 'Awaiting Admin Quality Review'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 9. Published to Video Content Library */}
+                <div className={styles.timelineStep}>
+                  <div className={`${styles.timelineNode} ${targetTopicItem.epic.isPublished ? styles.timelineNodeDone : styles.timelineNodePending}`}>
+                    {targetTopicItem.epic.isPublished ? '✓' : '9'}
+                  </div>
+                  <div className={styles.timelineContent}>
+                    <div className={styles.timelineHeader}>
+                      <span className={styles.timelineTitle}>9. Published to Video Content Library</span>
+                      <span className={styles.timelineDate}>{formatDate(targetTopicItem.epic.publishedAt)}</span>
+                    </div>
+                    <p className={styles.timelineDesc}>
+                      {targetTopicItem.epic.isPublished
+                        ? 'Live in Video Content Library for Telecast & LMS Distribution'
+                        : 'Will be published upon Admin Broadcast Sign-off'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={styles.btnPrimary} onClick={() => setTimelineModalOpen(false)}>
+                Close Timeline
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL 1: ASSIGN CAMERAMAN (EPIC LEVEL)
+         ======================================================== */}
+      {cameramanModalOpen && targetEpic && (
+        <div className={styles.modalOverlay} onClick={() => setCameramanModalOpen(false)}>
+          <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3>🎥 Assign Registered Cameraman — {targetEpic.epicCode}</h3>
+              <button className={styles.modalClose} onClick={() => setCameramanModalOpen(false)}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12.5px' }}>
+                <div><strong>Trade:</strong> {targetEpic.trade}</div>
+                <div><strong>SME:</strong> {targetEpic.sme?.name || 'SME Not Specified'}</div>
+                <div><strong>Primary Topic:</strong> {targetEpic.topic}</div>
+                <div><strong>Total Videos:</strong> {targetEpic.totalTopics}</div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', marginBottom: '8px', color: '#0f2942' }}>
+                  Select Registered Cameraman Account: <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <input 
+                  type="text"
+                  placeholder="Filter registered cameramen by name or email..."
+                  value={cameramanSearch}
+                  onChange={e => setCameramanSearch(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '13px',
+                    marginBottom: '8px'
+                  }}
+                />
+
+                <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px' }}>
+                  {filteredCameramen.map(c => {
+                    const isSelected = selectedCameramanId === c.id;
+                    return (
+                      <div 
+                        key={c.id}
+                        className={`${styles.userOption} ${isSelected ? styles.userOptionSelected : ''}`}
+                        onClick={() => setSelectedCameramanId(c.id)}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#0f2942', fontSize: '13px' }}>
+                            {c.name || 'Cameraman'}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>
+                            {c.email} (User ID: {c.id})
+                          </div>
+                        </div>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#16a34a', backgroundColor: '#dcfce7', padding: '2px 6px', borderRadius: '4px' }}>
+                          ACTIVE
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#334155' }}>
+                <input 
+                  type="checkbox"
+                  id="camEmailToggle"
+                  checked={cameramanSendEmail}
+                  onChange={e => setCameramanSendEmail(e.target.checked)}
+                />
+                <label htmlFor="camEmailToggle" style={{ cursor: 'pointer' }}>
+                  Queue assignment notification email to registered Cameraman
+                </label>
+              </div>
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={styles.btnSecondary} onClick={() => setCameramanModalOpen(false)}>
+                Cancel
+              </button>
+              <button 
+                className={styles.btnPrimary}
+                onClick={handleSaveCameramanEpic}
+                disabled={actionLoading || !selectedCameramanId}
+              >
+                {actionLoading ? 'Assigning...' : 'Confirm Assignment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL 2: ASSIGN EDITOR (EPIC LEVEL)
+         ======================================================== */}
+      {editorModalOpen && targetEpic && (
+        <div className={styles.modalOverlay} onClick={() => setEditorModalOpen(false)}>
+          <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3>✂️ Assign Registered Video Editor — {targetEpic.epicCode}</h3>
+              <button className={styles.modalClose} onClick={() => setEditorModalOpen(false)}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              <div style={{ background: '#ecfdf5', padding: '12px 16px', borderRadius: '8px', border: '1px solid #a7f3d0', fontSize: '12.5px', color: '#065f46' }}>
+                <strong>✓ Shooting Completed:</strong> All {targetEpic.totalTopics} topics for this shoot have been completed.
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', marginBottom: '8px', color: '#0f2942' }}>
+                  Select Registered Editor Account: <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <input 
+                  type="text"
+                  placeholder="Filter registered editors by name or email..."
+                  value={editorSearch}
+                  onChange={e => setEditorSearch(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '13px',
+                    marginBottom: '8px'
+                  }}
+                />
+
+                <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px' }}>
+                  {filteredEditors.map(ed => {
+                    const isSelected = selectedEditorId === ed.id;
+                    return (
+                      <div 
+                        key={ed.id}
+                        className={`${styles.userOption} ${isSelected ? styles.userOptionSelected : ''}`}
+                        onClick={() => setSelectedEditorId(ed.id)}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#0f2942', fontSize: '13px' }}>
+                            {ed.name || 'Editor'}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>
+                            {ed.email} (User ID: {ed.id})
+                          </div>
+                        </div>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#16a34a', backgroundColor: '#dcfce7', padding: '2px 6px', borderRadius: '4px' }}>
+                          ACTIVE
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#334155' }}>
                 <input 
                   type="checkbox"
@@ -1302,7 +2033,7 @@ export default function ProductionWorkflowClient({
               </button>
               <button 
                 className={styles.btnPrimary}
-                onClick={handleSaveEditor}
+                onClick={handleSaveEditorEpic}
                 disabled={actionLoading || !selectedEditorId}
               >
                 {actionLoading ? 'Assigning...' : 'Confirm Assignment'}
@@ -1327,7 +2058,6 @@ export default function ProductionWorkflowClient({
                 <strong>Verification Passed:</strong> All {targetEpic.totalTopics} video topics for this EPIC have completed shooting and post-production editing with valid deliverables.
               </div>
 
-              {/* Deliverables Checklist */}
               <div>
                 <h4 style={{ margin: '0 0 10px 0', fontSize: '13.5px', color: '#0f2942' }}>
                   Deliverables for Video Content Library Publication:
@@ -1384,80 +2114,7 @@ export default function ProductionWorkflowClient({
       )}
 
       {/* ========================================================
-          MODAL 4: EPIC TOPIC BREAKDOWN DETAILS
-         ======================================================== */}
-      {detailsModalOpen && targetEpic && (
-        <div className={styles.modalOverlay} onClick={() => setDetailsModalOpen(false)}>
-          <div className={styles.modalContent} style={{ maxWidth: '820px' }} onClick={e => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h3>📋 Topic Breakdown &amp; Production Details — {targetEpic.epicCode}</h3>
-              <button className={styles.modalClose} onClick={() => setDetailsModalOpen(false)}>✕</button>
-            </div>
-            <div className={styles.modalBody}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12.5px' }}>
-                <div><strong>SME:</strong> {targetEpic.sme?.name || 'SME Not Specified'}</div>
-                <div><strong>Trade:</strong> {targetEpic.trade}</div>
-                <div><strong>Cameraman:</strong> {targetEpic.cameraman?.name || 'Unassigned'} ({targetEpic.cameraman?.email || '—'})</div>
-                <div><strong>Editor:</strong> {targetEpic.editor?.name || 'Unassigned'} ({targetEpic.editor?.email || '—'})</div>
-                <div><strong>Workflow Stage:</strong> {targetEpic.workflowStage}</div>
-                <div><strong>Published:</strong> {targetEpic.isPublished ? `Yes (${new Date(targetEpic.publishedAt!).toLocaleDateString()})` : 'No'}</div>
-              </div>
-
-              <div>
-                <h4 style={{ margin: '14px 0 8px 0', fontSize: '13.5px', color: '#0f2942' }}>
-                  Linked Topics ({targetEpic.totalTopics}):
-                </h4>
-                <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                    <thead style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                      <tr>
-                        <th style={{ padding: '8px 10px', textAlign: 'left' }}>#</th>
-                        <th style={{ padding: '8px 10px', textAlign: 'left' }}>Topic Title</th>
-                        <th style={{ padding: '8px 10px', textAlign: 'left' }}>Shooting</th>
-                        <th style={{ padding: '8px 10px', textAlign: 'left' }}>Editing</th>
-                        <th style={{ padding: '8px 10px', textAlign: 'left' }}>Video Link</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {targetEpic.topics.map((t, idx) => (
-                        <tr key={t.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '8px 10px', fontWeight: 600, color: '#64748b' }}>{idx + 1}</td>
-                          <td style={{ padding: '8px 10px', fontWeight: 600 }}>{t.title}</td>
-                          <td style={{ padding: '8px 10px' }}>
-                            <span style={{ color: t.shootingStatus.toLowerCase() === 'completed' ? '#16a34a' : '#0284c7', fontWeight: 600 }}>
-                              {t.shootingStatus}
-                            </span>
-                          </td>
-                          <td style={{ padding: '8px 10px' }}>
-                            <span style={{ color: t.editingStatus.toLowerCase() === 'completed' ? '#16a34a' : '#d97706', fontWeight: 600 }}>
-                              {t.editingStatus}
-                            </span>
-                          </td>
-                          <td style={{ padding: '8px 10px' }}>
-                            {t.finalVideoLink ? (
-                              <a href={t.finalVideoLink} target="_blank" rel="noopener noreferrer" style={{ color: '#0284c7', textDecoration: 'underline' }}>
-                                View
-                              </a>
-                            ) : '—'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-            <div className={styles.modalFooter}>
-              <button className={styles.btnPrimary} onClick={() => setDetailsModalOpen(false)}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================
-          MODAL 5: NOTIFICATION QUEUE / OUTBOX
+          MODAL 4: NOTIFICATION QUEUE / OUTBOX
          ======================================================== */}
       {notificationsModalOpen && (
         <div className={styles.modalOverlay} onClick={() => setNotificationsModalOpen(false)}>
@@ -1537,7 +2194,7 @@ export default function ProductionWorkflowClient({
       )}
 
       {/* ========================================================
-          MODAL 6: ADMIN REVISION REQUEST
+          MODAL 5: ADMIN REVISION REQUEST
          ======================================================== */}
       {revisionModalOpen && revisionTarget && (
         <div className={styles.modalOverlay} onClick={() => setRevisionModalOpen(false)}>
@@ -1549,7 +2206,7 @@ export default function ProductionWorkflowClient({
             <div className={styles.modalBody}>
               <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#334155' }}>
                 You are requesting revision for topic: <br />
-                <strong style={{ color: '#0f172a' }}>{revisionTarget.title}</strong>
+                <strong style={{ color: '#0f2942' }}>{revisionTarget.title}</strong>
               </p>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
                 Admin Correction Remarks / Feedback for Video Editor:

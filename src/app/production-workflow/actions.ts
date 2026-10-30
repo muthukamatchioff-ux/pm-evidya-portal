@@ -42,6 +42,8 @@ export interface WorkflowEpicItem {
   publishedAt: string | null;
   publishedBy: string | null;
   workflowStage: 'UNASSIGNED' | 'SHOOTING' | 'READY_FOR_EDITOR' | 'EDITING' | 'COMPLETED' | 'PUBLISHED';
+  stageStartDate?: string | null;
+  stageStartDateLabel?: string | null;
   topics: Array<{
     id: string;
     title: string;
@@ -49,16 +51,22 @@ export interface WorkflowEpicItem {
     shootStart: string | null;
     shootEnd: string | null;
     cameraman: string | null;
+    cameramanId?: string | null;
+    cameramanAssignedAt?: string | null;
     editingStatus: string;
     submissionStatus?: string;
     submittedAt?: string | null;
     adminReviewComments?: string | null;
+    adminReviewedAt?: string | null;
     editorialComments?: string | null;
     editStart: string | null;
     editEnd: string | null;
     editor: string | null;
+    editorId?: string | null;
+    editorAssignedAt?: string | null;
     finalVideoLink: string | null;
     duration: string | null;
+    publishedAt?: string | null;
   }>;
   totalTopics: number;
   completedShootingTopics: number;
@@ -246,23 +254,61 @@ export async function getProductionWorkflowDashboardData(): Promise<{
           }
         }
 
+        const shootStart = t.shoot?.actualStart
+          ? new Date(t.shoot.actualStart).toISOString()
+          : t.shoot?.scheduledStart
+          ? new Date(t.shoot.scheduledStart).toISOString()
+          : null;
+
+        const shootEnd = t.shoot?.actualEnd
+          ? new Date(t.shoot.actualEnd).toISOString()
+          : t.shoot?.scheduledEnd
+          ? new Date(t.shoot.scheduledEnd).toISOString()
+          : null;
+
+        const editStart = t.edit?.editingStartDate ? new Date(t.edit.editingStartDate).toISOString() : null;
+        const editEnd = t.edit?.editingEndDate ? new Date(t.edit.editingEndDate).toISOString() : null;
+        const publishedAt = entry.publishedAt ? new Date(entry.publishedAt).toISOString() : null;
+
+        const cameramanName = t.shoot?.cameraman || entry.cameraman?.name || null;
+        const cameramanId = t.shoot?.cameramanId || entry.cameramanId || null;
+        const cameramanAssignedAt = t.shoot?.createdAt
+          ? new Date(t.shoot.createdAt).toISOString()
+          : entry.cameramanAssignedAt
+          ? new Date(entry.cameramanAssignedAt).toISOString()
+          : null;
+
+        const editorName = t.edit?.editorName || entry.editor?.name || null;
+        const editorId = t.edit?.editorId || entry.editorId || null;
+        const editorAssignedAt = t.edit?.createdAt
+          ? new Date(t.edit.createdAt).toISOString()
+          : entry.editorAssignedAt
+          ? new Date(entry.editorAssignedAt).toISOString()
+          : null;
+
         return {
           id: t.id,
           title: t.title,
           shootingStatus: shootStatus,
-          shootStart: t.shoot?.scheduledStart ? new Date(t.shoot.scheduledStart).toISOString() : null,
-          shootEnd: t.shoot?.scheduledEnd ? new Date(t.shoot.scheduledEnd).toISOString() : null,
-          cameraman: t.shoot?.cameraman || entry.cameraman?.name || null,
+          shootStart,
+          shootEnd,
+          cameraman: cameramanName,
+          cameramanId,
+          cameramanAssignedAt,
           editingStatus: editStatus,
           submissionStatus: subStatus,
           submittedAt: editMeta.submittedAt || null,
           adminReviewComments: editMeta.adminReviewComments || null,
+          adminReviewedAt: editMeta.adminReviewedAt || null,
           editorialComments: editMeta.remarks || (t.edit?.reviewComments && !t.edit.reviewComments.startsWith('{') ? t.edit.reviewComments : null),
-          editStart: t.edit?.editingStartDate ? new Date(t.edit.editingStartDate).toISOString() : null,
-          editEnd: t.edit?.editingEndDate ? new Date(t.edit.editingEndDate).toISOString() : null,
-          editor: t.edit?.editorName || entry.editor?.name || null,
+          editStart,
+          editEnd,
+          editor: editorName,
+          editorId,
+          editorAssignedAt,
           finalVideoLink: finalLink,
-          duration: duration
+          duration: duration,
+          publishedAt
         };
       });
 
@@ -318,6 +364,47 @@ export async function getProductionWorkflowDashboardData(): Promise<{
         pendingActionText = 'Action Required: Assign Registered Cameraman';
       }
 
+      // Compute relevant actual stage start date beside the current status
+      let stageStartDate: string | null = null;
+      let stageStartDateLabel = '—';
+
+      if (workflowStage === 'PUBLISHED') {
+        stageStartDate = entry.publishedAt ? new Date(entry.publishedAt).toISOString() : null;
+        stageStartDateLabel = 'Published';
+      } else if (workflowStage === 'COMPLETED') {
+        const dates = topics.map(t => t.submittedAt || t.editEnd).filter(Boolean) as string[];
+        if (dates.length > 0) {
+          dates.sort();
+          stageStartDate = dates[dates.length - 1];
+        }
+        stageStartDateLabel = 'Completed';
+      } else if (workflowStage === 'EDITING') {
+        const dates = topics.map(t => t.editStart || t.editorAssignedAt).filter(Boolean) as string[];
+        if (dates.length > 0) {
+          dates.sort();
+          stageStartDate = dates[0];
+        } else if (entry.editorAssignedAt) {
+          stageStartDate = new Date(entry.editorAssignedAt).toISOString();
+        }
+        stageStartDateLabel = 'Editing';
+      } else if (workflowStage === 'READY_FOR_EDITOR') {
+        const dates = topics.map(t => t.shootEnd).filter(Boolean) as string[];
+        if (dates.length > 0) {
+          dates.sort();
+          stageStartDate = dates[dates.length - 1];
+        }
+        stageStartDateLabel = 'Shoot Done';
+      } else if (workflowStage === 'SHOOTING') {
+        const dates = topics.map(t => t.shootStart || t.cameramanAssignedAt).filter(Boolean) as string[];
+        if (dates.length > 0) {
+          dates.sort();
+          stageStartDate = dates[0];
+        } else if (entry.cameramanAssignedAt) {
+          stageStartDate = new Date(entry.cameramanAssignedAt).toISOString();
+        }
+        stageStartDateLabel = 'Shooting';
+      }
+
       return {
         id: entry.id,
         epicSequence: entry.epicSequence,
@@ -350,6 +437,8 @@ export async function getProductionWorkflowDashboardData(): Promise<{
         publishedAt: entry.publishedAt ? entry.publishedAt.toISOString() : null,
         publishedBy: entry.publishedBy || null,
         workflowStage,
+        stageStartDate,
+        stageStartDateLabel,
         topics,
         totalTopics,
         completedShootingTopics,
@@ -947,3 +1036,282 @@ export async function reviewEditorSubmission(params: {
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * Assign Cameraman to an individual Video / Topic
+ */
+export async function assignCameramanToVideo(params: {
+  workEntryId: string;
+  videoId: string;
+  cameramanUserId: string;
+  sendNotification?: boolean;
+}): Promise<{ success: boolean; message?: string; error?: string; notificationNotice?: string }> {
+  const auth = await checkAuth(['ADMIN']);
+  if (!auth.success) return auth;
+
+  const adminEmail = await getEmail();
+
+  try {
+    const entry = await prisma.sMEWorkEntry.findUnique({
+      where: { id: params.workEntryId },
+      include: {
+        sme: true,
+        shootingSchedules: true,
+        videoLibraries: true
+      }
+    });
+
+    if (!entry) {
+      return { success: false, error: 'Target EPIC record not found.' };
+    }
+
+    const cameraman = await prisma.user.findUnique({
+      where: { id: params.cameramanUserId }
+    });
+
+    if (!cameraman || cameraman.role !== 'CAMERAMAN' || cameraman.status !== 'ACTIVE') {
+      return {
+        success: false,
+        error: 'Validation Error: Selected user must be an active registered Cameraman.'
+      };
+    }
+
+    const cleanVidId = (params.videoId || '').replace(/^shoot-/, '');
+    const matchingLib = entry.videoLibraries.find((vl: any) => vl.id === cleanVidId || vl.id === params.videoId);
+    const targetTitle = matchingLib?.title || entry.topic;
+
+    let targetSchedule = entry.shootingSchedules.find((s: any) =>
+      s.id === params.videoId ||
+      s.id === cleanVidId ||
+      s.id === `shoot-${cleanVidId}` ||
+      (targetTitle && (s.videoTitle || '').trim().toLowerCase() === targetTitle.trim().toLowerCase())
+    );
+
+    await prisma.$transaction(async (tx: any) => {
+      if (targetSchedule) {
+        await tx.shootingSchedule.update({
+          where: { id: targetSchedule.id },
+          data: {
+            cameramanId: cameraman.id,
+            cameraman: cameraman.name || cameraman.email
+          }
+        });
+      } else {
+        await tx.shootingSchedule.create({
+          data: {
+            workEntryId: entry.id,
+            videoTitle: targetTitle,
+            cameramanId: cameraman.id,
+            cameraman: cameraman.name || cameraman.email,
+            status: 'Yet to Shoot'
+          }
+        });
+      }
+
+      if (!entry.cameramanId) {
+        await tx.sMEWorkEntry.update({
+          where: { id: entry.id },
+          data: {
+            cameramanId: cameraman.id,
+            cameramanAssignedAt: new Date()
+          }
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          action: 'ASSIGN_CAMERAMAN_TOPIC',
+          entity: 'SHOOTING_SCHEDULE',
+          entityId: targetSchedule ? targetSchedule.id : entry.id,
+          userId: cameraman.id,
+          newData: JSON.stringify({
+            epicSequence: entry.epicSequence,
+            topic: targetTitle,
+            cameramanId: cameraman.id,
+            cameramanName: cameraman.name,
+            cameramanEmail: cameraman.email,
+            assignedBy: adminEmail,
+            timestamp: new Date().toISOString()
+          })
+        }
+      });
+    });
+
+    let notifNotice = 'No notification requested.';
+    if (params.sendNotification !== false && cameraman.email) {
+      const notifRes = await queueNotification({
+        epicId: entry.id,
+        epicCode: formatEpicCode(entry.epicSequence),
+        type: 'CAMERAMAN_ASSIGNMENT',
+        recipientEmail: cameraman.email,
+        recipientName: cameraman.name || 'Cameraman',
+        subject: `[PM e-Vidya] Video Shooting Assignment — ${formatEpicCode(entry.epicSequence)}: ${targetTitle}`,
+        message: `Dear ${cameraman.name || 'Cameraman'},\n\nYou have been assigned to shoot the video for topic:\n\n• Video Topic: ${targetTitle}\n• EPIC ID: ${formatEpicCode(entry.epicSequence)}\n• Trade: ${entry.trade}\n• SME: ${entry.sme?.name || 'SME'}\n\nPlease sign in to enter shooting schedule and dates.\n\nPortal: https://pmevidyanimi.online/video-production?tab=SHOOTING_ENTRY`
+      });
+      notifNotice = notifRes.notice;
+    }
+
+    revalidatePath('/production-workflow');
+    revalidatePath('/video-production');
+
+    return {
+      success: true,
+      message: `Topic "${targetTitle}" successfully assigned to Cameraman ${cameraman.name}.`,
+      notificationNotice: notifNotice
+    };
+  } catch (error: any) {
+    console.error('Error in assignCameramanToVideo:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Assign Editor to an individual Video / Topic (Shooting for this topic must be completed)
+ */
+export async function assignEditorToVideo(params: {
+  workEntryId: string;
+  videoId: string;
+  editorUserId: string;
+  sendNotification?: boolean;
+}): Promise<{ success: boolean; message?: string; error?: string; notificationNotice?: string }> {
+  const auth = await checkAuth(['ADMIN']);
+  if (!auth.success) return auth;
+
+  const adminEmail = await getEmail();
+
+  try {
+    const entry = await prisma.sMEWorkEntry.findUnique({
+      where: { id: params.workEntryId },
+      include: {
+        sme: true,
+        cameraman: true,
+        shootingSchedules: true,
+        videoEditorRecords: true,
+        videoLibraries: true
+      }
+    });
+
+    if (!entry) {
+      return { success: false, error: 'Target EPIC record not found.' };
+    }
+
+    const editor = await prisma.user.findUnique({
+      where: { id: params.editorUserId }
+    });
+
+    if (!editor || editor.role !== 'EDITOR' || editor.status !== 'ACTIVE') {
+      return {
+        success: false,
+        error: 'Validation Error: Selected user must be an active registered Editor.'
+      };
+    }
+
+    const cleanVidId = (params.videoId || '').replace(/^(ed-|shoot-)/, '');
+    const matchingLib = entry.videoLibraries.find((vl: any) => vl.id === cleanVidId || vl.id === params.videoId);
+    const matchingShoot = entry.shootingSchedules.find((s: any) =>
+      s.id === params.videoId ||
+      s.id === cleanVidId ||
+      s.id === `shoot-${cleanVidId}` ||
+      (matchingLib && (s.videoTitle || '').trim().toLowerCase() === matchingLib.title.trim().toLowerCase())
+    );
+
+    const targetTitle = matchingLib?.title || matchingShoot?.videoTitle || entry.topic;
+
+    // Verify shooting is completed for this specific topic
+    if (matchingShoot) {
+      const shootStatus = (matchingShoot.status || '').toLowerCase().trim();
+      const isShootDone = shootStatus.includes('completed') || shootStatus.includes('received');
+      if (!isShootDone) {
+        return {
+          success: false,
+          error: `Validation Error: Shooting for "${targetTitle}" is currently "${matchingShoot.status}". Shooting must be completed before Editor assignment.`
+        };
+      }
+    }
+
+    let targetEditorRecord = entry.videoEditorRecords.find((ed: any) =>
+      ed.id === params.videoId ||
+      ed.id === cleanVidId ||
+      ed.id === `ed-${cleanVidId}` ||
+      (targetTitle && (ed.assignedVideo || '').trim().toLowerCase() === targetTitle.trim().toLowerCase())
+    );
+
+    await prisma.$transaction(async (tx: any) => {
+      if (targetEditorRecord) {
+        await tx.videoEditorRecord.update({
+          where: { id: targetEditorRecord.id },
+          data: {
+            editorId: editor.id,
+            editorName: editor.name || editor.email,
+            status: targetEditorRecord.status === 'NOT_STARTED' ? 'Pending' : targetEditorRecord.status
+          }
+        });
+      } else {
+        await tx.videoEditorRecord.create({
+          data: {
+            workEntryId: entry.id,
+            assignedVideo: targetTitle,
+            editorId: editor.id,
+            editorName: editor.name || editor.email,
+            status: 'Pending'
+          }
+        });
+      }
+
+      if (!entry.editorId) {
+        await tx.sMEWorkEntry.update({
+          where: { id: entry.id },
+          data: {
+            editorId: editor.id,
+            editorAssignedAt: new Date()
+          }
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          action: 'ASSIGN_EDITOR_TOPIC',
+          entity: 'VIDEO_EDITOR_RECORD',
+          entityId: targetEditorRecord ? targetEditorRecord.id : entry.id,
+          userId: editor.id,
+          newData: JSON.stringify({
+            epicSequence: entry.epicSequence,
+            topic: targetTitle,
+            editorId: editor.id,
+            editorName: editor.name,
+            editorEmail: editor.email,
+            assignedBy: adminEmail,
+            timestamp: new Date().toISOString()
+          })
+        }
+      });
+    });
+
+    let notifNotice = 'No notification requested.';
+    if (params.sendNotification !== false && editor.email) {
+      const notifRes = await queueNotification({
+        epicId: entry.id,
+        epicCode: formatEpicCode(entry.epicSequence),
+        type: 'EDITOR_ASSIGNMENT',
+        recipientEmail: editor.email,
+        recipientName: editor.name || 'Editor',
+        subject: `[PM e-Vidya] Video Editing Assignment — ${formatEpicCode(entry.epicSequence)}: ${targetTitle}`,
+        message: `Dear ${editor.name || 'Editor'},\n\nYou have been assigned to edit footage for topic:\n\n• Video Topic: ${targetTitle}\n• EPIC ID: ${formatEpicCode(entry.epicSequence)}\n• Trade: ${entry.trade}\n• SME: ${entry.sme?.name || 'SME'}\n\nPlease sign in to PM e-Vidya to enter post-production details and submit deliverables.\n\nPortal: https://pmevidyanimi.online/video-production?tab=POST_PRODUCTION_ENTRY`
+      });
+      notifNotice = notifRes.notice;
+    }
+
+    revalidatePath('/production-workflow');
+    revalidatePath('/video-production');
+
+    return {
+      success: true,
+      message: `Topic "${targetTitle}" successfully assigned to Editor ${editor.name}.`,
+      notificationNotice: notifNotice
+    };
+  } catch (error: any) {
+    console.error('Error in assignEditorToVideo:', error);
+    return { success: false, error: error.message };
+  }
+}
+
