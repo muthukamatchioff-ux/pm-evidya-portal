@@ -62,6 +62,7 @@ export default function ProductionWorkflowClient({
   const [editorSendEmail, setEditorSendEmail] = useState(true);
 
   const [actionLoading, setActionLoading] = useState(false);
+  const [expandedEpicId, setExpandedEpicId] = useState<string | null>(null);
 
   // Refresh data from server
   const handleRefresh = async () => {
@@ -580,7 +581,8 @@ export default function ProductionWorkflowClient({
                   : '—';
 
                 return (
-                  <tr key={epic.id}>
+                  <React.Fragment key={epic.id}>
+                    <tr>
                     {/* Index */}
                     <td style={{ textAlign: 'center', color: '#64748b', fontWeight: 600 }}>
                       {idx + 1}
@@ -636,19 +638,28 @@ export default function ProductionWorkflowClient({
 
                     {/* Topics Count */}
                     <td style={{ textAlign: 'center' }}>
-                      <span 
+                      <button 
+                        type="button"
+                        onClick={() => setExpandedEpicId(expandedEpicId === epic.id ? null : epic.id)}
                         style={{ 
-                          display: 'inline-block',
-                          padding: '2px 8px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '3px 8px',
                           borderRadius: '12px',
-                          backgroundColor: '#f1f5f9',
-                          color: '#334155',
+                          backgroundColor: expandedEpicId === epic.id ? '#0284c7' : '#f1f5f9',
+                          color: expandedEpicId === epic.id ? '#ffffff' : '#334155',
                           fontWeight: 700,
-                          fontSize: '11.5px'
+                          fontSize: '11.5px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
                         }}
+                        title="Click to view/collapse topic breakdown"
                       >
-                        {epic.totalTopics} {epic.totalTopics === 1 ? 'Video' : 'Videos'}
-                      </span>
+                        <span>{epic.totalTopics} {epic.totalTopics === 1 ? 'Video' : 'Videos'}</span>
+                        <span style={{ fontSize: '9px' }}>{expandedEpicId === epic.id ? '▲' : '▼'}</span>
+                      </button>
                     </td>
 
                     {/* Cameraman Assignment */}
@@ -693,7 +704,23 @@ export default function ProductionWorkflowClient({
 
                     {/* Editor Assignment */}
                     <td>
-                      {epic.editor ? (
+                      {epic.workflowStage === 'READY_FOR_EDITOR' || epic.notStartedEditingTopics > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {epic.editor && (
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>
+                              Current: <strong>{epic.editor.name}</strong>
+                            </div>
+                          )}
+                          <button 
+                            className={`${styles.actionBtn} ${styles.btnAssignEd}`}
+                            onClick={() => handleOpenAssignEditor(epic)}
+                            title="Assign Registered Video Editor to pending topics"
+                          >
+                            <span>✂️</span>
+                            <span>Assign Editor {epic.notStartedEditingTopics > 0 ? `(${epic.notStartedEditingTopics} pending)` : ''}</span>
+                          </button>
+                        </div>
+                      ) : epic.editor ? (
                         <div>
                           <div style={{ fontWeight: 600, color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <span>✂️</span>
@@ -703,14 +730,6 @@ export default function ProductionWorkflowClient({
                             {epic.editor.email}
                           </div>
                         </div>
-                      ) : epic.workflowStage === 'READY_FOR_EDITOR' ? (
-                        <button 
-                          className={`${styles.actionBtn} ${styles.btnAssignEd}`}
-                          onClick={() => handleOpenAssignEditor(epic)}
-                        >
-                          <span>+</span>
-                          <span>Assign Editor</span>
-                        </button>
                       ) : epic.workflowStage === 'COMPLETED' || epic.workflowStage === 'PUBLISHED' ? (
                         <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600 }}>
                           ✓ Completed
@@ -838,8 +857,102 @@ export default function ProductionWorkflowClient({
                       </div>
                     </td>
                   </tr>
-                );
-              })}
+
+                  {expandedEpicId === epic.id && (
+                    <tr style={{ backgroundColor: '#f8fafc' }}>
+                      <td colSpan={12} style={{ padding: '16px 20px', borderBottom: '2px solid #cbd5e1' }}>
+                        <div style={{ background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                            <div style={{ fontWeight: 700, color: '#0f2942', fontSize: '13.5px' }}>
+                              📋 {epic.epicCode} — Topic Production Breakdown ({epic.totalTopics} Videos)
+                            </div>
+                            {epic.notStartedEditingTopics > 0 && (
+                              <button
+                                className={`${styles.actionBtn} ${styles.btnAssignEd}`}
+                                onClick={() => handleOpenAssignEditor(epic)}
+                                style={{ padding: '5px 12px', fontSize: '12px' }}
+                              >
+                                <span>✂️</span>
+                                <span>Assign Editor to {epic.notStartedEditingTopics} Pending Topics</span>
+                              </button>
+                            )}
+                          </div>
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                              <thead style={{ background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>
+                                <tr>
+                                  <th style={{ padding: '8px 10px', textAlign: 'left', width: '30px' }}>#</th>
+                                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Topic Title</th>
+                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '140px' }}>Shooting Status</th>
+                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '150px' }}>Editing Status</th>
+                                  <th style={{ padding: '8px 10px', textAlign: 'left', width: '160px' }}>Assigned Editor</th>
+                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '100px' }}>Deliverable</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {epic.topics.map((t, tIdx) => {
+                                  const shootDone = t.shootingStatus.toLowerCase().includes('completed') || t.shootingStatus.toLowerCase().includes('received');
+                                  const editDone = (t.editingStatus.toLowerCase().includes('completed') || t.editingStatus.toLowerCase() === 'na' || t.editingStatus.toLowerCase() === 'received') && t.finalVideoLink;
+                                  const inProg = t.editingStatus.toLowerCase().includes('progress') || t.editingStatus.toLowerCase().includes('process');
+                                  return (
+                                    <tr key={t.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                      <td style={{ padding: '8px 10px', color: '#64748b', fontWeight: 600 }}>{tIdx + 1}</td>
+                                      <td style={{ padding: '8px 10px', fontWeight: 600, color: '#1e293b' }}>{t.title}</td>
+                                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                        <span style={{ 
+                                          display: 'inline-block',
+                                          padding: '2px 8px',
+                                          borderRadius: '10px',
+                                          fontSize: '11px',
+                                          fontWeight: 700,
+                                          backgroundColor: shootDone ? '#dcfce7' : '#e0f2fe',
+                                          color: shootDone ? '#166534' : '#0369a1'
+                                        }}>
+                                          {shootDone ? '✓ ' : ''}{t.shootingStatus}
+                                        </span>
+                                      </td>
+                                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                        <span style={{ 
+                                          display: 'inline-block',
+                                          padding: '2px 8px',
+                                          borderRadius: '10px',
+                                          fontSize: '11px',
+                                          fontWeight: 700,
+                                          backgroundColor: editDone ? '#dcfce7' : inProg ? '#fef3c7' : '#fee2e2',
+                                          color: editDone ? '#166534' : inProg ? '#b45309' : '#991b1b'
+                                        }}>
+                                          {editDone ? '✓ Completed' : inProg ? '💻 In Progress' : '⏳ Not Yet Started'}
+                                        </span>
+                                      </td>
+                                      <td style={{ padding: '8px 10px', color: '#334155' }}>
+                                        {t.editor || (
+                                          <span style={{ color: '#dc2626', fontWeight: 600, fontSize: '11px' }}>
+                                            — Unassigned
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                        {t.finalVideoLink ? (
+                                          <a href={t.finalVideoLink} target="_blank" rel="noopener noreferrer" style={{ color: '#0284c7', textDecoration: 'underline', fontWeight: 600 }}>
+                                            🔗 Link
+                                          </a>
+                                        ) : (
+                                          <span style={{ color: '#94a3b8' }}>—</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
 
               {filteredEpics.length === 0 && (
                 <tr>

@@ -267,6 +267,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const [searchInput, setSearchInput] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
   const [onlyMyAssigned, setOnlyMyAssigned] = useState(false);
+  const [viewFilter, setViewFilter] = useState<'COMPLETED' | 'ALL'>('COMPLETED');
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -627,9 +628,25 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const tradesList = useMemo(() => Array.from(new Set(videoRegister.map(r => r.trade))).filter(Boolean).sort(), [videoRegister]);
   const epicsList = useMemo(() => Array.from(new Set(videoRegister.map(r => r.epicCode))).filter(e => e && e !== '-').sort(), [videoRegister]);
 
+  // Count unfinished topics (Not Yet Started & In Progress)
+  const unfinishedCount = useMemo(() => {
+    return videoRegister.filter(r => {
+      const ed = (r.editingStatus || '').toLowerCase();
+      const isComp = (ed === 'completed' || ed.startsWith('completed') || ed === 'na' || ed === 'received') && r.hasLink;
+      return !isComp;
+    }).length;
+  }, [videoRegister]);
+
   // Filter rows
   const filteredRows = useMemo(() => {
     return videoRegister.filter(row => {
+      // 0. Completed vs All View Filter (Defaults to Completed Only as requested)
+      if (viewFilter === 'COMPLETED') {
+        const ed = (row.editingStatus || '').toLowerCase();
+        const isComp = (ed === 'completed' || ed.startsWith('completed') || ed === 'na' || ed === 'received') && row.hasLink;
+        if (!isComp) return false;
+      }
+
       // 1. Month Multi-select filter
       if (selectedMonths.length > 0) {
         const matchesMonth = selectedMonths.some(m => m.toLowerCase().includes(row.month.toLowerCase()));
@@ -693,7 +710,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
 
       return true;
     });
-  }, [videoRegister, selectedMonths, filterTrade, filterEpicId, filterShootingStatus, filterEditingStatus, activeSearch, onlyMyAssigned, role]);
+  }, [videoRegister, viewFilter, selectedMonths, filterTrade, filterEpicId, filterShootingStatus, filterEditingStatus, activeSearch, onlyMyAssigned, role]);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredRows.length / pageSize) || 1;
@@ -1706,6 +1723,93 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
               <span>Reset</span>
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Workflow Assignment Pipeline Banner */}
+      <div style={{
+        backgroundColor: '#eff6ff',
+        border: '1px solid #bfdbfe',
+        borderRadius: '8px',
+        padding: '12px 18px',
+        marginBottom: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '24px' }}>📋</span>
+          <div>
+            <div style={{ fontWeight: 700, color: '#1e3a8a', fontSize: '14px' }}>
+              Production Workflow &amp; Work Assignment Pipeline
+            </div>
+            <div style={{ fontSize: '12.5px', color: '#1e40af', marginTop: '2px' }}>
+              <strong>{unfinishedCount} video topics</strong> (Not Yet Started &amp; In Progress) have been directed to <strong>Work Assignment</strong> for Editor assignment and post-production tracking.
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'inline-flex', background: '#dbeafe', padding: '3px', borderRadius: '6px' }}>
+            <button
+              type="button"
+              onClick={() => { setViewFilter('COMPLETED'); setCurrentPage(1); }}
+              style={{
+                border: 'none',
+                background: viewFilter === 'COMPLETED' ? '#ffffff' : 'transparent',
+                color: viewFilter === 'COMPLETED' ? '#0f2942' : '#3b82f6',
+                fontWeight: viewFilter === 'COMPLETED' ? 700 : 600,
+                fontSize: '12px',
+                padding: '5px 12px',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                boxShadow: viewFilter === 'COMPLETED' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              ✓ Completed Videos ({videoRegister.length - unfinishedCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => { setViewFilter('ALL'); setCurrentPage(1); }}
+              style={{
+                border: 'none',
+                background: viewFilter === 'ALL' ? '#ffffff' : 'transparent',
+                color: viewFilter === 'ALL' ? '#0f2942' : '#3b82f6',
+                fontWeight: viewFilter === 'ALL' ? 700 : 600,
+                fontSize: '12px',
+                padding: '5px 12px',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                boxShadow: viewFilter === 'ALL' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              👁️ Show All Records ({videoRegister.length})
+            </button>
+          </div>
+
+          <Link
+            href="/production-workflow"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: '#0284c7',
+              color: '#ffffff',
+              padding: '7px 14px',
+              borderRadius: '6px',
+              fontSize: '12.5px',
+              fontWeight: 700,
+              textDecoration: 'none',
+              boxShadow: '0 2px 4px rgba(2, 132, 199, 0.2)'
+            }}
+          >
+            <span>Assign Editors in Work Assignment</span>
+            <span>→</span>
+          </Link>
         </div>
       </div>
 

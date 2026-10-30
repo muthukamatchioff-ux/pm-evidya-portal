@@ -59,6 +59,8 @@ export interface WorkflowEpicItem {
   totalTopics: number;
   completedShootingTopics: number;
   completedEditingTopics: number;
+  notStartedEditingTopics: number;
+  inProgressEditingTopics: number;
   hasPendingAction: boolean;
   pendingActionText: string | null;
 }
@@ -254,6 +256,8 @@ export async function getProductionWorkflowDashboardData(): Promise<{
       const totalTopics = topics.length;
       const completedShootingTopics = topics.filter(isTopicShootingDone).length;
       const completedEditingTopics = topics.filter(isTopicEditingDone).length;
+      const notStartedEditingTopics = topics.filter(t => !isTopicEditingDone(t) && (t.editingStatus === 'Not Yet Started' || t.editingStatus === 'Pending' || !t.editor)).length;
+      const inProgressEditingTopics = topics.filter(t => !isTopicEditingDone(t) && ((t.editingStatus || '').toLowerCase().includes('progress') || (t.editingStatus || '').toLowerCase().includes('process'))).length;
 
       // Determine Workflow Stage
       let workflowStage: 'UNASSIGNED' | 'SHOOTING' | 'READY_FOR_EDITOR' | 'EDITING' | 'COMPLETED' | 'PUBLISHED' = 'UNASSIGNED';
@@ -266,8 +270,14 @@ export async function getProductionWorkflowDashboardData(): Promise<{
         workflowStage = 'COMPLETED';
         hasPendingAction = true;
         pendingActionText = 'Ready for Final Review & Publication to Video Content Library';
-      } else if (entry.editorId) {
+      } else if (completedShootingTopics === totalTopics && totalTopics > 0 && notStartedEditingTopics > 0) {
+        workflowStage = 'READY_FOR_EDITOR';
+        hasPendingAction = true;
+        pendingActionText = `${notStartedEditingTopics} topic${notStartedEditingTopics > 1 ? 's' : ''} awaiting Editor Assignment`;
+      } else if (inProgressEditingTopics > 0 || entry.editorId) {
         workflowStage = 'EDITING';
+        hasPendingAction = inProgressEditingTopics > 0;
+        pendingActionText = inProgressEditingTopics > 0 ? `${inProgressEditingTopics} topic${inProgressEditingTopics > 1 ? 's' : ''} currently in post-production editing` : null;
       } else if (completedShootingTopics === totalTopics && totalTopics > 0) {
         workflowStage = 'READY_FOR_EDITOR';
         hasPendingAction = true;
@@ -316,6 +326,8 @@ export async function getProductionWorkflowDashboardData(): Promise<{
         totalTopics,
         completedShootingTopics,
         completedEditingTopics,
+        notStartedEditingTopics,
+        inProgressEditingTopics,
         hasPendingAction,
         pendingActionText
       };
