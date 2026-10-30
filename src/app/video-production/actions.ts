@@ -1940,7 +1940,7 @@ export async function updateProductionRowDetails(params: {
           data: {
             ...(params.videoTitle ? { title: params.videoTitle } : {}),
             ...(finalDur !== undefined ? { duration: finalDur } : {}),
-            ...(finalLink !== undefined ? { videoLink: finalLink } : {})
+            ...(finalLink !== undefined ? { videoLink: finalLink || '' } : {})
           }
         });
       } else if (role === 'ADMIN' || role === 'TEAM_MEMBER' || role === 'EDITOR') {
