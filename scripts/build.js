@@ -62,12 +62,16 @@ if (process.env.VERCEL_ENV === 'preview') {
   }
 }
 
-// 3b. Verify & sync Annexure I & II if live DB connected
-try {
-  console.log('[Build Runner] Checking Annexure I & II database alignment...');
-  execSync('node scripts/sync-db.js', { stdio: 'inherit', env: process.env });
-} catch (e) {
-  console.warn('[Build Runner] Notice: Build-time sync check skipped safely:', e.message);
+// 3b. Verify & sync Annexure I & II if live DB connected AND explicitly enabled
+if (process.env.RUN_SYNC_DB === 'true') {
+  try {
+    console.log('[Build Runner] Checking Annexure I & II database alignment (RUN_SYNC_DB=true)...');
+    execSync('node scripts/sync-db.js', { stdio: 'inherit', env: process.env });
+  } catch (e) {
+    console.warn('[Build Runner] Notice: Build-time sync check skipped safely:', e.message);
+  }
+} else {
+  console.log('[Build Runner] Build-time DB sync (sync-db.js) is disabled/deferred for safety (RUN_SYNC_DB not set to "true").');
 }
 
 // 4. Run Next.js Build
