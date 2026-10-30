@@ -17,8 +17,6 @@ import {
 } from './actions';
 import CameramanPortal from './CameramanPortal';
 import VideoEditorPortal from './VideoEditorPortal';
-import AdminWorkAssignmentModal from './AdminWorkAssignmentModal';
-import AdminWorkAssignmentSection from './AdminWorkAssignmentSection';
 
 // =========================================================================
 // SAFE DATE & STRING HELPERS MATCHING USER'S EXACT REFERENCE UI
@@ -195,13 +193,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     window.addEventListener('portalTabChange', handler);
     return () => window.removeEventListener('portalTabChange', handler);
   }, []);
-  const [isAdminAssignModalOpen, setIsAdminAssignModalOpen] = useState(false);
-  const [adminAssignInitialEpic, setAdminAssignInitialEpic] = useState<string>('');
-  const [adminAssignModalTab, setAdminAssignModalTab] = useState<'ASSIGN' | 'UNASSIGNED' | 'ASSIGNED'>('ASSIGN');
-  const [adminAssignInitialTopicId, setAdminAssignInitialTopicId] = useState<string>('');
-  const [isAssignmentSectionCollapsed, setIsAssignmentSectionCollapsed] = useState(false);
-  const [selectedAssignmentEpic, setSelectedAssignmentEpic] = useState<string>('');
-  const assignmentSectionRef = useRef<HTMLDivElement>(null);
+
 
   const broadcastSync = () => {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -710,16 +702,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     return filteredRows.slice(start, start + pageSize);
   }, [filteredRows, currentPage, pageSize]);
 
-  // Requirement 3: Dedicated Unassigned Work count (missing Cameraman or Editor)
-  const unassignedCount = useMemo(() => {
-    return videoRegister.filter(r => {
-      const cam = (r.cameraman || '').trim().toLowerCase();
-      const ed = (r.editor || '').trim().toLowerCase();
-      const noCam = !cam || cam === '-' || cam === '—' || cam === 'null';
-      const noEd = !ed || ed === '-' || ed === '—' || ed === 'null' || ed === 'not assigned';
-      return noCam || noEd;
-    }).length;
-  }, [videoRegister]);
+
 
   // Requirement 1: Map each distinct EPIC in filteredRows to a 1-based sequential group number
   const epicGroupIndexMap = useMemo(() => {
@@ -1689,41 +1672,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
 
           {/* Top Utility Actions */}
           <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto', flexWrap: 'wrap', alignItems: 'center' }}>
-            {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
-              <button 
-                type="button"
-                className={styles.pageSquareBtn} 
-                style={{ width: 'auto', padding: '0 12px', height: '38px', gap: '6px', fontWeight: 600 }}
-                onClick={() => {
-                  setAdminAssignInitialEpic(paginatedRows[0]?.epicCode || 'EPIC-2026-PMeVidya 01');
-                  setAdminAssignInitialTopicId('');
-                  setAdminAssignModalTab('ASSIGN');
-                  setIsAdminAssignModalOpen(true);
-                }}
-                title="Work Assignment — Cameraman & Video Editor"
-              >
-                <span>👤</span>
-                <span>Work Assignment</span>
-              </button>
-            )}
 
-            {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
-              <button 
-                type="button"
-                className={styles.btnToolbarUnassigned}
-                onClick={() => {
-                  setAdminAssignInitialEpic(paginatedRows[0]?.epicCode || 'EPIC-2026-PMeVidya 01');
-                  setAdminAssignInitialTopicId('');
-                  setAdminAssignModalTab('UNASSIGNED');
-                  setIsAdminAssignModalOpen(true);
-                }}
-                title="View Dedicated Unassigned & Partially Assigned Work Queue"
-              >
-                <span>📋</span>
-                <span>Unassigned Work</span>
-                <span className={styles.unassignedCountBadge}>{unassignedCount}</span>
-              </button>
-            )}
 
             {(role === 'ADMIN' || role === 'TEAM_MEMBER') && (
               <button 
@@ -1927,27 +1876,13 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                   {/* 17. Actions */}
                   <td>
                     <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                      {isAdmin && (
-                        <button
-                          type="button"
-                          className={styles.actionSquareBtn}
-                          onClick={() => {
-                            setAdminAssignInitialEpic(row.epicCode);
-                            setAdminAssignInitialTopicId(row.videoId);
-                            setAdminAssignModalTab('ASSIGN');
-                            setIsAdminAssignModalOpen(true);
-                          }}
-                          title="Work Assignment — Cameraman & Editor"
-                        >
-                          👤
-                        </button>
-                      )}
+
                       {isAdmin && (
                         <button
                           type="button"
                           className={styles.actionSquareBtn}
                           onClick={() => handleOpenWorkAssignment(row)}
-                          title="Work Assignment & Edit Row"
+                          title="Edit Production Details"
                         >
                           ✏️
                         </button>
@@ -2064,7 +1999,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
             <div className={styles.modalHeader}>
               <div>
                 <h3 className={styles.modalTitle}>
-                  🎬 Work Assignment &amp; Production Details — S.No {assignTargetRow.sNo} ({assignTargetRow.displayVideoId})
+                  🎬 Edit Production Details — S.No {assignTargetRow.sNo} ({assignTargetRow.displayVideoId})
                 </h3>
                 <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
                   <strong>{assignTargetRow.videoTitle}</strong> | {assignTargetRow.epicCode} | {assignTargetRow.trade} | SME: {assignTargetRow.smeName}
@@ -2524,25 +2459,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         </div>
       )}
 
-      {/* ========================================================
-          7. ADMIN EPIC-BASED WORK ASSIGNMENT MODAL
-         ======================================================== */}
-      {isAdmin && (
-        <AdminWorkAssignmentModal
-          isOpen={isAdminAssignModalOpen}
-          onClose={() => setIsAdminAssignModalOpen(false)}
-          videoRegister={videoRegister}
-          authorizedStaff={authorizedStaff}
-          initialEpicCode={adminAssignInitialEpic}
-          initialTab={adminAssignModalTab}
-          initialTopicId={adminAssignInitialTopicId}
-          onSaveSuccess={async () => {
-            await refreshTopicRecords();
-            broadcastSync();
-          }}
-          setNotification={setNotification}
-        />
-      )}
+
     </div>
   );
 }

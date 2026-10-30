@@ -305,13 +305,18 @@ export async function autoAnalyzeAllVideos() {
 export async function getVideos() {
   try {
     const videos = await prisma.videoLibrary.findMany({
+      where: {
+        OR: [
+          { epicId: null },
+          { epic: { isPublished: true } }
+        ]
+      },
       include: { epic: true },
       orderBy: { createdAt: 'desc' }
     });
 
     if (!videos || videos.length === 0) {
-      const { REAL_PM_EVIDYA_VIDEOS } = await import('@/lib/fallbackData');
-      return REAL_PM_EVIDYA_VIDEOS;
+      return [];
     }
 
     // Fast in-memory resolution for uncalculated video durations from master catalogue without blocking on external network calls
@@ -341,13 +346,18 @@ export async function getVideos() {
   } catch (error: any) {
     try {
       const fallbackVideos = await prisma.videoLibrary.findMany({
+        where: {
+          OR: [
+            { epicId: null },
+            { epic: { isPublished: true } }
+          ]
+        },
         orderBy: { createdAt: 'desc' }
       });
       if (fallbackVideos && fallbackVideos.length > 0) return fallbackVideos;
     } catch {}
 
-    const { REAL_PM_EVIDYA_VIDEOS } = await import('@/lib/fallbackData');
-    return REAL_PM_EVIDYA_VIDEOS;
+    return [];
   }
 }
 

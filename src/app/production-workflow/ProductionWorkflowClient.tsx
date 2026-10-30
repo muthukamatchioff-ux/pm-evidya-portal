@@ -663,7 +663,7 @@ export default function ProductionWorkflowClient({
                             {epic.cameraman.email}
                           </div>
                         </div>
-                      ) : (
+                      ) : epic.workflowStage === 'UNASSIGNED' ? (
                         <button 
                           className={`${styles.actionBtn} ${styles.btnAssignCam}`}
                           onClick={() => handleOpenAssignCameraman(epic)}
@@ -671,6 +671,10 @@ export default function ProductionWorkflowClient({
                           <span>+</span>
                           <span>Assign Cameraman</span>
                         </button>
+                      ) : (
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                          {epic.workflowStage === 'COMPLETED' || epic.workflowStage === 'PUBLISHED' ? 'Digital / Completed' : '—'}
+                        </span>
                       )}
                     </td>
 
@@ -707,6 +711,10 @@ export default function ProductionWorkflowClient({
                           <span>+</span>
                           <span>Assign Editor</span>
                         </button>
+                      ) : epic.workflowStage === 'COMPLETED' || epic.workflowStage === 'PUBLISHED' ? (
+                        <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600 }}>
+                          ✓ Completed
+                        </span>
                       ) : (
                         <span style={{ fontSize: '11px', color: '#94a3b8' }}>
                           Awaiting Shoot
@@ -797,11 +805,21 @@ export default function ProductionWorkflowClient({
                           </button>
                         )}
 
-                        {epic.cameraman && epic.workflowStage !== 'PUBLISHED' && (
+                        {epic.cameraman && epic.workflowStage === 'SHOOTING' && (
                           <button 
                             className={`${styles.actionBtn} ${styles.btnDetails}`}
                             onClick={() => handleOpenAssignCameraman(epic)}
                             title="Reassign Cameraman"
+                          >
+                            <span>↻</span>
+                          </button>
+                        )}
+
+                        {epic.editor && epic.workflowStage === 'EDITING' && (
+                          <button 
+                            className={`${styles.actionBtn} ${styles.btnDetails}`}
+                            onClick={() => handleOpenAssignEditor(epic)}
+                            title="Reassign Video Editor"
                           >
                             <span>↻</span>
                           </button>

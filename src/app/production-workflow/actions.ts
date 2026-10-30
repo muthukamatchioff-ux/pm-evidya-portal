@@ -229,14 +229,24 @@ export async function getProductionWorkflowDashboardData(): Promise<{
         };
       });
 
-      const totalTopics = topics.length;
-      const completedShootingTopics = topics.filter(t =>
-        t.shootingStatus.toLowerCase() === 'completed'
-      ).length;
+      const isTopicShootingDone = (t: any) => {
+        const s = (t.shootingStatus || '').toLowerCase();
+        return s === 'completed' || s.includes('received');
+      };
 
-      const completedEditingTopics = topics.filter(t =>
-        t.editingStatus.toLowerCase() === 'completed' && Boolean(t.finalVideoLink)
-      ).length;
+      const isTopicEditingDone = (t: any) => {
+        const e = (t.editingStatus || '').toLowerCase();
+        const s = (t.shootingStatus || '').toLowerCase();
+        const hasLink = Boolean(t.finalVideoLink);
+        if (hasLink && (e === 'completed' || e.startsWith('completed') || e === 'na' || e === 'received' || s.includes('received'))) {
+          return true;
+        }
+        return e === 'completed' && hasLink;
+      };
+
+      const totalTopics = topics.length;
+      const completedShootingTopics = topics.filter(isTopicShootingDone).length;
+      const completedEditingTopics = topics.filter(isTopicEditingDone).length;
 
       // Determine Workflow Stage
       let workflowStage: 'UNASSIGNED' | 'SHOOTING' | 'READY_FOR_EDITOR' | 'EDITING' | 'COMPLETED' | 'PUBLISHED' = 'UNASSIGNED';
@@ -648,9 +658,11 @@ export async function publishEpicToLibrary(params: {
       };
     }
 
-    const incompleteEdits = editorRecs.filter((e: any) =>
-      (e.status || '').toLowerCase() !== 'completed' || !e.finalVideoFile
-    );
+    const incompleteEdits = editorRecs.filter((e: any) => {
+      const s = (e.status || '').toLowerCase().trim();
+      const isCompleted = s.startsWith('completed') || s === 'na' || s === 'received';
+      return !isCompleted || !e.finalVideoFile;
+    });
 
     if (incompleteEdits.length > 0) {
       return {
