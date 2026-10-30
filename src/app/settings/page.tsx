@@ -6,10 +6,11 @@ export const metadata = {
   title: 'Settings | PM e-Vidya'
 };
 
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, getEmail } from '@/lib/auth';
 
 export default async function SettingsPage() {
   await requireAuth(['ADMIN']);
+  const currentAdminEmail = await getEmail();
   const [budgetHeads, hrs, users, availableEpics] = await Promise.all([
     prisma.budgetHead.findMany({
       orderBy: { name: 'asc' }
@@ -67,7 +68,13 @@ export default async function SettingsPage() {
         </div>
 
         <div style={{ marginTop: '32px' }}>
-          <SettingsClient initialHrs={hrs} initialBudgetHeads={budgetHeads} initialUsers={users} availableEpics={availableEpics} />
+          <SettingsClient 
+            initialHrs={hrs} 
+            initialBudgetHeads={budgetHeads} 
+            initialUsers={users} 
+            availableEpics={availableEpics}
+            currentAdminEmail={currentAdminEmail || ''}
+          />
         </div>
       </div>
     </div>
