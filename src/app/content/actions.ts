@@ -306,13 +306,20 @@ export async function getVideos() {
   try {
     const videos = await prisma.videoLibrary.findMany({
       where: {
-        OR: [
-          { epicId: null },
-          { epic: { isPublished: true } }
-        ]
+        epic: { isPublished: true },
+        videoLink: { not: '' }
       },
-      include: { epic: true },
-      orderBy: { createdAt: 'desc' }
+      include: {
+        epic: {
+          include: {
+            sme: true
+          }
+        }
+      },
+      orderBy: [
+        { epic: { epicSequence: 'asc' } },
+        { id: 'asc' }
+      ]
     });
 
     if (!videos || videos.length === 0) {

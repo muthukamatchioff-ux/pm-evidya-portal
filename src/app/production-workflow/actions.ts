@@ -104,9 +104,16 @@ export async function getProductionWorkflowDashboardData(): Promise<{
   }
 
   try {
-    // 1. Fetch all SMEWorkEntries with full relations
+    // 1. Fetch all canonical SMEWorkEntries with full video production relations
     const [entries, cameramen, editors, notifications] = await Promise.all([
       prisma.sMEWorkEntry.findMany({
+        where: {
+          OR: [
+            { videoLibraries: { some: {} } },
+            { shootingSchedules: { some: {} } },
+            { videoEditorRecords: { some: {} } }
+          ]
+        },
         include: {
           sme: true,
           cameraman: { select: { id: true, name: true, email: true, status: true } },
@@ -661,7 +668,12 @@ export async function publishEpicToLibrary(params: {
     const incompleteEdits = editorRecs.filter((e: any) => {
       const s = (e.status || '').toLowerCase().trim();
       const isCompleted = s.startsWith('completed') || s === 'na' || s === 'received';
-      return !isCompleted || !e.finalVideoFile;
+      const matchingLib = entry.videoLibraries.find((vl: any) =>
+        vl.id === e.id.replace(/^ed-/, '') ||
+        vl.title.trim().toLowerCase() === (e.assignedVideo || entry.topic).trim().toLowerCase()
+      );
+      const hasLink = Boolean(e.finalVideoFile || e.finalCutLink || matchingLib?.videoLink);
+      return !isCompleted || !hasLink;
     });
 
     if (incompleteEdits.length > 0) {

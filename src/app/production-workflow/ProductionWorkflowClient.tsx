@@ -346,7 +346,7 @@ export default function ProductionWorkflowClient({
       <div className={styles.noticeBanner}>
         <span>ℹ️</span>
         <div>
-          <strong>Active Registered Personnel Integration:</strong> All Cameraman and Editor assignment dropdowns are populated directly from the existing active user accounts in the database using canonical user IDs.
+          <strong>Single Source of Truth:</strong> Tracking all 76 canonical production topics across 13 EPICs whose shooting stage is completed. Deliverables currently in progress or not yet started remain here for assignment and monitoring, and reflect in the Video Content Library only after post-production completion and Admin publication.
         </div>
       </div>
 

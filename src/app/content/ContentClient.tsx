@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { addVideo, updateVideo, detectVideoDuration, autoAnalyzeSingleVideo, autoAnalyzeAllVideos } from './actions';
 import styles from '../budget/budget.module.css'; // Reuse table styles
 
@@ -172,6 +173,41 @@ export default function ContentClient({ initialData, epics = [], role = 'VIEWER'
         <h1 className={styles.title}>Video Content Library</h1>
         <p className={styles.subtitle}>Track published video contents mapped directly to the SME and Title.</p>
       </header>
+
+      {/* Production Pipeline & Work Assignment Synchronization Banner */}
+      <div style={{ margin: '0 0 16px 0', padding: '14px 20px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '22px' }}>🎬</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#0f2942' }}>
+              Canonical Production Pipeline &amp; Publication Gate
+            </div>
+            <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '2px' }}>
+              Videos currently in progress or not yet started are assigned and tracked under <strong>Work Assignment</strong>. Videos only become available in this library after all stages are completed, video links are attached, and Admin approves &amp; publishes the EPIC.
+            </div>
+          </div>
+        </div>
+        {canModify && (
+          <Link
+            href="/production-workflow"
+            style={{
+              padding: '6px 14px',
+              backgroundColor: '#0284c7',
+              color: '#ffffff',
+              borderRadius: '6px',
+              fontWeight: 700,
+              fontSize: '12.5px',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <span>📋</span>
+            <span>Go to Work Assignment</span>
+          </Link>
+        )}
+      </div>
       
       <div className={styles.card}>
         <div style={{ padding: '16px', background: '#f8fafc', borderBottom: '1px solid var(--border)', display: 'flex', gap: '20px', alignItems: 'center' }}>
@@ -326,7 +362,38 @@ export default function ContentClient({ initialData, epics = [], role = 'VIEWER'
             <tbody>
               {filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={canModify ? 8 : 7} style={{ textAlign: 'center', padding: '24px' }}>No video records found</td>
+                  <td colSpan={canModify ? 8 : 7} style={{ textAlign: 'center', padding: '48px 24px' }}>
+                    <div style={{ maxWidth: '620px', margin: '0 auto', textAlign: 'center' }}>
+                      <div style={{ fontSize: '42px', marginBottom: '12px' }}>📼</div>
+                      <h4 style={{ fontSize: '17px', fontWeight: 700, color: '#0f2942', margin: '0 0 8px 0' }}>
+                        No Published Videos in Library Yet
+                      </h4>
+                      <p style={{ fontSize: '13.5px', color: '#64748b', lineHeight: 1.6, margin: '0 0 20px 0' }}>
+                        All 76 canonical production topics (across 13 EPICs) are currently managed under <strong>Production Workflow &gt; Work Assignment</strong>. Once shooting and post-production stages are completed, video links are verified, and an Administrator clicks <strong>🚀 Publish</strong>, the videos will immediately reflect in this library.
+                      </p>
+                      {canModify && (
+                        <Link
+                          href="/production-workflow?tab=COMPLETED"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '10px 20px',
+                            backgroundColor: '#059669',
+                            color: '#ffffff',
+                            borderRadius: '8px',
+                            fontWeight: 700,
+                            fontSize: '13.5px',
+                            textDecoration: 'none',
+                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+                          }}
+                        >
+                          <span>🚀</span>
+                          <span>Open Work Assignment (Review &amp; Publish Completed Content)</span>
+                        </Link>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ) : (
                 filteredData.map((v, idx) => {
