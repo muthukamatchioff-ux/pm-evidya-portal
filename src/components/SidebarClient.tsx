@@ -51,10 +51,9 @@ const cameramanItems: StaffMenuItem[] = [
 ];
 
 const editorItems: StaffMenuItem[] = [
+  { name: 'Dashboard', tabId: 'DASHBOARD', icon: '📊' },
   { name: 'My Assignments', tabId: 'ASSIGNMENTS', icon: '📋' },
   { name: 'Post-Production Entry', tabId: 'POST_PRODUCTION_ENTRY', icon: '🎬' },
-  { name: 'Dashboard', tabId: 'DASHBOARD', icon: '📊' },
-  { name: 'Overall Tracker (View Only)', tabId: 'TRACKER', icon: '👁️' },
   { name: 'Profile', tabId: 'PROFILE', icon: '👤' },
 ];
 
@@ -107,7 +106,7 @@ export default function SidebarClient({
       return currentTabParam;
     }
     if (isEditor) {
-      if (!currentTabParam || currentTabParam === 'POST_PRODUCTION_ENTRY') return 'POST_PRODUCTION_ENTRY';
+      if (!currentTabParam || currentTabParam === 'DASHBOARD') return 'DASHBOARD';
       return currentTabParam;
     }
     return '';
@@ -215,6 +214,31 @@ export default function SidebarClient({
                   </a>
                 );
               })}
+              {isEditor && (
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    closeMobile();
+                    const { logout } = await import('@/lib/auth');
+                    await logout();
+                    router.push('/login');
+                    router.refresh();
+                  }}
+                  className={styles.navLink}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    width: '100%',
+                    textAlign: 'left',
+                    cursor: 'pointer'
+                  }}
+                  title="Logout"
+                >
+                  <span className={styles.iconPlaceholder}>🚪</span>
+                  <span className={styles.navLinkText} style={{ color: '#ef4444', fontWeight: 700 }}>Logout</span>
+                </button>
+              )}
             </>
           ) : (
             renderedAdminItems.map((item, index) => {

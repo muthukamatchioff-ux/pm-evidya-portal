@@ -10,6 +10,8 @@ import { logAudit } from '@/lib/audit';
 function safeRevalidate() {
   try {
     revalidatePath('/video-production');
+    revalidatePath('/production-workflow');
+    revalidatePath('/content');
     revalidatePath('/reports');
   } catch (_) {}
 }
@@ -2283,6 +2285,7 @@ export async function saveEditorPostProductionEntry(params: {
   editingStartDate?: string | null;
   editingEndDate?: string | null;
   editingStatus: string;
+  submissionStatus?: string;
   duration?: string | null;
   finalVideoLink?: string | null;
   reviewComments?: string | null;
@@ -2309,7 +2312,25 @@ export async function saveEditorPostProductionEntry(params: {
     }
   }
 
+  // Final submission strict validation
+  if (params.isSubmit) {
+    if (!editStart || !editEnd) {
+      return { success: false, error: 'Validation Error: Both Editing Start Date and End Date are required to submit.' };
+    }
+    const checkLink = (params.finalVideoLink || '').trim();
+    if (!checkLink || (!checkLink.startsWith('http://') && !checkLink.startsWith('https://'))) {
+      return { success: false, error: 'Validation Error: A valid Final Video Deliverable Link (HTTP or HTTPS) is required to submit.' };
+    }
+    const checkDur = (params.duration || '').trim();
+    if (!checkDur || checkDur === '-') {
+      return { success: false, error: 'Validation Error: Valid Video Duration (e.g. 00:18:45) is required to submit.' };
+    }
+  }
+
   const finalStatus = params.isSubmit ? 'Completed' : (params.editingStatus || 'In Progress');
+  const finalSubmissionStatus = params.isSubmit
+    ? 'Submitted – Awaiting Admin Approval'
+    : (params.submissionStatus || (finalStatus === 'Completed' ? 'Completed' : (finalStatus === 'Pending' ? 'Pending' : 'In Progress')));
 
   try {
     const workEntry = await prisma.sMEWorkEntry.findUnique({
@@ -2349,6 +2370,27 @@ export async function saveEditorPostProductionEntry(params: {
       ? params.duration.trim()
       : (matchingEditor?.duration || null);
 
+    // Build serialized JSON metadata for reviewComments
+    let metaObj: any = {};
+    const existingComments = matchingEditor?.reviewComments || '';
+    if (existingComments && existingComments.startsWith('{')) {
+      try {
+        metaObj = JSON.parse(existingComments);
+      } catch (_) {}
+    } else if (existingComments) {
+      metaObj.legacyRemarks = existingComments;
+    }
+
+    if (params.reviewComments !== undefined) {
+      metaObj.remarks = params.reviewComments;
+    }
+    metaObj.submissionStatus = finalSubmissionStatus;
+    if (params.isSubmit) {
+      metaObj.submittedAt = new Date().toISOString();
+      metaObj.submittedBy = perm.user?.name || email;
+    }
+    const serializedComments = JSON.stringify(metaObj);
+
     if (matchingEditor) {
       await prisma.videoEditorRecord.update({
         where: { id: matchingEditor.id },
@@ -2358,7 +2400,7 @@ export async function saveEditorPostProductionEntry(params: {
           status: finalStatus,
           duration: effectiveDuration !== null ? effectiveDuration : matchingEditor.duration,
           finalVideoFile: effectiveLink !== null ? effectiveLink : matchingEditor.finalVideoFile,
-          reviewComments: params.reviewComments !== undefined ? params.reviewComments : matchingEditor.reviewComments
+          reviewComments: serializedComments
         }
       });
     } else {
@@ -2371,7 +2413,7 @@ export async function saveEditorPostProductionEntry(params: {
           status: finalStatus,
           duration: effectiveDuration,
           finalVideoFile: effectiveLink,
-          reviewComments: params.reviewComments || null,
+          reviewComments: serializedComments,
           assignedVideo: workEntry.videoLibraries.find((vl: any) => vl.id === cleanVidId || vl.id === params.videoId)?.title || workEntry.topic
         }
       });
@@ -2452,8 +2494,8 @@ export async function saveEditorPostProductionEntry(params: {
     return {
       success: true,
       message: params.isSubmit
-        ? 'Post-production editing submitted as Completed! Deliverable is now live in the Overall Tracker and Video Library.'
-        : 'Post-production editing draft saved successfully.'
+        ? '🎉 Post-production deliverable submitted for Admin Approval! Status is now Submitted – Awaiting Admin Approval.'
+        : 'Post-production editing progress updated successfully.'
     };
   } catch (error: any) {
     console.error('Error in saveEditorPostProductionEntry:', error);

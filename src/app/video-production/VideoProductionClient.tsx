@@ -157,6 +157,10 @@ export interface VideoRegisterRow {
   // Post-Production / Editing
   editor: string;
   editingStatus: string;
+  submissionStatus: string;
+  submittedAt?: string | null;
+  adminReviewComments?: string | null;
+  editorialComments?: string | null;
   editingStartDate: string | null;
   editingEndDate: string | null;
   reviewComments: string | null;
@@ -457,6 +461,18 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         const hasLink = !!finalVideoLink && finalVideoLink.trim() !== '' && finalVideoLink !== '-';
         const duration = lib?.duration || ed?.duration || fin?.finalDuration || null;
 
+        const editStatusLower = (editingStatus || '').toLowerCase();
+        let submissionStatus = meta?.submissionStatus;
+        if (!submissionStatus) {
+          if (entry.isPublished || (editStatusLower === 'completed' && hasLink)) {
+            submissionStatus = entry.isPublished ? 'Admin Approved' : 'Completed';
+          } else if (editStatusLower.includes('progress') || editStatusLower.includes('process')) {
+            submissionStatus = 'In Progress';
+          } else {
+            submissionStatus = 'Pending';
+          }
+        }
+
         rows.push({
           slNo: sNo,
           sNo,
@@ -478,6 +494,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
           productionNotes: sched?.productionNotes || null,
           editor,
           editingStatus,
+          submissionStatus,
+          submittedAt: meta?.submittedAt || null,
+          adminReviewComments: meta?.adminReviewComments || null,
+          editorialComments: meta?.remarks || (ed?.reviewComments && !ed.reviewComments.startsWith('{') ? ed.reviewComments : null),
           editingStartDate,
           editingEndDate,
           reviewComments: ed?.reviewComments || null,

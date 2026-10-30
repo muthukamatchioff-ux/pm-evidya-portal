@@ -50,6 +50,10 @@ export interface WorkflowEpicItem {
     shootEnd: string | null;
     cameraman: string | null;
     editingStatus: string;
+    submissionStatus?: string;
+    submittedAt?: string | null;
+    adminReviewComments?: string | null;
+    editorialComments?: string | null;
     editStart: string | null;
     editEnd: string | null;
     editor: string | null;
@@ -222,6 +226,26 @@ export async function getProductionWorkflowDashboardData(): Promise<{
         const finalLink = t.edit?.finalVideoFile || t.lib?.videoLink || null;
         const duration = t.edit?.duration || t.lib?.duration || null;
 
+        let editMeta: any = {};
+        if (t.edit?.reviewComments && t.edit.reviewComments.startsWith('{')) {
+          try {
+            editMeta = JSON.parse(t.edit.reviewComments);
+          } catch (_) {}
+        }
+
+        const editStatusLower = (editStatus || '').toLowerCase();
+        const hasLink = Boolean(finalLink);
+        let subStatus = editMeta.submissionStatus;
+        if (!subStatus) {
+          if (entry.isPublished || (editStatusLower === 'completed' && hasLink)) {
+            subStatus = entry.isPublished ? 'Admin Approved' : 'Completed';
+          } else if (editStatusLower.includes('progress') || editStatusLower.includes('process')) {
+            subStatus = 'In Progress';
+          } else {
+            subStatus = 'Pending';
+          }
+        }
+
         return {
           id: t.id,
           title: t.title,
@@ -230,6 +254,10 @@ export async function getProductionWorkflowDashboardData(): Promise<{
           shootEnd: t.shoot?.scheduledEnd ? new Date(t.shoot.scheduledEnd).toISOString() : null,
           cameraman: t.shoot?.cameraman || entry.cameraman?.name || null,
           editingStatus: editStatus,
+          submissionStatus: subStatus,
+          submittedAt: editMeta.submittedAt || null,
+          adminReviewComments: editMeta.adminReviewComments || null,
+          editorialComments: editMeta.remarks || (t.edit?.reviewComments && !t.edit.reviewComments.startsWith('{') ? t.edit.reviewComments : null),
           editStart: t.edit?.editingStartDate ? new Date(t.edit.editingStartDate).toISOString() : null,
           editEnd: t.edit?.editingEndDate ? new Date(t.edit.editingEndDate).toISOString() : null,
           editor: t.edit?.editorName || entry.editor?.name || null,
@@ -809,4 +837,113 @@ export async function retryNotificationAction(notificationId: string) {
   if (!auth.success) return auth;
 
   return await retryNotification(notificationId);
+}
+
+/**
+ * Admin Review & Approval for Editor Submissions
+ */
+export async function reviewEditorSubmission(params: {
+  workEntryId: string;
+  videoId: string;
+  action: 'APPROVE' | 'REQUEST_REVISION';
+  adminComments?: string;
+}): Promise<{ success: boolean; message?: string; error?: string }> {
+  const auth = await checkAuth(['ADMIN']);
+  if (!auth.success) {
+    return { success: false, error: auth.error || 'Unauthorized: Only Admin can review editor submissions.' };
+  }
+
+  const adminEmail = await getEmail();
+
+  try {
+    const workEntry = await prisma.sMEWorkEntry.findUnique({
+      where: { id: params.workEntryId },
+      include: { videoEditorRecords: true, videoLibraries: true }
+    });
+
+    if (!workEntry) {
+      return { success: false, error: 'EPIC record not found in database.' };
+    }
+
+    const cleanVidId = (params.videoId || '').replace(/^(ed-|shoot-)/, '');
+    let matchingEditor = workEntry.videoEditorRecords.find((e: any) =>
+      e.id === params.videoId ||
+      e.id === cleanVidId ||
+      e.id === `ed-${cleanVidId}` ||
+      (cleanVidId && workEntry.videoLibraries.some((vl: any) => (vl.id === cleanVidId || vl.id === params.videoId) && vl.title === e.assignedVideo))
+    );
+
+    if (!matchingEditor && workEntry.videoEditorRecords.length === 1) {
+      matchingEditor = workEntry.videoEditorRecords[0];
+    }
+
+    if (!matchingEditor) {
+      return { success: false, error: 'Post-production editor record not found for this topic.' };
+    }
+
+    let meta: any = {};
+    if (matchingEditor.reviewComments && matchingEditor.reviewComments.startsWith('{')) {
+      try {
+        meta = JSON.parse(matchingEditor.reviewComments);
+      } catch (_) {}
+    } else if (matchingEditor.reviewComments) {
+      meta.legacyRemarks = matchingEditor.reviewComments;
+    }
+
+    const now = new Date().toISOString();
+    if (params.action === 'APPROVE') {
+      meta.submissionStatus = 'Admin Approved';
+      meta.adminReviewComments = params.adminComments || 'Approved by Admin';
+      meta.adminReviewedAt = now;
+      meta.adminReviewedBy = adminEmail;
+
+      await prisma.videoEditorRecord.update({
+        where: { id: matchingEditor.id },
+        data: {
+          status: 'Completed',
+          reviewComments: JSON.stringify(meta)
+        }
+      });
+    } else {
+      meta.submissionStatus = 'Revision Required';
+      meta.adminReviewComments = params.adminComments || 'Corrections requested by Admin.';
+      meta.adminReviewedAt = now;
+      meta.adminReviewedBy = adminEmail;
+
+      await prisma.videoEditorRecord.update({
+        where: { id: matchingEditor.id },
+        data: {
+          reviewComments: JSON.stringify(meta)
+        }
+      });
+    }
+
+    await prisma.auditLog.create({
+      data: {
+        action: params.action === 'APPROVE' ? 'ADMIN_APPROVE_SUBMISSION' : 'ADMIN_REQUEST_REVISION',
+        entity: 'VIDEO_EDITOR_RECORD',
+        entityId: matchingEditor.id,
+        newData: JSON.stringify({
+          action: params.action,
+          submissionStatus: meta.submissionStatus,
+          adminComments: params.adminComments,
+          adminEmail
+        })
+      }
+    });
+
+    revalidatePath('/production-workflow');
+    revalidatePath('/video-production');
+    revalidatePath('/content');
+
+    return {
+      success: true,
+      message: params.action === 'APPROVE'
+        ? '✓ Video deliverable successfully approved! Status updated to Admin Approved.'
+        : '⚠️ Revision requested from Editor with your feedback.'
+    };
+  } catch (error: any) {
+    console.error('Error in reviewEditorSubmission:', error);
+    return { success: false, error: error.message };
+  }
 }

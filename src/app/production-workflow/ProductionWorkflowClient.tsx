@@ -11,7 +11,8 @@ import {
   assignCameramanToEpic,
   assignEditorToEpic,
   publishEpicToLibrary,
-  retryNotificationAction
+  retryNotificationAction,
+  reviewEditorSubmission
 } from './actions';
 
 export default function ProductionWorkflowClient({
@@ -49,6 +50,9 @@ export default function ProductionWorkflowClient({
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [notificationsModalOpen, setNotificationsModalOpen] = useState(false);
+  const [revisionModalOpen, setRevisionModalOpen] = useState(false);
+  const [revisionTarget, setRevisionTarget] = useState<{ workEntryId: string; videoId: string; title: string } | null>(null);
+  const [revisionComments, setRevisionComments] = useState('');
 
   const [targetEpic, setTargetEpic] = useState<WorkflowEpicItem | null>(null);
 
@@ -63,6 +67,61 @@ export default function ProductionWorkflowClient({
 
   const [actionLoading, setActionLoading] = useState(false);
   const [expandedEpicId, setExpandedEpicId] = useState<string | null>(null);
+
+  const handleApproveSubmission = async (workEntryId: string, videoId: string) => {
+    setActionLoading(true);
+    try {
+      const res = await reviewEditorSubmission({
+        workEntryId,
+        videoId,
+        action: 'APPROVE'
+      });
+      if (res.success) {
+        setNotificationToast({ type: 'success', message: res.message || 'Submission approved successfully!' });
+        await handleRefresh();
+      } else {
+        setNotificationToast({ type: 'error', message: res.error || 'Failed to approve.' });
+      }
+    } catch (err: any) {
+      setNotificationToast({ type: 'error', message: err.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleOpenRevisionModal = (workEntryId: string, videoId: string, title: string) => {
+    setRevisionTarget({ workEntryId, videoId, title });
+    setRevisionComments('');
+    setRevisionModalOpen(true);
+  };
+
+  const handleSubmitRevision = async () => {
+    if (!revisionTarget) return;
+    if (!revisionComments.trim()) {
+      alert('Please enter review remarks explaining what corrections are needed.');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await reviewEditorSubmission({
+        workEntryId: revisionTarget.workEntryId,
+        videoId: revisionTarget.videoId,
+        action: 'REQUEST_REVISION',
+        adminComments: revisionComments.trim()
+      });
+      if (res.success) {
+        setNotificationToast({ type: 'success', message: res.message || 'Revision requested from Editor.' });
+        setRevisionModalOpen(false);
+        await handleRefresh();
+      } else {
+        setNotificationToast({ type: 'error', message: res.error || 'Failed to request revision.' });
+      }
+    } catch (err: any) {
+      setNotificationToast({ type: 'error', message: err.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // Refresh data from server
   const handleRefresh = async () => {
@@ -883,10 +942,12 @@ export default function ProductionWorkflowClient({
                                 <tr>
                                   <th style={{ padding: '8px 10px', textAlign: 'left', width: '30px' }}>#</th>
                                   <th style={{ padding: '8px 10px', textAlign: 'left' }}>Topic Title</th>
-                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '140px' }}>Shooting Status</th>
-                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '150px' }}>Editing Status</th>
-                                  <th style={{ padding: '8px 10px', textAlign: 'left', width: '160px' }}>Assigned Editor</th>
-                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '100px' }}>Deliverable</th>
+                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '110px' }}>Shooting Status</th>
+                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '110px' }}>Editing Status</th>
+                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '150px' }}>Submission Status</th>
+                                  <th style={{ padding: '8px 10px', textAlign: 'left', width: '140px' }}>Assigned Editor</th>
+                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '120px' }}>Deliverable</th>
+                                  <th style={{ padding: '8px 10px', textAlign: 'center', width: '150px' }}>Admin Approval</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -894,10 +955,28 @@ export default function ProductionWorkflowClient({
                                   const shootDone = t.shootingStatus.toLowerCase().includes('completed') || t.shootingStatus.toLowerCase().includes('received');
                                   const editDone = (t.editingStatus.toLowerCase().includes('completed') || t.editingStatus.toLowerCase() === 'na' || t.editingStatus.toLowerCase() === 'received') && t.finalVideoLink;
                                   const inProg = t.editingStatus.toLowerCase().includes('progress') || t.editingStatus.toLowerCase().includes('process');
+                                  const subStatus = t.submissionStatus || (editDone ? 'Completed' : inProg ? 'In Progress' : 'Pending');
+                                  const isAwaitingAdmin = subStatus === 'Submitted – Awaiting Admin Approval';
+                                  const isAdminApproved = subStatus === 'Admin Approved';
+                                  const isRevisionRequired = subStatus === 'Revision Required';
+
                                   return (
                                     <tr key={t.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                       <td style={{ padding: '8px 10px', color: '#64748b', fontWeight: 600 }}>{tIdx + 1}</td>
-                                      <td style={{ padding: '8px 10px', fontWeight: 600, color: '#1e293b' }}>{t.title}</td>
+                                      <td style={{ padding: '8px 10px', fontWeight: 600, color: '#1e293b' }}>
+                                        <div>{t.title}</div>
+                                        {t.editorialComments && (
+                                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontStyle: 'italic' }}>
+                                            💬 Editor: {t.editorialComments}
+                                          </div>
+                                        )}
+                                        {t.adminReviewComments && (
+                                          <div style={{ fontSize: '11px', color: isRevisionRequired ? '#b91c1c' : '#15803d', marginTop: '2px', fontWeight: 600 }}>
+                                            {isRevisionRequired ? '⚠️ Revision Note: ' : '✓ Admin Note: '}
+                                            {t.adminReviewComments}
+                                          </div>
+                                        )}
+                                      </td>
                                       <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                                         <span style={{ 
                                           display: 'inline-block',
@@ -924,6 +1003,19 @@ export default function ProductionWorkflowClient({
                                           {editDone ? '✓ Completed' : inProg ? '💻 In Progress' : '⏳ Not Yet Started'}
                                         </span>
                                       </td>
+                                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                        <span style={{
+                                          display: 'inline-block',
+                                          padding: '3px 8px',
+                                          borderRadius: '10px',
+                                          fontSize: '11px',
+                                          fontWeight: 700,
+                                          backgroundColor: isAdminApproved ? '#dcfce7' : isAwaitingAdmin ? '#f3e8ff' : isRevisionRequired ? '#fee2e2' : subStatus === 'Completed' ? '#e0f2fe' : inProg ? '#fef3c7' : '#f1f5f9',
+                                          color: isAdminApproved ? '#166534' : isAwaitingAdmin ? '#6b21a8' : isRevisionRequired ? '#991b1b' : subStatus === 'Completed' ? '#0369a1' : inProg ? '#b45309' : '#64748b'
+                                        }}>
+                                          {isAdminApproved ? '✓ Admin Approved' : isAwaitingAdmin ? '📤 Awaiting Approval' : isRevisionRequired ? '⚠️ Revision Req.' : subStatus}
+                                        </span>
+                                      </td>
                                       <td style={{ padding: '8px 10px', color: '#334155' }}>
                                         {t.editor || (
                                           <span style={{ color: '#dc2626', fontWeight: 600, fontSize: '11px' }}>
@@ -932,10 +1024,65 @@ export default function ProductionWorkflowClient({
                                         )}
                                       </td>
                                       <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                        {t.finalVideoLink ? (
-                                          <a href={t.finalVideoLink} target="_blank" rel="noopener noreferrer" style={{ color: '#0284c7', textDecoration: 'underline', fontWeight: 600 }}>
-                                            🔗 Link
-                                          </a>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                          {t.duration && <span style={{ fontSize: '11px', color: '#334155', fontWeight: 600 }}>⏱️ {t.duration}</span>}
+                                          {t.finalVideoLink ? (
+                                            <a href={t.finalVideoLink} target="_blank" rel="noopener noreferrer" style={{ color: '#0284c7', textDecoration: 'underline', fontWeight: 600 }}>
+                                              🔗 Link
+                                            </a>
+                                          ) : (
+                                            <span style={{ color: '#94a3b8' }}>—</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                        {isAwaitingAdmin || (editDone && !isAdminApproved) ? (
+                                          <div style={{ display: 'inline-flex', gap: '4px' }}>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleApproveSubmission(epic.id, t.id)}
+                                              disabled={actionLoading}
+                                              style={{
+                                                padding: '3px 8px',
+                                                backgroundColor: '#16a34a',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                fontSize: '11px',
+                                                fontWeight: 700,
+                                                cursor: 'pointer'
+                                              }}
+                                              title="Approve deliverable"
+                                            >
+                                              ✓ Approve
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenRevisionModal(epic.id, t.id, t.title)}
+                                              disabled={actionLoading}
+                                              style={{
+                                                padding: '3px 8px',
+                                                backgroundColor: '#ef4444',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                fontSize: '11px',
+                                                fontWeight: 700,
+                                                cursor: 'pointer'
+                                              }}
+                                              title="Request revision with comments"
+                                            >
+                                              ⚠️ Revise
+                                            </button>
+                                          </div>
+                                        ) : isAdminApproved ? (
+                                          <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '11px' }}>
+                                            ✓ Approved
+                                          </span>
+                                        ) : isRevisionRequired ? (
+                                          <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '11px' }}>
+                                            ⚠️ Awaiting Edit
+                                          </span>
                                         ) : (
                                           <span style={{ color: '#94a3b8' }}>—</span>
                                         )}
@@ -1383,6 +1530,60 @@ export default function ProductionWorkflowClient({
             <div className={styles.modalFooter}>
               <button className={styles.btnPrimary} onClick={() => setNotificationsModalOpen(false)}>
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL 6: ADMIN REVISION REQUEST
+         ======================================================== */}
+      {revisionModalOpen && revisionTarget && (
+        <div className={styles.modalOverlay} onClick={() => setRevisionModalOpen(false)}>
+          <div className={styles.modalContent} style={{ maxWidth: '520px' }} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3 style={{ color: '#b91c1c' }}>⚠️ Request Post-Production Revision</h3>
+              <button className={styles.modalClose} onClick={() => setRevisionModalOpen(false)}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#334155' }}>
+                You are requesting revision for topic: <br />
+                <strong style={{ color: '#0f172a' }}>{revisionTarget.title}</strong>
+              </p>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                Admin Correction Remarks / Feedback for Video Editor:
+              </label>
+              <textarea
+                value={revisionComments}
+                onChange={e => setRevisionComments(e.target.value)}
+                placeholder="e.g. Please re-check audio sync at 05:20, fix opening title graphic spelling, normalize loudness to -14 LUFS..."
+                rows={4}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '13px',
+                  resize: 'vertical',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <p style={{ margin: '8px 0 0 0', fontSize: '11.5px', color: '#64748b' }}>
+                The Video Editor will see these remarks in their portal under Revision Required, make the corrections, and resubmit the same topic record without duplicates.
+              </p>
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={styles.btnSecondary} onClick={() => setRevisionModalOpen(false)}>
+                Cancel
+              </button>
+              <button
+                className={styles.btnPrimary}
+                style={{ backgroundColor: '#ef4444' }}
+                onClick={handleSubmitRevision}
+                disabled={actionLoading}
+              >
+                {actionLoading ? 'Submitting...' : 'Submit Revision Request'}
               </button>
             </div>
           </div>
