@@ -7,16 +7,7 @@ export default async function Sidebar() {
   const role = await getRole();
   const email = await getEmail();
   let initialAssignmentCount = 0;
-  let unassignedCount = 0;
 
-  // Live count for Admin: Unassigned Work
-  if (role === 'ADMIN') {
-    try {
-      unassignedCount = await prisma.sMEWorkEntry.count({
-        where: { cameramanId: null }
-      });
-    } catch (_) {}
-  }
 
   // Live count for Staff: My Assignments
   if (email && (role === 'CAMERAMAN' || role === 'EDITOR')) {
@@ -62,7 +53,6 @@ export default async function Sidebar() {
         role={role} 
         email={email} 
         initialAssignmentCount={initialAssignmentCount} 
-        unassignedCount={unassignedCount}
       />
     </Suspense>
   );

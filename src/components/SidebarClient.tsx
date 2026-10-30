@@ -25,7 +25,6 @@ const menuItems: MenuItem[] = [
   
   { isHeader: true, name: 'Production Workflow', allowedRoles: ['ADMIN'] },
   { name: 'Work Assignment', path: '/production-workflow', icon: '📋', allowedRoles: ['ADMIN'] },
-  { name: 'Unassigned Work', path: '/production-workflow?tab=unassigned', icon: '⏳', allowedRoles: ['ADMIN'] },
 
   { isHeader: true, name: 'Core Modules', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   { name: 'SME Records', path: '/smes', icon: '👨‍🏫', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
@@ -240,18 +239,10 @@ export default function SidebarClient({
                 );
               }
 
-              const currentTabParam = searchParams.get('tab');
-              const isUnassignedItem = item.path?.includes('tab=unassigned');
               const isWorkAssignmentItem = item.path === '/production-workflow';
-              
-              let isActive = false;
-              if (isUnassignedItem) {
-                isActive = pathname === '/production-workflow' && currentTabParam?.toLowerCase() === 'unassigned';
-              } else if (isWorkAssignmentItem) {
-                isActive = pathname === '/production-workflow' && (!currentTabParam || currentTabParam.toLowerCase() !== 'unassigned');
-              } else {
-                isActive = pathname === item.path || (item.path !== '/' && pathname?.startsWith(`${item.path}/`));
-              }
+              const isActive = isWorkAssignmentItem 
+                ? pathname === '/production-workflow'
+                : (pathname === item.path || (item.path !== '/' && pathname?.startsWith(`${item.path}/`)));
 
               return (
                 <Link
@@ -263,23 +254,6 @@ export default function SidebarClient({
                 >
                   <span className={styles.iconPlaceholder}>{item.icon}</span>
                   <span className={styles.navLinkText}>{item.name}</span>
-                  {item.name === 'Unassigned Work' && (
-                    <span 
-                      style={{
-                        marginLeft: 'auto',
-                        backgroundColor: '#fee2e2',
-                        color: '#dc2626',
-                        fontWeight: 800,
-                        fontSize: '11px',
-                        padding: '1px 6px',
-                        borderRadius: '9999px',
-                        border: '1px solid #fca5a5'
-                      }}
-                      title={`${unassignedCount} unassigned EPICs`}
-                    >
-                      [{unassignedCount}]
-                    </span>
-                  )}
                 </Link>
               );
             })
