@@ -14,6 +14,16 @@ export interface SyncStats {
 }
 
 export async function getDatabaseStats(p: any = defaultPrisma): Promise<SyncStats> {
+  const getCount = async (tableName: string, fallbackFn: () => Promise<number>) => {
+    try {
+      const res: any = await p.$queryRawUnsafe(`SELECT count(*)::int as count FROM "${tableName}"`);
+      if (res && res[0] && typeof res[0].count === 'number') {
+        return res[0].count;
+      }
+    } catch {}
+    return fallbackFn();
+  };
+
   const [
     users,
     smes,
@@ -25,15 +35,15 @@ export async function getDatabaseStats(p: any = defaultPrisma): Promise<SyncStat
     videoEditorRecords,
     auditLogs
   ] = await Promise.all([
-    p.user.count().catch(() => 0),
-    p.sME.count().catch(() => 0),
-    p.sMEWorkEntry.count().catch(() => 0),
-    p.payment.count().catch(() => 0),
-    p.document.count().catch(() => 0),
-    p.videoLibrary.count().catch(() => 0),
-    p.shootingSchedule.count().catch(() => 0),
-    p.videoEditorRecord.count().catch(() => 0),
-    p.auditLog.count().catch(() => 0),
+    getCount('User', () => p.user.count().catch(() => 0)),
+    getCount('SME', () => p.sME.count().catch(() => 0)),
+    getCount('SMEWorkEntry', () => p.sMEWorkEntry.count().catch(() => 0)),
+    getCount('Payment', () => p.payment.count().catch(() => 0)),
+    getCount('Document', () => p.document.count().catch(() => 0)),
+    getCount('VideoLibrary', () => p.videoLibrary.count().catch(() => 0)),
+    getCount('ShootingSchedule', () => p.shootingSchedule.count().catch(() => 0)),
+    getCount('VideoEditorRecord', () => p.videoEditorRecord.count().catch(() => 0)),
+    getCount('AuditLog', () => p.auditLog.count().catch(() => 0)),
   ]);
 
   return {
@@ -50,6 +60,7 @@ export async function getDatabaseStats(p: any = defaultPrisma): Promise<SyncStat
 }
 
 export async function backupDatabaseSnapshot(p: any = defaultPrisma) {
+  const counts = await getDatabaseStats(p);
   const [
     users,
     smes,
@@ -72,16 +83,7 @@ export async function backupDatabaseSnapshot(p: any = defaultPrisma) {
 
   return {
     timestamp: new Date().toISOString(),
-    counts: {
-      users: users.length,
-      smes: smes.length,
-      smeWorkEntries: smeWorkEntries.length,
-      payments: payments.length,
-      documents: documents.length,
-      videoLibrary: videoLibrary.length,
-      shootingSchedules: shootingSchedules.length,
-      videoEditorRecords: videoEditorRecords.length
-    },
+    counts,
     data: {
       users,
       smes,
@@ -97,12 +99,19 @@ export async function backupDatabaseSnapshot(p: any = defaultPrisma) {
 
 export async function syncSchema(p: any = defaultPrisma) {
   const ddlStatements = [
+    // User columns
     `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "password" TEXT;`,
     `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'ACTIVE';`,
     `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "designation" TEXT;`,
     `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "department" TEXT;`,
     `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lastLogin" TIMESTAMP(3);`,
     `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "createdBy" TEXT;`,
+    // SME columns
+    `ALTER TABLE "SME" ADD COLUMN IF NOT EXISTS "address" TEXT;`,
+    `ALTER TABLE "SME" ADD COLUMN IF NOT EXISTS "location" TEXT;`,
+    `ALTER TABLE "SME" ADD COLUMN IF NOT EXISTS "email" TEXT;`,
+    `ALTER TABLE "SME" ADD COLUMN IF NOT EXISTS "contactNumber" TEXT;`,
+    // VideoLibrary table
     `CREATE TABLE IF NOT EXISTS "VideoLibrary" (
       "id" TEXT PRIMARY KEY,
       "smeName" TEXT NOT NULL,
@@ -114,6 +123,7 @@ export async function syncSchema(p: any = defaultPrisma) {
       "trade" TEXT,
       "epicId" TEXT
     );`,
+    // SMEWorkEntry columns
     `ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "cameramanId" TEXT;`,
     `ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "editorId" TEXT;`,
     `ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "cameramanAssignedAt" TIMESTAMP(3);`,
@@ -121,18 +131,27 @@ export async function syncSchema(p: any = defaultPrisma) {
     `ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "isPublished" BOOLEAN DEFAULT false;`,
     `ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "publishedAt" TIMESTAMP(3);`,
     `ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "publishedBy" TEXT;`,
+    // Payment columns
+    `ALTER TABLE "Payment" ADD COLUMN IF NOT EXISTS "budgetHeadId" TEXT;`,
+    // Document columns
+    `ALTER TABLE "Document" ADD COLUMN IF NOT EXISTS "projectId" TEXT;`,
+    // ShootingSchedule columns
+    `ALTER TABLE "ShootingSchedule" ADD COLUMN IF NOT EXISTS "cameramanId" TEXT;`,
+    // VideoEditorRecord columns
+    `ALTER TABLE "VideoEditorRecord" ADD COLUMN IF NOT EXISTS "editorId" TEXT;`
   ];
 
   const results: any[] = [];
-  for (const sql of ddlStatements) {
+  for (const ddl of ddlStatements) {
     try {
-      await p.$executeRawUnsafe(sql);
-      results.push({ sql: sql.replace(/\s+/g, ' ').substring(0, 50), success: true });
+      await p.$executeRawUnsafe(ddl);
+      results.push({ sql: ddl.slice(0, 50), success: true });
     } catch (e: any) {
-      results.push({ sql: sql.replace(/\s+/g, ' ').substring(0, 50), success: false, error: e.message });
+      results.push({ sql: ddl.slice(0, 50), success: false, error: e.message });
     }
   }
-  return { success: true, count: results.filter(r => r.success).length, results };
+
+  return { success: results.every(r => r.success), count: results.length, results };
 }
 
 export async function syncUsers(p: any = defaultPrisma) {
@@ -140,28 +159,29 @@ export async function syncUsers(p: any = defaultPrisma) {
   const errors: any[] = [];
   for (const u of ((masterData.user || []) as any[])) {
     try {
-      const userData: any = {
-        email: u.email,
-        name: u.name,
-        role: u.role,
-        status: u.status || 'ACTIVE',
-        designation: u.designation || null,
-        department: u.department || null,
-      };
-      if (u.password) userData.password = u.password;
-      if (u.lastLogin) userData.lastLogin = new Date(u.lastLogin);
-      if (u.createdBy) userData.createdBy = u.createdBy;
-
-      await p.user.upsert({
-        where: { email: u.email },
-        update: userData,
-        create: {
-          id: u.id,
-          ...userData,
-          createdAt: u.createdAt ? new Date(u.createdAt) : new Date(),
-          updatedAt: u.updatedAt ? new Date(u.updatedAt) : new Date()
-        }
-      });
+      await p.$executeRawUnsafe(
+        `INSERT INTO "User" ("id", "email", "name", "role", "status", "designation", "department", "password", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT ("id") DO UPDATE SET
+           "email" = EXCLUDED."email",
+           "name" = EXCLUDED."name",
+           "role" = EXCLUDED."role",
+           "status" = EXCLUDED."status",
+           "designation" = EXCLUDED."designation",
+           "department" = EXCLUDED."department",
+           "password" = COALESCE(EXCLUDED."password", "User"."password"),
+           "updatedAt" = EXCLUDED."updatedAt";`,
+        u.id,
+        u.email,
+        u.name || null,
+        u.role || 'VIEWER',
+        u.status || 'ACTIVE',
+        u.designation || null,
+        u.department || null,
+        u.password || null,
+        u.createdAt ? new Date(u.createdAt) : new Date(),
+        u.updatedAt ? new Date(u.updatedAt) : new Date()
+      );
       count++;
     } catch (e: any) {
       errors.push({ id: u.id, email: u.email, error: e.message });
@@ -175,27 +195,31 @@ export async function syncSmes(p: any = defaultPrisma) {
   const errors: any[] = [];
   for (const s of ((masterData.sME || []) as any[])) {
     try {
-      const smeData = {
-        name: s.name,
-        designation: s.designation || null,
-        institute: s.institute || null,
-        status: s.status || 'ACTIVE',
-        address: s.address || null,
-        location: s.location || null,
-        email: s.email || null,
-        contactNumber: s.contactNumber || null,
-      };
-
-      await p.sME.upsert({
-        where: { id: s.id },
-        update: smeData,
-        create: {
-          id: s.id,
-          ...smeData,
-          createdAt: s.createdAt ? new Date(s.createdAt) : new Date(),
-          updatedAt: s.updatedAt ? new Date(s.updatedAt) : new Date()
-        }
-      });
+      await p.$executeRawUnsafe(
+        `INSERT INTO "SME" ("id", "name", "designation", "institute", "status", "address", "location", "email", "contactNumber", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT ("id") DO UPDATE SET
+           "name" = EXCLUDED."name",
+           "designation" = EXCLUDED."designation",
+           "institute" = EXCLUDED."institute",
+           "status" = EXCLUDED."status",
+           "address" = EXCLUDED."address",
+           "location" = EXCLUDED."location",
+           "email" = EXCLUDED."email",
+           "contactNumber" = EXCLUDED."contactNumber",
+           "updatedAt" = EXCLUDED."updatedAt";`,
+        s.id,
+        s.name,
+        s.designation || null,
+        s.institute || null,
+        s.status || 'ACTIVE',
+        s.address || null,
+        s.location || null,
+        s.email || null,
+        s.contactNumber || null,
+        s.createdAt ? new Date(s.createdAt) : new Date(),
+        s.updatedAt ? new Date(s.updatedAt) : new Date()
+      );
       count++;
     } catch (e: any) {
       errors.push({ id: s.id, name: s.name, error: e.message });
@@ -209,30 +233,40 @@ export async function syncWorkEntries(p: any = defaultPrisma) {
   const errors: any[] = [];
   for (const we of ((masterData.sMEWorkEntry || []) as any[])) {
     try {
-      const entryData = {
-        smeId: we.smeId,
-        trade: we.trade,
-        topic: we.topic,
-        attendanceFrom: we.attendanceFrom ? new Date(we.attendanceFrom) : null,
-        attendanceTo: we.attendanceTo ? new Date(we.attendanceTo) : null,
-        days: we.days !== undefined && we.days !== null ? Number(we.days) : null,
-        ratePerDay: we.ratePerDay !== undefined && we.ratePerDay !== null ? Number(we.ratePerDay) : null,
-        taAmount: we.taAmount !== undefined && we.taAmount !== null ? Number(we.taAmount) : null,
-        otherAmount: we.otherAmount !== undefined && we.otherAmount !== null ? Number(we.otherAmount) : null,
-        status: we.status || 'COMPLETED',
-        epicSequence: we.epicSequence
-      };
-
-      await p.sMEWorkEntry.upsert({
-        where: { id: we.id },
-        update: entryData,
-        create: {
-          id: we.id,
-          ...entryData,
-          createdAt: we.createdAt ? new Date(we.createdAt) : new Date(),
-          updatedAt: we.updatedAt ? new Date(we.updatedAt) : new Date()
-        }
-      });
+      const isCompleted = we.status === 'COMPLETED';
+      await p.$executeRawUnsafe(
+        `INSERT INTO "SMEWorkEntry" ("id", "smeId", "trade", "topic", "attendanceFrom", "attendanceTo", "days", "ratePerDay", "taAmount", "otherAmount", "status", "epicSequence", "isPublished", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         ON CONFLICT ("id") DO UPDATE SET
+           "smeId" = EXCLUDED."smeId",
+           "trade" = EXCLUDED."trade",
+           "topic" = EXCLUDED."topic",
+           "attendanceFrom" = EXCLUDED."attendanceFrom",
+           "attendanceTo" = EXCLUDED."attendanceTo",
+           "days" = EXCLUDED."days",
+           "ratePerDay" = EXCLUDED."ratePerDay",
+           "taAmount" = EXCLUDED."taAmount",
+           "otherAmount" = EXCLUDED."otherAmount",
+           "status" = EXCLUDED."status",
+           "epicSequence" = EXCLUDED."epicSequence",
+           "isPublished" = EXCLUDED."isPublished",
+           "updatedAt" = EXCLUDED."updatedAt";`,
+        we.id,
+        we.smeId,
+        we.trade,
+        we.topic,
+        we.attendanceFrom ? new Date(we.attendanceFrom) : null,
+        we.attendanceTo ? new Date(we.attendanceTo) : null,
+        we.days !== undefined && we.days !== null ? Number(we.days) : null,
+        we.ratePerDay !== undefined && we.ratePerDay !== null ? Number(we.ratePerDay) : null,
+        we.taAmount !== undefined && we.taAmount !== null ? Number(we.taAmount) : null,
+        we.otherAmount !== undefined && we.otherAmount !== null ? Number(we.otherAmount) : null,
+        we.status || 'COMPLETED',
+        we.epicSequence,
+        isCompleted,
+        we.createdAt ? new Date(we.createdAt) : new Date(),
+        we.updatedAt ? new Date(we.updatedAt) : new Date()
+      );
       count++;
     } catch (e: any) {
       errors.push({ id: we.id, epicSequence: we.epicSequence, error: e.message });
@@ -253,32 +287,36 @@ export async function syncPayments(p: any = defaultPrisma) {
   const errors: any[] = [];
   for (const pay of ((masterData.payment || []) as any[])) {
     try {
-      const payData = {
-        workEntryId: pay.workEntryId,
-        grossAmount: Number(pay.grossAmount) || 0,
-        taAmount: pay.taAmount !== null && pay.taAmount !== undefined ? Number(pay.taAmount) : null,
-        otherAmount: pay.otherAmount !== null && pay.otherAmount !== undefined ? Number(pay.otherAmount) : null,
-        totalAmount: Number(pay.totalAmount) || 0,
-        status: pay.status || 'DRAFT',
-        utrNumber: pay.utrNumber || null,
-        paymentDate: pay.paymentDate ? new Date(pay.paymentDate) : null,
-        remarks: pay.remarks || null,
-        budgetHeadId: pay.budgetHeadId || null,
-      };
-
-      await p.payment.upsert({
-        where: { id: pay.id },
-        update: payData,
-        create: {
-          id: pay.id,
-          ...payData,
-          createdAt: pay.createdAt ? new Date(pay.createdAt) : new Date(),
-          updatedAt: pay.updatedAt ? new Date(pay.updatedAt) : new Date()
-        }
-      });
+      await p.$executeRawUnsafe(
+        `INSERT INTO "Payment" ("id", "workEntryId", "grossAmount", "taAmount", "otherAmount", "totalAmount", "status", "utrNumber", "paymentDate", "remarks", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         ON CONFLICT ("id") DO UPDATE SET
+           "workEntryId" = EXCLUDED."workEntryId",
+           "grossAmount" = EXCLUDED."grossAmount",
+           "taAmount" = EXCLUDED."taAmount",
+           "otherAmount" = EXCLUDED."otherAmount",
+           "totalAmount" = EXCLUDED."totalAmount",
+           "status" = EXCLUDED."status",
+           "utrNumber" = EXCLUDED."utrNumber",
+           "paymentDate" = EXCLUDED."paymentDate",
+           "remarks" = EXCLUDED."remarks",
+           "updatedAt" = EXCLUDED."updatedAt";`,
+        pay.id,
+        pay.workEntryId,
+        Number(pay.grossAmount) || 0,
+        pay.taAmount !== undefined && pay.taAmount !== null ? Number(pay.taAmount) : null,
+        pay.otherAmount !== undefined && pay.otherAmount !== null ? Number(pay.otherAmount) : null,
+        Number(pay.totalAmount) || 0,
+        pay.status || 'COMPLETED',
+        pay.utrNumber || null,
+        pay.paymentDate ? new Date(pay.paymentDate) : null,
+        pay.remarks || null,
+        pay.createdAt ? new Date(pay.createdAt) : new Date(),
+        pay.updatedAt ? new Date(pay.updatedAt) : new Date()
+      );
       count++;
     } catch (e: any) {
-      errors.push({ id: pay.id, error: e.message });
+      errors.push({ id: pay.id, workEntryId: pay.workEntryId, error: e.message });
     }
   }
   return { success: errors.length === 0, count, errors };
@@ -289,26 +327,29 @@ export async function syncDocuments(p: any = defaultPrisma) {
   const errors: any[] = [];
   for (const doc of ((masterData.document || []) as any[])) {
     try {
-      const docData = {
-        name: doc.name,
-        type: doc.type,
-        status: doc.status || 'SAVED',
-        filePath: doc.filePath || null,
-        version: Number(doc.version) || 1,
-        workEntryId: doc.workEntryId || null,
-        paymentId: doc.paymentId || null,
-      };
-
-      await p.document.upsert({
-        where: { id: doc.id },
-        update: docData,
-        create: {
-          id: doc.id,
-          ...docData,
-          createdAt: doc.createdAt ? new Date(doc.createdAt) : new Date(),
-          updatedAt: doc.updatedAt ? new Date(doc.updatedAt) : new Date()
-        }
-      });
+      await p.$executeRawUnsafe(
+        `INSERT INTO "Document" ("id", "name", "type", "status", "filePath", "version", "workEntryId", "paymentId", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT ("id") DO UPDATE SET
+           "name" = EXCLUDED."name",
+           "type" = EXCLUDED."type",
+           "status" = EXCLUDED."status",
+           "filePath" = EXCLUDED."filePath",
+           "version" = EXCLUDED."version",
+           "workEntryId" = EXCLUDED."workEntryId",
+           "paymentId" = EXCLUDED."paymentId",
+           "updatedAt" = EXCLUDED."updatedAt";`,
+        doc.id,
+        doc.name,
+        doc.type,
+        doc.status || 'SAVED',
+        doc.filePath || null,
+        doc.version ? Number(doc.version) : 1,
+        doc.workEntryId || null,
+        doc.paymentId || null,
+        doc.createdAt ? new Date(doc.createdAt) : new Date(),
+        doc.updatedAt ? new Date(doc.updatedAt) : new Date()
+      );
       count++;
     } catch (e: any) {
       errors.push({ id: doc.id, name: doc.name, error: e.message });
@@ -322,25 +363,27 @@ export async function syncVideoLibrary(p: any = defaultPrisma) {
   const errors: any[] = [];
   for (const v of ((masterData.videoLibrary || []) as any[])) {
     try {
-      const vData = {
-        epicId: v.epicId,
-        title: v.title,
-        smeName: v.smeName || null,
-        trade: v.trade || null,
-        duration: v.duration || null,
-        videoLink: v.videoLink || ''
-      };
-
-      await p.videoLibrary.upsert({
-        where: { id: v.id },
-        update: vData,
-        create: {
-          id: v.id,
-          ...vData,
-          createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
-          updatedAt: v.updatedAt ? new Date(v.updatedAt) : new Date()
-        }
-      });
+      await p.$executeRawUnsafe(
+        `INSERT INTO "VideoLibrary" ("id", "epicId", "title", "smeName", "trade", "duration", "videoLink", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT ("id") DO UPDATE SET
+           "epicId" = EXCLUDED."epicId",
+           "title" = EXCLUDED."title",
+           "smeName" = EXCLUDED."smeName",
+           "trade" = EXCLUDED."trade",
+           "duration" = EXCLUDED."duration",
+           "videoLink" = EXCLUDED."videoLink",
+           "updatedAt" = EXCLUDED."updatedAt";`,
+        v.id,
+        v.epicId || null,
+        v.title,
+        v.smeName || 'NIMI Expert',
+        v.trade || null,
+        v.duration || null,
+        v.videoLink || '',
+        v.createdAt ? new Date(v.createdAt) : new Date(),
+        v.updatedAt ? new Date(v.updatedAt) : new Date()
+      );
       count++;
     } catch (e: any) {
       errors.push({ id: v.id, title: v.title, error: e.message });
@@ -354,31 +397,39 @@ export async function syncShootingSchedules(p: any = defaultPrisma) {
   const errors: any[] = [];
   for (const s of ((masterData.shootingSchedule || []) as any[])) {
     try {
-      const sData = {
-        workEntryId: s.workEntryId,
-        videoTitle: s.videoTitle,
-        shootDate: s.shootDate ? new Date(s.shootDate) : null,
-        location: s.location || null,
-        shootingType: s.shootingType || null,
-        scheduledStart: s.scheduledStart ? new Date(s.scheduledStart) : null,
-        scheduledEnd: s.scheduledEnd ? new Date(s.scheduledEnd) : null,
-        actualStart: s.actualStart ? new Date(s.actualStart) : null,
-        actualEnd: s.actualEnd ? new Date(s.actualEnd) : null,
-        cameraman: s.cameraman || null,
-        status: s.status || 'SCHEDULED',
-        productionNotes: s.productionNotes || null,
-      };
-
-      await p.shootingSchedule.upsert({
-        where: { id: s.id },
-        update: sData,
-        create: {
-          id: s.id,
-          ...sData,
-          createdAt: s.createdAt ? new Date(s.createdAt) : new Date(),
-          updatedAt: s.updatedAt ? new Date(s.updatedAt) : new Date()
-        }
-      });
+      await p.$executeRawUnsafe(
+        `INSERT INTO "ShootingSchedule" ("id", "workEntryId", "videoTitle", "shootDate", "location", "shootingType", "scheduledStart", "scheduledEnd", "actualStart", "actualEnd", "cameraman", "status", "productionNotes", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         ON CONFLICT ("id") DO UPDATE SET
+           "workEntryId" = EXCLUDED."workEntryId",
+           "videoTitle" = EXCLUDED."videoTitle",
+           "shootDate" = EXCLUDED."shootDate",
+           "location" = EXCLUDED."location",
+           "shootingType" = EXCLUDED."shootingType",
+           "scheduledStart" = EXCLUDED."scheduledStart",
+           "scheduledEnd" = EXCLUDED."scheduledEnd",
+           "actualStart" = EXCLUDED."actualStart",
+           "actualEnd" = EXCLUDED."actualEnd",
+           "cameraman" = EXCLUDED."cameraman",
+           "status" = EXCLUDED."status",
+           "productionNotes" = EXCLUDED."productionNotes",
+           "updatedAt" = EXCLUDED."updatedAt";`,
+        s.id,
+        s.workEntryId,
+        s.videoTitle || null,
+        s.shootDate ? new Date(s.shootDate) : null,
+        s.location || null,
+        s.shootingType || null,
+        s.scheduledStart ? new Date(s.scheduledStart) : null,
+        s.scheduledEnd ? new Date(s.scheduledEnd) : null,
+        s.actualStart ? new Date(s.actualStart) : null,
+        s.actualEnd ? new Date(s.actualEnd) : null,
+        s.cameraman || null,
+        s.status || 'PLANNED',
+        s.productionNotes || null,
+        s.createdAt ? new Date(s.createdAt) : new Date(),
+        s.updatedAt ? new Date(s.updatedAt) : new Date()
+      );
       count++;
     } catch (e: any) {
       errors.push({ id: s.id, videoTitle: s.videoTitle, error: e.message });
@@ -392,30 +443,37 @@ export async function syncVideoEditorRecords(p: any = defaultPrisma) {
   const errors: any[] = [];
   for (const e of ((masterData.videoEditorRecord || []) as any[])) {
     try {
-      const eData = {
-        workEntryId: e.workEntryId,
-        assignedVideo: e.assignedVideo,
-        editorName: e.editorName || null,
-        editingStartDate: e.editingStartDate ? new Date(e.editingStartDate) : null,
-        editingEndDate: e.editingEndDate ? new Date(e.editingEndDate) : null,
-        roughCutLink: e.roughCutLink || null,
-        finalCutLink: e.finalCutLink || null,
-        duration: e.duration || null,
-        status: e.status || 'ASSIGNED',
-        reviewComments: e.reviewComments || null,
-        finalVideoFile: e.finalVideoFile || null,
-      };
-
-      await p.videoEditorRecord.upsert({
-        where: { id: e.id },
-        update: eData,
-        create: {
-          id: e.id,
-          ...eData,
-          createdAt: e.createdAt ? new Date(e.createdAt) : new Date(),
-          updatedAt: e.updatedAt ? new Date(e.updatedAt) : new Date()
-        }
-      });
+      await p.$executeRawUnsafe(
+        `INSERT INTO "VideoEditorRecord" ("id", "workEntryId", "assignedVideo", "editorName", "editingStartDate", "editingEndDate", "roughCutLink", "finalCutLink", "duration", "status", "reviewComments", "finalVideoFile", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         ON CONFLICT ("id") DO UPDATE SET
+           "workEntryId" = EXCLUDED."workEntryId",
+           "assignedVideo" = EXCLUDED."assignedVideo",
+           "editorName" = EXCLUDED."editorName",
+           "editingStartDate" = EXCLUDED."editingStartDate",
+           "editingEndDate" = EXCLUDED."editingEndDate",
+           "roughCutLink" = EXCLUDED."roughCutLink",
+           "finalCutLink" = EXCLUDED."finalCutLink",
+           "duration" = EXCLUDED."duration",
+           "status" = EXCLUDED."status",
+           "reviewComments" = EXCLUDED."reviewComments",
+           "finalVideoFile" = EXCLUDED."finalVideoFile",
+           "updatedAt" = EXCLUDED."updatedAt";`,
+        e.id,
+        e.workEntryId,
+        e.assignedVideo,
+        e.editorName || null,
+        e.editingStartDate ? new Date(e.editingStartDate) : null,
+        e.editingEndDate ? new Date(e.editingEndDate) : null,
+        e.roughCutLink || null,
+        e.finalCutLink || null,
+        e.duration || null,
+        e.status || 'ASSIGNED',
+        e.reviewComments || null,
+        e.finalVideoFile || null,
+        e.createdAt ? new Date(e.createdAt) : new Date(),
+        e.updatedAt ? new Date(e.updatedAt) : new Date()
+      );
       count++;
     } catch (err: any) {
       errors.push({ id: e.id, assignedVideo: e.assignedVideo, error: err.message });
