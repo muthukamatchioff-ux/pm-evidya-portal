@@ -271,7 +271,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const [searchInput, setSearchInput] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
   const [onlyMyAssigned, setOnlyMyAssigned] = useState(false);
-  const [viewFilter, setViewFilter] = useState<'COMPLETED' | 'ALL'>('COMPLETED');
+  const [viewFilter, setViewFilter] = useState<'COMPLETED' | 'ALL'>('ALL');
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
