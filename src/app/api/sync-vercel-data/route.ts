@@ -20,6 +20,19 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Diagnostic column inspector
+  if (searchParams.get('columns')) {
+    try {
+      const tableName = searchParams.get('columns');
+      const cols = await prisma.$queryRawUnsafe(
+        `SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_name = '${tableName}' ORDER BY ordinal_position;`
+      );
+      return NextResponse.json({ success: true, tableName, cols });
+    } catch (e: any) {
+      return NextResponse.json({ success: false, error: e.message });
+    }
+  }
+
   // Status Check
   if (searchParams.get('status') === 'true') {
     try {

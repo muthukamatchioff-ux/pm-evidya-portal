@@ -95,208 +95,199 @@ export async function backupDatabaseSnapshot(p: any = defaultPrisma) {
   };
 }
 
+async function processInChunks<T>(items: T[], chunkSize: number, fn: (item: T) => Promise<any>) {
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize);
+    await Promise.all(chunk.map(fn));
+  }
+}
+
 export async function executeVercelDataSync(p: any = defaultPrisma) {
   const beforeStats = await getDatabaseStats(p);
   console.log('[SyncVercelData] Starting data synchronization. Pre-sync stats:', beforeStats);
 
+  // Step 0: Ensure additive schema columns and VideoLibrary table exist
+  try {
+    await p.$executeRawUnsafe(`
+      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "password" TEXT;
+      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'ACTIVE';
+      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "designation" TEXT;
+      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "department" TEXT;
+      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lastLogin" TIMESTAMP(3);
+      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "createdBy" TEXT;
+    `);
+  } catch (e: any) {
+    console.warn('[SyncVercelData] User columns check notice:', e.message);
+  }
+
+  try {
+    await p.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "VideoLibrary" (
+        "id" TEXT PRIMARY KEY,
+        "smeName" TEXT NOT NULL,
+        "title" TEXT NOT NULL,
+        "videoLink" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "duration" TEXT,
+        "trade" TEXT,
+        "epicId" TEXT
+      );
+    `);
+  } catch (e: any) {
+    console.warn('[SyncVercelData] VideoLibrary table check notice:', e.message);
+  }
+
+  try {
+    await p.$executeRawUnsafe(`
+      ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "cameramanId" TEXT;
+      ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "editorId" TEXT;
+      ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "cameramanAssignedAt" TIMESTAMP(3);
+      ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "editorAssignedAt" TIMESTAMP(3);
+      ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "isPublished" BOOLEAN DEFAULT false;
+      ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "publishedAt" TIMESTAMP(3);
+      ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "publishedBy" TEXT;
+    `);
+  } catch (e: any) {
+    console.warn('[SyncVercelData] SMEWorkEntry columns check notice:', e.message);
+  }
+
   const results: any = {
-    users: { created: 0, updated: 0 },
-    smes: { created: 0, updated: 0 },
-    smeWorkEntries: { created: 0, updated: 0 },
-    payments: { created: 0, updated: 0 },
-    documents: { created: 0, updated: 0 },
-    videoLibrary: { created: 0, updated: 0 },
-    shootingSchedules: { created: 0, updated: 0 },
-    videoEditorRecords: { created: 0, updated: 0 },
+    users: 0,
+    smes: 0,
+    smeWorkEntries: 0,
+    payments: 0,
+    documents: 0,
+    videoLibrary: 0,
+    shootingSchedules: 0,
+    videoEditorRecords: 0,
   };
 
-  // 1. Synchronize Users (14 accounts)
-  for (const u of (masterData.user || [])) {
-    const existing = await p.user.findFirst({
-      where: { OR: [{ id: u.id }, { email: u.email }] }
-    });
+  // 1. Synchronize Users (14 accounts) in parallel
+  const userList = (masterData.user || []) as any[];
+  await Promise.all(
+    userList.map(async (u: any) => {
+      const userData: any = {
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        status: u.status || 'ACTIVE',
+        designation: u.designation || null,
+        department: u.department || null,
+      };
+      if (u.password) userData.password = u.password;
+      if (u.lastLogin) userData.lastLogin = new Date(u.lastLogin);
+      if (u.createdBy) userData.createdBy = u.createdBy;
 
-    const userData: any = {
-      email: u.email,
-      name: u.name,
-      role: u.role,
-      status: u.status || 'ACTIVE',
-      designation: u.designation || null,
-      department: u.department || null,
-    };
-    if (u.password) {
-      userData.password = u.password;
-    }
-    if (u.lastLogin) {
-      userData.lastLogin = new Date(u.lastLogin);
-    }
-    if (u.createdBy) {
-      userData.createdBy = u.createdBy;
-    }
-
-    if (existing) {
-      await p.user.update({
-        where: { id: existing.id },
-        data: userData
-      });
-      results.users.updated++;
-    } else {
-      await p.user.create({
-        data: {
+      await p.user.upsert({
+        where: { email: u.email },
+        update: userData,
+        create: {
           id: u.id,
           ...userData,
           createdAt: u.createdAt ? new Date(u.createdAt) : new Date(),
           updatedAt: u.updatedAt ? new Date(u.updatedAt) : new Date()
         }
       });
-      results.users.created++;
-    }
-  }
+      results.users++;
+    })
+  );
 
-  // 2. Synchronize Status, Trade, Language, Project if present
-  for (const st of (masterData.status || [])) {
-    await p.status.upsert({
-      where: { id: st.id },
-      update: { name: st.name },
-      create: { id: st.id, name: st.name }
-    }).catch(() => {});
-  }
-  for (const tr of (masterData.trade || [])) {
-    await p.trade.upsert({
-      where: { id: tr.id },
-      update: { name: tr.name },
-      create: { id: tr.id, name: tr.name }
-    }).catch(() => {});
-  }
-  for (const lang of (masterData.language || [])) {
-    await p.language.upsert({
-      where: { id: lang.id },
-      update: { name: lang.name },
-      create: { id: lang.id, name: lang.name }
-    }).catch(() => {});
-  }
-  for (const pr of (masterData.project || [])) {
-    await p.project.upsert({
-      where: { id: pr.id },
-      update: {
-        projectCode: pr.projectCode,
-        title: pr.title,
-        tradeId: pr.tradeId || null,
-        languageId: pr.languageId || null,
-        statusId: pr.statusId || null,
-        startDate: pr.startDate ? new Date(pr.startDate) : null,
-        completionDate: pr.completionDate ? new Date(pr.completionDate) : null,
-      },
-      create: {
-        id: pr.id,
-        projectCode: pr.projectCode,
-        title: pr.title,
-        tradeId: pr.tradeId || null,
-        languageId: pr.languageId || null,
-        statusId: pr.statusId || null,
-        startDate: pr.startDate ? new Date(pr.startDate) : null,
-        completionDate: pr.completionDate ? new Date(pr.completionDate) : null,
-      }
-    }).catch(() => {});
-  }
+  // 2. Synchronize SMEs (16 records) in parallel
+  const smeList = (masterData.sME || []) as any[];
+  await Promise.all(
+    smeList.map(async (s: any) => {
+      const smeData = {
+        name: s.name,
+        designation: s.designation || null,
+        institute: s.institute || null,
+        status: s.status || 'ACTIVE',
+        address: s.address || null,
+        location: s.location || null,
+        email: s.email || null,
+        contactNumber: s.contactNumber || null,
+      };
 
-  // 3. Synchronize SMEs (16 records)
-  for (const s of (masterData.sME || [])) {
-    const smeData = {
-      name: s.name,
-      designation: s.designation || null,
-      institute: s.institute || null,
-      status: s.status || 'ACTIVE',
-      address: s.address || null,
-      location: s.location || null,
-      email: s.email || null,
-      contactNumber: s.contactNumber || null,
-    };
-
-    const existing = await p.sME.findUnique({ where: { id: s.id } });
-    if (existing) {
-      await p.sME.update({ where: { id: s.id }, data: smeData });
-      results.smes.updated++;
-    } else {
-      await p.sME.create({
-        data: {
+      await p.sME.upsert({
+        where: { id: s.id },
+        update: smeData,
+        create: {
           id: s.id,
           ...smeData,
           createdAt: s.createdAt ? new Date(s.createdAt) : new Date(),
           updatedAt: s.updatedAt ? new Date(s.updatedAt) : new Date()
         }
       });
-      results.smes.created++;
-    }
-  }
+      results.smes++;
+    })
+  );
 
-  // 4. Synchronize SMEWorkEntries (16 records)
-  for (const we of (masterData.sMEWorkEntry || [])) {
-    const entryData = {
-      smeId: we.smeId,
-      trade: we.trade,
-      topic: we.topic,
-      attendanceFrom: we.attendanceFrom ? new Date(we.attendanceFrom) : null,
-      attendanceTo: we.attendanceTo ? new Date(we.attendanceTo) : null,
-      days: we.days !== undefined && we.days !== null ? Number(we.days) : null,
-      ratePerDay: we.ratePerDay !== undefined && we.ratePerDay !== null ? Number(we.ratePerDay) : null,
-      taAmount: we.taAmount !== undefined && we.taAmount !== null ? Number(we.taAmount) : null,
-      otherAmount: we.otherAmount !== undefined && we.otherAmount !== null ? Number(we.otherAmount) : null,
-      status: we.status || 'COMPLETED',
-      epicSequence: we.epicSequence
-    };
+  // 3. Synchronize SMEWorkEntries (16 records) in parallel
+  const weList = (masterData.sMEWorkEntry || []) as any[];
+  await Promise.all(
+    weList.map(async (we: any) => {
+      const entryData = {
+        smeId: we.smeId,
+        trade: we.trade,
+        topic: we.topic,
+        attendanceFrom: we.attendanceFrom ? new Date(we.attendanceFrom) : null,
+        attendanceTo: we.attendanceTo ? new Date(we.attendanceTo) : null,
+        days: we.days !== undefined && we.days !== null ? Number(we.days) : null,
+        ratePerDay: we.ratePerDay !== undefined && we.ratePerDay !== null ? Number(we.ratePerDay) : null,
+        taAmount: we.taAmount !== undefined && we.taAmount !== null ? Number(we.taAmount) : null,
+        otherAmount: we.otherAmount !== undefined && we.otherAmount !== null ? Number(we.otherAmount) : null,
+        status: we.status || 'COMPLETED',
+        epicSequence: we.epicSequence
+      };
 
-    const existing = await p.sMEWorkEntry.findUnique({ where: { id: we.id } });
-    if (existing) {
-      await p.sMEWorkEntry.update({ where: { id: we.id }, data: entryData });
-      results.smeWorkEntries.updated++;
-    } else {
-      await p.sMEWorkEntry.create({
-        data: {
+      await p.sMEWorkEntry.upsert({
+        where: { id: we.id },
+        update: entryData,
+        create: {
           id: we.id,
           ...entryData,
           createdAt: we.createdAt ? new Date(we.createdAt) : new Date(),
           updatedAt: we.updatedAt ? new Date(we.updatedAt) : new Date()
         }
       });
-      results.smeWorkEntries.created++;
-    }
-  }
+      results.smeWorkEntries++;
+    })
+  );
 
-  // 5. Synchronize Payments (16 records)
-  for (const pay of (masterData.payment || [])) {
-    const payData = {
-      workEntryId: pay.workEntryId,
-      grossAmount: Number(pay.grossAmount) || 0,
-      taAmount: pay.taAmount !== null && pay.taAmount !== undefined ? Number(pay.taAmount) : null,
-      otherAmount: pay.otherAmount !== null && pay.otherAmount !== undefined ? Number(pay.otherAmount) : null,
-      totalAmount: Number(pay.totalAmount) || 0,
-      status: pay.status || 'DRAFT',
-      utrNumber: pay.utrNumber || null,
-      paymentDate: pay.paymentDate ? new Date(pay.paymentDate) : null,
-      remarks: pay.remarks || null,
-      budgetHeadId: pay.budgetHeadId || null,
-    };
+  // 4. Synchronize Payments (16 records) in parallel
+  const payList = (masterData.payment || []) as any[];
+  await Promise.all(
+    payList.map(async (pay: any) => {
+      const payData = {
+        workEntryId: pay.workEntryId,
+        grossAmount: Number(pay.grossAmount) || 0,
+        taAmount: pay.taAmount !== null && pay.taAmount !== undefined ? Number(pay.taAmount) : null,
+        otherAmount: pay.otherAmount !== null && pay.otherAmount !== undefined ? Number(pay.otherAmount) : null,
+        totalAmount: Number(pay.totalAmount) || 0,
+        status: pay.status || 'DRAFT',
+        utrNumber: pay.utrNumber || null,
+        paymentDate: pay.paymentDate ? new Date(pay.paymentDate) : null,
+        remarks: pay.remarks || null,
+        budgetHeadId: pay.budgetHeadId || null,
+      };
 
-    const existing = await p.payment.findUnique({ where: { id: pay.id } });
-    if (existing) {
-      await p.payment.update({ where: { id: pay.id }, data: payData });
-      results.payments.updated++;
-    } else {
-      await p.payment.create({
-        data: {
+      await p.payment.upsert({
+        where: { id: pay.id },
+        update: payData,
+        create: {
           id: pay.id,
           ...payData,
           createdAt: pay.createdAt ? new Date(pay.createdAt) : new Date(),
           updatedAt: pay.updatedAt ? new Date(pay.updatedAt) : new Date()
         }
       });
-      results.payments.created++;
-    }
-  }
+      results.payments++;
+    })
+  );
 
-  // 6. Synchronize Documents (67 records)
-  for (const doc of (masterData.document || [])) {
+  // 5. Synchronize Documents (67 records) in chunks of 20
+  const docList = (masterData.document || []) as any[];
+  await processInChunks(docList, 20, async (doc: any) => {
     const docData = {
       name: doc.name,
       type: doc.type,
@@ -305,28 +296,24 @@ export async function executeVercelDataSync(p: any = defaultPrisma) {
       version: Number(doc.version) || 1,
       workEntryId: doc.workEntryId || null,
       paymentId: doc.paymentId || null,
-      projectId: doc.projectId || null,
     };
 
-    const existing = await p.document.findUnique({ where: { id: doc.id } });
-    if (existing) {
-      await p.document.update({ where: { id: doc.id }, data: docData });
-      results.documents.updated++;
-    } else {
-      await p.document.create({
-        data: {
-          id: doc.id,
-          ...docData,
-          createdAt: doc.createdAt ? new Date(doc.createdAt) : new Date(),
-          updatedAt: doc.updatedAt ? new Date(doc.updatedAt) : new Date()
-        }
-      });
-      results.documents.created++;
-    }
-  }
+    await p.document.upsert({
+      where: { id: doc.id },
+      update: docData,
+      create: {
+        id: doc.id,
+        ...docData,
+        createdAt: doc.createdAt ? new Date(doc.createdAt) : new Date(),
+        updatedAt: doc.updatedAt ? new Date(doc.updatedAt) : new Date()
+      }
+    });
+    results.documents++;
+  });
 
-  // 7. Synchronize VideoLibrary (84 records)
-  for (const v of (masterData.videoLibrary || [])) {
+  // 6. Synchronize VideoLibrary (84 records) in chunks of 20
+  const vidList = (masterData.videoLibrary || []) as any[];
+  await processInChunks(vidList, 20, async (v: any) => {
     const vData = {
       epicId: v.epicId,
       title: v.title,
@@ -336,25 +323,22 @@ export async function executeVercelDataSync(p: any = defaultPrisma) {
       videoLink: v.videoLink || ''
     };
 
-    const existing = await p.videoLibrary.findUnique({ where: { id: v.id } });
-    if (existing) {
-      await p.videoLibrary.update({ where: { id: v.id }, data: vData });
-      results.videoLibrary.updated++;
-    } else {
-      await p.videoLibrary.create({
-        data: {
-          id: v.id,
-          ...vData,
-          createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
-          updatedAt: v.updatedAt ? new Date(v.updatedAt) : new Date()
-        }
-      });
-      results.videoLibrary.created++;
-    }
-  }
+    await p.videoLibrary.upsert({
+      where: { id: v.id },
+      update: vData,
+      create: {
+        id: v.id,
+        ...vData,
+        createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
+        updatedAt: v.updatedAt ? new Date(v.updatedAt) : new Date()
+      }
+    });
+    results.videoLibrary++;
+  });
 
-  // 8. Synchronize ShootingSchedule (84 records)
-  for (const s of (masterData.shootingSchedule || [])) {
+  // 7. Synchronize ShootingSchedule (84 records) in chunks of 20
+  const shootList = (masterData.shootingSchedule || []) as any[];
+  await processInChunks(shootList, 20, async (s: any) => {
     const sData = {
       workEntryId: s.workEntryId,
       videoTitle: s.videoTitle,
@@ -370,25 +354,22 @@ export async function executeVercelDataSync(p: any = defaultPrisma) {
       productionNotes: s.productionNotes || null,
     };
 
-    const existing = await p.shootingSchedule.findUnique({ where: { id: s.id } });
-    if (existing) {
-      await p.shootingSchedule.update({ where: { id: s.id }, data: sData });
-      results.shootingSchedules.updated++;
-    } else {
-      await p.shootingSchedule.create({
-        data: {
-          id: s.id,
-          ...sData,
-          createdAt: s.createdAt ? new Date(s.createdAt) : new Date(),
-          updatedAt: s.updatedAt ? new Date(s.updatedAt) : new Date()
-        }
-      });
-      results.shootingSchedules.created++;
-    }
-  }
+    await p.shootingSchedule.upsert({
+      where: { id: s.id },
+      update: sData,
+      create: {
+        id: s.id,
+        ...sData,
+        createdAt: s.createdAt ? new Date(s.createdAt) : new Date(),
+        updatedAt: s.updatedAt ? new Date(s.updatedAt) : new Date()
+      }
+    });
+    results.shootingSchedules++;
+  });
 
-  // 9. Synchronize VideoEditorRecord (84 records)
-  for (const e of (masterData.videoEditorRecord || [])) {
+  // 8. Synchronize VideoEditorRecord (84 records) in chunks of 20
+  const editList = (masterData.videoEditorRecord || []) as any[];
+  await processInChunks(editList, 20, async (e: any) => {
     const eData = {
       workEntryId: e.workEntryId,
       assignedVideo: e.assignedVideo,
@@ -403,24 +384,20 @@ export async function executeVercelDataSync(p: any = defaultPrisma) {
       finalVideoFile: e.finalVideoFile || null,
     };
 
-    const existing = await p.videoEditorRecord.findUnique({ where: { id: e.id } });
-    if (existing) {
-      await p.videoEditorRecord.update({ where: { id: e.id }, data: eData });
-      results.videoEditorRecords.updated++;
-    } else {
-      await p.videoEditorRecord.create({
-        data: {
-          id: e.id,
-          ...eData,
-          createdAt: e.createdAt ? new Date(e.createdAt) : new Date(),
-          updatedAt: e.updatedAt ? new Date(e.updatedAt) : new Date()
-        }
-      });
-      results.videoEditorRecords.created++;
-    }
-  }
+    await p.videoEditorRecord.upsert({
+      where: { id: e.id },
+      update: eData,
+      create: {
+        id: e.id,
+        ...eData,
+        createdAt: e.createdAt ? new Date(e.createdAt) : new Date(),
+        updatedAt: e.updatedAt ? new Date(e.updatedAt) : new Date()
+      }
+    });
+    results.videoEditorRecords++;
+  });
 
-  // 10. Update sequence to ensure next inserts don't collide
+  // 9. Sequence update
   try {
     await p.$executeRawUnsafe(
       `SELECT setval('"SMEWorkEntry_epicSequence_seq"', GREATEST((SELECT COALESCE(MAX("epicSequence"), 0) FROM "SMEWorkEntry"), 20));`
