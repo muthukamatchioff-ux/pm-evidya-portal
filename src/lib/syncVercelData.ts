@@ -95,78 +95,51 @@ export async function backupDatabaseSnapshot(p: any = defaultPrisma) {
   };
 }
 
-async function processInChunks<T>(items: T[], chunkSize: number, fn: (item: T) => Promise<any>) {
-  for (let i = 0; i < items.length; i += chunkSize) {
-    const chunk = items.slice(i, i + chunkSize);
-    await Promise.all(chunk.map(fn));
+export async function syncSchema(p: any = defaultPrisma) {
+  const ddlStatements = [
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "password" TEXT;`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'ACTIVE';`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "designation" TEXT;`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "department" TEXT;`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lastLogin" TIMESTAMP(3);`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "createdBy" TEXT;`,
+    `CREATE TABLE IF NOT EXISTS "VideoLibrary" (
+      "id" TEXT PRIMARY KEY,
+      "smeName" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "videoLink" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "duration" TEXT,
+      "trade" TEXT,
+      "epicId" TEXT
+    );`,
+    `ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "cameramanId" TEXT;`,
+    `ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "editorId" TEXT;`,
+    `ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "cameramanAssignedAt" TIMESTAMP(3);`,
+    `ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "editorAssignedAt" TIMESTAMP(3);`,
+    `ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "isPublished" BOOLEAN DEFAULT false;`,
+    `ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "publishedAt" TIMESTAMP(3);`,
+    `ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "publishedBy" TEXT;`,
+  ];
+
+  const results: any[] = [];
+  for (const sql of ddlStatements) {
+    try {
+      await p.$executeRawUnsafe(sql);
+      results.push({ sql: sql.replace(/\s+/g, ' ').substring(0, 50), success: true });
+    } catch (e: any) {
+      results.push({ sql: sql.replace(/\s+/g, ' ').substring(0, 50), success: false, error: e.message });
+    }
   }
+  return { success: true, count: results.filter(r => r.success).length, results };
 }
 
-export async function executeVercelDataSync(p: any = defaultPrisma) {
-  const beforeStats = await getDatabaseStats(p);
-  console.log('[SyncVercelData] Starting data synchronization. Pre-sync stats:', beforeStats);
-
-  // Step 0: Ensure additive schema columns and VideoLibrary table exist
-  try {
-    await p.$executeRawUnsafe(`
-      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "password" TEXT;
-      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'ACTIVE';
-      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "designation" TEXT;
-      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "department" TEXT;
-      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lastLogin" TIMESTAMP(3);
-      ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "createdBy" TEXT;
-    `);
-  } catch (e: any) {
-    console.warn('[SyncVercelData] User columns check notice:', e.message);
-  }
-
-  try {
-    await p.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "VideoLibrary" (
-        "id" TEXT PRIMARY KEY,
-        "smeName" TEXT NOT NULL,
-        "title" TEXT NOT NULL,
-        "videoLink" TEXT NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "duration" TEXT,
-        "trade" TEXT,
-        "epicId" TEXT
-      );
-    `);
-  } catch (e: any) {
-    console.warn('[SyncVercelData] VideoLibrary table check notice:', e.message);
-  }
-
-  try {
-    await p.$executeRawUnsafe(`
-      ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "cameramanId" TEXT;
-      ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "editorId" TEXT;
-      ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "cameramanAssignedAt" TIMESTAMP(3);
-      ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "editorAssignedAt" TIMESTAMP(3);
-      ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "isPublished" BOOLEAN DEFAULT false;
-      ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "publishedAt" TIMESTAMP(3);
-      ALTER TABLE "SMEWorkEntry" ADD COLUMN IF NOT EXISTS "publishedBy" TEXT;
-    `);
-  } catch (e: any) {
-    console.warn('[SyncVercelData] SMEWorkEntry columns check notice:', e.message);
-  }
-
-  const results: any = {
-    users: 0,
-    smes: 0,
-    smeWorkEntries: 0,
-    payments: 0,
-    documents: 0,
-    videoLibrary: 0,
-    shootingSchedules: 0,
-    videoEditorRecords: 0,
-  };
-
-  // 1. Synchronize Users (14 accounts) in parallel
-  const userList = (masterData.user || []) as any[];
-  await Promise.all(
-    userList.map(async (u: any) => {
+export async function syncUsers(p: any = defaultPrisma) {
+  let count = 0;
+  const errors: any[] = [];
+  for (const u of ((masterData.user || []) as any[])) {
+    try {
       const userData: any = {
         email: u.email,
         name: u.name,
@@ -189,14 +162,19 @@ export async function executeVercelDataSync(p: any = defaultPrisma) {
           updatedAt: u.updatedAt ? new Date(u.updatedAt) : new Date()
         }
       });
-      results.users++;
-    })
-  );
+      count++;
+    } catch (e: any) {
+      errors.push({ id: u.id, email: u.email, error: e.message });
+    }
+  }
+  return { success: errors.length === 0, count, errors };
+}
 
-  // 2. Synchronize SMEs (16 records) in parallel
-  const smeList = (masterData.sME || []) as any[];
-  await Promise.all(
-    smeList.map(async (s: any) => {
+export async function syncSmes(p: any = defaultPrisma) {
+  let count = 0;
+  const errors: any[] = [];
+  for (const s of ((masterData.sME || []) as any[])) {
+    try {
       const smeData = {
         name: s.name,
         designation: s.designation || null,
@@ -218,14 +196,19 @@ export async function executeVercelDataSync(p: any = defaultPrisma) {
           updatedAt: s.updatedAt ? new Date(s.updatedAt) : new Date()
         }
       });
-      results.smes++;
-    })
-  );
+      count++;
+    } catch (e: any) {
+      errors.push({ id: s.id, name: s.name, error: e.message });
+    }
+  }
+  return { success: errors.length === 0, count, errors };
+}
 
-  // 3. Synchronize SMEWorkEntries (16 records) in parallel
-  const weList = (masterData.sMEWorkEntry || []) as any[];
-  await Promise.all(
-    weList.map(async (we: any) => {
+export async function syncWorkEntries(p: any = defaultPrisma) {
+  let count = 0;
+  const errors: any[] = [];
+  for (const we of ((masterData.sMEWorkEntry || []) as any[])) {
+    try {
       const entryData = {
         smeId: we.smeId,
         trade: we.trade,
@@ -250,14 +233,26 @@ export async function executeVercelDataSync(p: any = defaultPrisma) {
           updatedAt: we.updatedAt ? new Date(we.updatedAt) : new Date()
         }
       });
-      results.smeWorkEntries++;
-    })
-  );
+      count++;
+    } catch (e: any) {
+      errors.push({ id: we.id, epicSequence: we.epicSequence, error: e.message });
+    }
+  }
 
-  // 4. Synchronize Payments (16 records) in parallel
-  const payList = (masterData.payment || []) as any[];
-  await Promise.all(
-    payList.map(async (pay: any) => {
+  try {
+    await p.$executeRawUnsafe(
+      `SELECT setval('"SMEWorkEntry_epicSequence_seq"', GREATEST((SELECT COALESCE(MAX("epicSequence"), 0) FROM "SMEWorkEntry"), 20));`
+    );
+  } catch (_) {}
+
+  return { success: errors.length === 0, count, errors };
+}
+
+export async function syncPayments(p: any = defaultPrisma) {
+  let count = 0;
+  const errors: any[] = [];
+  for (const pay of ((masterData.payment || []) as any[])) {
+    try {
       const payData = {
         workEntryId: pay.workEntryId,
         grossAmount: Number(pay.grossAmount) || 0,
@@ -281,140 +276,193 @@ export async function executeVercelDataSync(p: any = defaultPrisma) {
           updatedAt: pay.updatedAt ? new Date(pay.updatedAt) : new Date()
         }
       });
-      results.payments++;
-    })
-  );
-
-  // 5. Synchronize Documents (67 records) in chunks of 20
-  const docList = (masterData.document || []) as any[];
-  await processInChunks(docList, 20, async (doc: any) => {
-    const docData = {
-      name: doc.name,
-      type: doc.type,
-      status: doc.status || 'SAVED',
-      filePath: doc.filePath || null,
-      version: Number(doc.version) || 1,
-      workEntryId: doc.workEntryId || null,
-      paymentId: doc.paymentId || null,
-    };
-
-    await p.document.upsert({
-      where: { id: doc.id },
-      update: docData,
-      create: {
-        id: doc.id,
-        ...docData,
-        createdAt: doc.createdAt ? new Date(doc.createdAt) : new Date(),
-        updatedAt: doc.updatedAt ? new Date(doc.updatedAt) : new Date()
-      }
-    });
-    results.documents++;
-  });
-
-  // 6. Synchronize VideoLibrary (84 records) in chunks of 20
-  const vidList = (masterData.videoLibrary || []) as any[];
-  await processInChunks(vidList, 20, async (v: any) => {
-    const vData = {
-      epicId: v.epicId,
-      title: v.title,
-      smeName: v.smeName || null,
-      trade: v.trade || null,
-      duration: v.duration || null,
-      videoLink: v.videoLink || ''
-    };
-
-    await p.videoLibrary.upsert({
-      where: { id: v.id },
-      update: vData,
-      create: {
-        id: v.id,
-        ...vData,
-        createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
-        updatedAt: v.updatedAt ? new Date(v.updatedAt) : new Date()
-      }
-    });
-    results.videoLibrary++;
-  });
-
-  // 7. Synchronize ShootingSchedule (84 records) in chunks of 20
-  const shootList = (masterData.shootingSchedule || []) as any[];
-  await processInChunks(shootList, 20, async (s: any) => {
-    const sData = {
-      workEntryId: s.workEntryId,
-      videoTitle: s.videoTitle,
-      shootDate: s.shootDate ? new Date(s.shootDate) : null,
-      location: s.location || null,
-      shootingType: s.shootingType || null,
-      scheduledStart: s.scheduledStart ? new Date(s.scheduledStart) : null,
-      scheduledEnd: s.scheduledEnd ? new Date(s.scheduledEnd) : null,
-      actualStart: s.actualStart ? new Date(s.actualStart) : null,
-      actualEnd: s.actualEnd ? new Date(s.actualEnd) : null,
-      cameraman: s.cameraman || null,
-      status: s.status || 'SCHEDULED',
-      productionNotes: s.productionNotes || null,
-    };
-
-    await p.shootingSchedule.upsert({
-      where: { id: s.id },
-      update: sData,
-      create: {
-        id: s.id,
-        ...sData,
-        createdAt: s.createdAt ? new Date(s.createdAt) : new Date(),
-        updatedAt: s.updatedAt ? new Date(s.updatedAt) : new Date()
-      }
-    });
-    results.shootingSchedules++;
-  });
-
-  // 8. Synchronize VideoEditorRecord (84 records) in chunks of 20
-  const editList = (masterData.videoEditorRecord || []) as any[];
-  await processInChunks(editList, 20, async (e: any) => {
-    const eData = {
-      workEntryId: e.workEntryId,
-      assignedVideo: e.assignedVideo,
-      editorName: e.editorName || null,
-      editingStartDate: e.editingStartDate ? new Date(e.editingStartDate) : null,
-      editingEndDate: e.editingEndDate ? new Date(e.editingEndDate) : null,
-      roughCutLink: e.roughCutLink || null,
-      finalCutLink: e.finalCutLink || null,
-      duration: e.duration || null,
-      status: e.status || 'ASSIGNED',
-      reviewComments: e.reviewComments || null,
-      finalVideoFile: e.finalVideoFile || null,
-    };
-
-    await p.videoEditorRecord.upsert({
-      where: { id: e.id },
-      update: eData,
-      create: {
-        id: e.id,
-        ...eData,
-        createdAt: e.createdAt ? new Date(e.createdAt) : new Date(),
-        updatedAt: e.updatedAt ? new Date(e.updatedAt) : new Date()
-      }
-    });
-    results.videoEditorRecords++;
-  });
-
-  // 9. Sequence update
-  try {
-    await p.$executeRawUnsafe(
-      `SELECT setval('"SMEWorkEntry_epicSequence_seq"', GREATEST((SELECT COALESCE(MAX("epicSequence"), 0) FROM "SMEWorkEntry"), 20));`
-    );
-  } catch (seqErr: any) {
-    console.warn('[SyncVercelData] Sequence setval warning:', seqErr.message);
+      count++;
+    } catch (e: any) {
+      errors.push({ id: pay.id, error: e.message });
+    }
   }
+  return { success: errors.length === 0, count, errors };
+}
 
-  const afterStats = await getDatabaseStats(p);
-  console.log('[SyncVercelData] Synchronization complete. Post-sync stats:', afterStats);
+export async function syncDocuments(p: any = defaultPrisma) {
+  let count = 0;
+  const errors: any[] = [];
+  for (const doc of ((masterData.document || []) as any[])) {
+    try {
+      const docData = {
+        name: doc.name,
+        type: doc.type,
+        status: doc.status || 'SAVED',
+        filePath: doc.filePath || null,
+        version: Number(doc.version) || 1,
+        workEntryId: doc.workEntryId || null,
+        paymentId: doc.paymentId || null,
+      };
 
-  return {
-    success: true,
+      await p.document.upsert({
+        where: { id: doc.id },
+        update: docData,
+        create: {
+          id: doc.id,
+          ...docData,
+          createdAt: doc.createdAt ? new Date(doc.createdAt) : new Date(),
+          updatedAt: doc.updatedAt ? new Date(doc.updatedAt) : new Date()
+        }
+      });
+      count++;
+    } catch (e: any) {
+      errors.push({ id: doc.id, name: doc.name, error: e.message });
+    }
+  }
+  return { success: errors.length === 0, count, errors };
+}
+
+export async function syncVideoLibrary(p: any = defaultPrisma) {
+  let count = 0;
+  const errors: any[] = [];
+  for (const v of ((masterData.videoLibrary || []) as any[])) {
+    try {
+      const vData = {
+        epicId: v.epicId,
+        title: v.title,
+        smeName: v.smeName || null,
+        trade: v.trade || null,
+        duration: v.duration || null,
+        videoLink: v.videoLink || ''
+      };
+
+      await p.videoLibrary.upsert({
+        where: { id: v.id },
+        update: vData,
+        create: {
+          id: v.id,
+          ...vData,
+          createdAt: v.createdAt ? new Date(v.createdAt) : new Date(),
+          updatedAt: v.updatedAt ? new Date(v.updatedAt) : new Date()
+        }
+      });
+      count++;
+    } catch (e: any) {
+      errors.push({ id: v.id, title: v.title, error: e.message });
+    }
+  }
+  return { success: errors.length === 0, count, errors };
+}
+
+export async function syncShootingSchedules(p: any = defaultPrisma) {
+  let count = 0;
+  const errors: any[] = [];
+  for (const s of ((masterData.shootingSchedule || []) as any[])) {
+    try {
+      const sData = {
+        workEntryId: s.workEntryId,
+        videoTitle: s.videoTitle,
+        shootDate: s.shootDate ? new Date(s.shootDate) : null,
+        location: s.location || null,
+        shootingType: s.shootingType || null,
+        scheduledStart: s.scheduledStart ? new Date(s.scheduledStart) : null,
+        scheduledEnd: s.scheduledEnd ? new Date(s.scheduledEnd) : null,
+        actualStart: s.actualStart ? new Date(s.actualStart) : null,
+        actualEnd: s.actualEnd ? new Date(s.actualEnd) : null,
+        cameraman: s.cameraman || null,
+        status: s.status || 'SCHEDULED',
+        productionNotes: s.productionNotes || null,
+      };
+
+      await p.shootingSchedule.upsert({
+        where: { id: s.id },
+        update: sData,
+        create: {
+          id: s.id,
+          ...sData,
+          createdAt: s.createdAt ? new Date(s.createdAt) : new Date(),
+          updatedAt: s.updatedAt ? new Date(s.updatedAt) : new Date()
+        }
+      });
+      count++;
+    } catch (e: any) {
+      errors.push({ id: s.id, videoTitle: s.videoTitle, error: e.message });
+    }
+  }
+  return { success: errors.length === 0, count, errors };
+}
+
+export async function syncVideoEditorRecords(p: any = defaultPrisma) {
+  let count = 0;
+  const errors: any[] = [];
+  for (const e of ((masterData.videoEditorRecord || []) as any[])) {
+    try {
+      const eData = {
+        workEntryId: e.workEntryId,
+        assignedVideo: e.assignedVideo,
+        editorName: e.editorName || null,
+        editingStartDate: e.editingStartDate ? new Date(e.editingStartDate) : null,
+        editingEndDate: e.editingEndDate ? new Date(e.editingEndDate) : null,
+        roughCutLink: e.roughCutLink || null,
+        finalCutLink: e.finalCutLink || null,
+        duration: e.duration || null,
+        status: e.status || 'ASSIGNED',
+        reviewComments: e.reviewComments || null,
+        finalVideoFile: e.finalVideoFile || null,
+      };
+
+      await p.videoEditorRecord.upsert({
+        where: { id: e.id },
+        update: eData,
+        create: {
+          id: e.id,
+          ...eData,
+          createdAt: e.createdAt ? new Date(e.createdAt) : new Date(),
+          updatedAt: e.updatedAt ? new Date(e.updatedAt) : new Date()
+        }
+      });
+      count++;
+    } catch (err: any) {
+      errors.push({ id: e.id, assignedVideo: e.assignedVideo, error: err.message });
+    }
+  }
+  return { success: errors.length === 0, count, errors };
+}
+
+export async function executeVercelDataSync(p: any = defaultPrisma, section: string = 'all') {
+  const beforeStats = await getDatabaseStats(p);
+
+  const report: any = {
+    section,
     timestamp: new Date().toISOString(),
     source: 'Vercel Working Deployment (db_backup_2026-10-28T11-56-01-213Z.json)',
     statsBefore: beforeStats,
-    statsAfter: afterStats,
-    recordsSynchronized: results
+    results: {}
   };
+
+  if (section === 'schema' || section === 'all') {
+    report.results.schema = await syncSchema(p);
+  }
+  if (section === 'users' || section === 'all') {
+    report.results.users = await syncUsers(p);
+  }
+  if (section === 'smes' || section === 'all') {
+    report.results.smes = await syncSmes(p);
+  }
+  if (section === 'workentries' || section === 'all') {
+    report.results.workentries = await syncWorkEntries(p);
+  }
+  if (section === 'payments' || section === 'all') {
+    report.results.payments = await syncPayments(p);
+  }
+  if (section === 'documents' || section === 'all') {
+    report.results.documents = await syncDocuments(p);
+  }
+  if (section === 'videos' || section === 'all') {
+    report.results.videos = await syncVideoLibrary(p);
+  }
+  if (section === 'schedules' || section === 'all') {
+    report.results.schedules = await syncShootingSchedules(p);
+  }
+  if (section === 'editors' || section === 'all') {
+    report.results.editors = await syncVideoEditorRecords(p);
+  }
+
+  report.statsAfter = await getDatabaseStats(p);
+  return { success: true, ...report };
 }

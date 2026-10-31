@@ -53,10 +53,11 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Execute Synchronization
+  // Execute Synchronization (all or by section: schema, users, smes, workentries, payments, documents, videos, schedules, editors)
   if (searchParams.get('execute') === 'true' && searchParams.get('key') === 'pm_sync_2026_vercel') {
     try {
-      const result = await executeVercelDataSync(prisma);
+      const section = searchParams.get('section') || 'all';
+      const result = await executeVercelDataSync(prisma, section);
       return NextResponse.json(result);
     } catch (e: any) {
       return NextResponse.json({ success: false, error: e.message }, { status: 500 });
@@ -67,16 +68,19 @@ export async function GET(request: NextRequest) {
     message: 'PM e-Vidya Vercel-to-Voroa Sync API',
     endpoints: {
       tables: '/api/sync-vercel-data?tables=true',
+      columns: '/api/sync-vercel-data?columns=User',
       status: '/api/sync-vercel-data?status=true',
       backup: '/api/sync-vercel-data?backup=true',
-      execute: '/api/sync-vercel-data?execute=true&key=pm_sync_2026_vercel (or POST)'
+      execute: '/api/sync-vercel-data?execute=true&key=pm_sync_2026_vercel&section=users'
     }
   });
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const result = await executeVercelDataSync(prisma);
+    const { searchParams } = new URL(request.url);
+    const section = searchParams.get('section') || 'all';
+    const result = await executeVercelDataSync(prisma, section);
     return NextResponse.json(result);
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
