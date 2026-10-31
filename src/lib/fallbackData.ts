@@ -1707,25 +1707,6 @@ export const REAL_PM_EVIDYA_BUDGET_COMPONENTS = [
         "verificationStatus": "RECONCILED",
         "createdAt": "2026-10-01T04:50:10.531Z",
         "updatedAt": "2026-10-01T04:50:10.531Z"
-      },
-      {
-        "id": "cmv9cqup00001eso22li8d4es",
-        "budgetComponentId": "cmup22i1b0005v0oygf37znxn",
-        "platform": "Meta Ads / Google Ads",
-        "campaignDesc": "PM eVidya Awareness Campaign",
-        "datePeriod": "06-Aug-2026",
-        "serviceProvider": "Various Agencies",
-        "campaignType": "Awareness",
-        "amount": 45868,
-        "tax": 0,
-        "totalExpenditure": 45868,
-        "utrNumber": "JV20000017/26-27",
-        "approvalRef": null,
-        "remarks": "CN20001/76426-27 correction of entry",
-        "supportingDoc": null,
-        "verificationStatus": "DRAFT",
-        "createdAt": "2026-10-15T09:44:26.341Z",
-        "updatedAt": "2026-10-15T09:44:26.341Z"
       }
     ]
   }

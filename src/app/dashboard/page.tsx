@@ -28,6 +28,34 @@ export default async function Dashboard() {
             Approved Budget vs Expenditure – Component-wise Financial Dashboard
           </p>
         </div>
+        <div style={{
+          display: 'flex',
+          gap: '16px',
+          flexWrap: 'wrap',
+          backgroundColor: '#f8fafc',
+          padding: '10px 16px',
+          borderRadius: '8px',
+          border: '1px solid #e2e8f0',
+          alignItems: 'center'
+        }}>
+          <div>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', fontWeight: 600, display: 'block' }}>
+              Reporting Period
+            </span>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>
+              June 2026 – September 2026 (Q2 FY 2026-27)
+            </span>
+          </div>
+          <div style={{ height: '28px', width: '1px', backgroundColor: '#cbd5e1' }}></div>
+          <div>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', fontWeight: 600, display: 'block' }}>
+              Latest Statement Date
+            </span>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>
+              16-Sep-2026
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* TOP KPI CARDS */}
@@ -94,6 +122,21 @@ export default async function Dashboard() {
                 <div className={styles.progressText}>
                   {comp.utilizationPercent}% Utilized
                 </div>
+
+                {comp.componentNo === 3 && (
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '6px 10px',
+                    backgroundColor: '#fffbeb',
+                    border: '1px solid #fef3c7',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    color: '#92400e',
+                    lineHeight: '1.4'
+                  }}>
+                    ℹ️ <strong>Audit Note:</strong> Retained per reference figure; subject to reconciliation of duplicate TA vouchers.
+                  </div>
+                )}
 
                 <div className={styles.budgetActions}>
                   <Link href={`/budget/annexure-${comp.componentNo}`} className={styles.btnActionSm}>
