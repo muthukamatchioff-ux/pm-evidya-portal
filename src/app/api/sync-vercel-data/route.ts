@@ -8,6 +8,18 @@ export const revalidate = 0;
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
+  // Diagnostic table inspector
+  if (searchParams.get('tables') === 'true') {
+    try {
+      const tables = await prisma.$queryRawUnsafe(
+        `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;`
+      );
+      return NextResponse.json({ success: true, tables });
+    } catch (e: any) {
+      return NextResponse.json({ success: false, error: e.message });
+    }
+  }
+
   // Status Check
   if (searchParams.get('status') === 'true') {
     try {
@@ -41,6 +53,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     message: 'PM e-Vidya Vercel-to-Voroa Sync API',
     endpoints: {
+      tables: '/api/sync-vercel-data?tables=true',
       status: '/api/sync-vercel-data?status=true',
       backup: '/api/sync-vercel-data?backup=true',
       execute: '/api/sync-vercel-data?execute=true&key=pm_sync_2026_vercel (or POST)'
