@@ -97,6 +97,9 @@ export async function GET(request: Request) {
         `SELECT last_value, is_called FROM "SMEWorkEntry_epicSequence_seq";`
       )) as any[];
 
+      const sequenceLastValue = seqStatus[0]?.last_value ? String(seqStatus[0].last_value) : null;
+      const sequenceIsCalled = Boolean(seqStatus[0]?.is_called);
+
       return NextResponse.json({
         success: true,
         message: 'Part 1 Schema-Only Migration executed successfully on staging-voroa-test.',
@@ -107,7 +110,10 @@ export async function GET(request: Request) {
           postMigrationRecordCount: postCount,
           recordsPreserved: preCount === postCount,
           nullCount,
-          sequenceStatus: seqStatus[0] || null,
+          sequenceStatus: {
+            lastValue: sequenceLastValue,
+            isCalled: sequenceIsCalled
+          },
           verifiedQueryWorking: true,
           sampleEntries: postRows
         }
