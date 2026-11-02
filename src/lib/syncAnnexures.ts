@@ -191,6 +191,9 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
           });
         }
       }
+    }, {
+      maxWait: 15000,
+      timeout: 30000
     });
 
     try {
