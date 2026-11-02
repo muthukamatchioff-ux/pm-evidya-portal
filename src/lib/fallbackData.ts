@@ -1006,6 +1006,22 @@ export const REAL_PM_EVIDYA_BUDGET_COMPONENTS = [
   }
 ];
 
+const CANONICAL_ANNEXURE_I_RAW = JSON.parse(JSON.stringify(REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI));
+const CANONICAL_ANNEXURE_II_RAW = JSON.parse(JSON.stringify(REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII));
+const CANONICAL_ANNEXURE_III_RAW = JSON.parse(JSON.stringify(REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII));
+
+export function getCanonicalAnnexureI() {
+  return JSON.parse(JSON.stringify(CANONICAL_ANNEXURE_I_RAW));
+}
+
+export function getCanonicalAnnexureII() {
+  return JSON.parse(JSON.stringify(CANONICAL_ANNEXURE_II_RAW));
+}
+
+export function getCanonicalAnnexureIII() {
+  return JSON.parse(JSON.stringify(CANONICAL_ANNEXURE_III_RAW));
+}
+
 export const REAL_PM_EVIDYA_BUDGET_HEADS = [
   {
     "id": "cmuo25r89000514erttt8vhii",

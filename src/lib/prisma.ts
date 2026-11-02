@@ -6,7 +6,10 @@ import {
   REAL_PM_EVIDYA_PROJECTS,
   REAL_PM_EVIDYA_PRODUCTION_RECORDS,
   REAL_PM_EVIDYA_VIDEOS,
-  REAL_PM_EVIDYA_SME_WORK_ENTRIES
+  REAL_PM_EVIDYA_SME_WORK_ENTRIES,
+  getCanonicalAnnexureI,
+  getCanonicalAnnexureII,
+  getCanonicalAnnexureIII
 } from './fallbackData';
 
 const globalForPrisma = global as unknown as { prisma: any };
@@ -134,14 +137,14 @@ const createPrismaClient = () => {
               console.error(`[Prisma Intercepted] DB query fallback for ${model}.${operation}`);
               
               if (model === 'BudgetComponent') {
-                if (REAL_PM_EVIDYA_BUDGET_COMPONENTS[0]?.annexureI && REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI.length > 8) {
-                  REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI = REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI.slice(0, 8);
+                if (!REAL_PM_EVIDYA_BUDGET_COMPONENTS[0]?.annexureI || REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI.length !== 8) {
+                  REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI = getCanonicalAnnexureI();
                 }
-                if (REAL_PM_EVIDYA_BUDGET_COMPONENTS[1]?.annexureII && REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII.length > 23) {
-                  REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII = REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII.slice(0, 23);
+                if (!REAL_PM_EVIDYA_BUDGET_COMPONENTS[1]?.annexureII || REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII.length !== 26) {
+                  REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII = getCanonicalAnnexureII();
                 }
-                if (REAL_PM_EVIDYA_BUDGET_COMPONENTS[2]?.annexureIII && REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII.length !== 1) {
-                  REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII = REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII.slice(0, 1);
+                if (!REAL_PM_EVIDYA_BUDGET_COMPONENTS[2]?.annexureIII || REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII.length !== 1) {
+                  REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII = getCanonicalAnnexureIII();
                 }
                 if (operation === 'findMany') {
                   return REAL_PM_EVIDYA_BUDGET_COMPONENTS;
@@ -197,9 +200,32 @@ const createPrismaClient = () => {
               }
 
               if (model === 'AnnexureI') {
+                if (!REAL_PM_EVIDYA_BUDGET_COMPONENTS[0]?.annexureI || REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI.length !== 8) {
+                  REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI = getCanonicalAnnexureI();
+                }
                 const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[0]?.annexureI || []) as any[];
                 if (operation === 'findMany') return list;
-                if (operation === 'deleteMany') { REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI = []; return { count: 0 }; }
+                if (operation === 'deleteMany') {
+                  const targetId = args?.where?.id;
+                  if (targetId && typeof targetId === 'string') {
+                    REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI = list.filter((x: any) => x.id !== targetId);
+                  } else {
+                    REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI = [];
+                  }
+                  return { count: list.length };
+                }
+                if (operation === 'createMany') {
+                  const items = Array.isArray(args?.data) ? args.data : [args?.data];
+                  for (const item of items) {
+                    list.push({
+                      id: item?.id || `ai-${Date.now()}-${Math.random()}`,
+                      ...item,
+                      createdAt: item?.createdAt || new Date().toISOString(),
+                      updatedAt: item?.updatedAt || new Date().toISOString()
+                    });
+                  }
+                  return { count: items.length };
+                }
                 if (operation === 'create') {
                   const newItem = { id: `ai-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
                   list.push(newItem);
@@ -224,9 +250,32 @@ const createPrismaClient = () => {
               }
 
               if (model === 'AnnexureII') {
+                if (!REAL_PM_EVIDYA_BUDGET_COMPONENTS[1]?.annexureII || REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII.length !== 26) {
+                  REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII = getCanonicalAnnexureII();
+                }
                 const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[1]?.annexureII || []) as any[];
                 if (operation === 'findMany') return list;
-                if (operation === 'deleteMany') { REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII = []; return { count: 0 }; }
+                if (operation === 'deleteMany') {
+                  const targetId = args?.where?.id;
+                  if (targetId && typeof targetId === 'string') {
+                    REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII = list.filter((x: any) => x.id !== targetId);
+                  } else {
+                    REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII = [];
+                  }
+                  return { count: list.length };
+                }
+                if (operation === 'createMany') {
+                  const items = Array.isArray(args?.data) ? args.data : [args?.data];
+                  for (const item of items) {
+                    list.push({
+                      id: item?.id || `aii-${Date.now()}-${Math.random()}`,
+                      ...item,
+                      createdAt: item?.createdAt || new Date().toISOString(),
+                      updatedAt: item?.updatedAt || new Date().toISOString()
+                    });
+                  }
+                  return { count: items.length };
+                }
                 if (operation === 'create') {
                   const newItem = { id: `aii-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
                   list.push(newItem);
@@ -251,9 +300,32 @@ const createPrismaClient = () => {
               }
 
               if (model === 'AnnexureIII') {
+                if (!REAL_PM_EVIDYA_BUDGET_COMPONENTS[2]?.annexureIII || REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII.length !== 1) {
+                  REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII = getCanonicalAnnexureIII();
+                }
                 const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[2]?.annexureIII || []) as any[];
                 if (operation === 'findMany') return list;
-                if (operation === 'deleteMany') { REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII = []; return { count: 0 }; }
+                if (operation === 'deleteMany') {
+                  const targetId = args?.where?.id;
+                  if (targetId && typeof targetId === 'string') {
+                    REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII = list.filter((x: any) => x.id !== targetId);
+                  } else {
+                    REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII = [];
+                  }
+                  return { count: list.length };
+                }
+                if (operation === 'createMany') {
+                  const items = Array.isArray(args?.data) ? args.data : [args?.data];
+                  for (const item of items) {
+                    list.push({
+                      id: item?.id || `aiii-${Date.now()}-${Math.random()}`,
+                      ...item,
+                      createdAt: item?.createdAt || new Date().toISOString(),
+                      updatedAt: item?.updatedAt || new Date().toISOString()
+                    });
+                  }
+                  return { count: items.length };
+                }
                 if (operation === 'findUnique' || operation === 'findFirst') {
                   return list.find((x: any) => x.id === args?.where?.id) || null;
                 }

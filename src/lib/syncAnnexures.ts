@@ -1,5 +1,10 @@
 import { prisma as defaultPrisma } from './prisma';
-import { REAL_PM_EVIDYA_BUDGET_COMPONENTS } from './fallbackData';
+import {
+  REAL_PM_EVIDYA_BUDGET_COMPONENTS,
+  getCanonicalAnnexureI,
+  getCanonicalAnnexureII,
+  getCanonicalAnnexureIII
+} from './fallbackData';
 import { revalidatePath } from 'next/cache';
 
 export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean = false) {
@@ -65,132 +70,135 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
       };
     }
 
-    const fallbackComp1 = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 1);
-    const fallbackComp2 = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 2);
-    const fallbackComp3 = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 3);
+    const canonicalAnnexureI = getCanonicalAnnexureI();
+    const canonicalAnnexureII = getCanonicalAnnexureII();
+    const canonicalAnnexureIII = getCanonicalAnnexureIII();
 
-    if (!fallbackComp1 || !fallbackComp2 || !fallbackComp3) {
-      throw new Error('Fallback data for components missing');
-    }
+    try {
+      await p.$transaction(async (tx: any) => {
+        // 1. Sync Component 1 if needed
+        if (comp1NeedsSync) {
+          console.log('[SyncAnnexures] Synchronizing Annexure I (8 records, ₹1,55,735)...');
+          await tx.annexureI.deleteMany({
+            where: { budgetComponentId: comp1.id }
+          });
 
-    await p.$transaction(async (tx: any) => {
-      // 1. Sync Component 1 if needed
-      if (comp1NeedsSync) {
-        console.log('[SyncAnnexures] Synchronizing Annexure I (8 records, ₹1,55,735)...');
-        await tx.annexureI.deleteMany({
-          where: { budgetComponentId: comp1.id }
-        });
-
-        await tx.annexureI.createMany({
-          data: fallbackComp1.annexureI.map((item: any) => ({
-            id: item.id,
-            budgetComponentId: comp1.id,
-            datePeriod: item.datePeriod || '',
-            expertName: item.expertName || '',
-            designation: item.designation || '',
-            activity: item.activity || 'Digital Content Development',
-            workingDays: Number(item.workingDays) || 0,
-            honorarium: Number(item.honorarium) || 0,
-            travelAllowance: Number(item.travelAllowance) || 0,
-            otherCharges: Number(item.otherCharges) || 0,
-            totalExpenditure: Number(item.totalExpenditure) || 0,
-            utrNumber: item.utrNumber || '',
-            contentDuration: item.contentDuration || '-',
-            approvalRef: item.approvalRef || null,
-            remarks: item.remarks || '',
-            supportingDoc: item.supportingDoc || null,
-            verificationStatus: item.verificationStatus || 'DRAFT',
-            tranType: item.tranType || null,
-            voucherNo: item.voucherNo || null,
-            transactionDate: item.transactionDate ? new Date(item.transactionDate) : null,
-            commitmentNo: item.commitmentNo || null,
-            commitmentDate: item.commitmentDate ? new Date(item.commitmentDate) : null,
-            narration: item.narration || null,
-            createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
-            updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
-          }))
-        });
-      }
-
-      // 2. Sync Component 2 if needed
-      if (comp2NeedsSync) {
-        console.log('[SyncAnnexures] Synchronizing Annexure II (26 records, ₹2,10,969)...');
-        await tx.annexureII.deleteMany({
-          where: { budgetComponentId: comp2.id }
-        });
-
-        await tx.annexureII.createMany({
-          data: fallbackComp2.annexureII.map((item: any) => ({
-            id: item.id,
-            budgetComponentId: comp2.id,
-            datePeriod: item.datePeriod || '',
-            trainingName: item.trainingName || 'Capacity Building Program on PM eVidya Content Development Ecosystem and Digital Content Standards for Stakeholders.',
-            trainingType: item.trainingType || 'Hybrid',
-            participant: item.participant || '',
-            venue: item.venue || 'NIMI Chennai',
-            noOfParticipants: Number(item.noOfParticipants) || 0,
-            trainingDays: Number(item.trainingDays) || 2,
-            trainerFee: Number(item.trainerFee) || 0,
-            trainingCost: Number(item.trainingCost) || 0,
-            travelAllowance: Number(item.travelAllowance) || 0,
-            accommodation: Number(item.accommodation) || 0,
-            otherExpenses: Number(item.otherExpenses) || 0,
-            totalExpenditure: Number(item.totalExpenditure) || 0,
-            utrNumber: item.utrNumber || '',
-            approvalRef: item.approvalRef || null,
-            remarks: item.remarks || '',
-            supportingDoc: item.supportingDoc || null,
-            verificationStatus: item.verificationStatus || 'DRAFT',
-            trainingDates: item.trainingDates || '30:07:2026 & 31:07:2026',
-            createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
-            updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
-          }))
-        });
-      }
-
-      // 3. Sync Component 3 if needed
-      if (comp3NeedsSync) {
-        console.log('[SyncAnnexures] Synchronizing Annexure III (1 record, ₹1,45,000)...');
-        await tx.annexureIII.deleteMany({
-          where: { budgetComponentId: comp3.id }
-        });
-
-        for (const item of fallbackComp3.annexureIII) {
-          await tx.annexureIII.create({
-            data: {
+          await tx.annexureI.createMany({
+            data: canonicalAnnexureI.map((item: any) => ({
               id: item.id,
-              budgetComponentId: comp3.id,
-              datePeriod: item.datePeriod || '07-Oct-2026',
-              personnelName: item.personnelName || 'Consultant Salary',
-              designation: item.designation || 'Contract Staff',
-              supportType: item.supportType || 'Sal (GSAL)',
-              department: item.department || 'PM e-Vidya Project',
-              workPeriod: item.workPeriod || '1 Month (September 2026)',
-              remuneration: Number(item.remuneration) || 145000,
-              taDa: Number(item.taDa) || 0,
+              budgetComponentId: comp1.id,
+              datePeriod: item.datePeriod || '',
+              expertName: item.expertName || '',
+              designation: item.designation || '',
+              activity: item.activity || 'Digital Content Development',
+              workingDays: Number(item.workingDays) || 0,
+              honorarium: Number(item.honorarium) || 0,
+              travelAllowance: Number(item.travelAllowance) || 0,
               otherCharges: Number(item.otherCharges) || 0,
-              totalExpenditure: Number(item.totalExpenditure) || 145000,
-              utrNumber: item.utrNumber || 'JV20000062/26-27',
-              voucherNo: item.voucherNo || 'JV20000062/26-27',
-              commitmentNo: item.commitmentNo || '00454/0001/26-2026/1',
-              tranType: item.tranType || 'Sal (GSAL)',
-              transactionDate: item.transactionDate ? new Date(item.transactionDate) : new Date('2026-10-07T00:00:00.000Z'),
-              commitmentDate: item.commitmentDate ? new Date(item.commitmentDate) : new Date('2026-10-07T00:00:00.000Z'),
-              approvalRef: item.approvalRef || '00454/0001/26-2026/1',
-              remarks: item.remarks || 'Contract Staff Chennai eVidya Salary payable during the month of September 2026 for project 0001/16-2026',
-              narration: item.narration || 'Contract Staff Chennai eVidya Salary payable during the month of September 2026 for project 0001/16-2026',
+              totalExpenditure: Number(item.totalExpenditure) || 0,
+              utrNumber: item.utrNumber || '',
+              contentDuration: item.contentDuration || '-',
+              approvalRef: item.approvalRef || null,
+              remarks: item.remarks || '',
               supportingDoc: item.supportingDoc || null,
-              verificationStatus: item.verificationStatus || 'VERIFIED',
-              createdAt: item.createdAt ? new Date(item.createdAt) : new Date('2026-10-07T00:00:00.000Z'),
-              updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date('2026-10-07T00:00:00.000Z')
-            }
+              verificationStatus: item.verificationStatus || 'DRAFT',
+              tranType: item.tranType || null,
+              voucherNo: item.voucherNo || null,
+              transactionDate: item.transactionDate ? new Date(item.transactionDate) : null,
+              commitmentNo: item.commitmentNo || null,
+              commitmentDate: item.commitmentDate ? new Date(item.commitmentDate) : null,
+              narration: item.narration || null,
+              createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
+              updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
+            }))
           });
         }
-      }
-    }, {
-      maxWait: 15000,
-      timeout: 30000
-    });
+
+        // 2. Sync Component 2 if needed
+        if (comp2NeedsSync) {
+          console.log('[SyncAnnexures] Synchronizing Annexure II (26 records, ₹2,10,969)...');
+          await tx.annexureII.deleteMany({
+            where: { budgetComponentId: comp2.id }
+          });
+
+          await tx.annexureII.createMany({
+            data: canonicalAnnexureII.map((item: any) => ({
+              id: item.id,
+              budgetComponentId: comp2.id,
+              datePeriod: item.datePeriod || '',
+              trainingName: item.trainingName || 'Capacity Building Program on PM eVidya Content Development Ecosystem and Digital Content Standards for Stakeholders.',
+              trainingType: item.trainingType || 'Hybrid',
+              participant: item.participant || '',
+              venue: item.venue || 'NIMI Chennai',
+              noOfParticipants: Number(item.noOfParticipants) || 0,
+              trainingDays: Number(item.trainingDays) || 2,
+              trainerFee: Number(item.trainerFee) || 0,
+              trainingCost: Number(item.trainingCost) || 0,
+              travelAllowance: Number(item.travelAllowance) || 0,
+              accommodation: Number(item.accommodation) || 0,
+              otherExpenses: Number(item.otherExpenses) || 0,
+              totalExpenditure: Number(item.totalExpenditure) || 0,
+              utrNumber: item.utrNumber || '',
+              approvalRef: item.approvalRef || null,
+              remarks: item.remarks || '',
+              supportingDoc: item.supportingDoc || null,
+              verificationStatus: item.verificationStatus || 'DRAFT',
+              trainingDates: item.trainingDates || '30:07:2026 & 31:07:2026',
+              createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
+              updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
+            }))
+          });
+        }
+
+        // 3. Sync Component 3 if needed
+        if (comp3NeedsSync) {
+          console.log('[SyncAnnexures] Synchronizing Annexure III (1 record, ₹1,45,000)...');
+          await tx.annexureIII.deleteMany({
+            where: { budgetComponentId: comp3.id }
+          });
+
+          for (const item of canonicalAnnexureIII) {
+            await tx.annexureIII.create({
+              data: {
+                id: item.id,
+                budgetComponentId: comp3.id,
+                datePeriod: item.datePeriod || '07-Oct-2026',
+                personnelName: item.personnelName || 'Consultant Salary',
+                designation: item.designation || 'Contract Staff',
+                supportType: item.supportType || 'Sal (GSAL)',
+                department: item.department || 'PM e-Vidya Project',
+                workPeriod: item.workPeriod || '1 Month (September 2026)',
+                remuneration: Number(item.remuneration) || 145000,
+                taDa: Number(item.taDa) || 0,
+                otherCharges: Number(item.otherCharges) || 0,
+                totalExpenditure: Number(item.totalExpenditure) || 145000,
+                utrNumber: item.utrNumber || 'JV20000062/26-27',
+                voucherNo: item.voucherNo || 'JV20000062/26-27',
+                commitmentNo: item.commitmentNo || '00454/0001/26-2026/1',
+                tranType: item.tranType || 'Sal (GSAL)',
+                transactionDate: item.transactionDate ? new Date(item.transactionDate) : new Date('2026-10-07T00:00:00.000Z'),
+                commitmentDate: item.commitmentDate ? new Date(item.commitmentDate) : new Date('2026-10-07T00:00:00.000Z'),
+                approvalRef: item.approvalRef || '00454/0001/26-2026/1',
+                remarks: item.remarks || 'Contract Staff Chennai eVidya Salary payable during the month of September 2026 for project 0001/16-2026',
+                narration: item.narration || 'Contract Staff Chennai eVidya Salary payable during the month of September 2026 for project 0001/16-2026',
+                supportingDoc: item.supportingDoc || null,
+                verificationStatus: item.verificationStatus || 'VERIFIED',
+                createdAt: item.createdAt ? new Date(item.createdAt) : new Date('2026-10-07T00:00:00.000Z'),
+                updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date('2026-10-07T00:00:00.000Z')
+              }
+            });
+          }
+        }
+      }, {
+        maxWait: 15000,
+        timeout: 30000
+      });
+    } catch (txErr: any) {
+      console.warn('[SyncAnnexures] Interactive transaction fallback / offline mode:', txErr.message);
+      if (comp1NeedsSync) REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI = getCanonicalAnnexureI();
+      if (comp2NeedsSync) REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII = getCanonicalAnnexureII();
+      if (comp3NeedsSync) REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII = getCanonicalAnnexureIII();
+    }
 
     try {
       revalidatePath('/dashboard');
