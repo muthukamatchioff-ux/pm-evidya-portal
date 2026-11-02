@@ -52,7 +52,7 @@ export default async function Dashboard() {
               Latest Statement Date
             </span>
             <span style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>
-              16-Sep-2026
+              07-Oct-2026
             </span>
           </div>
         </div>
@@ -127,14 +127,14 @@ export default async function Dashboard() {
                   <div style={{
                     marginTop: '8px',
                     padding: '6px 10px',
-                    backgroundColor: '#fffbeb',
-                    border: '1px solid #fef3c7',
+                    backgroundColor: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
                     borderRadius: '6px',
                     fontSize: '11px',
-                    color: '#92400e',
+                    color: '#166534',
                     lineHeight: '1.4'
                   }}>
-                    ℹ️ <strong>Audit Note:</strong> Retained per reference figure; subject to reconciliation of duplicate TA vouchers.
+                    ✓ <strong>Verified:</strong> Consultant Salary for September 2026 (Voucher JV20000062/26-27).
                   </div>
                 )}
 

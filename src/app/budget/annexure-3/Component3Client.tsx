@@ -37,6 +37,8 @@ export default function Component3Client({ role, budgetComponentId, entries }: {
     taDa: '', 
     otherCharges: '', 
     utrNumber: '', 
+    voucherNo: '', 
+    commitmentNo: '', 
     remarks: ''
   });
 
@@ -59,7 +61,9 @@ export default function Component3Client({ role, budgetComponentId, entries }: {
         remuneration: Number(formData.remuneration) || 0,
         taDa: Number(formData.taDa) || 0,
         otherCharges: Number(formData.otherCharges) || 0,
-        utrNumber: formData.utrNumber,
+        utrNumber: formData.utrNumber || formData.voucherNo,
+        voucherNo: formData.voucherNo || formData.utrNumber,
+        commitmentNo: formData.commitmentNo,
         remarks: formData.remarks
       };
       
@@ -86,7 +90,7 @@ export default function Component3Client({ role, budgetComponentId, entries }: {
       setFormData({
         datePeriod: '', personnelName: '', designation: '', supportType: '', 
         department: '', workPeriod: '', remuneration: '', taDa: '', 
-        otherCharges: '', utrNumber: '', remarks: ''
+        otherCharges: '', utrNumber: '', voucherNo: '', commitmentNo: '', remarks: ''
       });
       router.refresh();
       alert(editingId ? "Transaction Updated Successfully" : "Transaction Added Successfully");
@@ -189,6 +193,10 @@ export default function Component3Client({ role, budgetComponentId, entries }: {
             <input type="text" name="utrNumber" value={formData.utrNumber} onChange={handleChange} placeholder="e.g. UTR12345678" />
           </div>
           <div className={styles.formGroup}>
+            <label>Commitment No.</label>
+            <input type="text" name="commitmentNo" value={formData.commitmentNo} onChange={handleChange} placeholder="e.g. 00454/0001/26-2026/1" />
+          </div>
+          <div className={styles.formGroup}>
             <label>Remarks / Narration</label>
             <input type="text" name="remarks" value={formData.remarks} onChange={handleChange} placeholder="e.g. Paid for editing work" />
           </div>
@@ -218,13 +226,14 @@ export default function Component3Client({ role, budgetComponentId, entries }: {
               <th>Monthly Salary</th>
               <th>Total</th>
               <th>Voucher No.</th>
+              <th>Commitment No.</th>
               <th>Remarks/Narration</th>
               {role === 'ADMIN' && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
             {records.length === 0 ? (
-              <tr><td colSpan={12} style={{textAlign:'center'}}>No records found</td></tr>
+              <tr><td colSpan={13} style={{textAlign:'center'}}>No records found</td></tr>
             ) : (
               records.map((entry, idx) => (
                 <tr key={entry.id}>
@@ -237,7 +246,8 @@ export default function Component3Client({ role, budgetComponentId, entries }: {
                   <td>{entry.workPeriod}</td>
                   <td>₹ {(Number(entry.remuneration) || 0).toLocaleString('en-IN')}</td>
                   <td style={{fontWeight: 'bold'}}>₹ {(Number(entry.totalExpenditure) || 0).toLocaleString('en-IN')}</td>
-                  <td>{entry.voucherNo || entry.utrNumber || '-'}</td>
+                  <td><strong style={{ fontFamily: 'monospace' }}>{entry.voucherNo || entry.utrNumber || '-'}</strong></td>
+                  <td><span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#475569' }}>{entry.commitmentNo || '-'}</span></td>
                   <td><div title={entry.narration || entry.remarks || ''} style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'help' }}>{entry.narration || entry.remarks || '-'}</div></td>
                   {role === 'ADMIN' && (
                     <td style={{ whiteSpace: 'nowrap' }}>
@@ -256,6 +266,8 @@ export default function Component3Client({ role, budgetComponentId, entries }: {
                             taDa: entry.taDa?.toString() || '',
                             otherCharges: entry.otherCharges?.toString() || '',
                             utrNumber: entry.utrNumber || entry.voucherNo || '',
+                            voucherNo: entry.voucherNo || entry.utrNumber || '',
+                            commitmentNo: entry.commitmentNo || '',
                             remarks: entry.remarks || entry.narration || ''
                           }); 
                         }} 

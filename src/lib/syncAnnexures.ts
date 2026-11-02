@@ -16,13 +16,17 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
       include: { annexureII: true }
     });
 
-    if (!comp1 || !comp2) {
-      console.warn('[SyncAnnexures] Budget components 1 or 2 not found in database.');
+    const comp3 = await p.budgetComponent.findUnique({
+      where: { componentNo: 3 },
+      include: { annexureIII: true }
+    });
+
+    if (!comp1 || !comp2 || !comp3) {
+      console.warn('[SyncAnnexures] Budget components 1, 2 or 3 not found in database.');
       return { success: false, reason: 'Components not found' };
     }
 
     // Check if Component 1 has old stale records
-    // Check if Component 1 has old stale records (only if force is explicitly passed)
     const comp1NeedsSync = force ||
       (comp1.annexureI.length === 0) ||
       comp1.annexureI.some((r: any) =>
@@ -32,7 +36,7 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
       ) ||
       (comp1.annexureI.reduce((sum: number, r: any) => sum + (r.totalExpenditure || 0), 0) === 150347 && comp1.annexureI.length === 2);
 
-    // Check if Component 2 has old stale records (only if force is explicitly passed)
+    // Check if Component 2 has old stale records
     const comp2NeedsSync = force ||
       (comp2.annexureII.length === 0) ||
       comp2.annexureII.some((r: any) =>
@@ -41,21 +45,32 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
       ) ||
       (comp2.annexureII.reduce((sum: number, r: any) => sum + (r.totalExpenditure || 0), 0) === 252117 && comp2.annexureII.length === 30);
 
-    if (!comp1NeedsSync && !comp2NeedsSync) {
+    // Check if Component 3 has old stale records (must have exactly 1 record: JV20000062/26-27, ₹1,45,000)
+    const comp3NeedsSync = force ||
+      (comp3.annexureIII.length !== 1) ||
+      comp3.annexureIII.some((r: any) =>
+        r.voucherNo !== 'JV20000062/26-27' ||
+        r.totalExpenditure !== 145000 ||
+        r.personnelName?.includes('PRIYA')
+      );
+
+    if (!comp1NeedsSync && !comp2NeedsSync && !comp3NeedsSync) {
       return {
         success: true,
         synced: false,
-        message: 'Annexure I and Annexure II are already in sync with verified data.',
+        message: 'Annexures I, II, and III are already in sync with verified data.',
         comp1Count: comp1.annexureI.length,
-        comp2Count: comp2.annexureII.length
+        comp2Count: comp2.annexureII.length,
+        comp3Count: comp3.annexureIII.length
       };
     }
 
     const fallbackComp1 = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 1);
     const fallbackComp2 = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 2);
+    const fallbackComp3 = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 3);
 
-    if (!fallbackComp1 || !fallbackComp2) {
-      throw new Error('Fallback data for components 1 and 2 missing');
+    if (!fallbackComp1 || !fallbackComp2 || !fallbackComp3) {
+      throw new Error('Fallback data for components missing');
     }
 
     await p.$transaction(async (tx: any) => {
@@ -136,6 +151,46 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
           });
         }
       }
+
+      // 3. Sync Component 3 if needed
+      if (comp3NeedsSync) {
+        console.log('[SyncAnnexures] Synchronizing Annexure III (1 record, ₹1,45,000)...');
+        await tx.annexureIII.deleteMany({
+          where: { budgetComponentId: comp3.id }
+        });
+
+        for (const item of fallbackComp3.annexureIII) {
+          await tx.annexureIII.create({
+            data: {
+              id: item.id,
+              budgetComponentId: comp3.id,
+              datePeriod: item.datePeriod || '07-Oct-2026',
+              personnelName: item.personnelName || 'Consultant Salary',
+              designation: item.designation || 'Contract Staff',
+              supportType: item.supportType || 'Sal (GSAL)',
+              department: item.department || 'PM e-Vidya Project',
+              workPeriod: item.workPeriod || '1 Month (September 2026)',
+              remuneration: Number(item.remuneration) || 145000,
+              taDa: Number(item.taDa) || 0,
+              otherCharges: Number(item.otherCharges) || 0,
+              totalExpenditure: Number(item.totalExpenditure) || 145000,
+              utrNumber: item.utrNumber || 'JV20000062/26-27',
+              voucherNo: item.voucherNo || 'JV20000062/26-27',
+              commitmentNo: item.commitmentNo || '00454/0001/26-2026/1',
+              tranType: item.tranType || 'Sal (GSAL)',
+              transactionDate: item.transactionDate ? new Date(item.transactionDate) : new Date('2026-10-07T00:00:00.000Z'),
+              commitmentDate: item.commitmentDate ? new Date(item.commitmentDate) : new Date('2026-10-07T00:00:00.000Z'),
+              approvalRef: item.approvalRef || '00454/0001/26-2026/1',
+              remarks: item.remarks || 'Contract Staff Chennai eVidya Salary payable during the month of September 2026 for project 0001/16-2026',
+              narration: item.narration || 'Contract Staff Chennai eVidya Salary payable during the month of September 2026 for project 0001/16-2026',
+              supportingDoc: item.supportingDoc || null,
+              verificationStatus: item.verificationStatus || 'VERIFIED',
+              createdAt: item.createdAt ? new Date(item.createdAt) : new Date('2026-10-07T00:00:00.000Z'),
+              updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date('2026-10-07T00:00:00.000Z')
+            }
+          });
+        }
+      }
     });
 
     try {
@@ -143,6 +198,8 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
       revalidatePath('/budget');
       revalidatePath('/budget/annexure-1');
       revalidatePath('/budget/annexure-2');
+      revalidatePath('/budget/annexure-3');
+      revalidatePath('/reports');
     } catch {}
 
     const updatedComp1 = await p.budgetComponent.findUnique({
@@ -153,9 +210,14 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
       where: { componentNo: 2 },
       include: { annexureII: true }
     });
+    const updatedComp3 = await p.budgetComponent.findUnique({
+      where: { componentNo: 3 },
+      include: { annexureIII: true }
+    });
 
     const comp1Total = updatedComp1?.annexureI.reduce((s: number, r: any) => s + r.totalExpenditure, 0) || 0;
     const comp2Total = updatedComp2?.annexureII.reduce((s: number, r: any) => s + r.totalExpenditure, 0) || 0;
+    const comp3Total = updatedComp3?.annexureIII.reduce((s: number, r: any) => s + r.totalExpenditure, 0) || 0;
 
     return {
       success: true,
@@ -163,7 +225,10 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
       comp1Count: updatedComp1?.annexureI.length || 0,
       comp1Expenditure: comp1Total,
       comp2Count: updatedComp2?.annexureII.length || 0,
-      comp2Expenditure: comp2Total
+      comp2Expenditure: comp2Total,
+      comp3Count: updatedComp3?.annexureIII.length || 0,
+      comp3Expenditure: comp3Total,
+      totalExpenditure: comp1Total + comp2Total + comp3Total
     };
   } catch (error: any) {
     console.error('[SyncAnnexures Error]:', error);
