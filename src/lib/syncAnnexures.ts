@@ -38,12 +38,12 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
 
     // Check if Component 2 has old stale records
     const comp2NeedsSync = force ||
-      (comp2.annexureII.length !== 23) ||
+      (comp2.annexureII.length !== 26) ||
       comp2.annexureII.some((r: any) =>
         r.remarks?.includes('Legacy Import') ||
         (r.participant?.includes('PRIYA.S') && r.travelAllowance === 29245)
       ) ||
-      (comp2.annexureII.reduce((sum: number, r: any) => sum + (r.totalExpenditure || 0), 0) !== 159479);
+      (comp2.annexureII.reduce((sum: number, r: any) => sum + (r.totalExpenditure || 0), 0) !== 210969);
 
     // Check if Component 3 has old stale records (must have exactly 1 record: JV20000062/26-27, ₹1,45,000)
     const comp3NeedsSync = force ||
@@ -116,7 +116,7 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
 
       // 2. Sync Component 2 if needed
       if (comp2NeedsSync) {
-        console.log('[SyncAnnexures] Synchronizing Annexure II (23 records, ₹1,59,479)...');
+        console.log('[SyncAnnexures] Synchronizing Annexure II (26 records, ₹2,10,969)...');
         await tx.annexureII.deleteMany({
           where: { budgetComponentId: comp2.id }
         });
