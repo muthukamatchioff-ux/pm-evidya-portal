@@ -40,7 +40,7 @@ export default async function SMEProfilePage(props: { params: Promise<{ id: stri
     );
     if (matched) {
       const allMatchingEntries = REAL_PM_EVIDYA_SME_WORK_ENTRIES.filter(
-        (e: any) => e.smeId === params.id || e.sme?.id === params.id
+        (e: any) => e.smeId === params.id || e.sme?.id === params.id || e.id === params.id
       );
       sme = {
         ...matched.sme,
@@ -50,7 +50,8 @@ export default async function SMEProfilePage(props: { params: Promise<{ id: stri
   } else if (!sme.workEntries || sme.workEntries.length === 0) {
     const { REAL_PM_EVIDYA_SME_WORK_ENTRIES } = await import('@/lib/fallbackData');
     const allMatchingEntries = REAL_PM_EVIDYA_SME_WORK_ENTRIES.filter(
-      (e: any) => e.smeId === params.id || e.sme?.id === params.id || e.id === params.id
+      (e: any) => e.smeId === params.id || e.sme?.id === params.id || e.id === params.id ||
+        (sme.name && e.sme?.name?.trim().toLowerCase() === sme.name?.trim().toLowerCase())
     );
     if (allMatchingEntries.length > 0) {
       sme.workEntries = allMatchingEntries;
@@ -115,4 +116,3 @@ export default async function SMEProfilePage(props: { params: Promise<{ id: stri
     </div>
   );
 }
-

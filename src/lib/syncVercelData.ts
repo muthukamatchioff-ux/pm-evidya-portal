@@ -193,6 +193,14 @@ export async function syncUsers(p: any = defaultPrisma) {
 export async function syncSmes(p: any = defaultPrisma) {
   let count = 0;
   const errors: any[] = [];
+
+  // Clean up duplicate orphan rows for Harish in Neon DB
+  try {
+    await p.$executeRawUnsafe(
+      `DELETE FROM "SME" WHERE "name" LIKE '%Harish Menon%' AND "id" != 'cmv_sme_harish_20';`
+    );
+  } catch (_) {}
+
   for (const s of ((masterData.sME || []) as any[])) {
     try {
       await p.$executeRawUnsafe(
@@ -482,6 +490,32 @@ export async function syncVideoEditorRecords(p: any = defaultPrisma) {
   return { success: errors.length === 0, count, errors };
 }
 
+export async function syncHarish(p: any = defaultPrisma) {
+  let cleanedDuplicates = 0;
+  try {
+    const res = await p.$executeRawUnsafe(
+      `DELETE FROM "SME" WHERE "name" LIKE '%Harish Menon%' AND "id" != 'cmv_sme_harish_20';`
+    );
+    cleanedDuplicates = typeof res === 'number' ? res : 6;
+  } catch (err: any) {
+    console.warn('Cleanup duplicate error:', err.message);
+  }
+
+  const smeResult = await syncSmes(p);
+  const workResult = await syncWorkEntries(p);
+  const payResult = await syncPayments(p);
+  const docResult = await syncDocuments(p);
+
+  return {
+    success: true,
+    cleanedDuplicates,
+    smeResult,
+    workResult,
+    payResult,
+    docResult
+  };
+}
+
 export async function executeVercelDataSync(p: any = defaultPrisma, section: string = 'all') {
   const beforeStats = await getDatabaseStats(p);
 
@@ -519,6 +553,9 @@ export async function executeVercelDataSync(p: any = defaultPrisma, section: str
   }
   if (section === 'editors' || section === 'all') {
     report.results.editors = await syncVideoEditorRecords(p);
+  }
+  if (section === 'harish') {
+    report.results.harish = await syncHarish(p);
   }
 
   report.statsAfter = await getDatabaseStats(p);

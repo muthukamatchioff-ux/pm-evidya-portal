@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Execute Synchronization (all or by section: schema, users, smes, workentries, payments, documents, videos, schedules, editors)
+  // Execute Synchronization (all or by section: schema, users, smes, harish, workentries, payments, documents, videos, schedules, editors)
   if (searchParams.get('execute') === 'true' && searchParams.get('key') === 'pm_sync_2026_vercel') {
     try {
       const section = searchParams.get('section') || 'all';

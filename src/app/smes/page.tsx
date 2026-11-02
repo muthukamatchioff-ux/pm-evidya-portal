@@ -28,19 +28,64 @@ export default async function SMEsPage() {
       },
       orderBy: { epicSequence: 'desc' }
     });
-  } catch {}
+  } catch (e) {
+    console.warn('Failed to load SMEWorkEntries from DB:', e);
+  }
 
   const { REAL_PM_EVIDYA_SME_WORK_ENTRIES } = await import('@/lib/fallbackData');
+
   if (!workEntries || workEntries.length === 0) {
-    workEntries = REAL_PM_EVIDYA_SME_WORK_ENTRIES;
-  } else if (workEntries.length < REAL_PM_EVIDYA_SME_WORK_ENTRIES.length) {
+    workEntries = [...REAL_PM_EVIDYA_SME_WORK_ENTRIES];
+  } else {
+    // 1. Ensure all authoritative fallback entries (e.g. Harish Menon / Epic 20) are included
     const existingIds = new Set(workEntries.map(e => e.id));
     const existingSeqs = new Set(workEntries.map(e => e.epicSequence));
+    const existingNames = new Set(workEntries.map(e => e.sme?.name?.trim().toLowerCase()).filter(Boolean));
+
     for (const fb of (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[])) {
-      if (!existingIds.has(fb.id) && !existingSeqs.has(fb.epicSequence)) {
+      const fbName = fb.sme?.name?.trim().toLowerCase();
+      if (!existingIds.has(fb.id) && !existingSeqs.has(fb.epicSequence) && (!fbName || !existingNames.has(fbName))) {
         workEntries.push(fb);
       }
     }
+
+    // 2. Safeguard: Check for any SME rows in DB without work entries so they are never hidden
+    try {
+      const dbSmes = await prisma.sME.findMany();
+      const linkedSmeIds = new Set(workEntries.map(e => e.smeId).filter(Boolean));
+      for (const s of dbSmes) {
+        if (!linkedSmeIds.has(s.id)) {
+          // Check if fallback has this SME
+          const matchedFb = (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).find(
+            fb => fb.smeId === s.id || fb.sme?.name?.trim().toLowerCase() === s.name.trim().toLowerCase()
+          );
+          if (matchedFb) {
+            if (!workEntries.some(e => e.id === matchedFb.id)) {
+              workEntries.push({ ...matchedFb, sme: s, smeId: s.id });
+              linkedSmeIds.add(s.id);
+            }
+          } else {
+            workEntries.push({
+              id: `entry_synth_${s.id}`,
+              smeId: s.id,
+              trade: 'General',
+              topic: 'PM e-Vidya Content Development',
+              status: s.status || 'ACTIVE',
+              days: 0,
+              ratePerDay: 1500,
+              taAmount: 0,
+              otherAmount: 0,
+              epicSequence: 0,
+              sme: s,
+              payments: [],
+              documents: []
+            });
+            linkedSmeIds.add(s.id);
+          }
+        }
+      }
+    } catch (_) {}
+
     workEntries.sort((a, b) => (b.epicSequence || 0) - (a.epicSequence || 0));
   }
 

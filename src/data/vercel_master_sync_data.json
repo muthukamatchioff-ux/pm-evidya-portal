@@ -406,6 +406,19 @@
       "location": "Chennai",
       "email": null,
       "contactNumber": null
+    },
+    {
+      "id": "cmv_sme_harish_20",
+      "name": "Shri Harish Menon R",
+      "designation": "Senior Instructor",
+      "institute": "Govt ITI",
+      "status": "ACTIVE",
+      "createdAt": "2026-10-31T10:08:40.000Z",
+      "updatedAt": "2026-11-02T05:11:47.000Z",
+      "address": "Govt ITI Kalamassery, Kerala",
+      "location": "Kalamassery",
+      "email": null,
+      "contactNumber": null
     }
   ],
   "sMEWorkEntry": [
@@ -680,6 +693,30 @@
       "updatedAt": "2026-10-23T06:04:37.390Z",
       "topicId": null,
       "epicSequence": 15
+    },
+    {
+      "id": "cmv_entry_harish_20",
+      "smeId": "cmv_sme_harish_20",
+      "trade": "Instrument Mechanic",
+      "topic": "Scope and necessity of Instrumentation, Pressure, Flow, Level & Temperature Measurement",
+      "attendanceFrom": "2026-08-09T00:00:00.000Z",
+      "attendanceTo": "2026-08-13T00:00:00.000Z",
+      "days": 4,
+      "ratePerDay": 1500,
+      "taAmount": 9639,
+      "otherAmount": 0,
+      "status": "COMPLETED",
+      "createdAt": "2026-10-31T10:08:40.000Z",
+      "updatedAt": "2026-11-02T05:11:47.000Z",
+      "topicId": null,
+      "epicSequence": 20,
+      "cameramanId": null,
+      "editorId": null,
+      "cameramanAssignedAt": null,
+      "editorAssignedAt": null,
+      "isPublished": true,
+      "publishedAt": "2026-10-31T10:15:04.000Z",
+      "publishedBy": "harshitharaman.nimi@gmail.com"
     }
   ],
   "payment": [
@@ -921,6 +958,21 @@
       "remarks": null,
       "createdAt": "2026-10-03T07:24:00.196Z",
       "updatedAt": "2026-10-23T06:04:37.421Z",
+      "budgetHeadId": null
+    },
+    {
+      "id": "cmv_pay_harish_20",
+      "workEntryId": "cmv_entry_harish_20",
+      "grossAmount": 6000,
+      "taAmount": 9639,
+      "otherAmount": 0,
+      "totalAmount": 15639,
+      "status": "COMPLETED",
+      "utrNumber": "CN2/002317/26-27",
+      "paymentDate": "2026-09-17T00:00:00.000Z",
+      "remarks": "Payment for Instrument Mechanic video series",
+      "createdAt": "2026-10-31T10:08:40.000Z",
+      "updatedAt": "2026-11-02T05:11:47.000Z",
       "budgetHeadId": null
     }
   ],
@@ -1794,6 +1846,58 @@
       "paymentId": null,
       "createdAt": "2026-10-23T06:04:37.395Z",
       "updatedAt": "2026-10-23T11:22:57.232Z",
+      "projectId": null
+    },
+    {
+      "id": "cmv_doc_app_20",
+      "name": "Approval Letter - EPIC-2026-PMeVidya 20",
+      "type": "APPROVAL_LETTER",
+      "status": "GENERATED",
+      "filePath": null,
+      "version": 1,
+      "workEntryId": "cmv_entry_harish_20",
+      "paymentId": null,
+      "createdAt": "2026-10-31T10:08:40.000Z",
+      "updatedAt": "2026-11-02T05:11:47.000Z",
+      "projectId": null
+    },
+    {
+      "id": "cmv_doc_dep_20",
+      "name": "Deputation Letter - EPIC-2026-PMeVidya 20",
+      "type": "DEPUTATION_LETTER",
+      "status": "GENERATED",
+      "filePath": null,
+      "version": 1,
+      "workEntryId": "cmv_entry_harish_20",
+      "paymentId": null,
+      "createdAt": "2026-10-31T10:08:40.000Z",
+      "updatedAt": "2026-11-02T05:11:47.000Z",
+      "projectId": null
+    },
+    {
+      "id": "cmv_doc_att_20",
+      "name": "Attendance Certificate - EPIC-2026-PMeVidya 20",
+      "type": "ATTENDANCE_CERTIFICATE",
+      "status": "GENERATED",
+      "filePath": null,
+      "version": 1,
+      "workEntryId": "cmv_entry_harish_20",
+      "paymentId": null,
+      "createdAt": "2026-10-31T10:08:40.000Z",
+      "updatedAt": "2026-11-02T05:11:47.000Z",
+      "projectId": null
+    },
+    {
+      "id": "cmv_doc_comp_20",
+      "name": "Work Completion Certificate - EPIC-2026-PMeVidya 20",
+      "type": "WORK_COMPLETION_CERTIFICATE",
+      "status": "GENERATED",
+      "filePath": null,
+      "version": 1,
+      "workEntryId": "cmv_entry_harish_20",
+      "paymentId": null,
+      "createdAt": "2026-10-31T10:08:40.000Z",
+      "updatedAt": "2026-11-02T05:11:47.000Z",
       "projectId": null
     }
   ],

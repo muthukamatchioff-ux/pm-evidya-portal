@@ -990,6 +990,107 @@ export const REAL_PM_EVIDYA_BUDGET_HEADS = [
 
 export const REAL_PM_EVIDYA_SMES = [
 {
+  "id": "cmv_sme_harish_20",
+  "name": "Shri Harish Menon R",
+  "designation": "Senior Instructor",
+  "institute": "Govt ITI",
+  "status": "ACTIVE",
+  "createdAt": "2026-10-31T10:08:40.000Z",
+  "updatedAt": "2026-11-02T05:11:47.000Z",
+  "address": "Govt ITI Kalamassery, Kerala",
+  "location": "Kalamassery",
+  "workEntries": [
+    {
+      "id": "cmv_entry_harish_20",
+      "smeId": "cmv_sme_harish_20",
+      "trade": "Instrument Mechanic",
+      "topic": "Scope and necessity of Instrumentation, Pressure, Flow, Level & Temperature Measurement",
+      "attendanceFrom": "2026-08-09T00:00:00.000Z",
+      "attendanceTo": "2026-08-13T00:00:00.000Z",
+      "days": 4,
+      "ratePerDay": 1500,
+      "taAmount": 9639,
+      "otherAmount": 0,
+      "status": "COMPLETED",
+      "createdAt": "2026-10-31T10:08:40.000Z",
+      "updatedAt": "2026-11-02T05:11:47.000Z",
+      "topicId": null,
+      "epicSequence": 20,
+      "payments": [
+        {
+          "id": "cmv_pay_harish_20",
+          "workEntryId": "cmv_entry_harish_20",
+          "grossAmount": 6000,
+          "taAmount": 9639,
+          "otherAmount": 0,
+          "totalAmount": 15639,
+          "status": "COMPLETED",
+          "utrNumber": "CN2/002317/26-27",
+          "paymentDate": "2026-09-17T00:00:00.000Z",
+          "remarks": "Payment for Instrument Mechanic video series",
+          "createdAt": "2026-10-31T10:08:40.000Z",
+          "updatedAt": "2026-11-02T05:11:47.000Z",
+          "budgetHeadId": null
+        }
+      ],
+      "documents": [
+        {
+          "id": "cmv_doc_app_20",
+          "name": "Approval Letter - EPIC-2026-PMeVidya 20",
+          "type": "APPROVAL_LETTER",
+          "status": "GENERATED",
+          "filePath": null,
+          "version": 1,
+          "workEntryId": "cmv_entry_harish_20",
+          "paymentId": null,
+          "createdAt": "2026-10-31T10:08:40.000Z",
+          "updatedAt": "2026-11-02T05:11:47.000Z",
+          "projectId": null
+        },
+        {
+          "id": "cmv_doc_dep_20",
+          "name": "Deputation Letter - EPIC-2026-PMeVidya 20",
+          "type": "DEPUTATION_LETTER",
+          "status": "GENERATED",
+          "filePath": null,
+          "version": 1,
+          "workEntryId": "cmv_entry_harish_20",
+          "paymentId": null,
+          "createdAt": "2026-10-31T10:08:40.000Z",
+          "updatedAt": "2026-11-02T05:11:47.000Z",
+          "projectId": null
+        },
+        {
+          "id": "cmv_doc_att_20",
+          "name": "Attendance Certificate - EPIC-2026-PMeVidya 20",
+          "type": "ATTENDANCE_CERTIFICATE",
+          "status": "GENERATED",
+          "filePath": null,
+          "version": 1,
+          "workEntryId": "cmv_entry_harish_20",
+          "paymentId": null,
+          "createdAt": "2026-10-31T10:08:40.000Z",
+          "updatedAt": "2026-11-02T05:11:47.000Z",
+          "projectId": null
+        },
+        {
+          "id": "cmv_doc_comp_20",
+          "name": "Work Completion Certificate - EPIC-2026-PMeVidya 20",
+          "type": "WORK_COMPLETION_CERTIFICATE",
+          "status": "GENERATED",
+          "filePath": null,
+          "version": 1,
+          "workEntryId": "cmv_entry_harish_20",
+          "paymentId": null,
+          "createdAt": "2026-10-31T10:08:40.000Z",
+          "updatedAt": "2026-11-02T05:11:47.000Z",
+          "projectId": null
+        }
+      ]
+    }
+  ]
+},
+{
     "id": "cmv_sme_raghavan_19",
     "name": "Shri K Raghavan",
     "designation": "JTO",
@@ -2991,6 +3092,108 @@ export const REAL_PM_EVIDYA_VIDEOS = [
 ];
 
 export const REAL_PM_EVIDYA_SME_WORK_ENTRIES = [
+{
+  "id": "cmv_entry_harish_20",
+  "smeId": "cmv_sme_harish_20",
+  "trade": "Instrument Mechanic",
+  "topic": "Scope and necessity of Instrumentation, Pressure, Flow, Level & Temperature Measurement",
+  "attendanceFrom": "2026-08-09T00:00:00.000Z",
+  "attendanceTo": "2026-08-13T00:00:00.000Z",
+  "days": 4,
+  "ratePerDay": 1500,
+  "taAmount": 9639,
+  "otherAmount": 0,
+  "status": "COMPLETED",
+  "createdAt": "2026-10-31T10:08:40.000Z",
+  "updatedAt": "2026-11-02T05:11:47.000Z",
+  "topicId": null,
+  "epicSequence": 20,
+  "isPublished": true,
+  "publishedAt": "2026-10-31T10:15:04.000Z",
+  "publishedBy": "harshitharaman.nimi@gmail.com",
+  "sme": {
+    "id": "cmv_sme_harish_20",
+    "name": "Shri Harish Menon R",
+    "designation": "Senior Instructor",
+    "institute": "Govt ITI",
+    "status": "ACTIVE",
+    "createdAt": "2026-10-31T10:08:40.000Z",
+    "updatedAt": "2026-11-02T05:11:47.000Z",
+    "address": "Govt ITI Kalamassery, Kerala",
+    "location": "Kalamassery"
+  },
+  "payments": [
+    {
+      "id": "cmv_pay_harish_20",
+      "workEntryId": "cmv_entry_harish_20",
+      "grossAmount": 6000,
+      "taAmount": 9639,
+      "otherAmount": 0,
+      "totalAmount": 15639,
+      "status": "COMPLETED",
+      "utrNumber": "CN2/002317/26-27",
+      "paymentDate": "2026-09-17T00:00:00.000Z",
+      "remarks": "Payment for Instrument Mechanic video series",
+      "createdAt": "2026-10-31T10:08:40.000Z",
+      "updatedAt": "2026-11-02T05:11:47.000Z",
+      "budgetHeadId": null
+    }
+  ],
+  "documents": [
+    {
+      "id": "cmv_doc_app_20",
+      "name": "Approval Letter - EPIC-2026-PMeVidya 20",
+      "type": "APPROVAL_LETTER",
+      "status": "GENERATED",
+      "filePath": null,
+      "version": 1,
+      "workEntryId": "cmv_entry_harish_20",
+      "paymentId": null,
+      "createdAt": "2026-10-31T10:08:40.000Z",
+      "updatedAt": "2026-11-02T05:11:47.000Z",
+      "projectId": null
+    },
+    {
+      "id": "cmv_doc_dep_20",
+      "name": "Deputation Letter - EPIC-2026-PMeVidya 20",
+      "type": "DEPUTATION_LETTER",
+      "status": "GENERATED",
+      "filePath": null,
+      "version": 1,
+      "workEntryId": "cmv_entry_harish_20",
+      "paymentId": null,
+      "createdAt": "2026-10-31T10:08:40.000Z",
+      "updatedAt": "2026-11-02T05:11:47.000Z",
+      "projectId": null
+    },
+    {
+      "id": "cmv_doc_att_20",
+      "name": "Attendance Certificate - EPIC-2026-PMeVidya 20",
+      "type": "ATTENDANCE_CERTIFICATE",
+      "status": "GENERATED",
+      "filePath": null,
+      "version": 1,
+      "workEntryId": "cmv_entry_harish_20",
+      "paymentId": null,
+      "createdAt": "2026-10-31T10:08:40.000Z",
+      "updatedAt": "2026-11-02T05:11:47.000Z",
+      "projectId": null
+    },
+    {
+      "id": "cmv_doc_comp_20",
+      "name": "Work Completion Certificate - EPIC-2026-PMeVidya 20",
+      "type": "WORK_COMPLETION_CERTIFICATE",
+      "status": "GENERATED",
+      "filePath": null,
+      "version": 1,
+      "workEntryId": "cmv_entry_harish_20",
+      "paymentId": null,
+      "createdAt": "2026-10-31T10:08:40.000Z",
+      "updatedAt": "2026-11-02T05:11:47.000Z",
+      "projectId": null
+    }
+  ]
+},
 {
     "id": "cmv_entry_raghavan_19",
     "smeId": "cmv_sme_raghavan_19",
