@@ -133,32 +133,41 @@ const createPrismaClient = () => {
             ) {
               console.error(`[Prisma Intercepted] DB query fallback for ${model}.${operation}`);
               
-              if (model === 'BudgetComponent' && operation === 'findMany') {
-                return REAL_PM_EVIDYA_BUDGET_COMPONENTS;
-              }
-
-              if (model === 'BudgetComponent' && operation === 'update') {
-                const compNo = args?.where?.componentNo;
-                const id = args?.where?.id;
-                const comp = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find((c: any) => (compNo && c.componentNo === compNo) || (id && c.id === id));
-                if (comp && args?.data) {
-                  Object.assign(comp, args.data);
-                  comp.updatedAt = new Date().toISOString();
-                  return comp;
+              if (model === 'BudgetComponent') {
+                if (REAL_PM_EVIDYA_BUDGET_COMPONENTS[0]?.annexureI && REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI.length > 8) {
+                  REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI = REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI.slice(0, 8);
                 }
-                return { id, ...args?.data };
-              }
-
-              if (model === 'BudgetComponent' && (operation === 'findUnique' || operation === 'findFirst')) {
-                const compNo = args?.where?.componentNo;
-                if (compNo) {
-                  return REAL_PM_EVIDYA_BUDGET_COMPONENTS.find((c: any) => c.componentNo === compNo) || null;
+                if (REAL_PM_EVIDYA_BUDGET_COMPONENTS[1]?.annexureII && REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII.length > 23) {
+                  REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII = REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII.slice(0, 23);
                 }
-                const id = args?.where?.id;
-                if (id) {
-                  return REAL_PM_EVIDYA_BUDGET_COMPONENTS.find((c: any) => c.id === id) || null;
+                if (REAL_PM_EVIDYA_BUDGET_COMPONENTS[2]?.annexureIII && REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII.length !== 1) {
+                  REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII = REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII.slice(0, 1);
                 }
-                return REAL_PM_EVIDYA_BUDGET_COMPONENTS[0] || null;
+                if (operation === 'findMany') {
+                  return REAL_PM_EVIDYA_BUDGET_COMPONENTS;
+                }
+                if (operation === 'update') {
+                  const compNo = args?.where?.componentNo;
+                  const id = args?.where?.id;
+                  const comp = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find((c: any) => (compNo && c.componentNo === compNo) || (id && c.id === id));
+                  if (comp && args?.data) {
+                    Object.assign(comp, args.data);
+                    comp.updatedAt = new Date().toISOString();
+                    return comp;
+                  }
+                  return { id, ...args?.data };
+                }
+                if (operation === 'findUnique' || operation === 'findFirst') {
+                  const compNo = args?.where?.componentNo;
+                  if (compNo) {
+                    return REAL_PM_EVIDYA_BUDGET_COMPONENTS.find((c: any) => c.componentNo === compNo) || null;
+                  }
+                  const id = args?.where?.id;
+                  if (id) {
+                    return REAL_PM_EVIDYA_BUDGET_COMPONENTS.find((c: any) => c.id === id) || null;
+                  }
+                  return REAL_PM_EVIDYA_BUDGET_COMPONENTS[0] || null;
+                }
               }
 
               if (model === 'BudgetHead') {
@@ -190,6 +199,7 @@ const createPrismaClient = () => {
               if (model === 'AnnexureI') {
                 const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[0]?.annexureI || []) as any[];
                 if (operation === 'findMany') return list;
+                if (operation === 'deleteMany') { REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI = []; return { count: 0 }; }
                 if (operation === 'create') {
                   const newItem = { id: `ai-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
                   list.push(newItem);
@@ -216,6 +226,7 @@ const createPrismaClient = () => {
               if (model === 'AnnexureII') {
                 const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[1]?.annexureII || []) as any[];
                 if (operation === 'findMany') return list;
+                if (operation === 'deleteMany') { REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII = []; return { count: 0 }; }
                 if (operation === 'create') {
                   const newItem = { id: `aii-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
                   list.push(newItem);
@@ -242,6 +253,7 @@ const createPrismaClient = () => {
               if (model === 'AnnexureIII') {
                 const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[2]?.annexureIII || []) as any[];
                 if (operation === 'findMany') return list;
+                if (operation === 'deleteMany') { REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII = []; return { count: 0 }; }
                 if (operation === 'findUnique' || operation === 'findFirst') {
                   return list.find((x: any) => x.id === args?.where?.id) || null;
                 }
@@ -268,6 +280,7 @@ const createPrismaClient = () => {
               if (model === 'AnnexureIV') {
                 const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[3]?.annexureIV || []) as any[];
                 if (operation === 'findMany') return list;
+                if (operation === 'deleteMany') { REAL_PM_EVIDYA_BUDGET_COMPONENTS[3].annexureIV = []; return { count: 0 }; }
                 if (operation === 'findUnique' || operation === 'findFirst') {
                   return list.find((x: any) => x.id === args?.where?.id) || null;
                 }
@@ -294,6 +307,7 @@ const createPrismaClient = () => {
               if (model === 'AnnexureV') {
                 const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[4]?.annexureV || []) as any[];
                 if (operation === 'findMany') return list;
+                if (operation === 'deleteMany') { REAL_PM_EVIDYA_BUDGET_COMPONENTS[4].annexureV = []; return { count: 0 }; }
                 if (operation === 'findUnique' || operation === 'findFirst') {
                   return list.find((x: any) => x.id === args?.where?.id) || null;
                 }
@@ -320,6 +334,7 @@ const createPrismaClient = () => {
               if (model === 'AnnexureVI') {
                 const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[5]?.annexureVI || []) as any[];
                 if (operation === 'findMany') return list;
+                if (operation === 'deleteMany') { REAL_PM_EVIDYA_BUDGET_COMPONENTS[5].annexureVI = []; return { count: 0 }; }
                 if (operation === 'findUnique' || operation === 'findFirst') {
                   return list.find((x: any) => x.id === args?.where?.id) || null;
                 }
