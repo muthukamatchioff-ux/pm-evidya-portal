@@ -71,3 +71,4 @@ heads.forEach(h => {
 });
 console.log(`\nHeads Total Approved: ₹ ${headsBudget.toLocaleString('en-IN')}`);
 console.log(`Heads Total Utilized: ₹ ${headsExp.toLocaleString('en-IN')}`);
+
