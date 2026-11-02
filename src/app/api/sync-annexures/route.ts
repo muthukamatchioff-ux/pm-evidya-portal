@@ -73,6 +73,7 @@ export async function GET(request: Request) {
         unutilizedBalance: comp.approvedBudget - expenditure,
         utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00',
         recordsCount: count,
+        ...(comp.componentNo === 2 ? { annexureII: comp.annexureII } : {}),
         ...(comp.componentNo === 3 ? { annexureIII: comp.annexureIII } : {})
       };
     });

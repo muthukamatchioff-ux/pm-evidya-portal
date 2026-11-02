@@ -81,37 +81,35 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
           where: { budgetComponentId: comp1.id }
         });
 
-        for (const item of fallbackComp1.annexureI) {
-          await tx.annexureI.create({
-            data: {
-              id: item.id,
-              budgetComponentId: comp1.id,
-              datePeriod: item.datePeriod || '',
-              expertName: item.expertName || '',
-              designation: item.designation || '',
-              activity: item.activity || 'Digital Content Development',
-              workingDays: Number(item.workingDays) || 0,
-              honorarium: Number(item.honorarium) || 0,
-              travelAllowance: Number(item.travelAllowance) || 0,
-              otherCharges: Number(item.otherCharges) || 0,
-              totalExpenditure: Number(item.totalExpenditure) || 0,
-              utrNumber: item.utrNumber || '',
-              contentDuration: item.contentDuration || '-',
-              approvalRef: item.approvalRef || null,
-              remarks: item.remarks || '',
-              supportingDoc: item.supportingDoc || null,
-              verificationStatus: item.verificationStatus || 'DRAFT',
-              tranType: item.tranType || null,
-              voucherNo: item.voucherNo || null,
-              transactionDate: item.transactionDate ? new Date(item.transactionDate) : null,
-              commitmentNo: item.commitmentNo || null,
-              commitmentDate: item.commitmentDate ? new Date(item.commitmentDate) : null,
-              narration: item.narration || null,
-              createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
-              updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
-            }
-          });
-        }
+        await tx.annexureI.createMany({
+          data: fallbackComp1.annexureI.map((item: any) => ({
+            id: item.id,
+            budgetComponentId: comp1.id,
+            datePeriod: item.datePeriod || '',
+            expertName: item.expertName || '',
+            designation: item.designation || '',
+            activity: item.activity || 'Digital Content Development',
+            workingDays: Number(item.workingDays) || 0,
+            honorarium: Number(item.honorarium) || 0,
+            travelAllowance: Number(item.travelAllowance) || 0,
+            otherCharges: Number(item.otherCharges) || 0,
+            totalExpenditure: Number(item.totalExpenditure) || 0,
+            utrNumber: item.utrNumber || '',
+            contentDuration: item.contentDuration || '-',
+            approvalRef: item.approvalRef || null,
+            remarks: item.remarks || '',
+            supportingDoc: item.supportingDoc || null,
+            verificationStatus: item.verificationStatus || 'DRAFT',
+            tranType: item.tranType || null,
+            voucherNo: item.voucherNo || null,
+            transactionDate: item.transactionDate ? new Date(item.transactionDate) : null,
+            commitmentNo: item.commitmentNo || null,
+            commitmentDate: item.commitmentDate ? new Date(item.commitmentDate) : null,
+            narration: item.narration || null,
+            createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
+            updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
+          }))
+        });
       }
 
       // 2. Sync Component 2 if needed
@@ -121,35 +119,33 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
           where: { budgetComponentId: comp2.id }
         });
 
-        for (const item of fallbackComp2.annexureII) {
-          await tx.annexureII.create({
-            data: {
-              id: item.id,
-              budgetComponentId: comp2.id,
-              datePeriod: item.datePeriod || '',
-              trainingName: item.trainingName || 'Capacity Building Program on PM eVidya Content Development Ecosystem and Digital Content Standards for Stakeholders.',
-              trainingType: item.trainingType || 'Hybrid',
-              participant: item.participant || '',
-              venue: item.venue || 'NIMI Chennai',
-              noOfParticipants: Number(item.noOfParticipants) || 0,
-              trainingDays: Number(item.trainingDays) || 2,
-              trainerFee: Number(item.trainerFee) || 0,
-              trainingCost: Number(item.trainingCost) || 0,
-              travelAllowance: Number(item.travelAllowance) || 0,
-              accommodation: Number(item.accommodation) || 0,
-              otherExpenses: Number(item.otherExpenses) || 0,
-              totalExpenditure: Number(item.totalExpenditure) || 0,
-              utrNumber: item.utrNumber || '',
-              approvalRef: item.approvalRef || null,
-              remarks: item.remarks || '',
-              supportingDoc: item.supportingDoc || null,
-              verificationStatus: item.verificationStatus || 'DRAFT',
-              trainingDates: item.trainingDates || '30:07:2026 & 31:07:2026',
-              createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
-              updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
-            }
-          });
-        }
+        await tx.annexureII.createMany({
+          data: fallbackComp2.annexureII.map((item: any) => ({
+            id: item.id,
+            budgetComponentId: comp2.id,
+            datePeriod: item.datePeriod || '',
+            trainingName: item.trainingName || 'Capacity Building Program on PM eVidya Content Development Ecosystem and Digital Content Standards for Stakeholders.',
+            trainingType: item.trainingType || 'Hybrid',
+            participant: item.participant || '',
+            venue: item.venue || 'NIMI Chennai',
+            noOfParticipants: Number(item.noOfParticipants) || 0,
+            trainingDays: Number(item.trainingDays) || 2,
+            trainerFee: Number(item.trainerFee) || 0,
+            trainingCost: Number(item.trainingCost) || 0,
+            travelAllowance: Number(item.travelAllowance) || 0,
+            accommodation: Number(item.accommodation) || 0,
+            otherExpenses: Number(item.otherExpenses) || 0,
+            totalExpenditure: Number(item.totalExpenditure) || 0,
+            utrNumber: item.utrNumber || '',
+            approvalRef: item.approvalRef || null,
+            remarks: item.remarks || '',
+            supportingDoc: item.supportingDoc || null,
+            verificationStatus: item.verificationStatus || 'DRAFT',
+            trainingDates: item.trainingDates || '30:07:2026 & 31:07:2026',
+            createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
+            updatedAt: item.updatedAt ? new Date(item.updatedAt) : new Date()
+          }))
+        });
       }
 
       // 3. Sync Component 3 if needed
