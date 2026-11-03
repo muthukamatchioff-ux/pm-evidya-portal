@@ -5,6 +5,7 @@ import Link from 'next/link';
 import styles from './smeProfile.module.css';
 import UnifiedSmeGeneratorClient from './UnifiedSmeGeneratorClient';
 import { getRole, requireAuth } from '@/lib/auth';
+import { findSmeContact } from '@/lib/smeContacts';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -60,6 +61,16 @@ export default async function SMEProfilePage(props: { params: Promise<{ id: stri
 
   if (!sme) {
     notFound();
+  }
+
+  // Ensure contact details are pre-filled with authoritative phone and email if not set
+  if (sme) {
+    const seq = sme.workEntries?.[0]?.epicSequence;
+    const contact = findSmeContact(sme.name, seq);
+    if (contact) {
+      if (!sme.contactNumber && contact.phone) sme.contactNumber = contact.phone;
+      if (!sme.email && contact.email) sme.email = contact.email;
+    }
   }
 
   // Calculate summaries

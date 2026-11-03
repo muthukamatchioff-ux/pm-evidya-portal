@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getDatabaseStats, backupDatabaseSnapshot, executeVercelDataSync } from '@/lib/syncVercelData';
+import { SME_OFFICIAL_CONTACTS } from '@/lib/smeContacts';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -18,6 +19,32 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: 'desc' }
       });
       return NextResponse.json({ success: true, count: smes.length, smes });
+    } catch (e: any) {
+      return NextResponse.json({ success: false, error: e.message });
+    }
+  }
+
+  // Update all 17 SMEs with authoritative phone numbers and emails
+  if (searchParams.get('update_contacts') === 'true') {
+    try {
+      const updates: any[] = [];
+      for (const c of SME_OFFICIAL_CONTACTS) {
+        const entry = await prisma.sMEWorkEntry.findFirst({
+          where: { epicSequence: c.epicSequence },
+          include: { sme: true }
+        });
+        if (entry && entry.smeId) {
+          await prisma.sME.update({
+            where: { id: entry.smeId },
+            data: {
+              contactNumber: c.phone,
+              email: c.email || undefined
+            }
+          });
+          updates.push({ epicSequence: c.epicSequence, name: entry.sme?.name, phone: c.phone, email: c.email });
+        }
+      }
+      return NextResponse.json({ success: true, count: updates.length, updates });
     } catch (e: any) {
       return NextResponse.json({ success: false, error: e.message });
     }

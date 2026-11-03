@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import styles from './smes.module.css';
 import SmeListClient from './SmeListClient';
 import { getRole, requireAuth } from '@/lib/auth';
+import { findSmeContact } from '@/lib/smeContacts';
 
 export const metadata = {
   title: 'SME Records | PM e-Vidya Portal',
@@ -80,6 +81,35 @@ export default async function SMEsPage() {
           await prisma.sMEWorkEntry.deleteMany({ where: { smeId: orphan.id } });
           await prisma.sME.delete({ where: { id: orphan.id } });
         } catch (_) {}
+      }
+    } catch (_) {}
+
+    // 4. Ensure every entry has authoritative contactNumber and email
+    for (const entry of workEntries) {
+      if (entry.sme) {
+        const contact = findSmeContact(entry.sme.name, entry.epicSequence);
+        if (contact) {
+          if (!entry.sme.contactNumber && contact.phone) entry.sme.contactNumber = contact.phone;
+          if (!entry.sme.email && contact.email) entry.sme.email = contact.email;
+        }
+      }
+    }
+
+    // 5. Self-healing DB sync: ensure PostgreSQL stores these contact details
+    try {
+      for (const entry of workEntries) {
+        if (entry.sme?.id && (entry.sme.contactNumber || entry.sme.email)) {
+          await prisma.sME.updateMany({
+            where: {
+              id: entry.sme.id,
+              OR: [{ contactNumber: null }, { contactNumber: '' }]
+            },
+            data: {
+              contactNumber: entry.sme.contactNumber || undefined,
+              email: entry.sme.email || undefined
+            }
+          });
+        }
       }
     } catch (_) {}
 

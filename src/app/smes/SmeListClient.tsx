@@ -111,6 +111,10 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
             entry.sme.designation.toLowerCase().includes(searchLower)) ||
           (entry.sme?.institute &&
             entry.sme.institute.toLowerCase().includes(searchLower)) ||
+          (entry.sme?.contactNumber &&
+            entry.sme.contactNumber.toLowerCase().includes(searchLower)) ||
+          (entry.sme?.email &&
+            entry.sme.email.toLowerCase().includes(searchLower)) ||
           epic.includes(searchLower)
         );
       }
@@ -240,6 +244,7 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
                 <th style={{ width: '60px' }}>S.no</th>
                 <th>EPIC ID</th>
                 <th>SME Name</th>
+                <th>Contact Details</th>
                 <th>Designation</th>
                 <th>Trade</th>
                 <th style={{ textAlign: 'right', minWidth: '170px' }}>Actions</th>
@@ -248,7 +253,7 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
             <tbody>
               {filteredEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className={styles.emptyState}>
+                  <td colSpan={7} className={styles.emptyState}>
                     No SME Work Entries match your filter.
                   </td>
                 </tr>
@@ -272,6 +277,28 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
                             {entry.sme.institute}
                           </div>
                         )}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '12.5px' }}>
+                          {entry.sme?.contactNumber ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#0f172a', fontWeight: 600 }}>
+                              📞 {entry.sme.contactNumber}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '11px' }}>No phone</span>
+                          )}
+                          {entry.sme?.email ? (
+                            <a
+                              href={`mailto:${entry.sme.email}`}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#2563eb', textDecoration: 'none' }}
+                              title="Send email"
+                            >
+                              ✉️ {entry.sme.email}
+                            </a>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '11px' }}>No email</span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ color: '#334155' }}>
                         {entry.sme?.designation || '-'}
