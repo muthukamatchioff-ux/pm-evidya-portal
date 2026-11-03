@@ -28,8 +28,22 @@ export async function uploadDocument(
       throw new Error('File size exceeds 10MB limit');
     }
 
+    const typeCandidates = [type];
+    if (type === 'APPROVAL_LETTER' || type === 'STAGE_A_APPROVAL_LETTER') {
+      typeCandidates.push('APPROVAL_LETTER', 'STAGE_A_APPROVAL_LETTER');
+    } else if (type === 'WORK_COMPLETION' || type === 'STAGE_B_WORK_COMPLETION') {
+      typeCandidates.push('WORK_COMPLETION', 'STAGE_B_WORK_COMPLETION');
+    } else if (type === 'SME_ATTENDANCE' || type === 'ATTENDANCE' || type === 'TRADE_DETAILS') {
+      typeCandidates.push('SME_ATTENDANCE', 'ATTENDANCE', 'TRADE_DETAILS');
+    } else if (type === 'PAYMENT_NOTE' || type === 'STAGE_C_REMUNERATION') {
+      typeCandidates.push('PAYMENT_NOTE', 'STAGE_C_REMUNERATION');
+    }
+
     const existing = await prisma.document.findFirst({
-      where: { workEntryId, type },
+      where: {
+        workEntryId,
+        type: { in: typeCandidates }
+      },
       orderBy: { version: 'desc' }
     });
 
@@ -68,11 +82,27 @@ export async function uploadDocument(
           where: { id: existing.id },
           data: {
             name: file.name,
+            type,
             filePath,
             status: 'UPLOADED',
             version: 1
           }
         });
+
+        // Also synchronize any companion records for this work entry
+        try {
+          await prisma.document.updateMany({
+            where: {
+              workEntryId,
+              type: { in: typeCandidates },
+              id: { not: existing.id }
+            },
+            data: {
+              filePath,
+              status: 'UPLOADED'
+            }
+          });
+        } catch {}
       }
     } else {
       // Create new
@@ -102,6 +132,7 @@ export async function uploadDocument(
     revalidatePath(`/smes/${smeId}`);
     revalidatePath('/accounts');
     revalidatePath('/documents');
+    revalidatePath('/dashboard');
     return { success: true, document: savedDoc };
   } catch (error: any) {
     console.error('Document upload error:', error);

@@ -106,6 +106,13 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
       const targetFileId = isDirectUploaded ? doc.id : (companionUpload?.id || doc.id);
       const originalFileName = isDirectUploaded ? doc.name : (companionUpload?.name || doc.name);
       const effectiveVersion = isDirectUploaded ? (doc.version || 1) : (companionUpload?.version || doc.version || 1);
+      const isGeneratedReady = !hasStoredFile && !!(
+        doc.status === 'SAVED' ||
+        doc.status === 'GENERATED' ||
+        (doc.filePath && doc.filePath.startsWith('{')) ||
+        entry?.id ||
+        doc.workEntryId
+      );
 
       docMap.set(doc.id, {
         ...doc,
@@ -119,6 +126,7 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
         friendlyEpicId,
         friendlyDocName: getFriendlyDocName(doc.type, doc.name),
         hasStoredFile,
+        isGeneratedReady,
         targetFileId,
         originalFileName,
         effectiveVersion
@@ -206,15 +214,29 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
   const epicChecklist = useMemo(() => {
     if (!selectedEpicDetails) return null;
     const docs = selectedEpicDetails.docs || [];
-    const hasAttendance = docs.some(
-      (d: any) =>
-        d.type === 'SME_ATTENDANCE' ||
-        d.type === 'ATTENDANCE' ||
-        d.type === 'TRADE_DETAILS'
-    );
-    const hasApproval = docs.some((d: any) => d.type === 'APPROVAL_LETTER' || d.type === 'STAGE_A_APPROVAL_LETTER');
-    const hasCompletion = docs.some((d: any) => d.type === 'WORK_COMPLETION' || d.type === 'STAGE_B_WORK_COMPLETION');
-    return { hasAttendance, hasApproval, hasCompletion };
+
+    const getDocState = (types: string[]) => {
+      const matching = docs.filter((d: any) => types.includes(d.type));
+      if (matching.length === 0) return 'MISSING';
+      if (matching.some((d: any) => d.hasStoredFile)) return 'UPLOADED';
+      if (matching.some((d: any) => d.isGeneratedReady || d.status === 'SAVED' || d.status === 'GENERATED' || (d.filePath && d.filePath.startsWith('{')))) {
+        return 'GENERATED';
+      }
+      return 'MISSING';
+    };
+
+    const attendanceState = getDocState(['SME_ATTENDANCE', 'ATTENDANCE', 'TRADE_DETAILS']);
+    const approvalState = getDocState(['APPROVAL_LETTER', 'STAGE_A_APPROVAL_LETTER']);
+    const completionState = getDocState(['WORK_COMPLETION', 'STAGE_B_WORK_COMPLETION']);
+
+    return {
+      attendanceState,
+      approvalState,
+      completionState,
+      hasAttendance: attendanceState !== 'MISSING',
+      hasApproval: approvalState !== 'MISSING',
+      hasCompletion: completionState !== 'MISSING'
+    };
   }, [selectedEpicDetails]);
 
   // Filtering documents based on EPIC ID and Doc Type
@@ -467,8 +489,10 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
             <div className={styles.spotlightChecklist}>
               <div className={styles.checkItem}>
                 <span className={styles.checkItemTitle}>📅 SME Attendance</span>
-                {epicChecklist.hasAttendance ? (
+                {epicChecklist.attendanceState === 'UPLOADED' ? (
                   <span className={styles.checkBadgeAttached}>✓ Uploaded</span>
+                ) : epicChecklist.attendanceState === 'GENERATED' ? (
+                  <span style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 700 }}>📄 Ready</span>
                 ) : (
                   <span className={styles.checkBadgeMissing}>✕ Missing</span>
                 )}
@@ -476,8 +500,10 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
 
               <div className={styles.checkItem}>
                 <span className={styles.checkItemTitle}>📝 Approval Letter</span>
-                {epicChecklist.hasApproval ? (
+                {epicChecklist.approvalState === 'UPLOADED' ? (
                   <span className={styles.checkBadgeAttached}>✓ Uploaded</span>
+                ) : epicChecklist.approvalState === 'GENERATED' ? (
+                  <span style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 700 }}>📄 Ready</span>
                 ) : (
                   <span className={styles.checkBadgeMissing}>✕ Missing</span>
                 )}
@@ -485,8 +511,10 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
 
               <div className={styles.checkItem}>
                 <span className={styles.checkItemTitle}>🎓 Work Completion</span>
-                {epicChecklist.hasCompletion ? (
+                {epicChecklist.completionState === 'UPLOADED' ? (
                   <span className={styles.checkBadgeAttached}>✓ Uploaded</span>
+                ) : epicChecklist.completionState === 'GENERATED' ? (
+                  <span style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 700 }}>📄 Ready</span>
                 ) : (
                   <span className={styles.checkBadgeMissing}>✕ Missing</span>
                 )}
@@ -574,11 +602,9 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
                 </tr>
               ) : (
                 filteredDocs.map(doc => {
-                  const downloadHref = doc.hasStoredFile
-                    ? (doc.filePath?.startsWith('data:')
-                        ? doc.filePath
-                        : `/api/documents/${doc.targetFileId || doc.id}?download=1`)
-                    : '#';
+                  const downloadHref = doc.filePath?.startsWith('data:')
+                    ? doc.filePath
+                    : `/api/documents/${doc.targetFileId || doc.id}?download=1`;
 
                   return (
                     <tr key={doc.id}>
@@ -679,23 +705,24 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
                           >
                             <span>✓</span> UPLOADED
                           </span>
-                        ) : doc.status === 'SAVED' ? (
+                        ) : doc.isGeneratedReady ? (
                           <span
                             style={{
-                              background: '#e0e7ff',
-                              color: '#3730a3',
+                              background: '#eff6ff',
+                              color: '#1d4ed8',
                               padding: '4px 10px',
                               borderRadius: '9999px',
                               fontSize: '11.5px',
                               fontWeight: 700,
                               letterSpacing: '0.02em',
-                              border: '1px solid #c7d2fe',
+                              border: '1px solid #bfdbfe',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px'
                             }}
+                            title="Official generated document ready for viewing and printing"
                           >
-                            <span>📝</span> PARAMETERS
+                            <span>📄</span> GENERATED
                           </span>
                         ) : (
                           <span
@@ -731,31 +758,16 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
                           >
                             View
                           </button>
-                          {doc.hasStoredFile ? (
-                            <a
-                              href={downloadHref}
-                              download={doc.originalFileName || doc.name}
-                              className={styles.btnDownload}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              Download
-                            </a>
-                          ) : (
-                            <button
-                              className={styles.btnDownload}
-                              style={{
-                                opacity: 0.5,
-                                cursor: 'not-allowed',
-                                background: '#94a3b8',
-                                borderColor: '#94a3b8'
-                              }}
-                              onClick={() => alert('No original document file has been uploaded for this entry yet. Please upload it via Document Upload.')}
-                              title="Original file not uploaded yet"
-                            >
-                              Download
-                            </button>
-                          )}
+                          <a
+                            href={downloadHref}
+                            download={(doc.originalFileName || doc.name || 'document').replace(/[^a-zA-Z0-9_\-\.]/g, '_')}
+                            className={styles.btnDownload}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={doc.hasStoredFile ? 'Download original uploaded file' : 'Download official document'}
+                          >
+                            Download
+                          </a>
                         </div>
                       </td>
                     </tr>
@@ -829,7 +841,9 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
                 <div className={styles.modalMetaLabel}>Status</div>
                 <div className={styles.modalMetaValue}>
                   {previewDoc.hasStoredFile ? (
-                    <span style={{ color: '#4ade80' }}>✓ Uploaded</span>
+                    <span style={{ color: '#4ade80' }}>✓ Uploaded File</span>
+                  ) : previewDoc.isGeneratedReady ? (
+                    <span style={{ color: '#60a5fa' }}>📄 Official Generated Document</span>
                   ) : (
                     <span style={{ color: '#fbbf24' }}>Pending Upload</span>
                   )}
@@ -844,35 +858,20 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
                 alignItems: 'center'
               }}
             >
-              {previewDoc.hasStoredFile ? (
-                <a
-                  href={
-                    previewDoc.filePath?.startsWith('data:')
-                      ? previewDoc.previewUrl
-                      : `/api/documents/${previewDoc.id}?download=1`
-                  }
-                  download={previewDoc.actualFilename || previewDoc.name}
-                  className={styles.btnDownload}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  ⬇ Download
-                </a>
-              ) : (
-                <button
-                  className={styles.btnDownload}
-                  style={{
-                    opacity: 0.5,
-                    cursor: 'not-allowed',
-                    background: '#64748b',
-                    borderColor: '#475569'
-                  }}
-                  disabled
-                  title="Original file not uploaded yet"
-                >
-                  ⬇ File Not Uploaded
-                </button>
-              )}
+              <a
+                href={
+                  previewDoc.filePath?.startsWith('data:')
+                    ? previewDoc.previewUrl
+                    : `/api/documents/${previewDoc.id}?download=1`
+                }
+                download={(previewDoc.actualFilename || previewDoc.name || 'document').replace(/[^a-zA-Z0-9_\-\.]/g, '_')}
+                className={styles.btnDownload}
+                target="_blank"
+                rel="noreferrer"
+                title={previewDoc.hasStoredFile ? 'Download original uploaded file' : 'Download official document'}
+              >
+                ⬇ Download
+              </a>
               <button
                 onClick={closePreview}
                 className={styles.modalCloseBtn}
@@ -884,7 +883,7 @@ export default function DocumentClient({ smes, documents }: DocumentClientProps)
           </div>
 
           <div className={styles.modalBody}>
-            {!previewDoc.hasStoredFile ? (
+            {!previewDoc.hasStoredFile && !previewDoc.isGeneratedReady ? (
               <div
                 style={{
                   display: 'flex',
