@@ -9,6 +9,84 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
   // Diagnostic table inspector
+  if (searchParams.get('inspect_smes') === 'true') {
+    try {
+      const smes = await prisma.sME.findMany({
+        include: {
+          workEntries: true
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+      return NextResponse.json({ success: true, count: smes.length, smes });
+    } catch (e: any) {
+      return NextResponse.json({ success: false, error: e.message });
+    }
+  }
+
+  // Delete Muthu Kamatchi & EPIC 18 permanently
+  if (searchParams.get('delete_muthu') === 'true') {
+    try {
+      // Find all matching SME IDs
+      const smesToDel = await prisma.sME.findMany({
+        where: {
+          OR: [
+            { name: { contains: 'Muthu', mode: 'insensitive' } },
+            { name: { contains: 'Kamatchi', mode: 'insensitive' } }
+          ]
+        }
+      });
+      const smeIds = smesToDel.map((s: any) => s.id);
+
+      // Find all matching work entry IDs
+      const entriesToDel = await prisma.sMEWorkEntry.findMany({
+        where: {
+          OR: [
+            { epicSequence: 18 },
+            { smeId: { in: smeIds } }
+          ]
+        }
+      });
+      const entryIds = entriesToDel.map((e: any) => e.id);
+
+      // Clean up children
+      const deletedDocs = await prisma.document.deleteMany({
+        where: {
+          OR: [
+            { workEntryId: { in: entryIds } },
+            { name: { contains: 'Muthu', mode: 'insensitive' } },
+            { name: { contains: 'PMeVidya 18', mode: 'insensitive' } }
+          ]
+        }
+      });
+      const deletedPayments = await prisma.payment.deleteMany({
+        where: { workEntryId: { in: entryIds } }
+      });
+      const deletedEntries = await prisma.sMEWorkEntry.deleteMany({
+        where: { id: { in: entryIds } }
+      });
+      const deletedSmes = await prisma.sME.deleteMany({
+        where: { id: { in: smeIds } }
+      });
+
+      const remainingSmes = await prisma.sME.count();
+      const remainingEntries = await prisma.sMEWorkEntry.count();
+
+      return NextResponse.json({
+        success: true,
+        message: 'Muthu Kamatchi and EPIC 18 deleted permanently.',
+        deletedDocs: deletedDocs.count,
+        deletedPayments: deletedPayments.count,
+        deletedEntries: deletedEntries.count,
+        deletedSmes: deletedSmes.count,
+        remainingSmes,
+        remainingEntries
+      });
+    } catch (e: any) {
+      return NextResponse.json({ success: false, error: e.message });
+    }
+  }
+
+  // Diagnostic table inspector
   if (searchParams.get('tables') === 'true') {
     try {
       const tables = await prisma.$queryRawUnsafe(
