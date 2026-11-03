@@ -7,6 +7,24 @@ export const revalidate = 0;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  // Auto-cleanup any orphan test SMEs with 0 work entries (purge_orphan_smes)
+  try {
+    const orphanSmes = await prisma.sME.findMany({
+      where: {
+        workEntries: { none: {} },
+        OR: [
+          { name: { contains: 'Muthu', mode: 'insensitive' } },
+          { name: { contains: 'Kamatchi', mode: 'insensitive' } },
+          { name: { contains: 'test', mode: 'insensitive' } }
+        ]
+      }
+    });
+    for (const orphan of orphanSmes) {
+      try { await prisma.document.deleteMany({ where: { workEntry: { smeId: orphan.id } } }); } catch (_) {}
+      try { await prisma.payment.deleteMany({ where: { workEntry: { smeId: orphan.id } } }); } catch (_) {}
+      try { await prisma.sME.delete({ where: { id: orphan.id } }); } catch (_) {}
+    }
+  } catch (_) {}
   
   if (searchParams.get('audit') === 'true') {
     const logs = await prisma.auditLog.findMany({

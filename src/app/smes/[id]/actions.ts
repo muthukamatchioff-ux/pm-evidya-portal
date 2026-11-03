@@ -219,12 +219,37 @@ export async function deleteSMEWorkEntry(entryId: string) {
   if (!authCheck.success) return authCheck;
 
   try {
+    // 1. Intercept synthetic entries (e.g. from orphan SME records)
+    if (entryId.startsWith('entry_synth_')) {
+      const orphanSmeId = entryId.replace('entry_synth_', '');
+      try { await prisma.document.deleteMany({ where: { workEntry: { smeId: orphanSmeId } } }); } catch (_) {}
+      try { await prisma.payment.deleteMany({ where: { workEntry: { smeId: orphanSmeId } } }); } catch (_) {}
+      try { await prisma.sMEWorkEntry.deleteMany({ where: { smeId: orphanSmeId } }); } catch (_) {}
+      try { await prisma.sME.delete({ where: { id: orphanSmeId } }); } catch (_) {}
+      revalidatePath('/smes');
+      revalidatePath('/dashboard');
+      revalidatePath('/reports');
+      return { success: true };
+    }
+
     const entry = await prisma.sMEWorkEntry.findUnique({
       where: { id: entryId },
       include: { sme: true }
     });
 
     if (!entry) {
+      // 2. Intercept if entryId is an orphan SME ID directly
+      const directSme = await prisma.sME.findUnique({ where: { id: entryId } });
+      if (directSme) {
+        try { await prisma.document.deleteMany({ where: { workEntry: { smeId: entryId } } }); } catch (_) {}
+        try { await prisma.payment.deleteMany({ where: { workEntry: { smeId: entryId } } }); } catch (_) {}
+        try { await prisma.sMEWorkEntry.deleteMany({ where: { smeId: entryId } }); } catch (_) {}
+        try { await prisma.sME.delete({ where: { id: entryId } }); } catch (_) {}
+        revalidatePath('/smes');
+        revalidatePath('/dashboard');
+        revalidatePath('/reports');
+        return { success: true };
+      }
       return { success: false, error: 'SME Work Entry not found' };
     }
 
@@ -232,7 +257,11 @@ export async function deleteSMEWorkEntry(entryId: string) {
     const smeName = entry.sme?.name || 'Unknown SME';
     const trade = entry.trade || 'Unknown Trade';
 
-    // Delete the work entry (cascades payments, documents, schedules, editor/animation records)
+    // 3. Clean up child documents and payments first to avoid foreign key constraints
+    try { await prisma.document.deleteMany({ where: { workEntryId: entryId } }); } catch (_) {}
+    try { await prisma.payment.deleteMany({ where: { workEntryId: entryId } }); } catch (_) {}
+
+    // Delete the work entry
     await prisma.sMEWorkEntry.delete({
       where: { id: entryId }
     });

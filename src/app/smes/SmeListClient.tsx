@@ -25,8 +25,10 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
     }
   }, [initialWorkEntries]);
 
-  const getEpicId = (epicSequence: number) =>
-    `EPIC-2026-PMeVidya ${String(epicSequence).padStart(2, '0')}`;
+  const getEpicId = (epicSequence?: number | null) => {
+    if (!epicSequence || epicSequence <= 0) return 'Unassigned';
+    return `EPIC-2026-PMeVidya ${String(epicSequence).padStart(2, '0')}`;
+  };
 
   const showToast = (msg: string) => {
     setSuccessToast(msg);
@@ -101,7 +103,7 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
       // Search term
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
-        const epic = getEpicId(entry.epicSequence || 1).toLowerCase();
+        const epic = (entry.epicSequence ? getEpicId(entry.epicSequence) : '').toLowerCase();
         return (
           entry.sme?.name?.toLowerCase().includes(searchLower) ||
           entry.trade?.toLowerCase().includes(searchLower) ||
@@ -257,7 +259,7 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
                       <td style={{ color: '#64748b', fontWeight: 600 }}>{index + 1}</td>
                       <td>
                         <span className={styles.epicPill}>
-                          {getEpicId(entry.epicSequence || index + 1)}
+                          {entry.epicSequence && entry.epicSequence > 0 ? getEpicId(entry.epicSequence) : 'Unassigned'}
                         </span>
                       </td>
                       <td>
@@ -288,7 +290,7 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
                         >
                           {/* Direct link to SME Document Workflow */}
                           <Link
-                            href={`/generator/deputation?epicId=${getEpicId(entry.epicSequence || 1)}`}
+                            href={entry.epicSequence && entry.epicSequence > 0 ? `/generator/deputation?epicId=${getEpicId(entry.epicSequence)}` : '/generator/deputation'}
                             className={styles.btnEdit}
                             style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                             title="Open SME Document Workflow for this Epic ID"

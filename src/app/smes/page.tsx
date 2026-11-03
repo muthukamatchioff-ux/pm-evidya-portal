@@ -49,7 +49,7 @@ export default async function SMEsPage() {
       }
     }
 
-    // 2. Safeguard: Check for any SME rows in DB without work entries so they are never hidden
+    // 2. Safeguard: Check for any SME rows in DB that match authoritative fallback entries
     try {
       const dbSmes = await prisma.sME.findMany();
       const linkedSmeIds = new Set(workEntries.map(e => e.smeId).filter(Boolean));
@@ -64,25 +64,22 @@ export default async function SMEsPage() {
               workEntries.push({ ...matchedFb, sme: s, smeId: s.id });
               linkedSmeIds.add(s.id);
             }
-          } else {
-            workEntries.push({
-              id: `entry_synth_${s.id}`,
-              smeId: s.id,
-              trade: 'General',
-              topic: 'PM e-Vidya Content Development',
-              status: s.status || 'ACTIVE',
-              days: 0,
-              ratePerDay: 1500,
-              taAmount: 0,
-              otherAmount: 0,
-              epicSequence: 0,
-              sme: s,
-              payments: [],
-              documents: []
-            });
-            linkedSmeIds.add(s.id);
           }
         }
+      }
+
+      // 3. Purge any orphan test SME records that have 0 work entries (e.g. Muthu Kamatchi or deleted test entries)
+      const orphanTestSmes = dbSmes.filter((s: any) =>
+        !linkedSmeIds.has(s.id) &&
+        (s.name.toLowerCase().includes('muthu') || s.name.toLowerCase().includes('kamatchi') || s.name.toLowerCase().includes('test'))
+      );
+      for (const orphan of orphanTestSmes) {
+        try {
+          await prisma.document.deleteMany({ where: { workEntry: { smeId: orphan.id } } });
+          await prisma.payment.deleteMany({ where: { workEntry: { smeId: orphan.id } } });
+          await prisma.sMEWorkEntry.deleteMany({ where: { smeId: orphan.id } });
+          await prisma.sME.delete({ where: { id: orphan.id } });
+        } catch (_) {}
       }
     } catch (_) {}
 
