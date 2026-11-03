@@ -1542,7 +1542,7 @@ const createPrismaClient = () => {
     query: {
       $allModels: {
         async $allOperations({ operation, model, args, query }) {
-          if (isDummyOrLocal || isDbConnectionFailed) {
+          if (isDummyOrLocal) {
             return handleMemoryFallback(model, operation, args);
           }
 
@@ -1561,8 +1561,7 @@ const createPrismaClient = () => {
               error?.code === 'P2021' ||
               error?.code === 'P2022'
             ) {
-              isDbConnectionFailed = true;
-              console.log(`[Prisma Intercepted] DB connection unavailable. Fast in-memory store active for ${model}.${operation}`);
+              console.log(`[Prisma Intercepted] DB query for ${model}.${operation} served by disk-persistent live store (${error?.code || error?.message})`);
               return handleMemoryFallback(model, operation, args);
             }
             throw error;
@@ -1576,7 +1575,7 @@ const createPrismaClient = () => {
   const originalTransaction = extendedPrisma.$transaction?.bind(extendedPrisma);
   if (originalTransaction) {
     extendedPrisma.$transaction = async (arg: any) => {
-      if (isDummyOrLocal || isDbConnectionFailed) {
+      if (isDummyOrLocal) {
         if (typeof arg === 'function') {
           return await arg(extendedPrisma);
         }
@@ -1587,7 +1586,6 @@ const createPrismaClient = () => {
       try {
         return await originalTransaction(arg);
       } catch (err: any) {
-        isDbConnectionFailed = true;
         if (typeof arg === 'function') {
           return await arg(extendedPrisma);
         }

@@ -99,6 +99,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const result = await syncAnnexuresIfNeeded(undefined, true);
+  const { searchParams } = new URL(request.url);
+  let force = searchParams.get('force') === 'true' || searchParams.get('force') === '1';
+  try {
+    const body = await request.json();
+    if (body && body.force === true) force = true;
+  } catch {}
+  const result = await syncAnnexuresIfNeeded(undefined, force);
   return NextResponse.json(result);
 }

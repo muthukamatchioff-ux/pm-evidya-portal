@@ -1,5 +1,11 @@
 import { prisma as defaultPrisma } from './prisma';
 import masterData from '@/data/vercel_master_sync_data.json';
+import {
+  REAL_PM_EVIDYA_BUDGET_COMPONENTS,
+  getCanonicalAnnexureI,
+  getCanonicalAnnexureII,
+  getCanonicalAnnexureIII
+} from './fallbackData';
 
 export interface SyncStats {
   users: number;
@@ -516,6 +522,272 @@ export async function syncHarish(p: any = defaultPrisma) {
   };
 }
 
+export async function syncBudgetSchema(p: any = defaultPrisma) {
+  const ddlStatements = [
+    `CREATE TABLE IF NOT EXISTS "BudgetComponent" (
+      "id" TEXT PRIMARY KEY,
+      "componentNo" INTEGER UNIQUE NOT NULL,
+      "name" TEXT NOT NULL,
+      "approvedBudget" DOUBLE PRECISION NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS "AnnexureI" (
+      "id" TEXT PRIMARY KEY,
+      "budgetComponentId" TEXT NOT NULL REFERENCES "BudgetComponent"("id") ON DELETE CASCADE,
+      "datePeriod" TEXT NOT NULL,
+      "expertName" TEXT NOT NULL,
+      "designation" TEXT NOT NULL,
+      "activity" TEXT NOT NULL,
+      "workingDays" DOUBLE PRECISION NOT NULL,
+      "honorarium" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "travelAllowance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "otherCharges" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "totalExpenditure" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "utrNumber" TEXT,
+      "contentDuration" TEXT,
+      "approvalRef" TEXT,
+      "remarks" TEXT,
+      "supportingDoc" TEXT,
+      "verificationStatus" TEXT NOT NULL DEFAULT 'DRAFT',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "tranType" TEXT,
+      "voucherNo" TEXT,
+      "transactionDate" TIMESTAMP(3),
+      "commitmentNo" TEXT,
+      "commitmentDate" TIMESTAMP(3),
+      "narration" TEXT
+    );`,
+    `CREATE TABLE IF NOT EXISTS "AnnexureII" (
+      "id" TEXT PRIMARY KEY,
+      "budgetComponentId" TEXT NOT NULL REFERENCES "BudgetComponent"("id") ON DELETE CASCADE,
+      "datePeriod" TEXT NOT NULL,
+      "trainingName" TEXT NOT NULL,
+      "trainingType" TEXT NOT NULL,
+      "participant" TEXT NOT NULL,
+      "venue" TEXT NOT NULL,
+      "noOfParticipants" INTEGER NOT NULL DEFAULT 0,
+      "trainingDays" DOUBLE PRECISION NOT NULL,
+      "trainerFee" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "trainingCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "travelAllowance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "accommodation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "otherExpenses" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "totalExpenditure" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "utrNumber" TEXT,
+      "approvalRef" TEXT,
+      "remarks" TEXT,
+      "supportingDoc" TEXT,
+      "verificationStatus" TEXT NOT NULL DEFAULT 'DRAFT',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "trainingDates" TEXT
+    );`,
+    `CREATE TABLE IF NOT EXISTS "AnnexureIII" (
+      "id" TEXT PRIMARY KEY,
+      "budgetComponentId" TEXT NOT NULL REFERENCES "BudgetComponent"("id") ON DELETE CASCADE,
+      "datePeriod" TEXT NOT NULL,
+      "personnelName" TEXT NOT NULL,
+      "designation" TEXT NOT NULL,
+      "supportType" TEXT NOT NULL,
+      "department" TEXT NOT NULL,
+      "workPeriod" TEXT NOT NULL,
+      "remuneration" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "taDa" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "otherCharges" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "totalExpenditure" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "utrNumber" TEXT,
+      "approvalRef" TEXT,
+      "remarks" TEXT,
+      "supportingDoc" TEXT,
+      "verificationStatus" TEXT NOT NULL DEFAULT 'DRAFT',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "tranType" TEXT,
+      "voucherNo" TEXT,
+      "transactionDate" TIMESTAMP(3),
+      "commitmentNo" TEXT,
+      "commitmentDate" TIMESTAMP(3),
+      "narration" TEXT
+    );`,
+    `CREATE TABLE IF NOT EXISTS "AnnexureIV" (
+      "id" TEXT PRIMARY KEY,
+      "budgetComponentId" TEXT NOT NULL REFERENCES "BudgetComponent"("id") ON DELETE CASCADE,
+      "datePeriod" TEXT NOT NULL,
+      "service" TEXT NOT NULL,
+      "description" TEXT NOT NULL,
+      "vendor" TEXT NOT NULL,
+      "purchaseRef" TEXT NOT NULL,
+      "quantity" INTEGER NOT NULL DEFAULT 1,
+      "unitCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "servicePeriod" TEXT NOT NULL,
+      "infrastructureCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "bandwidthCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "archiveCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "otherCharges" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "totalExpenditure" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "invoiceNo" TEXT,
+      "utrNumber" TEXT,
+      "remarks" TEXT,
+      "supportingDoc" TEXT,
+      "verificationStatus" TEXT NOT NULL DEFAULT 'DRAFT',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS "AnnexureV" (
+      "id" TEXT PRIMARY KEY,
+      "budgetComponentId" TEXT NOT NULL REFERENCES "BudgetComponent"("id") ON DELETE CASCADE,
+      "datePeriod" TEXT NOT NULL,
+      "school" TEXT NOT NULL,
+      "activity" TEXT NOT NULL,
+      "equipment" TEXT NOT NULL,
+      "quantity" INTEGER NOT NULL DEFAULT 1,
+      "unitCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "installationCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "transportation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "otherCharges" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "totalExpenditure" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "vendor" TEXT NOT NULL,
+      "invoiceNo" TEXT,
+      "utrNumber" TEXT,
+      "remarks" TEXT,
+      "supportingDoc" TEXT,
+      "verificationStatus" TEXT NOT NULL DEFAULT 'DRAFT',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );`,
+    `CREATE TABLE IF NOT EXISTS "AnnexureVI" (
+      "id" TEXT PRIMARY KEY,
+      "budgetComponentId" TEXT NOT NULL REFERENCES "BudgetComponent"("id") ON DELETE CASCADE,
+      "platform" TEXT NOT NULL,
+      "campaignDesc" TEXT NOT NULL,
+      "datePeriod" TEXT NOT NULL,
+      "serviceProvider" TEXT NOT NULL,
+      "campaignType" TEXT NOT NULL,
+      "amount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "tax" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "totalExpenditure" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "utrNumber" TEXT,
+      "approvalRef" TEXT,
+      "remarks" TEXT,
+      "supportingDoc" TEXT,
+      "verificationStatus" TEXT NOT NULL DEFAULT 'DRAFT',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );`
+  ];
+
+  const results: any[] = [];
+  for (const ddl of ddlStatements) {
+    try {
+      await p.$executeRawUnsafe(ddl);
+      results.push({ sql: ddl.slice(0, 40), success: true });
+    } catch (e: any) {
+      results.push({ sql: ddl.slice(0, 40), success: false, error: e.message });
+    }
+  }
+
+  return { success: results.every(r => r.success), count: results.length, results };
+}
+
+export async function syncBudgetData(p: any = defaultPrisma) {
+  // 1. Ensure 6 BudgetComponents are seeded
+  for (const comp of REAL_PM_EVIDYA_BUDGET_COMPONENTS) {
+    await p.$executeRawUnsafe(
+      `INSERT INTO "BudgetComponent" ("id", "componentNo", "name", "approvedBudget", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT ("componentNo") DO UPDATE SET "approvedBudget" = EXCLUDED."approvedBudget", "name" = EXCLUDED."name";`,
+      comp.id,
+      comp.componentNo,
+      comp.name,
+      comp.approvedBudget
+    );
+  }
+
+  // 2. Check AnnexureI: ONLY insert baseline if 0 rows exist
+  const c1Rows: any = await p.$queryRawUnsafe(`SELECT count(*)::int as count FROM "AnnexureI"`).catch(() => [{ count: 0 }]);
+  let c1Count = 0;
+  if (c1Rows[0]?.count === 0) {
+    const items = getCanonicalAnnexureI();
+    for (const item of items) {
+      await p.$executeRawUnsafe(
+        `INSERT INTO "AnnexureI" ("id", "budgetComponentId", "datePeriod", "expertName", "designation", "activity", "workingDays", "honorarium", "travelAllowance", "otherCharges", "totalExpenditure", "utrNumber", "contentDuration", "approvalRef", "remarks", "supportingDoc", "verificationStatus", "tranType", "voucherNo", "commitmentNo", "narration", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON CONFLICT ("id") DO NOTHING;`,
+        item.id, item.budgetComponentId, item.datePeriod || '', item.expertName || '', item.designation || '', item.activity || 'Digital Content Development',
+        Number(item.workingDays) || 0, Number(item.honorarium) || 0, Number(item.travelAllowance) || 0, Number(item.otherCharges) || 0, Number(item.totalExpenditure) || 0,
+        item.utrNumber || '', item.contentDuration || '-', item.approvalRef || null, item.remarks || '', item.supportingDoc || null, item.verificationStatus || 'DRAFT',
+        item.tranType || null, item.voucherNo || null, item.commitmentNo || null, item.narration || null
+      );
+      c1Count++;
+    }
+  }
+
+  // 3. Check AnnexureII: ONLY insert baseline if 0 rows exist
+  const c2Rows: any = await p.$queryRawUnsafe(`SELECT count(*)::int as count FROM "AnnexureII"`).catch(() => [{ count: 0 }]);
+  let c2Count = 0;
+  if (c2Rows[0]?.count === 0) {
+    const items = getCanonicalAnnexureII();
+    for (const item of items) {
+      await p.$executeRawUnsafe(
+        `INSERT INTO "AnnexureII" ("id", "budgetComponentId", "datePeriod", "trainingName", "trainingType", "participant", "venue", "noOfParticipants", "trainingDays", "trainerFee", "trainingCost", "travelAllowance", "accommodation", "otherExpenses", "totalExpenditure", "utrNumber", "approvalRef", "remarks", "supportingDoc", "verificationStatus", "trainingDates", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON CONFLICT ("id") DO NOTHING;`,
+        item.id, item.budgetComponentId, item.datePeriod || '', item.trainingName || '', item.trainingType || 'Hybrid', item.participant || '',
+        item.venue || 'NIMI Chennai', Number(item.noOfParticipants) || 0, Number(item.trainingDays) || 0, Number(item.trainerFee) || 0,
+        Number(item.trainingCost) || 0, Number(item.travelAllowance) || 0, Number(item.accommodation) || 0, Number(item.otherExpenses) || 0,
+        Number(item.totalExpenditure) || 0, item.utrNumber || '', item.approvalRef || null, item.remarks || '', item.supportingDoc || null,
+        item.verificationStatus || 'DRAFT', item.trainingDates || null
+      );
+      c2Count++;
+    }
+  }
+
+  // 4. Check AnnexureIII: ONLY insert baseline if 0 rows exist
+  const c3Rows: any = await p.$queryRawUnsafe(`SELECT count(*)::int as count FROM "AnnexureIII"`).catch(() => [{ count: 0 }]);
+  let c3Count = 0;
+  if (c3Rows[0]?.count === 0) {
+    const items = getCanonicalAnnexureIII();
+    for (const item of items) {
+      await p.$executeRawUnsafe(
+        `INSERT INTO "AnnexureIII" ("id", "budgetComponentId", "datePeriod", "personnelName", "designation", "supportType", "department", "workPeriod", "remuneration", "taDa", "otherCharges", "totalExpenditure", "utrNumber", "approvalRef", "remarks", "supportingDoc", "verificationStatus", "tranType", "voucherNo", "commitmentNo", "narration", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON CONFLICT ("id") DO NOTHING;`,
+        item.id, item.budgetComponentId, item.datePeriod || '', item.personnelName || '', item.designation || '', item.supportType || '',
+        item.department || '', item.workPeriod || '1', Number(item.remuneration) || 0, Number(item.taDa) || 0, Number(item.otherCharges) || 0,
+        Number(item.totalExpenditure) || 0, item.utrNumber || '', item.approvalRef || null, item.remarks || '', item.supportingDoc || null,
+        item.verificationStatus || 'DRAFT', item.tranType || null, item.voucherNo || null, item.commitmentNo || null, item.narration || null
+      );
+      c3Count++;
+    }
+  }
+
+  // 5. Check AnnexureVI: ONLY insert baseline if 0 rows exist
+  const c6Rows: any = await p.$queryRawUnsafe(`SELECT count(*)::int as count FROM "AnnexureVI"`).catch(() => [{ count: 0 }]);
+  let c6Count = 0;
+  if (c6Rows[0]?.count === 0) {
+    const items = REAL_PM_EVIDYA_BUDGET_COMPONENTS[5]?.annexureVI || [];
+    for (const item of items) {
+      await p.$executeRawUnsafe(
+        `INSERT INTO "AnnexureVI" ("id", "budgetComponentId", "platform", "campaignDesc", "datePeriod", "serviceProvider", "campaignType", "amount", "tax", "totalExpenditure", "utrNumber", "approvalRef", "remarks", "supportingDoc", "verificationStatus", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON CONFLICT ("id") DO NOTHING;`,
+        item.id, item.budgetComponentId, item.platform || '', item.campaignDesc || '', item.datePeriod || '', item.serviceProvider || '',
+        item.campaignType || '', Number(item.amount) || 0, Number(item.tax) || 0, Number(item.totalExpenditure) || 0, item.utrNumber || '',
+        item.approvalRef || null, item.remarks || '', item.supportingDoc || null, item.verificationStatus || 'DRAFT'
+      );
+      c6Count++;
+    }
+  }
+
+  return {
+    success: true,
+    budgetComponents: 6,
+    seeded: { c1Count, c2Count, c3Count, c6Count }
+  };
+}
+
 export async function executeVercelDataSync(p: any = defaultPrisma, section: string = 'all') {
   const beforeStats = await getDatabaseStats(p);
 
@@ -527,6 +799,12 @@ export async function executeVercelDataSync(p: any = defaultPrisma, section: str
     results: {}
   };
 
+  if (section === 'schema' || section === 'budget_schema' || section === 'budget' || section === 'all') {
+    report.results.budgetSchema = await syncBudgetSchema(p);
+  }
+  if (section === 'budget' || section === 'budget_data' || section === 'all') {
+    report.results.budgetData = await syncBudgetData(p);
+  }
   if (section === 'schema' || section === 'all') {
     report.results.schema = await syncSchema(p);
   }
