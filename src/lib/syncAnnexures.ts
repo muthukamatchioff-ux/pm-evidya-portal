@@ -31,33 +31,11 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
       return { success: false, reason: 'Components not found' };
     }
 
-    // Check if Component 1 has old stale records
-    const comp1NeedsSync = force ||
-      (comp1.annexureI.length !== 8) ||
-      comp1.annexureI.some((r: any) =>
-        r.expertName?.includes('CANTEEN') ||
-        r.expertName?.includes('Migrated') ||
-        r.voucherNo === 'CN2/001756/26-27'
-      ) ||
-      (comp1.annexureI.reduce((sum: number, r: any) => sum + (r.totalExpenditure || 0), 0) !== 155735);
-
-    // Check if Component 2 has old stale records
-    const comp2NeedsSync = force ||
-      (comp2.annexureII.length !== 26) ||
-      comp2.annexureII.some((r: any) =>
-        r.remarks?.includes('Legacy Import') ||
-        (r.participant?.includes('PRIYA.S') && r.travelAllowance === 29245)
-      ) ||
-      (comp2.annexureII.reduce((sum: number, r: any) => sum + (r.totalExpenditure || 0), 0) !== 210969);
-
-    // Check if Component 3 has old stale records (must have exactly 1 record: JV20000062/26-27, ₹1,45,000)
-    const comp3NeedsSync = force ||
-      (comp3.annexureIII.length !== 1) ||
-      comp3.annexureIII.some((r: any) =>
-        r.voucherNo !== 'JV20000062/26-27' ||
-        r.totalExpenditure !== 145000 ||
-        r.personnelName?.includes('PRIYA')
-      );
+    // Only synchronize if explicitly requested with force: true, or if tables are completely empty.
+    // Under NO circumstance should existing user additions, edits, or deletions be automatically overwritten!
+    const comp1NeedsSync = force || (!comp1.annexureI || comp1.annexureI.length === 0);
+    const comp2NeedsSync = force || (!comp2.annexureII || comp2.annexureII.length === 0);
+    const comp3NeedsSync = force || (!comp3.annexureIII || comp3.annexureIII.length === 0);
 
     if (!comp1NeedsSync && !comp2NeedsSync && !comp3NeedsSync) {
       return {

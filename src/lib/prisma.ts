@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { PrismaClient } from '@prisma/client';
 import {
   REAL_PM_EVIDYA_BUDGET_COMPONENTS,
@@ -88,23 +90,15 @@ function initCanonicalTracker() {
     });
   }
 
+  // Also include any legacy videos from REAL_PM_EVIDYA_VIDEOS
+  (REAL_PM_EVIDYA_VIDEOS as any[]).forEach(v => {
+    if (!initialVideos.some(iv => iv.id === v.id)) {
+      initialVideos.push(v);
+    }
+  });
+
   return { initialSchedules, initialEditorRecords, initialVideos };
 }
-
-const { initialSchedules, initialEditorRecords, initialVideos } = initCanonicalTracker();
-
-const globalShootingSchedules: any[] = (globalThis as any).__pmShootingSchedules || initialSchedules;
-(globalThis as any).__pmShootingSchedules = globalShootingSchedules;
-
-const globalVideoEditorRecords: any[] = (globalThis as any).__pmVideoEditorRecords || initialEditorRecords;
-(globalThis as any).__pmVideoEditorRecords = globalVideoEditorRecords;
-
-// Populate canonical videos into REAL_PM_EVIDYA_VIDEOS
-initialVideos.forEach((v) => {
-  if (!(REAL_PM_EVIDYA_VIDEOS as any[]).some((existing: any) => existing.id === v.id)) {
-    (REAL_PM_EVIDYA_VIDEOS as any[]).push(v);
-  }
-});
 
 // =========================================================================
 // STAFF ACCOUNTS INITIALIZATION (ADMIN, CAMERAMEN, VIDEO EDITORS)
@@ -139,18 +133,130 @@ const INITIAL_USERS: any[] = [
   { id: 'user-team', name: 'Team Member', email: 'team@nimi.org', role: 'TEAM_MEMBER', status: 'ACTIVE', department: 'Production', designation: 'Team Member', password: STAFF_PASSWORD_HASH }
 ];
 
-const globalUsers: any[] = (globalThis as any).__pmUsers || INITIAL_USERS;
-(globalThis as any).__pmUsers = globalUsers;
+// =========================================================================
+// DISK PERSISTENT LIVE STORE FOR ALL BUDGET HEADS, TRACKER & USER ENTRIES
+// =========================================================================
 
-const globalAuditLogs: any[] = (globalThis as any).__pmAuditLogs || [];
-(globalThis as any).__pmAuditLogs = globalAuditLogs;
+interface LiveStoreData {
+  budgetComponents: any[];
+  budgetHeads: any[];
+  shootingSchedules: any[];
+  videoEditorRecords: any[];
+  videoLibraries: any[];
+  smes: any[];
+  smeWorkEntries: any[];
+  users: any[];
+  auditLogs: any[];
+}
+
+const STORAGE_FILE = path.join(process.cwd(), 'data', 'pm_evidya_live_store.json');
+
+function computeComponentMetrics(comp: any) {
+  let expenditure = 0;
+  if (comp.componentNo === 1 && Array.isArray(comp.annexureI)) {
+    comp.annexureI.forEach((a: any) => expenditure += (Number(a.totalExpenditure) || 0));
+  }
+  if (comp.componentNo === 2 && Array.isArray(comp.annexureII)) {
+    comp.annexureII.forEach((a: any) => expenditure += (Number(a.totalExpenditure) || 0));
+  }
+  if (comp.componentNo === 3 && Array.isArray(comp.annexureIII)) {
+    comp.annexureIII.forEach((a: any) => expenditure += (Number(a.totalExpenditure) || 0));
+  }
+  if (comp.componentNo === 4 && Array.isArray(comp.annexureIV)) {
+    comp.annexureIV.forEach((a: any) => expenditure += (Number(a.totalExpenditure) || 0));
+  }
+  if (comp.componentNo === 5 && Array.isArray(comp.annexureV)) {
+    comp.annexureV.forEach((a: any) => expenditure += (Number(a.totalExpenditure) || 0));
+  }
+  if (comp.componentNo === 6 && Array.isArray(comp.annexureVI)) {
+    comp.annexureVI.forEach((a: any) => expenditure += (Number(a.totalExpenditure) || 0));
+  }
+  comp.expenditureIncurred = expenditure;
+  comp.unutilizedBalance = comp.approvedBudget - expenditure;
+  comp.utilizationPercent = comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00';
+  return comp;
+}
+
+function loadLiveStore(): LiveStoreData {
+  try {
+    if (fs.existsSync(STORAGE_FILE)) {
+      const raw = fs.readFileSync(STORAGE_FILE, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.budgetComponents) && parsed.budgetComponents.length >= 6) {
+        // Re-compute dynamic metrics
+        parsed.budgetComponents.forEach(computeComponentMetrics);
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.error('[LiveStore] Error loading storage file, re-initializing:', err);
+  }
+
+  // Deep clone initial canonical data
+  const canonicalComponents = JSON.parse(JSON.stringify(REAL_PM_EVIDYA_BUDGET_COMPONENTS));
+  if (!canonicalComponents[0]?.annexureI || canonicalComponents[0].annexureI.length === 0) {
+    canonicalComponents[0].annexureI = getCanonicalAnnexureI();
+  }
+  if (!canonicalComponents[1]?.annexureII || canonicalComponents[1].annexureII.length === 0) {
+    canonicalComponents[1].annexureII = getCanonicalAnnexureII();
+  }
+  if (!canonicalComponents[2]?.annexureIII || canonicalComponents[2].annexureIII.length === 0) {
+    canonicalComponents[2].annexureIII = getCanonicalAnnexureIII();
+  }
+  canonicalComponents.forEach(computeComponentMetrics);
+
+  const { initialSchedules, initialEditorRecords, initialVideos } = initCanonicalTracker();
+
+  const store: LiveStoreData = {
+    budgetComponents: canonicalComponents,
+    budgetHeads: JSON.parse(JSON.stringify(REAL_PM_EVIDYA_BUDGET_HEADS)),
+    shootingSchedules: initialSchedules,
+    videoEditorRecords: initialEditorRecords,
+    videoLibraries: initialVideos,
+    smes: JSON.parse(JSON.stringify(REAL_PM_EVIDYA_SMES)),
+    smeWorkEntries: JSON.parse(JSON.stringify(REAL_PM_EVIDYA_SME_WORK_ENTRIES)),
+    users: JSON.parse(JSON.stringify(INITIAL_USERS)),
+    auditLogs: []
+  };
+
+  try {
+    const dir = path.dirname(STORAGE_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(STORAGE_FILE, JSON.stringify(store, null, 2), 'utf8');
+  } catch (err) {
+    console.error('[LiveStore] Error writing initial storage file:', err);
+  }
+
+  return store;
+}
+
+const liveStore: LiveStoreData = (globalThis as any).__pmLiveStore || loadLiveStore();
+(globalThis as any).__pmLiveStore = liveStore;
+
+function persistLiveStore() {
+  try {
+    liveStore.budgetComponents.forEach(computeComponentMetrics);
+    const dir = path.dirname(STORAGE_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const tmpFile = `${STORAGE_FILE}.tmp.${Date.now()}`;
+    fs.writeFileSync(tmpFile, JSON.stringify(liveStore, null, 2), 'utf8');
+    try {
+      fs.renameSync(tmpFile, STORAGE_FILE);
+    } catch {
+      fs.writeFileSync(STORAGE_FILE, JSON.stringify(liveStore, null, 2), 'utf8');
+      try { fs.unlinkSync(tmpFile); } catch (_) {}
+    }
+  } catch (err) {
+    console.error('[LiveStore] Failed to persist data to disk:', err);
+  }
+}
 
 // Helper to dynamically attach related records to SMEWorkEntry
 function attachWorkEntryRelations(entry: any) {
   if (!entry) return null;
-  const schedules = globalShootingSchedules.filter((s: any) => s.workEntryId === entry.id);
-  const editorRecs = globalVideoEditorRecords.filter((e: any) => e.workEntryId === entry.id);
-  const vids = (REAL_PM_EVIDYA_VIDEOS as any[]).filter((v: any) => v.epicId === entry.id);
+  const schedules = liveStore.shootingSchedules.filter((s: any) => s.workEntryId === entry.id);
+  const editorRecs = liveStore.videoEditorRecords.filter((e: any) => e.workEntryId === entry.id);
+  const vids = liveStore.videoLibraries.filter((v: any) => v.epicId === entry.id);
 
   return {
     ...entry,
@@ -191,8 +297,6 @@ const getDbUrl = () => {
   // Check local .env.bak if present and candidates were missing/masked (local environment only)
   if (typeof window === 'undefined' && !process.env.VERCEL) {
     try {
-      const fs = require('fs');
-      const path = require('path');
       const bakPath = path.join(process.cwd(), '.env.bak');
       if (fs.existsSync(bakPath)) {
         const content = fs.readFileSync(bakPath, 'utf8');
@@ -214,30 +318,27 @@ const getDbUrl = () => {
 };
 
 // =========================================================================
-// IN-MEMORY DATA STORE DISPATCHER (ELIMINATES 5-7s LATENCY COMPLETELY)
+// IN-MEMORY & DISK PERSISTENT DISPATCHER (NO RESET, 100% PERSISTENT)
 // =========================================================================
 
 function handleMemoryFallback(model: string, operation: string, args: any): any {
+  // =======================================================================
+  // BUDGET COMPONENT
+  // =======================================================================
   if (model === 'BudgetComponent') {
-    if (!REAL_PM_EVIDYA_BUDGET_COMPONENTS[0]?.annexureI || REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI.length !== 8) {
-      REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI = getCanonicalAnnexureI();
-    }
-    if (!REAL_PM_EVIDYA_BUDGET_COMPONENTS[1]?.annexureII || REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII.length !== 26) {
-      REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII = getCanonicalAnnexureII();
-    }
-    if (!REAL_PM_EVIDYA_BUDGET_COMPONENTS[2]?.annexureIII || REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII.length !== 1) {
-      REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII = getCanonicalAnnexureIII();
-    }
     if (operation === 'findMany') {
-      return REAL_PM_EVIDYA_BUDGET_COMPONENTS;
+      liveStore.budgetComponents.forEach(computeComponentMetrics);
+      return liveStore.budgetComponents;
     }
     if (operation === 'update') {
       const compNo = args?.where?.componentNo;
       const id = args?.where?.id;
-      const comp = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find((c: any) => (compNo && c.componentNo === compNo) || (id && c.id === id));
+      const comp = liveStore.budgetComponents.find((c: any) => (compNo && c.componentNo === compNo) || (id && c.id === id));
       if (comp && args?.data) {
         Object.assign(comp, args.data);
         comp.updatedAt = new Date().toISOString();
+        computeComponentMetrics(comp);
+        persistLiveStore();
         return comp;
       }
       return { id, ...args?.data };
@@ -245,78 +346,101 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
     if (operation === 'findUnique' || operation === 'findFirst') {
       const compNo = args?.where?.componentNo;
       if (compNo) {
-        return REAL_PM_EVIDYA_BUDGET_COMPONENTS.find((c: any) => c.componentNo === compNo) || null;
+        const found = liveStore.budgetComponents.find((c: any) => c.componentNo === compNo);
+        return found ? computeComponentMetrics(found) : null;
       }
       const id = args?.where?.id;
       if (id) {
-        return REAL_PM_EVIDYA_BUDGET_COMPONENTS.find((c: any) => c.id === id) || null;
+        const found = liveStore.budgetComponents.find((c: any) => c.id === id);
+        return found ? computeComponentMetrics(found) : null;
       }
-      return REAL_PM_EVIDYA_BUDGET_COMPONENTS[0] || null;
+      return liveStore.budgetComponents[0] ? computeComponentMetrics(liveStore.budgetComponents[0]) : null;
     }
   }
 
+  // =======================================================================
+  // BUDGET HEAD
+  // =======================================================================
   if (model === 'BudgetHead') {
-    if (operation === 'findMany') return REAL_PM_EVIDYA_BUDGET_HEADS;
+    if (operation === 'findMany') return liveStore.budgetHeads;
     if (operation === 'findUnique' || operation === 'findFirst') {
-      return (REAL_PM_EVIDYA_BUDGET_HEADS as any[]).find(h => h.id === args?.where?.id || h.name === args?.where?.name) || null;
+      return liveStore.budgetHeads.find(h => h.id === args?.where?.id || h.name === args?.where?.name) || null;
     }
     if (operation === 'create') {
-      const newHead = { id: `bh-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-      (REAL_PM_EVIDYA_BUDGET_HEADS as any[]).push(newHead);
+      const newHead = { id: args?.data?.id || `bh-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      liveStore.budgetHeads.push(newHead);
+      persistLiveStore();
       return newHead;
     }
     if (operation === 'update') {
-      const head = (REAL_PM_EVIDYA_BUDGET_HEADS as any[]).find(h => h.id === args?.where?.id);
+      const head = liveStore.budgetHeads.find(h => h.id === args?.where?.id);
       if (head && args?.data) {
         Object.assign(head, args.data);
         head.updatedAt = new Date().toISOString();
+        persistLiveStore();
         return head;
       }
       return { ...args?.data, id: args?.where?.id };
     }
     if (operation === 'delete') {
-      const idx = (REAL_PM_EVIDYA_BUDGET_HEADS as any[]).findIndex(h => h.id === args?.where?.id);
-      if (idx !== -1) return (REAL_PM_EVIDYA_BUDGET_HEADS as any[]).splice(idx, 1)[0];
+      const idx = liveStore.budgetHeads.findIndex(h => h.id === args?.where?.id);
+      if (idx !== -1) {
+        const deleted = liveStore.budgetHeads.splice(idx, 1)[0];
+        persistLiveStore();
+        return deleted;
+      }
       return { id: args?.where?.id };
     }
   }
 
+  // =======================================================================
+  // ANNEXURE I (Component 1 - Digital Content Development & Production)
+  // =======================================================================
   if (model === 'AnnexureI') {
-    if (!REAL_PM_EVIDYA_BUDGET_COMPONENTS[0]?.annexureI || REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI.length !== 8) {
-      REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI = getCanonicalAnnexureI();
-    }
-    const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[0]?.annexureI || []) as any[];
+    const list = (liveStore.budgetComponents[0]?.annexureI || []) as any[];
     if (operation === 'findMany') return list;
+    if (operation === 'findUnique' || operation === 'findFirst') {
+      return list.find((x: any) => x.id === args?.where?.id) || null;
+    }
     if (operation === 'deleteMany') {
       const targetId = args?.where?.id;
       if (targetId && typeof targetId === 'string') {
-        REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI = list.filter((x: any) => x.id !== targetId);
+        liveStore.budgetComponents[0].annexureI = list.filter((x: any) => x.id !== targetId);
       } else {
-        REAL_PM_EVIDYA_BUDGET_COMPONENTS[0].annexureI = [];
+        liveStore.budgetComponents[0].annexureI = [];
       }
+      persistLiveStore();
       return { count: list.length };
     }
     if (operation === 'createMany') {
       const items = Array.isArray(args?.data) ? args.data : [args?.data];
       for (const item of items) {
         list.push({
-          id: item?.id || `ai-${Date.now()}-${Math.random()}`,
+          id: item?.id || `ai-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
           ...item,
           createdAt: item?.createdAt || new Date().toISOString(),
           updatedAt: item?.updatedAt || new Date().toISOString()
         });
       }
+      persistLiveStore();
       return { count: items.length };
     }
     if (operation === 'create') {
-      const newItem = { id: `ai-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      const newItem = {
+        id: args?.data?.id || `ai-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        ...args?.data,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
       list.push(newItem);
+      persistLiveStore();
       return newItem;
     }
     if (operation === 'update') {
       const idx = list.findIndex((x: any) => x.id === args?.where?.id);
       if (idx !== -1) {
         list[idx] = { ...list[idx], ...args?.data, updatedAt: new Date().toISOString() };
+        persistLiveStore();
         return list[idx];
       }
       return { ...args?.data, id: args?.where?.id };
@@ -325,48 +449,61 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
       const idx = list.findIndex((x: any) => x.id === args?.where?.id);
       if (idx !== -1) {
         const removed = list.splice(idx, 1)[0];
+        persistLiveStore();
         return removed;
       }
       return { id: args?.where?.id, expertName: 'Entry' };
     }
   }
 
+  // =======================================================================
+  // ANNEXURE II (Component 2 - Capacity Building & Training)
+  // =======================================================================
   if (model === 'AnnexureII') {
-    if (!REAL_PM_EVIDYA_BUDGET_COMPONENTS[1]?.annexureII || REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII.length !== 26) {
-      REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII = getCanonicalAnnexureII();
-    }
-    const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[1]?.annexureII || []) as any[];
+    const list = (liveStore.budgetComponents[1]?.annexureII || []) as any[];
     if (operation === 'findMany') return list;
+    if (operation === 'findUnique' || operation === 'findFirst') {
+      return list.find((x: any) => x.id === args?.where?.id) || null;
+    }
     if (operation === 'deleteMany') {
       const targetId = args?.where?.id;
       if (targetId && typeof targetId === 'string') {
-        REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII = list.filter((x: any) => x.id !== targetId);
+        liveStore.budgetComponents[1].annexureII = list.filter((x: any) => x.id !== targetId);
       } else {
-        REAL_PM_EVIDYA_BUDGET_COMPONENTS[1].annexureII = [];
+        liveStore.budgetComponents[1].annexureII = [];
       }
+      persistLiveStore();
       return { count: list.length };
     }
     if (operation === 'createMany') {
       const items = Array.isArray(args?.data) ? args.data : [args?.data];
       for (const item of items) {
         list.push({
-          id: item?.id || `aii-${Date.now()}-${Math.random()}`,
+          id: item?.id || `aii-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
           ...item,
           createdAt: item?.createdAt || new Date().toISOString(),
           updatedAt: item?.updatedAt || new Date().toISOString()
         });
       }
+      persistLiveStore();
       return { count: items.length };
     }
     if (operation === 'create') {
-      const newItem = { id: `aii-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      const newItem = {
+        id: args?.data?.id || `aii-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        ...args?.data,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
       list.push(newItem);
+      persistLiveStore();
       return newItem;
     }
     if (operation === 'update') {
       const idx = list.findIndex((x: any) => x.id === args?.where?.id);
       if (idx !== -1) {
         list[idx] = { ...list[idx], ...args?.data, updatedAt: new Date().toISOString() };
+        persistLiveStore();
         return list[idx];
       }
       return { ...args?.data, id: args?.where?.id };
@@ -375,149 +512,220 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
       const idx = list.findIndex((x: any) => x.id === args?.where?.id);
       if (idx !== -1) {
         const removed = list.splice(idx, 1)[0];
+        persistLiveStore();
         return removed;
       }
       return { id: args?.where?.id, participant: 'Entry' };
     }
   }
 
+  // =======================================================================
+  // ANNEXURE III (Component 3 - Human Resource & Technical Support)
+  // =======================================================================
   if (model === 'AnnexureIII') {
-    if (!REAL_PM_EVIDYA_BUDGET_COMPONENTS[2]?.annexureIII || REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII.length !== 1) {
-      REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII = getCanonicalAnnexureIII();
-    }
-    const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[2]?.annexureIII || []) as any[];
+    const list = (liveStore.budgetComponents[2]?.annexureIII || []) as any[];
     if (operation === 'findMany') return list;
     if (operation === 'deleteMany') {
       const targetId = args?.where?.id;
       if (targetId && typeof targetId === 'string') {
-        REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII = list.filter((x: any) => x.id !== targetId);
+        liveStore.budgetComponents[2].annexureIII = list.filter((x: any) => x.id !== targetId);
       } else {
-        REAL_PM_EVIDYA_BUDGET_COMPONENTS[2].annexureIII = [];
+        liveStore.budgetComponents[2].annexureIII = [];
       }
+      persistLiveStore();
       return { count: list.length };
     }
     if (operation === 'createMany') {
       const items = Array.isArray(args?.data) ? args.data : [args?.data];
       for (const item of items) {
         list.push({
-          id: item?.id || `aiii-${Date.now()}-${Math.random()}`,
+          id: item?.id || `aiii-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
           ...item,
           createdAt: item?.createdAt || new Date().toISOString(),
           updatedAt: item?.updatedAt || new Date().toISOString()
         });
       }
+      persistLiveStore();
       return { count: items.length };
     }
     if (operation === 'findUnique' || operation === 'findFirst') {
       return list.find((x: any) => x.id === args?.where?.id) || null;
     }
     if (operation === 'create') {
-      const newItem = { id: `aiii-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      const newItem = {
+        id: args?.data?.id || `aiii-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        ...args?.data,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
       list.push(newItem);
+      persistLiveStore();
       return newItem;
     }
     if (operation === 'update') {
       const idx = list.findIndex((x: any) => x.id === args?.where?.id);
       if (idx !== -1) {
         list[idx] = { ...list[idx], ...args?.data, updatedAt: new Date().toISOString() };
+        persistLiveStore();
         return list[idx];
       }
       return { ...args?.data, id: args?.where?.id };
     }
     if (operation === 'delete') {
       const idx = list.findIndex((x: any) => x.id === args?.where?.id);
-      if (idx !== -1) return list.splice(idx, 1)[0];
+      if (idx !== -1) {
+        const removed = list.splice(idx, 1)[0];
+        persistLiveStore();
+        return removed;
+      }
       return { id: args?.where?.id };
     }
   }
 
+  // =======================================================================
+  // ANNEXURE IV (Component 4 - Digital Infrastructure, Archive & Network)
+  // =======================================================================
   if (model === 'AnnexureIV') {
-    const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[3]?.annexureIV || []) as any[];
+    const list = (liveStore.budgetComponents[3]?.annexureIV || []) as any[];
     if (operation === 'findMany') return list;
-    if (operation === 'deleteMany') { REAL_PM_EVIDYA_BUDGET_COMPONENTS[3].annexureIV = []; return { count: 0 }; }
+    if (operation === 'deleteMany') {
+      liveStore.budgetComponents[3].annexureIV = [];
+      persistLiveStore();
+      return { count: 0 };
+    }
     if (operation === 'findUnique' || operation === 'findFirst') {
       return list.find((x: any) => x.id === args?.where?.id) || null;
     }
     if (operation === 'create') {
-      const newItem = { id: `aiv-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      const newItem = {
+        id: args?.data?.id || `aiv-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        ...args?.data,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
       list.push(newItem);
+      persistLiveStore();
       return newItem;
     }
     if (operation === 'update') {
       const idx = list.findIndex((x: any) => x.id === args?.where?.id);
       if (idx !== -1) {
         list[idx] = { ...list[idx], ...args?.data, updatedAt: new Date().toISOString() };
+        persistLiveStore();
         return list[idx];
       }
       return { ...args?.data, id: args?.where?.id };
     }
     if (operation === 'delete') {
       const idx = list.findIndex((x: any) => x.id === args?.where?.id);
-      if (idx !== -1) return list.splice(idx, 1)[0];
+      if (idx !== -1) {
+        const removed = list.splice(idx, 1)[0];
+        persistLiveStore();
+        return removed;
+      }
       return { id: args?.where?.id };
     }
   }
 
+  // =======================================================================
+  // ANNEXURE V (Component 5 - School Telecast & Distribution Infrastructure)
+  // =======================================================================
   if (model === 'AnnexureV') {
-    const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[4]?.annexureV || []) as any[];
+    const list = (liveStore.budgetComponents[4]?.annexureV || []) as any[];
     if (operation === 'findMany') return list;
-    if (operation === 'deleteMany') { REAL_PM_EVIDYA_BUDGET_COMPONENTS[4].annexureV = []; return { count: 0 }; }
+    if (operation === 'deleteMany') {
+      liveStore.budgetComponents[4].annexureV = [];
+      persistLiveStore();
+      return { count: 0 };
+    }
     if (operation === 'findUnique' || operation === 'findFirst') {
       return list.find((x: any) => x.id === args?.where?.id) || null;
     }
     if (operation === 'create') {
-      const newItem = { id: `av-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      const newItem = {
+        id: args?.data?.id || `av-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        ...args?.data,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
       list.push(newItem);
+      persistLiveStore();
       return newItem;
     }
     if (operation === 'update') {
       const idx = list.findIndex((x: any) => x.id === args?.where?.id);
       if (idx !== -1) {
         list[idx] = { ...list[idx], ...args?.data, updatedAt: new Date().toISOString() };
+        persistLiveStore();
         return list[idx];
       }
       return { ...args?.data, id: args?.where?.id };
     }
     if (operation === 'delete') {
       const idx = list.findIndex((x: any) => x.id === args?.where?.id);
-      if (idx !== -1) return list.splice(idx, 1)[0];
+      if (idx !== -1) {
+        const removed = list.splice(idx, 1)[0];
+        persistLiveStore();
+        return removed;
+      }
       return { id: args?.where?.id };
     }
   }
 
+  // =======================================================================
+  // ANNEXURE VI (Component 6 - Outreach, Feedback, Research & Advocacy)
+  // =======================================================================
   if (model === 'AnnexureVI') {
-    const list = (REAL_PM_EVIDYA_BUDGET_COMPONENTS[5]?.annexureVI || []) as any[];
+    const list = (liveStore.budgetComponents[5]?.annexureVI || []) as any[];
     if (operation === 'findMany') return list;
-    if (operation === 'deleteMany') { REAL_PM_EVIDYA_BUDGET_COMPONENTS[5].annexureVI = []; return { count: 0 }; }
+    if (operation === 'deleteMany') {
+      liveStore.budgetComponents[5].annexureVI = [];
+      persistLiveStore();
+      return { count: 0 };
+    }
     if (operation === 'findUnique' || operation === 'findFirst') {
       return list.find((x: any) => x.id === args?.where?.id) || null;
     }
     if (operation === 'create') {
-      const newItem = { id: `avi-${Date.now()}`, ...args?.data, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      const newItem = {
+        id: args?.data?.id || `avi-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        ...args?.data,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
       list.push(newItem);
+      persistLiveStore();
       return newItem;
     }
     if (operation === 'update') {
       const idx = list.findIndex((x: any) => x.id === args?.where?.id);
       if (idx !== -1) {
         list[idx] = { ...list[idx], ...args?.data, updatedAt: new Date().toISOString() };
+        persistLiveStore();
         return list[idx];
       }
       return { ...args?.data, id: args?.where?.id };
     }
     if (operation === 'delete') {
       const idx = list.findIndex((x: any) => x.id === args?.where?.id);
-      if (idx !== -1) return list.splice(idx, 1)[0];
+      if (idx !== -1) {
+        const removed = list.splice(idx, 1)[0];
+        persistLiveStore();
+        return removed;
+      }
       return { id: args?.where?.id, platform: 'Entry' };
     }
   }
 
+  // =======================================================================
+  // SME MODEL
+  // =======================================================================
   if (model === 'SME') {
     if (operation === 'findMany') {
-      return (REAL_PM_EVIDYA_SMES as any[]).map(sme => {
+      return liveStore.smes.map(sme => {
         const workEntries = (sme.workEntries || []).map((we: any) => {
           if (!we.documents || we.documents.length === 0) {
-            const matchedWe = (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).find(
+            const matchedWe = liveStore.smeWorkEntries.find(
               (e: any) => e.id === we.id || e.epicSequence === we.epicSequence || (e.smeId === sme.id && e.trade === we.trade)
             );
             if (matchedWe && Array.isArray(matchedWe.documents) && matchedWe.documents.length > 0) {
@@ -532,37 +740,40 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
     if (operation === 'findUnique' || operation === 'findFirst') {
       const id = args?.where?.id;
       if (id) {
-        return (REAL_PM_EVIDYA_SMES as any[]).find(s => s.id === id) || null;
+        return liveStore.smes.find(s => s.id === id) || null;
       }
-      return REAL_PM_EVIDYA_SMES[0] || null;
+      return liveStore.smes[0] || null;
     }
     if (operation === 'update') {
       const id = args?.where?.id;
-      const sme = (REAL_PM_EVIDYA_SMES as any[]).find(s => s.id === id);
+      const sme = liveStore.smes.find(s => s.id === id);
       if (sme && args?.data) {
         Object.assign(sme, args.data);
         sme.updatedAt = new Date().toISOString();
-        (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).forEach(e => {
+        liveStore.smeWorkEntries.forEach(e => {
           if (e.smeId === id || e.sme?.id === id) {
             if (!e.sme) e.sme = {};
             Object.assign(e.sme, args.data);
           }
         });
+        persistLiveStore();
         return sme;
       }
       return sme || { id, ...args?.data };
     }
     if (operation === 'delete') {
       const id = args?.where?.id;
-      const idx = (REAL_PM_EVIDYA_SMES as any[]).findIndex(s => s.id === id);
+      const idx = liveStore.smes.findIndex(s => s.id === id);
       if (idx !== -1) {
-        return (REAL_PM_EVIDYA_SMES as any[]).splice(idx, 1)[0];
+        const removed = liveStore.smes.splice(idx, 1)[0];
+        persistLiveStore();
+        return removed;
       }
       return { id };
     }
     if (operation === 'create') {
       const newSme = {
-        id: `sme-${Date.now()}`,
+        id: args?.data?.id || `sme-${Date.now()}`,
         name: args?.data?.name || '',
         designation: args?.data?.designation || '',
         institute: args?.data?.institute || '',
@@ -572,7 +783,7 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      (REAL_PM_EVIDYA_SMES as any[]).push(newSme);
+      liveStore.smes.push(newSme);
 
       if (args?.data?.workEntries?.create) {
         const weData = args.data.workEntries.create as any;
@@ -590,7 +801,7 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
           status: 'INITIATED',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          epicSequence: (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).length + 1,
+          epicSequence: liveStore.smeWorkEntries.length + 1,
           sme: newSme,
           payments: [{
             id: `pay-${Date.now()}`,
@@ -602,8 +813,9 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
           }],
           documents: []
         };
-        (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).unshift(newEntry);
+        liveStore.smeWorkEntries.unshift(newEntry);
       }
+      persistLiveStore();
       return newSme;
     }
   }
@@ -616,27 +828,27 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
     return REAL_PM_EVIDYA_PRODUCTION_RECORDS;
   }
 
-  // =========================================================================
-  // VIDEO LIBRARY (76 CANONICAL DELIVERABLES + USER ENTRIES)
-  // =========================================================================
+  // =======================================================================
+  // VIDEO LIBRARY (DELIVERABLES)
+  // =======================================================================
   if (model === 'VideoLibrary') {
     if (operation === 'findMany') {
       const { epicId } = args?.where || {};
       return epicId 
-        ? (REAL_PM_EVIDYA_VIDEOS as any[]).filter((v: any) => v.epicId === epicId)
-        : REAL_PM_EVIDYA_VIDEOS;
+        ? liveStore.videoLibraries.filter((v: any) => v.epicId === epicId)
+        : liveStore.videoLibraries;
     }
 
     if (operation === 'findUnique' || operation === 'findFirst') {
       const anyWhere = (args as any)?.where || {};
       const id = typeof anyWhere.id === 'string' ? anyWhere.id : undefined;
       if (id) {
-        return (REAL_PM_EVIDYA_VIDEOS as any[]).find((v: any) => v.id === id) || null;
+        return liveStore.videoLibraries.find((v: any) => v.id === id) || null;
       }
       const epicId = typeof anyWhere.epicId === 'string' ? anyWhere.epicId : undefined;
       const title = typeof anyWhere.title === 'string' ? anyWhere.title : anyWhere.title?.equals;
       if (epicId || title) {
-        const match = (REAL_PM_EVIDYA_VIDEOS as any[]).find((v: any) => 
+        const match = liveStore.videoLibraries.find((v: any) => 
           (!epicId || v.epicId === epicId) &&
           (!title || v.title?.toLowerCase() === title.toLowerCase())
         );
@@ -646,22 +858,23 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
         for (const cond of (anyWhere.OR as any[])) {
           const cId = cond.epicId || cond.id;
           const cTitle = typeof cond.title === 'string' ? cond.title : cond.title?.equals;
-          const match = (REAL_PM_EVIDYA_VIDEOS as any[]).find((v: any) =>
+          const match = liveStore.videoLibraries.find((v: any) =>
             (cId && (v.id === cId || v.epicId === cId)) ||
             (cTitle && v.title?.toLowerCase() === cTitle.toLowerCase())
           );
           if (match) return match;
         }
       }
-      return REAL_PM_EVIDYA_VIDEOS[0] || null;
+      return liveStore.videoLibraries[0] || null;
     }
 
     if (operation === 'update') {
       const id = args?.where?.id;
-      const vid = (REAL_PM_EVIDYA_VIDEOS as any[]).find((v: any) => v.id === id);
+      const vid = liveStore.videoLibraries.find((v: any) => v.id === id);
       if (vid && args?.data) {
         Object.assign(vid, args.data);
         vid.updatedAt = new Date().toISOString();
+        persistLiveStore();
         return vid;
       }
       return vid || { id, ...args?.data };
@@ -669,10 +882,11 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
 
     if (operation === 'upsert') {
       const id = args?.where?.id;
-      let vid = (REAL_PM_EVIDYA_VIDEOS as any[]).find((v: any) => v.id === id);
+      let vid = liveStore.videoLibraries.find((v: any) => v.id === id);
       if (vid) {
         if (args?.update) Object.assign(vid, args.update);
         vid.updatedAt = new Date().toISOString();
+        persistLiveStore();
         return vid;
       } else {
         const created = {
@@ -681,7 +895,8 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
-        (REAL_PM_EVIDYA_VIDEOS as any[]).push(created);
+        liveStore.videoLibraries.push(created);
+        persistLiveStore();
         return created;
       }
     }
@@ -693,48 +908,53 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      (REAL_PM_EVIDYA_VIDEOS as any[]).unshift(newVid);
+      liveStore.videoLibraries.unshift(newVid);
+      persistLiveStore();
       return newVid;
     }
 
     if (operation === 'count') {
       const startsWith = args?.where?.id?.startsWith;
       if (startsWith) {
-        return (REAL_PM_EVIDYA_VIDEOS as any[]).filter((v: any) => (v.id || '').startsWith(startsWith)).length;
+        return liveStore.videoLibraries.filter((v: any) => (v.id || '').startsWith(startsWith)).length;
       }
-      return (REAL_PM_EVIDYA_VIDEOS as any[]).length;
+      return liveStore.videoLibraries.length;
     }
 
     if (operation === 'delete' || operation === 'deleteMany') {
       const id = args?.where?.id;
       if (id) {
-        const idx = (REAL_PM_EVIDYA_VIDEOS as any[]).findIndex((v: any) => v.id === id);
-        if (idx !== -1) (REAL_PM_EVIDYA_VIDEOS as any[]).splice(idx, 1);
+        const idx = liveStore.videoLibraries.findIndex((v: any) => v.id === id);
+        if (idx !== -1) {
+          liveStore.videoLibraries.splice(idx, 1);
+          persistLiveStore();
+        }
       }
       return { count: 1 };
     }
   }
 
-  // =========================================================================
-  // SME WORK ENTRY (WITH AUTOMATIC ATTACHED RELATIONS)
-  // =========================================================================
+  // =======================================================================
+  // SME WORK ENTRY
+  // =======================================================================
   if (model === 'SMEWorkEntry') {
     if (operation === 'findMany') {
-      return (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).map(attachWorkEntryRelations);
+      return liveStore.smeWorkEntries.map(attachWorkEntryRelations);
     }
 
     if (operation === 'findUnique' || operation === 'findFirst') {
       const id = args?.where?.id;
-      const entry = id ? (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).find((e: any) => e.id === id) : REAL_PM_EVIDYA_SME_WORK_ENTRIES[0];
+      const entry = id ? liveStore.smeWorkEntries.find((e: any) => e.id === id) : liveStore.smeWorkEntries[0];
       return attachWorkEntryRelations(entry);
     }
 
     if (operation === 'update') {
       const id = args?.where?.id;
-      const entry = (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).find(e => e.id === id);
+      const entry = liveStore.smeWorkEntries.find((e: any) => e.id === id);
       if (entry && args?.data) {
         Object.assign(entry, args.data);
         entry.updatedAt = new Date().toISOString();
+        persistLiveStore();
         return attachWorkEntryRelations(entry);
       }
       return attachWorkEntryRelations(entry) || null;
@@ -742,21 +962,23 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
 
     if (operation === 'delete') {
       const id = args?.where?.id;
-      const idx = (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).findIndex(e => e.id === id);
+      const idx = liveStore.smeWorkEntries.findIndex((e: any) => e.id === id);
       if (idx !== -1) {
-        return (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).splice(idx, 1)[0];
+        const removed = liveStore.smeWorkEntries.splice(idx, 1)[0];
+        persistLiveStore();
+        return removed;
       }
       return { id };
     }
   }
 
-  // =========================================================================
-  // SHOOTING SCHEDULE (76 TOPICS + IMMEDIATE CAMERAMAN UPDATE REFLECTION)
-  // =========================================================================
+  // =======================================================================
+  // SHOOTING SCHEDULE
+  // =======================================================================
   if (model === 'ShootingSchedule') {
     if (operation === 'findMany') {
       const { workEntryId, status } = args?.where || {};
-      return globalShootingSchedules.filter(s => 
+      return liveStore.shootingSchedules.filter((s: any) => 
         (!workEntryId || s.workEntryId === workEntryId) &&
         (!status || s.status === status)
       );
@@ -766,14 +988,14 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
       const anyWhere = (args as any)?.where || {};
       const id = typeof anyWhere.id === 'string' ? anyWhere.id : undefined;
       if (id) {
-        const match = globalShootingSchedules.find(s => s.id === id || s.id === `shoot-${id}` || (typeof id === 'string' && id.startsWith('shoot-') && s.id === id.replace('shoot-', '')));
+        const match = liveStore.shootingSchedules.find((s: any) => s.id === id || s.id === `shoot-${id}` || (typeof id === 'string' && id.startsWith('shoot-') && s.id === id.replace('shoot-', '')));
         if (match) return match;
       }
       const workEntryId = typeof anyWhere.workEntryId === 'string' ? anyWhere.workEntryId : undefined;
       const videoTitle = anyWhere.videoTitle;
       const titleStr = typeof videoTitle === 'string' ? videoTitle : (videoTitle?.equals ? String(videoTitle.equals) : undefined);
       if (workEntryId || titleStr) {
-        const match = globalShootingSchedules.find(s => 
+        const match = liveStore.shootingSchedules.find((s: any) => 
           (!workEntryId || s.workEntryId === workEntryId) &&
           (!titleStr || s.videoTitle?.toLowerCase() === titleStr.toLowerCase())
         );
@@ -783,7 +1005,7 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
         for (const cond of (anyWhere.OR as any[])) {
           const cId = cond.id;
           const cTitle = typeof cond.videoTitle === 'string' ? cond.videoTitle : (cond.videoTitle?.equals ? String(cond.videoTitle.equals) : undefined);
-          const match = globalShootingSchedules.find(s => 
+          const match = liveStore.shootingSchedules.find((s: any) => 
             (cId && (s.id === cId || s.id === `shoot-${cId}` || (typeof cId === 'string' && cId.startsWith('shoot-') && s.id === cId.replace('shoot-', '')))) ||
             (cTitle && s.videoTitle?.toLowerCase() === cTitle.toLowerCase())
           );
@@ -800,16 +1022,18 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      globalShootingSchedules.push(newSchedule);
+      liveStore.shootingSchedules.push(newSchedule);
+      persistLiveStore();
       return newSchedule;
     }
 
     if (operation === 'update') {
       const id = args?.where?.id;
-      const sched = globalShootingSchedules.find(s => s.id === id || s.id === `shoot-${id}` || (id?.startsWith('shoot-') && s.id === id.replace('shoot-', '')));
+      const sched = liveStore.shootingSchedules.find((s: any) => s.id === id || s.id === `shoot-${id}` || (id?.startsWith('shoot-') && s.id === id.replace('shoot-', '')));
       if (sched && args?.data) {
         Object.assign(sched, args.data);
         sched.updatedAt = new Date().toISOString();
+        persistLiveStore();
         return sched;
       }
       const created = {
@@ -818,29 +1042,32 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      globalShootingSchedules.push(created);
+      liveStore.shootingSchedules.push(created);
+      persistLiveStore();
       return created;
     }
 
     if (operation === 'updateMany') {
       const { workEntryId } = args?.where || {};
       let count = 0;
-      globalShootingSchedules.forEach(s => {
+      liveStore.shootingSchedules.forEach((s: any) => {
         if (!workEntryId || s.workEntryId === workEntryId) {
           Object.assign(s, args.data);
           s.updatedAt = new Date().toISOString();
           count++;
         }
       });
+      persistLiveStore();
       return { count };
     }
 
     if (operation === 'upsert') {
       const id = args?.where?.id;
-      let sched = globalShootingSchedules.find(s => s.id === id || s.id === `shoot-${id}` || (id?.startsWith('shoot-') && s.id === id.replace('shoot-', '')));
+      let sched = liveStore.shootingSchedules.find((s: any) => s.id === id || s.id === `shoot-${id}` || (id?.startsWith('shoot-') && s.id === id.replace('shoot-', '')));
       if (sched) {
         if (args?.update) Object.assign(sched, args.update);
         sched.updatedAt = new Date().toISOString();
+        persistLiveStore();
         return sched;
       } else {
         const created = {
@@ -849,32 +1076,35 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
-        globalShootingSchedules.push(created);
+        liveStore.shootingSchedules.push(created);
+        persistLiveStore();
         return created;
       }
     }
 
     if (operation === 'count') {
-      return globalShootingSchedules.length;
+      return liveStore.shootingSchedules.length;
     }
 
     if (operation === 'delete') {
       const id = args?.where?.id;
-      const idx = globalShootingSchedules.findIndex(s => s.id === id || s.id === `shoot-${id}`);
+      const idx = liveStore.shootingSchedules.findIndex((s: any) => s.id === id || s.id === `shoot-${id}`);
       if (idx !== -1) {
-        return globalShootingSchedules.splice(idx, 1)[0];
+        const removed = liveStore.shootingSchedules.splice(idx, 1)[0];
+        persistLiveStore();
+        return removed;
       }
       return { id };
     }
   }
 
-  // =========================================================================
-  // VIDEO EDITOR RECORD (76 TOPICS + IMMEDIATE EDITOR UPDATE REFLECTION)
-  // =========================================================================
+  // =======================================================================
+  // VIDEO EDITOR RECORD
+  // =======================================================================
   if (model === 'VideoEditorRecord') {
     if (operation === 'findMany') {
       const { workEntryId, status } = args?.where || {};
-      return globalVideoEditorRecords.filter(e => 
+      return liveStore.videoEditorRecords.filter((e: any) => 
         (!workEntryId || e.workEntryId === workEntryId) &&
         (!status || e.status === status)
       );
@@ -884,14 +1114,14 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
       const anyWhere = (args as any)?.where || {};
       const id = typeof anyWhere.id === 'string' ? anyWhere.id : undefined;
       if (id) {
-        const match = globalVideoEditorRecords.find(e => e.id === id || e.id === `ed-${id}` || (typeof id === 'string' && id.startsWith('ed-') && e.id === id.replace('ed-', '')));
+        const match = liveStore.videoEditorRecords.find((e: any) => e.id === id || e.id === `ed-${id}` || (typeof id === 'string' && id.startsWith('ed-') && e.id === id.replace('ed-', '')));
         if (match) return match;
       }
       const workEntryId = typeof anyWhere.workEntryId === 'string' ? anyWhere.workEntryId : undefined;
       const assignedVideo = anyWhere.assignedVideo;
       const vidStr = typeof assignedVideo === 'string' ? assignedVideo : (assignedVideo?.equals ? String(assignedVideo.equals) : undefined);
       if (workEntryId || vidStr) {
-        const match = globalVideoEditorRecords.find(e => 
+        const match = liveStore.videoEditorRecords.find((e: any) => 
           (!workEntryId || e.workEntryId === workEntryId) &&
           (!vidStr || e.assignedVideo?.toLowerCase() === vidStr.toLowerCase())
         );
@@ -901,7 +1131,7 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
         for (const cond of (anyWhere.OR as any[])) {
           const cId = cond.id;
           const cVid = typeof cond.assignedVideo === 'string' ? cond.assignedVideo : (cond.assignedVideo?.equals ? String(cond.assignedVideo.equals) : undefined);
-          const match = globalVideoEditorRecords.find(e => 
+          const match = liveStore.videoEditorRecords.find((e: any) => 
             (cId && (e.id === cId || e.id === `ed-${cId}` || (typeof cId === 'string' && cId.startsWith('ed-') && e.id === cId.replace('ed-', '')))) ||
             (cVid && e.assignedVideo?.toLowerCase() === cVid.toLowerCase())
           );
@@ -918,16 +1148,18 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      globalVideoEditorRecords.push(newEditorRec);
+      liveStore.videoEditorRecords.push(newEditorRec);
+      persistLiveStore();
       return newEditorRec;
     }
 
     if (operation === 'update') {
       const id = args?.where?.id;
-      const rec = globalVideoEditorRecords.find(e => e.id === id || e.id === `ed-${id}` || (id?.startsWith('ed-') && e.id === id.replace('ed-', '')));
+      const rec = liveStore.videoEditorRecords.find((e: any) => e.id === id || e.id === `ed-${id}` || (id?.startsWith('ed-') && e.id === id.replace('ed-', '')));
       if (rec && args?.data) {
         Object.assign(rec, args.data);
         rec.updatedAt = new Date().toISOString();
+        persistLiveStore();
         return rec;
       }
       const created = {
@@ -936,29 +1168,32 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      globalVideoEditorRecords.push(created);
+      liveStore.videoEditorRecords.push(created);
+      persistLiveStore();
       return created;
     }
 
     if (operation === 'updateMany') {
       const { workEntryId, assignedVideo } = args?.where || {};
       let count = 0;
-      globalVideoEditorRecords.forEach(e => {
+      liveStore.videoEditorRecords.forEach((e: any) => {
         if ((!workEntryId || e.workEntryId === workEntryId) && (!assignedVideo || e.assignedVideo === assignedVideo)) {
           Object.assign(e, args.data);
           e.updatedAt = new Date().toISOString();
           count++;
         }
       });
+      persistLiveStore();
       return { count };
     }
 
     if (operation === 'upsert') {
       const id = args?.where?.id;
-      let rec = globalVideoEditorRecords.find(e => e.id === id || e.id === `ed-${id}` || (id?.startsWith('ed-') && e.id === id.replace('ed-', '')));
+      let rec = liveStore.videoEditorRecords.find((e: any) => e.id === id || e.id === `ed-${id}` || (id?.startsWith('ed-') && e.id === id.replace('ed-', '')));
       if (rec) {
         if (args?.update) Object.assign(rec, args.update);
         rec.updatedAt = new Date().toISOString();
+        persistLiveStore();
         return rec;
       } else {
         const created = {
@@ -967,34 +1202,37 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
-        globalVideoEditorRecords.push(created);
+        liveStore.videoEditorRecords.push(created);
+        persistLiveStore();
         return created;
       }
     }
 
     if (operation === 'count') {
-      return globalVideoEditorRecords.length;
+      return liveStore.videoEditorRecords.length;
     }
 
     if (operation === 'delete') {
       const id = args?.where?.id;
-      const idx = globalVideoEditorRecords.findIndex(e => e.id === id || e.id === `ed-${id}`);
+      const idx = liveStore.videoEditorRecords.findIndex((e: any) => e.id === id || e.id === `ed-${id}`);
       if (idx !== -1) {
-        return globalVideoEditorRecords.splice(idx, 1)[0];
+        const removed = liveStore.videoEditorRecords.splice(idx, 1)[0];
+        persistLiveStore();
+        return removed;
       }
       return { id };
     }
   }
 
-  // =========================================================================
+  // =======================================================================
   // DOCUMENT MODEL
-  // =========================================================================
+  // =======================================================================
   if (model === 'Document') {
     const allDocs: any[] = [];
-    (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).forEach(e => {
+    liveStore.smeWorkEntries.forEach((e: any) => {
       if (Array.isArray(e.documents)) {
         e.documents.forEach((d: any) => {
-          const sme = e.sme || (REAL_PM_EVIDYA_SMES as any[]).find((s: any) => s.id === e.smeId);
+          const sme = e.sme || liveStore.smes.find((s: any) => s.id === e.smeId);
           allDocs.push({
             ...d,
             workEntry: {
@@ -1041,7 +1279,7 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
         updatedAt: new Date().toISOString()
       };
       if (args?.data?.workEntryId) {
-        const entry = (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).find(e => e.id === args.data.workEntryId);
+        const entry = liveStore.smeWorkEntries.find((e: any) => e.id === args.data.workEntryId);
         if (entry) {
           if (!entry.documents) entry.documents = [];
           const existingIdx = entry.documents.findIndex((d: any) => d.id === newDoc.id || d.type === newDoc.type);
@@ -1050,6 +1288,7 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
           } else {
             entry.documents.push(newDoc);
           }
+          persistLiveStore();
         }
       }
       allDocs.push(newDoc);
@@ -1058,12 +1297,13 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
 
     if (operation === 'update') {
       const id = args?.where?.id;
-      for (const entry of (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[])) {
+      for (const entry of liveStore.smeWorkEntries) {
         if (Array.isArray(entry.documents)) {
           const origDoc = entry.documents.find((d: any) => d.id === id);
           if (origDoc && args?.data) {
             Object.assign(origDoc, args.data);
             origDoc.updatedAt = new Date().toISOString();
+            persistLiveStore();
             return origDoc;
           }
         }
@@ -1078,12 +1318,12 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
     }
   }
 
-  // =========================================================================
+  // =======================================================================
   // PAYMENT MODEL
-  // =========================================================================
+  // =======================================================================
   if (model === 'Payment') {
     const allPayments: any[] = [];
-    (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).forEach(e => {
+    liveStore.smeWorkEntries.forEach((e: any) => {
       if (Array.isArray(e.payments)) allPayments.push(...e.payments);
     });
 
@@ -1107,10 +1347,11 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
         updatedAt: new Date().toISOString()
       };
       if (args?.data?.workEntryId) {
-        const entry = (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[]).find(e => e.id === args.data.workEntryId);
+        const entry = liveStore.smeWorkEntries.find((e: any) => e.id === args.data.workEntryId);
         if (entry) {
           if (!entry.payments) entry.payments = [];
           entry.payments.push(newPayment);
+          persistLiveStore();
         }
       }
       allPayments.push(newPayment);
@@ -1123,34 +1364,35 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
       if (payment && args?.data) {
         Object.assign(payment, args.data);
         payment.updatedAt = new Date().toISOString();
+        persistLiveStore();
         return payment;
       }
       return payment || null;
     }
   }
 
-  // =========================================================================
-  // USER MODEL (STAFF LOGINS & WORK ASSIGNMENT PERMISSIONS)
-  // =========================================================================
+  // =======================================================================
+  // USER MODEL
+  // =======================================================================
   if (model === 'User') {
     const anyArgs = args as any;
 
     if (operation === 'findMany') {
-      let list = globalUsers;
+      let list = liveStore.users;
       const { role, status } = anyArgs?.where || {};
       if (role) {
         const roleVal = typeof role === 'string' ? role : role?.in;
         if (typeof roleVal === 'string') {
-          list = list.filter(u => u.role === roleVal);
+          list = list.filter((u: any) => u.role === roleVal);
         } else if (Array.isArray(roleVal)) {
-          list = list.filter(u => roleVal.includes(u.role));
+          list = list.filter((u: any) => roleVal.includes(u.role));
         }
       }
       if (status) {
-        list = list.filter(u => u.status === status);
+        list = list.filter((u: any) => u.status === status);
       }
       if (anyArgs?.select) {
-        return list.map(u => {
+        return list.map((u: any) => {
           const res: any = {};
           Object.keys(anyArgs.select).forEach(k => { if (anyArgs.select[k]) res[k] = u[k]; });
           return res;
@@ -1164,7 +1406,7 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
       const searchEmail = rawEmail.toLowerCase().trim();
       const id = typeof anyArgs?.where?.id === 'string' ? anyArgs.where.id : undefined;
 
-      let user = globalUsers.find(u => (searchEmail && u.email.toLowerCase().trim() === searchEmail) || (id && u.id === id));
+      let user = liveStore.users.find((u: any) => (searchEmail && u.email.toLowerCase().trim() === searchEmail) || (id && u.id === id));
       if (!user && searchEmail) {
         const ADMIN_EMAILS = [
           'muthukamatchi.off@gmail.com',
@@ -1182,7 +1424,8 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
             designation: 'Admin',
             password: STAFF_PASSWORD_HASH
           };
-          globalUsers.push(user);
+          liveStore.users.push(user);
+          persistLiveStore();
         }
       }
       return user || null;
@@ -1191,10 +1434,11 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
     if (operation === 'update') {
       const id = anyArgs?.where?.id;
       const email = anyArgs?.where?.email;
-      const user = globalUsers.find(u => (id && u.id === id) || (email && u.email.toLowerCase().trim() === email.toLowerCase().trim()));
+      const user = liveStore.users.find((u: any) => (id && u.id === id) || (email && u.email.toLowerCase().trim() === email.toLowerCase().trim()));
       if (user && anyArgs?.data) {
         Object.assign(user, anyArgs.data);
         user.updatedAt = new Date().toISOString();
+        persistLiveStore();
         return user;
       }
       return user || null;
@@ -1203,10 +1447,11 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
     if (operation === 'upsert') {
       const email = anyArgs?.where?.email;
       const id = anyArgs?.where?.id;
-      let user = globalUsers.find(u => (email && u.email.toLowerCase().trim() === email.toLowerCase().trim()) || (id && u.id === id));
+      let user = liveStore.users.find((u: any) => (email && u.email.toLowerCase().trim() === email.toLowerCase().trim()) || (id && u.id === id));
       if (user) {
         if (anyArgs?.update) Object.assign(user, anyArgs.update);
         user.updatedAt = new Date().toISOString();
+        persistLiveStore();
         return user;
       } else {
         const newUser = {
@@ -1215,7 +1460,8 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
-        globalUsers.push(newUser);
+        liveStore.users.push(newUser);
+        persistLiveStore();
         return newUser;
       }
     }
@@ -1227,29 +1473,30 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      globalUsers.push(newUser);
+      liveStore.users.push(newUser);
+      persistLiveStore();
       return newUser;
     }
   }
 
-  // =========================================================================
-  // AUDIT LOG MODEL
-  // =========================================================================
+  // =======================================================================
+  // AUDIT LOG
+  // =======================================================================
   if (model === 'AuditLog') {
     const anyArgs = args as any;
     if (operation === 'findMany') {
-      let logs = globalAuditLogs;
+      let logs = liveStore.auditLogs;
       const where = anyArgs?.where || {};
       if (where.entity?.in && Array.isArray(where.entity.in)) {
-        logs = logs.filter(l => where.entity.in.includes(l.entity));
+        logs = logs.filter((l: any) => where.entity.in.includes(l.entity));
       } else if (where.entity && typeof where.entity === 'string') {
-        logs = logs.filter(l => l.entity === where.entity);
+        logs = logs.filter((l: any) => l.entity === where.entity);
       }
       if (where.action) {
-        logs = logs.filter(l => l.action === where.action);
+        logs = logs.filter((l: any) => l.action === where.action);
       }
       if (where.entityId) {
-        logs = logs.filter(l => l.entityId === where.entityId);
+        logs = logs.filter((l: any) => l.entityId === where.entityId);
       }
       return logs.slice(0, anyArgs?.take || 100);
     }
@@ -1260,7 +1507,8 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
         ...anyArgs?.data,
         createdAt: new Date().toISOString()
       };
-      globalAuditLogs.unshift(newLog);
+      liveStore.auditLogs.unshift(newLog);
+      persistLiveStore();
       return newLog;
     }
   }
@@ -1294,8 +1542,6 @@ const createPrismaClient = () => {
     query: {
       $allModels: {
         async $allOperations({ operation, model, args, query }) {
-          // Fast-path: When running in container without local postgres or after connection fail,
-          // instantly return from in-memory store without waiting 5-7 seconds on TCP connect timeout.
           if (isDummyOrLocal || isDbConnectionFailed) {
             return handleMemoryFallback(model, operation, args);
           }
@@ -1326,7 +1572,7 @@ const createPrismaClient = () => {
     },
   });
 
-  // Safe wrapper for $transaction so transactions never hang when DB is offline
+  // Safe wrapper for $transaction
   const originalTransaction = extendedPrisma.$transaction?.bind(extendedPrisma);
   if (originalTransaction) {
     extendedPrisma.$transaction = async (arg: any) => {
@@ -1358,5 +1604,4 @@ const createPrismaClient = () => {
 
 export const prisma = globalForPrisma.prisma || createPrismaClient();
 
-// In serverless / production environments, reuse the client across function invocations
 globalForPrisma.prisma = prisma;
