@@ -1,8 +1,9 @@
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, PageOrientation } from 'docx';
-
+// Dynamic lazy-loading of docx to prevent bundling 1.2+ MB into initial page chunks
 export async function downloadTableAsDocx(tableElementId: string, title: string, subtitle: string, filename: string) {
   const table = document.getElementById(tableElementId) as HTMLTableElement;
   if (!table) return alert('Table not found');
+
+  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, PageOrientation } = await import('docx');
 
   const docRows: any[] = [];
   

@@ -209,7 +209,10 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     }
   };
 
+  const lastRefreshRef = useRef<number>(Date.now());
+
   const refreshTopicRecords = async () => {
+    lastRefreshRef.current = Date.now();
     const res = await getTopicProductionRecords();
     if (res.success && res.data) {
       setWorkEntries(res.data);
@@ -220,11 +223,14 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
     }
   };
 
-  // Real-time synchronization: BroadcastChannel + visibilitychange + focus + 5-second polling interval
+  // Real-time synchronization: BroadcastChannel + visibilitychange + focus + throttled polling
   useEffect(() => {
-    refreshTopicRecords();
+    // Only fetch on mount if initialRecords was empty; otherwise rely on live server-rendered initialRecords
+    if (!initialRecords || initialRecords.length === 0) {
+      refreshTopicRecords();
+    }
 
-    // 1. Cross-tab synchronization via BroadcastChannel
+    // 1. Cross-tab instantaneous synchronization via BroadcastChannel (event-driven, zero polling delay)
     let channel: BroadcastChannel | null = null;
     try {
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -237,21 +243,29 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       }
     } catch (_) {}
 
-    // 2. Tab focus & visibility change listener
+    // 2. Tab focus & visibility change listener (throttled to 30s so user is never frozen upon switching tabs)
     const handleActive = () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        refreshTopicRecords();
+        const now = Date.now();
+        if (now - lastRefreshRef.current > 30000) {
+          lastRefreshRef.current = now;
+          refreshTopicRecords();
+        }
       }
     };
     window.addEventListener('visibilitychange', handleActive);
     window.addEventListener('focus', handleActive);
 
-    // 3. Periodic background polling (every 5 seconds when tab is active/visible)
+    // 3. Gentle background polling (30s interval instead of 5s continuous bombardment)
     const intervalId = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        refreshTopicRecords();
+        const now = Date.now();
+        if (now - lastRefreshRef.current > 30000) {
+          lastRefreshRef.current = now;
+          refreshTopicRecords();
+        }
       }
-    }, 5000);
+    }, 30000);
 
     return () => {
       clearInterval(intervalId);

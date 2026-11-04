@@ -85,33 +85,36 @@ export default async function SMEsPage() {
     } catch (_) {}
 
     // 4. Ensure every entry has authoritative contactNumber and email
+    const needsDbSync: any[] = [];
     for (const entry of workEntries) {
       if (entry.sme) {
         const contact = findSmeContact(entry.sme.name, entry.epicSequence);
         if (contact) {
+          const wasMissing = !entry.sme.contactNumber || !entry.sme.email;
           if (!entry.sme.contactNumber && contact.phone) entry.sme.contactNumber = contact.phone;
           if (!entry.sme.email && contact.email) entry.sme.email = contact.email;
+          if (wasMissing && entry.sme.id) {
+            needsDbSync.push({ id: entry.sme.id, phone: entry.sme.contactNumber, email: entry.sme.email });
+          }
         }
       }
     }
 
-    // 5. Self-healing DB sync: ensure PostgreSQL stores these contact details
-    try {
-      for (const entry of workEntries) {
-        if (entry.sme?.id && (entry.sme.contactNumber || entry.sme.email)) {
-          await prisma.sME.updateMany({
-            where: {
-              id: entry.sme.id,
-              OR: [{ contactNumber: null }, { contactNumber: '' }]
-            },
-            data: {
-              contactNumber: entry.sme.contactNumber || undefined,
-              email: entry.sme.email || undefined
-            }
-          });
-        }
-      }
-    } catch (_) {}
+    // 5. Concurrent non-blocking self-healing DB sync only if unpersisted entries exist
+    if (needsDbSync.length > 0) {
+      Promise.all(needsDbSync.map(item =>
+        prisma.sME.updateMany({
+          where: {
+            id: item.id,
+            OR: [{ contactNumber: null }, { contactNumber: '' }]
+          },
+          data: {
+            contactNumber: item.phone || undefined,
+            email: item.email || undefined
+          }
+        }).catch(() => null)
+      )).catch(() => null);
+    }
 
     workEntries.sort((a, b) => (b.epicSequence || 0) - (a.epicSequence || 0));
   }

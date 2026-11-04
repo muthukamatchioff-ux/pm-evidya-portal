@@ -19,8 +19,7 @@ export default async function DocumentsPage() {
             sme: true,
           }
         },
-        project: true,
-        payment: true,
+        
       },
       orderBy: { createdAt: 'desc' }
     }),
@@ -30,8 +29,7 @@ export default async function DocumentsPage() {
         workEntries: {
           include: {
             documents: true,
-            payments: true,
-          }
+                      }
         }
       },
       orderBy: { createdAt: 'desc' }

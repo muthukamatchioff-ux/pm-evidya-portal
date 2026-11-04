@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import * as XLSX from 'xlsx';
 
 export interface VideoProductionTrackerReportProps {
   initialRecords?: any[];
@@ -558,10 +557,11 @@ export default function VideoProductionTrackerReport({
     return list;
   }, [filteredRows]);
 
-  // Export to Excel (Full 2-Sheet Workbook)
-  const handleExportExcel = () => {
+  // Export to Excel (Full 2-Sheet Workbook with dynamic lazy loading)
+  const handleExportExcel = async () => {
     if (filteredRows.length === 0) return alert('No records to export with current filters.');
 
+    const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
     const downloadDate = new Date().toLocaleString('en-IN');
 

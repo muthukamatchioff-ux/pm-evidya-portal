@@ -1,8 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import * as XLSX from 'xlsx';
-import { generateDocxReport } from './docxHelper';
 import { getEpicCompleteHistory } from './actions';
 import EpicWorkflowReport from './EpicWorkflowReport';
 import VideoProductionTrackerReport from './VideoProductionTrackerReport';
@@ -116,8 +114,9 @@ export default function ReportsClient({
     }, 500);
   };
 
-  const generateExcelForComponents = (compsToExport: any[], isOverall: boolean = false) => {
+  const generateExcelForComponents = async (compsToExport: any[], isOverall: boolean = false) => {
     if (compsToExport.length === 0) return alert("No components to export");
+    const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
     const downloadTime = new Date().toLocaleString('en-IN').replace(/[:,\/]/g, '-');
 
@@ -237,7 +236,7 @@ export default function ReportsClient({
     generateExcelForComponents(selectedCompsData, false);
   };
 
-  const generateSmeReport = () => {
+  const generateSmeReport = async () => {
     const data = smes.flatMap((sme: any) => 
       sme.workEntries.map((entry: any) => {
         const attendance = entry.documents?.find((d: any) => d.type === 'SME_ATTENDANCE');
@@ -260,13 +259,14 @@ export default function ReportsClient({
       })
     );
     if (data.length === 0) return alert("No SME records found");
+    const XLSX = await import('xlsx');
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "SME Compliance");
     XLSX.writeFile(wb, `PM_eVidya_SME_Compliance_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  const generateProductionReport = () => {
+  const generateProductionReport = async () => {
     // Check if we have epicWorkEntries with production data, or fall back to legacy production records
     const epicData = allEpicEntries.flatMap((entry: any) => {
       const schedule = entry.shootingSchedules?.[0];
@@ -333,13 +333,14 @@ export default function ReportsClient({
     }));
 
     if (data.length === 0) return alert("No Production records found");
+    const XLSX = await import('xlsx');
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Production Tracker");
     XLSX.writeFile(wb, `PM_eVidya_Production_Tracker_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  const generateAuditReport = () => {
+  const generateAuditReport = async () => {
     const data = auditLogs.map((log: any) => ({
       "Date": new Date(log.createdAt).toLocaleString('en-IN'),
       "Action": log.action,
@@ -347,6 +348,7 @@ export default function ReportsClient({
       "Record ID": log.entityId
     }));
     if (data.length === 0) return alert("No Audit Logs found");
+    const XLSX = await import('xlsx');
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "System Audit");
@@ -530,7 +532,7 @@ export default function ReportsClient({
           <button className={styles.btnAction} style={{ flex: 1, minWidth: '150px', justifyContent: 'center', backgroundColor: selectedComponents.length > 0 ? 'var(--blue-500)' : 'var(--slate-200)', color: selectedComponents.length > 0 ? 'white' : 'var(--text-secondary)' }} onClick={() => {
             if (selectedComponents.length === 0) return;
             const selectedCompsData = components.filter(comp => selectedComponents.includes(comp.id));
-            if (selectedCompsData.length > 0) generateDocxReport(selectedCompsData);
+            if (selectedCompsData.length > 0) { import('./docxHelper').then(m => m.generateDocxReport(selectedCompsData)); }
           }} disabled={selectedComponents.length === 0}>
             Export Selected (Word)
           </button>

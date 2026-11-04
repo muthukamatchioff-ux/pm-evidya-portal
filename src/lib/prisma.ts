@@ -287,9 +287,12 @@ const getDbUrl = () => {
         !clean.includes('[SENSITIVE]') &&
         (!process.env.VERCEL || (!clean.includes('localhost') && !clean.includes('127.0.0.1')))
       ) {
-        return clean.includes('schema=')
+        let url = clean.includes('schema=')
           ? clean
           : (clean.includes('?') ? `${clean}&schema=public` : `${clean}?schema=public`);
+        if (!url.includes('connection_limit=')) url += '&connection_limit=10';
+        if (!url.includes('pool_timeout=')) url += '&pool_timeout=20';
+        return url;
       }
     }
   }
