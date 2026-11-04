@@ -4,11 +4,28 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
+// High-performance in-memory cache with instant invalidation on mutations
+interface BudgetCacheEntry {
+  data: any;
+  expiry: number;
+}
+const budgetCache = new Map<string, BudgetCacheEntry>();
+const BUDGET_CACHE_TTL = 60 * 1000; // 60 seconds TTL
+
+export async function clearBudgetCache() {
+  budgetCache.clear();
+}
+
 
 export async function getBudgetComponents(options?: { summaryOnly?: boolean }) {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
+  const isSummary = options?.summaryOnly ?? false;
+  const cacheKey = isSummary ? 'budget_summary' : 'budget_full';
+  const cached = budgetCache.get(cacheKey);
+  if (cached && cached.expiry > Date.now()) {
+    return cached.data;
+  }
   try {
-    const isSummary = options?.summaryOnly ?? false;
     const components = await prisma.budgetComponent.findMany({
       include: isSummary ? {
         annexureI: { select: { id: true, totalExpenditure: true } },
@@ -29,14 +46,14 @@ export async function getBudgetComponents(options?: { summaryOnly?: boolean }) {
     });
 
     // Calculate dynamic expenditures
-    return components.map((comp: any) => {
+    const calculatedResult = components.map((comp: any) => {
       let expenditure = 0;
-      if (comp.componentNo === 1) comp.annexureI.forEach((a: any) => (expenditure += a.totalExpenditure));
-      if (comp.componentNo === 2) comp.annexureII.forEach((a: any) => (expenditure += a.totalExpenditure));
-      if (comp.componentNo === 3) comp.annexureIII.forEach((a: any) => (expenditure += a.totalExpenditure));
-      if (comp.componentNo === 4) comp.annexureIV.forEach((a: any) => (expenditure += a.totalExpenditure));
-      if (comp.componentNo === 5) comp.annexureV.forEach((a: any) => (expenditure += a.totalExpenditure));
-      if (comp.componentNo === 6) comp.annexureVI.forEach((a: any) => (expenditure += a.totalExpenditure));
+      if (comp.componentNo === 1) comp.annexureI?.forEach((a: any) => (expenditure += a.totalExpenditure));
+      if (comp.componentNo === 2) comp.annexureII?.forEach((a: any) => (expenditure += a.totalExpenditure));
+      if (comp.componentNo === 3) comp.annexureIII?.forEach((a: any) => (expenditure += a.totalExpenditure));
+      if (comp.componentNo === 4) comp.annexureIV?.forEach((a: any) => (expenditure += a.totalExpenditure));
+      if (comp.componentNo === 5) comp.annexureV?.forEach((a: any) => (expenditure += a.totalExpenditure));
+      if (comp.componentNo === 6) comp.annexureVI?.forEach((a: any) => (expenditure += a.totalExpenditure));
 
       const unutilized = comp.approvedBudget - expenditure;
       const utilization = comp.approvedBudget > 0 ? (expenditure / comp.approvedBudget) * 100 : 0;
@@ -48,6 +65,8 @@ export async function getBudgetComponents(options?: { summaryOnly?: boolean }) {
         utilizationPercent: utilization.toFixed(2),
       };
     });
+    budgetCache.set(cacheKey, { data: calculatedResult, expiry: Date.now() + BUDGET_CACHE_TTL });
+    return calculatedResult;
   } catch (error) {
     console.error('Failed to fetch budget components due to database connection error', error);
     return []; // Return empty array on DB failure to prevent Dashboard crash
@@ -87,6 +106,7 @@ export async function getDashboardKPIs(existingComponents?: any[]) {
 }
 
 export async function addAnnexureIEntry(data: any) {
+  clearBudgetCache();
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
   // Enforce calculation rule: Total Amount (₹) = Honorarium Amount (₹) + TA Amount (₹)
@@ -126,6 +146,7 @@ export async function addAnnexureIEntry(data: any) {
 }
 
 export async function updateAnnexureIEntry(id: string, data: any) {
+  clearBudgetCache();
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
 
@@ -166,6 +187,7 @@ export async function updateAnnexureIEntry(id: string, data: any) {
 }
 
 export async function deleteAnnexureIEntry(id: string) {
+  clearBudgetCache();
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
 
@@ -195,6 +217,10 @@ export async function deleteAnnexureIEntry(id: string) {
 
 export async function getComponent1Data() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
+  const cached = budgetCache.get('comp_1');
+  if (cached && cached.expiry > Date.now()) {
+    return cached.data;
+  }
   const comp = await prisma.budgetComponent.findUnique({
     where: { componentNo: 1 },
     include: {
@@ -209,17 +235,23 @@ export async function getComponent1Data() {
   let expenditure = 0;
   comp.annexureI.forEach((a: any) => expenditure += a.totalExpenditure);
 
-  return {
+  const result = {
     ...comp,
     expenditureIncurred: expenditure,
     unutilizedBalance: comp.approvedBudget - expenditure,
     utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00',
   };
+  budgetCache.set('comp_1', { data: result, expiry: Date.now() + BUDGET_CACHE_TTL });
+  return result;
 }
 
 // --- Component 2 ---
 export async function getComponent2Data() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
+  const cached = budgetCache.get('comp_2');
+  if (cached && cached.expiry > Date.now()) {
+    return cached.data;
+  }
   const comp = await prisma.budgetComponent.findUnique({
     where: { componentNo: 2 },
     include: { annexureII: { orderBy: { createdAt: 'asc' } } }
@@ -229,15 +261,18 @@ export async function getComponent2Data() {
 
   let expenditure = 0;
   comp.annexureII.forEach((a: any) => expenditure += a.totalExpenditure);
-  return {
+  const result = {
     ...comp,
     expenditureIncurred: expenditure,
     unutilizedBalance: comp.approvedBudget - expenditure,
     utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00'
   };
+  budgetCache.set('comp_2', { data: result, expiry: Date.now() + BUDGET_CACHE_TTL });
+  return result;
 }
 
 export async function addAnnexureIIEntry(data: any) {
+  clearBudgetCache();
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
   const total = (Number(data.travelAllowance) || 0) + (Number(data.trainerFee) || 0) + (Number(data.trainingCost) || 0) + (Number(data.accommodation) || 0) + (Number(data.otherExpenses) || 0);
@@ -286,6 +321,7 @@ export async function addAnnexureIIEntry(data: any) {
 }
 
 export async function updateAnnexureIIEntry(id: string, data: any) {
+  clearBudgetCache();
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
 
@@ -336,6 +372,7 @@ export async function updateAnnexureIIEntry(id: string, data: any) {
 }
 
 export async function deleteAnnexureIIEntry(id: string) {
+  clearBudgetCache();
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
 
@@ -366,14 +403,21 @@ export async function deleteAnnexureIIEntry(id: string) {
 // --- Component 3 ---
 export async function getComponent3Data() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
+  const cached = budgetCache.get('comp_3');
+  if (cached && cached.expiry > Date.now()) {
+    return cached.data;
+  }
   const comp = await prisma.budgetComponent.findUnique({
     where: { componentNo: 3 }, include: { annexureIII: { orderBy: { createdAt: 'desc' } } }
   });
   if (!comp) return null;
   let expenditure = 0; comp.annexureIII.forEach((a: any) => expenditure += a.totalExpenditure);
-  return { ...comp, expenditureIncurred: expenditure, unutilizedBalance: comp.approvedBudget - expenditure, utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00' };
+  const result = { ...comp, expenditureIncurred: expenditure, unutilizedBalance: comp.approvedBudget - expenditure, utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00' };
+  budgetCache.set('comp_3', { data: result, expiry: Date.now() + BUDGET_CACHE_TTL });
+  return result;
 }
 export async function addAnnexureIIIEntry(data: any) {
+  clearBudgetCache();
   try {
     const authCheck = await checkAuth(['ADMIN']);
     if (!authCheck.success) return authCheck;
@@ -425,14 +469,21 @@ export async function addAnnexureIIIEntry(data: any) {
 // --- Component 4 ---
 export async function getComponent4Data() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
+  const cached = budgetCache.get('comp_4');
+  if (cached && cached.expiry > Date.now()) {
+    return cached.data;
+  }
   const comp = await prisma.budgetComponent.findUnique({
     where: { componentNo: 4 }, include: { annexureIV: { orderBy: { createdAt: 'desc' } } }
   });
   if (!comp) return null;
   let expenditure = 0; comp.annexureIV.forEach((a: any) => expenditure += a.totalExpenditure);
-  return { ...comp, expenditureIncurred: expenditure, unutilizedBalance: comp.approvedBudget - expenditure, utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00' };
+  const result = { ...comp, expenditureIncurred: expenditure, unutilizedBalance: comp.approvedBudget - expenditure, utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00' };
+  budgetCache.set('comp_4', { data: result, expiry: Date.now() + BUDGET_CACHE_TTL });
+  return result;
 }
 export async function addAnnexureIVEntry(data: any) {
+  clearBudgetCache();
   try {
     const authCheck = await checkAuth(['ADMIN']);
     if (!authCheck.success) return authCheck;
@@ -451,14 +502,21 @@ export async function addAnnexureIVEntry(data: any) {
 // --- Component 5 ---
 export async function getComponent5Data() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
+  const cached = budgetCache.get('comp_5');
+  if (cached && cached.expiry > Date.now()) {
+    return cached.data;
+  }
   const comp = await prisma.budgetComponent.findUnique({
     where: { componentNo: 5 }, include: { annexureV: { orderBy: { createdAt: 'desc' } } }
   });
   if (!comp) return null;
   let expenditure = 0; comp.annexureV.forEach((a: any) => expenditure += a.totalExpenditure);
-  return { ...comp, expenditureIncurred: expenditure, unutilizedBalance: comp.approvedBudget - expenditure, utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00' };
+  const result = { ...comp, expenditureIncurred: expenditure, unutilizedBalance: comp.approvedBudget - expenditure, utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00' };
+  budgetCache.set('comp_5', { data: result, expiry: Date.now() + BUDGET_CACHE_TTL });
+  return result;
 }
 export async function addAnnexureVEntry(data: any) {
+  clearBudgetCache();
   try {
     const authCheck = await checkAuth(['ADMIN']);
     if (!authCheck.success) return authCheck;
@@ -477,14 +535,21 @@ export async function addAnnexureVEntry(data: any) {
 // --- Component 6 ---
 export async function getComponent6Data() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
+  const cached = budgetCache.get('comp_6');
+  if (cached && cached.expiry > Date.now()) {
+    return cached.data;
+  }
   const comp = await prisma.budgetComponent.findUnique({
     where: { componentNo: 6 }, include: { annexureVI: { orderBy: { createdAt: 'desc' } } }
   });
   if (!comp) return null;
   let expenditure = 0; comp.annexureVI.forEach((a: any) => expenditure += a.totalExpenditure);
-  return { ...comp, expenditureIncurred: expenditure, unutilizedBalance: comp.approvedBudget - expenditure, utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00' };
+  const result = { ...comp, expenditureIncurred: expenditure, unutilizedBalance: comp.approvedBudget - expenditure, utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00' };
+  budgetCache.set('comp_6', { data: result, expiry: Date.now() + BUDGET_CACHE_TTL });
+  return result;
 }
 export async function addAnnexureVIEntry(data: any) {
+  clearBudgetCache();
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
   const amount = Number(data.amount) || 0;
@@ -529,6 +594,7 @@ export async function addAnnexureVIEntry(data: any) {
 }
 
 export async function updateAnnexureIIIEntry(id: string, data: any) {
+  clearBudgetCache();
   try {
     const authCheck = await checkAuth(['ADMIN']);
     if (!authCheck.success) return authCheck;
@@ -576,6 +642,7 @@ export async function updateAnnexureIIIEntry(id: string, data: any) {
 }
 
 export async function deleteAnnexureIIIEntry(id: string) {
+  clearBudgetCache();
   try {
     const authCheck = await checkAuth(['ADMIN']);
     if (!authCheck.success) return authCheck;
@@ -606,6 +673,7 @@ export async function deleteAnnexureIIIEntry(id: string) {
   }
 }
 export async function updateAnnexureIVEntry(id: string, data: any) {
+  clearBudgetCache();
   try {
     const authCheck = await checkAuth(['ADMIN']);
     if (!authCheck.success) return authCheck;
@@ -622,6 +690,7 @@ export async function updateAnnexureIVEntry(id: string, data: any) {
 }
 
 export async function deleteAnnexureIVEntry(id: string) {
+  clearBudgetCache();
   try {
     const authCheck = await checkAuth(['ADMIN']);
     if (!authCheck.success) return authCheck;
@@ -637,6 +706,7 @@ export async function deleteAnnexureIVEntry(id: string) {
 }
 
 export async function updateAnnexureVEntry(id: string, data: any) {
+  clearBudgetCache();
   try {
     const authCheck = await checkAuth(['ADMIN']);
     if (!authCheck.success) return authCheck;
@@ -653,6 +723,7 @@ export async function updateAnnexureVEntry(id: string, data: any) {
 }
 
 export async function deleteAnnexureVEntry(id: string) {
+  clearBudgetCache();
   try {
     const authCheck = await checkAuth(['ADMIN']);
     if (!authCheck.success) return authCheck;
@@ -667,6 +738,7 @@ export async function deleteAnnexureVEntry(id: string) {
   }
 }
 export async function updateAnnexureVIEntry(id: string, data: any) {
+  clearBudgetCache();
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
   const amount = Number(data.amount) || 0;
@@ -712,6 +784,7 @@ export async function updateAnnexureVIEntry(id: string, data: any) {
 }
 
 export async function deleteAnnexureVIEntry(id: string) {
+  clearBudgetCache();
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
 
@@ -749,6 +822,7 @@ export async function updateBudgetHead(id: string, data: any) {
 }
 
 export async function updateComponentBudget(id: string, approvedBudget: number) {
+  clearBudgetCache();
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
   await prisma.budgetComponent.update({

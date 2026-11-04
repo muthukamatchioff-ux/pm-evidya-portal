@@ -32,6 +32,7 @@ const menuItems: MenuItem[] = [
   { name: 'Video Content Library', path: '/content', icon: '📼', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   { name: 'Document Management', path: '/accounts', icon: '📁', allowedRoles: ['ADMIN', 'HIGHER_OFFICIAL_VIEWER'] },
   { name: 'Document Registry', path: '/documents', icon: '📄', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
+  { name: 'Budget Master', path: '/budget', icon: '💰', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   
   { isHeader: true, name: 'Communications', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },
   { name: 'SME Document Workflow', path: '/generator/deputation', icon: '✉️', allowedRoles: ['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER'] },

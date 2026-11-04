@@ -1,14 +1,18 @@
 const SESSION_SECRET = process.env.ADMIN_PASSWORD_HASH || 'fallback_secret_key_12345';
 const encoder = new TextEncoder();
 
-async function getCryptoKey() {
-  return await crypto.subtle.importKey(
+let cachedCryptoKey: CryptoKey | null = null;
+
+async function getCryptoKey(): Promise<CryptoKey> {
+  if (cachedCryptoKey) return cachedCryptoKey;
+  cachedCryptoKey = await crypto.subtle.importKey(
     'raw',
     encoder.encode(SESSION_SECRET),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign', 'verify']
   );
+  return cachedCryptoKey;
 }
 
 function bufferToHex(buffer: ArrayBuffer) {

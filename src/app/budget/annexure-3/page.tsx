@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { getComponent3Data } from '../actions';
 import styles from '../budget.module.css';
 import Component3Client from './Component3Client';
-
+import BudgetHeadsNav from '@/components/BudgetHeadsNav';
 import { getRole } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -23,12 +23,14 @@ export default async function Component3Page() {
             <p className={styles.subtitle}>Reference: Annexure-III</p>
           </div>
           <div>
-            <Link href="/dashboard">
+            <Link href="/dashboard" prefetch={true}>
               <button className={styles.btnSecondary}>Back to Dashboard</button>
             </Link>
           </div>
         </div>
       </div>
+
+      <BudgetHeadsNav />
 
       <div className={styles.summaryCards}>
         <div className={styles.card}>

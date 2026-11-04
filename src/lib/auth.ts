@@ -57,8 +57,6 @@ async function createSession(email: string, role: string) {
     path: '/',
     maxAge: 60 * 60 * 8
   });
-
-  revalidatePath('/');
   return { success: true };
 }
 
@@ -80,19 +78,15 @@ export async function login(email: string, password: string): Promise<{ success:
       if (dbUser.password) {
         const passwordValid = await bcrypt.compare(password, dbUser.password);
         if (passwordValid) {
-          // Update lastLogin and ensure ACTIVE on successful login
-          try {
-            await prisma.user.update({
-              where: { id: dbUser.id },
-              data: { 
-                lastLogin: new Date(),
-                ...(isAdminEmail(normalizedEmail) ? { status: 'ACTIVE', role: 'ADMIN' } : {}),
-                ...(officialConfig ? { status: 'ACTIVE', role: 'HIGHER_OFFICIAL_VIEWER' } : {})
-              }
-            });
-          } catch(e) {
-            console.warn('Could not update last login', e);
-          }
+          // Update lastLogin in background without blocking login response
+          prisma.user.update({
+            where: { id: dbUser.id },
+            data: { 
+              lastLogin: new Date(),
+              ...(isAdminEmail(normalizedEmail) ? { status: 'ACTIVE', role: 'ADMIN' } : {}),
+              ...(officialConfig ? { status: 'ACTIVE', role: 'HIGHER_OFFICIAL_VIEWER' } : {})
+            }
+          }).catch((e: any) => console.warn('Could not update last login', e));
           return await createSession(normalizedEmail, isAdminEmail(normalizedEmail) ? 'ADMIN' : dbUser.role);
         }
         // If DB password check fails, allow admin or higher official fallback to check

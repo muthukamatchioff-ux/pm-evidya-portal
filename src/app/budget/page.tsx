@@ -3,6 +3,7 @@ import BudgetClient from './BudgetClient';
 import { getBudgetComponents } from './actions';
 import styles from './budget.module.css';
 import { getRole } from '@/lib/auth';
+import BudgetHeadsNav from '@/components/BudgetHeadsNav';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -17,6 +18,7 @@ export default async function BudgetPage() {
         <h1 className={styles.title}>Budget Component Master</h1>
         <p className={styles.subtitle}>Manage the Approved Budget for all main PM e-Vidya components.</p>
       </header>
+      <BudgetHeadsNav />
       <BudgetClient role={role} initialData={components} />
     </div>
   );
