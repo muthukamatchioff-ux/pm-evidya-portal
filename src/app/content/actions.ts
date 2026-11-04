@@ -302,34 +302,70 @@ export async function autoAnalyzeAllVideos() {
   }
 }
 
+function isValidCompletedVideoLink(url: string | null | undefined): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed || trimmed === '#' || trimmed.toLowerCase() === 'pending' || trimmed.toLowerCase() === 'tbd') {
+    return false;
+  }
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://');
+}
+
 export async function getVideos() {
   try {
-    const videos = await prisma.videoLibrary.findMany({
-      where: {
-        epic: { isPublished: true },
-        videoLink: { not: '' }
-      },
-      include: {
-        epic: {
-          include: {
-            sme: true
+    let rawVideos: any[] = [];
+    try {
+      rawVideos = await prisma.videoLibrary.findMany({
+        where: {
+          videoLink: { not: '' }
+        },
+        include: {
+          epic: {
+            include: {
+              sme: true
+            }
           }
-        }
-      },
-      orderBy: [
-        { epic: { epicSequence: 'asc' } },
-        { id: 'asc' }
-      ]
-    });
+        },
+        orderBy: [
+          { epic: { epicSequence: 'asc' } },
+          { id: 'asc' }
+        ]
+      });
+    } catch (dbErr) {
+      console.warn('Prisma getVideos query failed, attempting generic query:', dbErr);
+      try {
+        rawVideos = await prisma.videoLibrary.findMany();
+      } catch {}
+    }
 
-    if (!videos || videos.length === 0) {
+    if (!rawVideos || rawVideos.length === 0) {
       return [];
     }
 
-    // Fast in-memory resolution for uncalculated video durations from master catalogue without blocking on external network calls
-    const uncalculated = videos.filter((v: any) => !v.duration || v.duration === '0:00:00');
-    if (uncalculated.length > 0) {
-      for (const v of uncalculated) {
+    // STRICT USER MANDATE:
+    // 1. Only show completed video links (filter out in-progress/empty/blank links)
+    const completedVideos = rawVideos.filter(v => isValidCompletedVideoLink(v.videoLink));
+
+    // 2. Remove all duplicates (deduplicate by normalized title and normalized video link)
+    const seenTitles = new Set<string>();
+    const seenLinks = new Set<string>();
+    const uniqueVideos: any[] = [];
+
+    for (const v of completedVideos) {
+      const normTitle = (v.title || '').trim().toLowerCase().replace(/[\u2010-\u2015]/g, '-');
+      const normLink = (v.videoLink || '').trim().toLowerCase();
+
+      if (seenTitles.has(normTitle) || (normLink && seenLinks.has(normLink))) {
+        continue; // Skip duplicate video
+      }
+      seenTitles.add(normTitle);
+      if (normLink) seenLinks.add(normLink);
+      uniqueVideos.push(v);
+    }
+
+    // 3. Fast in-memory resolution for uncalculated video durations from master catalogue
+    for (const v of uniqueVideos) {
+      if (!v.duration || v.duration === '0:00:00') {
         const normalizedTitle = (v.title || '').trim().toLowerCase().replace(/[\u2010-\u2015]/g, '-');
         let detected: string | null = null;
         for (const [k, dur] of Object.entries(KNOWN_VIDEO_DURATIONS)) {
@@ -349,22 +385,9 @@ export async function getVideos() {
       }
     }
 
-    return videos;
+    return uniqueVideos;
   } catch (error: any) {
-    try {
-      const fallbackVideos = await prisma.videoLibrary.findMany({
-        where: {
-          OR: [
-            { epicId: null },
-            { epic: { isPublished: true } }
-          ]
-        },
-        orderBy: { createdAt: 'desc' }
-      });
-      if (fallbackVideos && fallbackVideos.length > 0) return fallbackVideos;
-    } catch {}
-
+    console.error('getVideos error:', error);
     return [];
   }
 }
-

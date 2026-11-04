@@ -90,9 +90,16 @@ function initCanonicalTracker() {
     });
   }
 
-  // Also include any legacy videos from REAL_PM_EVIDYA_VIDEOS
+  // Also include any legacy videos from REAL_PM_EVIDYA_VIDEOS (with strict deduplication by title and link)
   (REAL_PM_EVIDYA_VIDEOS as any[]).forEach(v => {
-    if (!initialVideos.some(iv => iv.id === v.id)) {
+    const normTitle = (v.title || '').trim().toLowerCase().replace(/[\u2010-\u2015]/g, '-');
+    const normLink = (v.videoLink || '').trim().toLowerCase();
+    const alreadyExists = initialVideos.some(iv => {
+      const ivTitle = (iv.title || '').trim().toLowerCase().replace(/[\u2010-\u2015]/g, '-');
+      const ivLink = (iv.videoLink || '').trim().toLowerCase();
+      return iv.id === v.id || ivTitle === normTitle || (normLink && ivLink === normLink);
+    });
+    if (!alreadyExists) {
       initialVideos.push(v);
     }
   });
@@ -840,10 +847,36 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
   // =======================================================================
   if (model === 'VideoLibrary') {
     if (operation === 'findMany') {
-      const { epicId } = args?.where || {};
-      return epicId 
-        ? liveStore.videoLibraries.filter((v: any) => v.epicId === epicId)
-        : liveStore.videoLibraries;
+      const where = args?.where || {};
+      let list = [...liveStore.videoLibraries];
+
+      if (where.epicId) {
+        list = list.filter((v: any) => v.epicId === where.epicId);
+      }
+
+      // Filter by videoLink completed requirement
+      if (where.videoLink) {
+        if (where.videoLink.not === '' || where.videoLink.not === null) {
+          list = list.filter((v: any) => v.videoLink && v.videoLink.trim() !== '' && v.videoLink !== '#');
+        } else if (where.videoLink.startsWith) {
+          list = list.filter((v: any) => v.videoLink && v.videoLink.startsWith(where.videoLink.startsWith));
+        }
+      }
+
+      // Deduplicate by normalized title and link
+      const seenTitles = new Set<string>();
+      const seenLinks = new Set<string>();
+      const deduped: any[] = [];
+      for (const v of list) {
+        const normTitle = (v.title || '').trim().toLowerCase().replace(/[\u2010-\u2015]/g, '-');
+        const normLink = (v.videoLink || '').trim().toLowerCase();
+        if (seenTitles.has(normTitle) || (normLink && seenLinks.has(normLink))) continue;
+        seenTitles.add(normTitle);
+        if (normLink) seenLinks.add(normLink);
+        deduped.push(v);
+      }
+
+      return deduped;
     }
 
     if (operation === 'findUnique' || operation === 'findFirst') {

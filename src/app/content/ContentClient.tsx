@@ -6,6 +6,16 @@ import Link from 'next/link';
 import { addVideo, updateVideo, detectVideoDuration, autoAnalyzeSingleVideo, autoAnalyzeAllVideos } from './actions';
 import styles from '../budget/budget.module.css'; // Reuse table styles
 
+
+function isValidCompletedVideoLink(url: string | null | undefined): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed || trimmed === '#' || trimmed.toLowerCase() === 'pending' || trimmed.toLowerCase() === 'tbd') {
+    return false;
+  }
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://');
+}
+
 export default function ContentClient({ initialData, epics = [], role = 'VIEWER' }: { initialData: any[], epics?: any[], role?: string }) {
   const router = useRouter();
   const canModify = role === 'ADMIN' || role === 'TEAM_MEMBER';
@@ -27,10 +37,43 @@ export default function ContentClient({ initialData, epics = [], role = 'VIEWER'
     setVideos(initialData);
   }, [initialData]);
 
-  const uniqueSMEs = Array.from(new Set(videos.map(v => v.smeName))).sort();
-  const uniqueTrades = Array.from(new Set(videos.map(v => v.trade || '-'))).sort();
+  // STRICT USER RULE: Only show completed video links and remove any duplicates
+  const completedVideos = React.useMemo(() => {
+    const seenTitles = new Set<string>();
+    const seenLinks = new Set<string>();
+    const result: any[] = [];
 
-  const filteredData = videos.filter(v => {
+    for (const v of videos) {
+      if (!isValidCompletedVideoLink(v.videoLink)) continue;
+      const normTitle = (v.title || '').trim().toLowerCase().replace(/[\u2010-\u2015]/g, '-');
+      const normLink = (v.videoLink || '').trim().toLowerCase();
+      if (seenTitles.has(normTitle) || (normLink && seenLinks.has(normLink))) {
+        continue; // Exclude duplicate video
+      }
+      seenTitles.add(normTitle);
+      if (normLink) seenLinks.add(normLink);
+      result.push(v);
+    }
+    return result;
+  }, [videos]);
+
+  const getEpicCode = (v: any) => {
+    if (v.epic?.epicSequence) return `EPIC-${String(v.epic.epicSequence).padStart(2, '0')}`;
+    if (v.epicId) {
+      const match = epics.find(ep => ep.id === v.epicId);
+      if (match?.epicSequence) return `EPIC-${String(match.epicSequence).padStart(2, '0')}`;
+    }
+    if (v.smeName) {
+      const match = epics.find(ep => ep.sme?.name?.toLowerCase() === v.smeName?.toLowerCase());
+      if (match?.epicSequence) return `EPIC-${String(match.epicSequence).padStart(2, '0')}`;
+    }
+    return '-';
+  };
+
+  const uniqueSMEs = Array.from(new Set(completedVideos.map(v => v.smeName))).sort();
+  const uniqueTrades = Array.from(new Set(completedVideos.map(v => v.trade || '-'))).sort();
+
+  const filteredData = completedVideos.filter(v => {
     const matchSME = filterSME === 'All' || v.smeName === filterSME;
     const matchTrade = filterTrade === 'All' || (v.trade || '-') === filterTrade;
     return matchSME && matchTrade;
@@ -51,7 +94,7 @@ export default function ContentClient({ initialData, epics = [], role = 'VIEWER'
   const s = totalSeconds % 60;
   const totalDurationStr = `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 
-  const uncalculatedCount = videos.filter(v => !v.duration || v.duration === '0:00:00').length;
+  const uncalculatedCount = completedVideos.filter(v => !v.duration || v.duration === '0:00:00').length;
 
   const handleAutoAnalyzeAll = async () => {
     setIsAnalyzingAll(true);
@@ -401,7 +444,7 @@ export default function ContentClient({ initialData, epics = [], role = 'VIEWER'
                   return (
                     <tr key={v.id}>
                       <td>{idx + 1}</td>
-                      <td>{v.epic ? `EPIC-${v.epic.epicSequence}` : '-'}</td>
+                      <td>{getEpicCode(v)}</td>
                       <td>{v.smeName}</td>
                       <td>{v.trade || '-'}</td>
                       <td style={{ fontWeight: 500 }}>{v.title}</td>
