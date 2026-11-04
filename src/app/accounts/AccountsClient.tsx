@@ -58,15 +58,16 @@ export default function AccountsClient({ initialData, role = 'ADMIN' }: Accounts
       const res: any = await uploadDocument(smeId, entryId, type, formData);
 
       if (res && res.success) {
-        const newDoc = res.document || {
-          id: `doc-${Date.now()}`,
-          name: file.name,
-          type,
+        const saved = res.document || {};
+        const newDoc = {
+          id: saved.id || `doc-${Date.now()}`,
+          name: saved.name || file.name,
+          type: saved.type || type,
           status: 'UPLOADED',
-          filePath: URL.createObjectURL(file),
-          version: 1,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          filePath: saved.filePath || URL.createObjectURL(file),
+          version: saved.version || 1,
+          createdAt: saved.createdAt || new Date().toISOString(),
+          updatedAt: saved.updatedAt || new Date().toISOString()
         };
 
         // Immediately update client-side entries state so the card switches to Uploaded
@@ -110,6 +111,23 @@ export default function AccountsClient({ initialData, role = 'ADMIN' }: Accounts
     }
   };
 
+
+function isRealUploadedDoc(doc: any): boolean {
+  if (!doc) return false;
+  if (!doc.filePath || typeof doc.filePath !== 'string') return false;
+  const p = doc.filePath.trim();
+  if (p.startsWith('{')) return false; // JSON parameters, not a real file
+  if (doc.status === 'SAVED' || doc.status === 'GENERATED') return false;
+  return (
+    doc.status === 'UPLOADED' ||
+    p.startsWith('http://') ||
+    p.startsWith('https://') ||
+    p.startsWith('data:') ||
+    p.startsWith('/') ||
+    /\.(pdf|docx?|xlsx?|pptx?|jpe?g|png|webp|gif|txt|csv)$/i.test(p)
+  );
+}
+
   const docDefinitions = [
     {
       type: 'SME_ATTENDANCE',
@@ -132,16 +150,39 @@ export default function AccountsClient({ initialData, role = 'ADMIN' }: Accounts
   ];
 
   const findDocument = (entryDocs: any[], type: string) => {
-    if (!entryDocs || !entryDocs.length) return null;
-    if (type === 'SME_ATTENDANCE') {
-      return entryDocs.find(
-        (d: any) =>
+    if (!Array.isArray(entryDocs) || !entryDocs.length) return null;
+
+    const matches = entryDocs.filter((d: any) => {
+      if (!isRealUploadedDoc(d)) return false;
+      if (type === 'SME_ATTENDANCE') {
+        return (
           d.type === 'SME_ATTENDANCE' ||
           d.type === 'ATTENDANCE' ||
           d.type === 'TRADE_DETAILS'
-      );
-    }
-    return entryDocs.find((d: any) => d.type === type);
+        );
+      }
+      if (type === 'APPROVAL_LETTER') {
+        return d.type === 'APPROVAL_LETTER' || d.type === 'STAGE_A_APPROVAL_LETTER';
+      }
+      if (type === 'WORK_COMPLETION') {
+        return d.type === 'WORK_COMPLETION' || d.type === 'STAGE_B_WORK_COMPLETION';
+      }
+      return d.type === type;
+    });
+
+    if (matches.length === 0) return null;
+
+    // Sort by version desc, then updatedAt desc, then createdAt desc
+    matches.sort((a: any, b: any) => {
+      const vA = a.version || 1;
+      const vB = b.version || 1;
+      if (vB !== vA) return vB - vA;
+      const tA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const tB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      return tB - tA;
+    });
+
+    return matches[0];
   };
 
   const selectedEntry = entries.find(e => e.id === selectedEntryId);
@@ -290,10 +331,10 @@ export default function AccountsClient({ initialData, role = 'ADMIN' }: Accounts
                 const hasDoc = !!uploadedDoc;
                 const filePreviewUrl = uploadedDoc?.filePath?.startsWith('data:')
                   ? uploadedDoc.filePath
-                  : (uploadedDoc?.id ? `/api/documents/${uploadedDoc.id}` : '#');
+                  : (uploadedDoc?.id ? `/api/documents/${uploadedDoc.id}?workEntryId=${encodeURIComponent(selectedEntry.id)}&type=${encodeURIComponent(docDef.type)}` : '#');
                 const fileDownloadUrl = uploadedDoc?.filePath?.startsWith('data:')
                   ? uploadedDoc.filePath
-                  : (uploadedDoc?.id ? `/api/documents/${uploadedDoc.id}?download=1` : '#');
+                  : (uploadedDoc?.id ? `/api/documents/${uploadedDoc.id}?download=1&workEntryId=${encodeURIComponent(selectedEntry.id)}&type=${encodeURIComponent(docDef.type)}` : '#');
 
                 return (
                   <div

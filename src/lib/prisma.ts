@@ -1274,16 +1274,45 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
       }
     });
 
+    const matchType = (docType: string, typeFilter: any) => {
+      if (!typeFilter) return true;
+      if (typeof typeFilter === 'string') return docType === typeFilter;
+      if (typeFilter && Array.isArray(typeFilter.in)) return typeFilter.in.includes(docType);
+      return false;
+    };
+
+    const matchStatus = (docStatus: string, statusFilter: any) => {
+      if (!statusFilter) return true;
+      if (typeof statusFilter === 'string') return docStatus === statusFilter;
+      if (statusFilter && Array.isArray(statusFilter.in)) return statusFilter.in.includes(docStatus);
+      return false;
+    };
+
+    const sortDocs = (docs: any[]) => {
+      return [...docs].sort((a: any, b: any) => {
+        const vA = a.version || 1;
+        const vB = b.version || 1;
+        if (vB !== vA) return vB - vA;
+        const tA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+        const tB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+        return tB - tA;
+      });
+    };
+
     if (operation === 'findFirst' || operation === 'findUnique') {
       const id = args?.where?.id;
       if (id) {
         const match = allDocs.find(d => d.id === id || d.workEntryId === id || (d.name && d.name.includes(id)));
         if (match) return match;
       }
-      const { workEntryId, type } = args?.where || {};
-      if (workEntryId || type) {
-        const match = allDocs.find(d => (!workEntryId || d.workEntryId === workEntryId) && (!type || d.type === type));
-        if (match) return match;
+      const { workEntryId, type, status } = args?.where || {};
+      if (workEntryId || type || status) {
+        const matching = allDocs.filter(d => 
+          (!workEntryId || d.workEntryId === workEntryId) && 
+          matchType(d.type, type) &&
+          matchStatus(d.status, status)
+        );
+        if (matching.length > 0) return sortDocs(matching)[0];
       }
       if (Array.isArray(args?.where?.OR)) {
         for (const condition of (args.where.OR as any[])) {
@@ -1297,8 +1326,13 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
     }
 
     if (operation === 'findMany') {
-      const { workEntryId, type } = args?.where || {};
-      return allDocs.filter(d => (!workEntryId || d.workEntryId === workEntryId) && (!type || d.type === type));
+      const { workEntryId, type, status } = args?.where || {};
+      const matching = allDocs.filter(d => 
+        (!workEntryId || d.workEntryId === workEntryId) && 
+        matchType(d.type, type) &&
+        matchStatus(d.status, status)
+      );
+      return sortDocs(matching);
     }
 
     if (operation === 'create') {
@@ -1581,7 +1615,11 @@ const createPrismaClient = () => {
             // Universal Dual-Write on mutation to keep memory and disk 100% synchronized with DB
             if (operation === 'update' || operation === 'create' || operation === 'delete' || operation === 'upsert' || operation === 'updateMany' || operation === 'deleteMany') {
               try {
-                handleMemoryFallback(model, operation, args);
+                const resObj = result as any;
+                const dualWriteArgs = operation === 'create' && resObj && resObj.id
+                  ? { ...args, data: { ...args?.data, id: resObj.id } }
+                  : args;
+                handleMemoryFallback(model, operation, dualWriteArgs);
               } catch (_) {}
             }
             return result;

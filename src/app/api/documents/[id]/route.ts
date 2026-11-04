@@ -448,11 +448,27 @@ export async function GET(
   }
 
   const isDownload = request.nextUrl.searchParams.get('download') === '1';
+  const queryWorkEntryId = request.nextUrl.searchParams.get('workEntryId') || '';
+  const queryType = request.nextUrl.searchParams.get('type') || '';
+
+  const typeCandidates: string[] = [];
+  if (queryType) {
+    typeCandidates.push(queryType);
+    if (queryType === 'APPROVAL_LETTER' || queryType === 'STAGE_A_APPROVAL_LETTER') {
+      typeCandidates.push('APPROVAL_LETTER', 'STAGE_A_APPROVAL_LETTER');
+    } else if (queryType === 'WORK_COMPLETION' || queryType === 'STAGE_B_WORK_COMPLETION') {
+      typeCandidates.push('WORK_COMPLETION', 'STAGE_B_WORK_COMPLETION');
+    } else if (queryType === 'SME_ATTENDANCE' || queryType === 'ATTENDANCE' || queryType === 'TRADE_DETAILS') {
+      typeCandidates.push('SME_ATTENDANCE', 'ATTENDANCE', 'TRADE_DETAILS');
+    } else if (queryType === 'PAYMENT_NOTE' || queryType === 'STAGE_C_REMUNERATION') {
+      typeCandidates.push('PAYMENT_NOTE', 'STAGE_C_REMUNERATION');
+    }
+  }
 
   try {
     let document: any = null;
 
-    // 2. Lookup Document by ID
+    // 2A. Direct lookup by ID with include
     try {
       document = await prisma.document.findUnique({
         where: { id },
@@ -467,10 +483,37 @@ export async function GET(
         }
       });
     } catch (dbErr) {
-      console.warn('Prisma document findUnique failed:', dbErr);
+      console.warn('Prisma document findUnique failed, attempting fallback query:', dbErr);
     }
 
-    // Fallback lookup if ID was not primary key
+    // 2B. If not found or if ID was synthetic/temporary, look up by workEntryId and type
+    if ((!document || (document && !document.filePath)) && queryWorkEntryId && typeCandidates.length > 0) {
+      try {
+        const found = await prisma.document.findFirst({
+          where: {
+            workEntryId: queryWorkEntryId,
+            type: { in: typeCandidates },
+            status: 'UPLOADED',
+            filePath: { not: null }
+          },
+          include: {
+            workEntry: {
+              include: {
+                sme: true,
+                payments: true,
+                documents: true,
+              }
+            }
+          },
+          orderBy: [{ version: 'desc' }, { createdAt: 'desc' }]
+        });
+        if (found) document = found;
+      } catch (qErr) {
+        console.warn('Query by workEntryId and type failed:', qErr);
+      }
+    }
+
+    // 2C. Fallback flexible OR lookup (id, workEntryId, name contains)
     if (!document) {
       try {
         document = await prisma.document.findFirst({
@@ -489,18 +532,22 @@ export async function GET(
                 documents: true,
               }
             }
-          }
+          },
+          orderBy: [{ version: 'desc' }, { createdAt: 'desc' }]
         });
       } catch {}
     }
 
-    // In-memory fallback dataset lookup
+    // 2D. In-memory dataset fallback lookup
     if (!document) {
       try {
         const { REAL_PM_EVIDYA_SME_WORK_ENTRIES, REAL_PM_EVIDYA_SMES } = await import('@/lib/fallbackData');
         for (const we of (REAL_PM_EVIDYA_SME_WORK_ENTRIES as any[])) {
           const match = (we.documents || []).find((d: any) =>
-            d.id === id || d.workEntryId === id || (d.name && d.name.includes(id))
+            d.id === id || 
+            d.workEntryId === id || 
+            (d.name && d.name.includes(id)) ||
+            (queryWorkEntryId && d.workEntryId === queryWorkEntryId && typeCandidates.includes(d.type))
           );
           if (match) {
             document = {
@@ -516,32 +563,39 @@ export async function GET(
       } catch {}
     }
 
+    // If no document record found at all:
     if (!document) {
-      return new NextResponse('Document not found', { status: 404 });
+      return new NextResponse(renderNotUploadedHtml({ id, name: 'Requested Document' }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+        }
+      });
     }
 
-    // 3. Resolve the actual uploaded file or companion upload
+    // 3. Resolve the actual uploaded physical file or companion upload
     let targetDoc = document;
     const hasDirectFile = targetDoc.filePath && !targetDoc.filePath.startsWith('{');
 
     // If this registry record only stores metadata/parameters, connect to the uploaded document on the same work entry
     if (!hasDirectFile && targetDoc.workEntryId) {
-      const typeCandidates = [targetDoc.type];
+      const companionTypeCandidates = [targetDoc.type];
       if (targetDoc.type === 'APPROVAL_LETTER' || targetDoc.type === 'STAGE_A_APPROVAL_LETTER') {
-        typeCandidates.push('APPROVAL_LETTER', 'STAGE_A_APPROVAL_LETTER');
+        companionTypeCandidates.push('APPROVAL_LETTER', 'STAGE_A_APPROVAL_LETTER');
       } else if (targetDoc.type === 'WORK_COMPLETION' || targetDoc.type === 'STAGE_B_WORK_COMPLETION') {
-        typeCandidates.push('WORK_COMPLETION', 'STAGE_B_WORK_COMPLETION');
+        companionTypeCandidates.push('WORK_COMPLETION', 'STAGE_B_WORK_COMPLETION');
       } else if (targetDoc.type === 'SME_ATTENDANCE' || targetDoc.type === 'ATTENDANCE' || targetDoc.type === 'TRADE_DETAILS') {
-        typeCandidates.push('SME_ATTENDANCE', 'ATTENDANCE', 'TRADE_DETAILS');
+        companionTypeCandidates.push('SME_ATTENDANCE', 'ATTENDANCE', 'TRADE_DETAILS');
       } else if (targetDoc.type === 'PAYMENT_NOTE' || targetDoc.type === 'STAGE_C_REMUNERATION') {
-        typeCandidates.push('PAYMENT_NOTE', 'STAGE_C_REMUNERATION');
+        companionTypeCandidates.push('PAYMENT_NOTE', 'STAGE_C_REMUNERATION');
       }
 
       try {
         const companionUpload = await prisma.document.findFirst({
           where: {
             workEntryId: targetDoc.workEntryId,
-            type: { in: typeCandidates },
+            type: { in: companionTypeCandidates },
             status: 'UPLOADED',
             filePath: { not: null }
           },
@@ -580,33 +634,23 @@ export async function GET(
           },
         });
       } catch (storageErr: any) {
-        console.warn('Storage download failed for document, falling back to official generated view:', targetDoc.id, storageErr?.message);
-        // Fall back to official generated document view if storage is temporarily unreachable
+        console.error('Storage download failed for document:', targetDoc.id, storageErr?.message);
+        return new NextResponse(renderStorageErrorHtml(targetDoc.name || 'Document', storageErr?.message), {
+          status: 502,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        });
       }
     }
 
-    // 5. If no uploaded physical file (or storage download failed):
-    // Render the authentic, official PM e-Vidya document
-    const hasWorkEntryOrParams = document.workEntry || (document.filePath && document.filePath.startsWith('{'));
-
-    if (hasWorkEntryOrParams) {
-      const htmlContent = renderOfficialDocumentHtml(document);
-      const disposition = isDownload ? `attachment; filename="${(document.name || 'document').replace(/[^a-zA-Z0-9_\-\.]/g, '_')}.html"` : 'inline';
-
-      return new NextResponse(htmlContent, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Content-Disposition': disposition,
-          'Cache-Control': 'private, no-cache, no-store, must-revalidate',
-        }
-      });
-    }
-
-    // 6. Only for orphan records without work entry details:
-    return new NextResponse(renderNotUploadedHtml(document), {
+    // 5. IF NO REAL PHYSICAL FILE WAS UPLOADED:
+    // USER MANDATE: "illaina kooda no document nu kamikkalam ithu mathiry system generated vendam , upload option than kamikkanum , once uploaded , uploaded document ah view panni kami"
+    // Render clean "Document Not Uploaded" status card with an upload action button. NEVER show fake generated certificates.
+    return new NextResponse(renderNotUploadedHtml(targetDoc), {
       status: 200,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+      }
     });
 
   } catch (error: any) {
