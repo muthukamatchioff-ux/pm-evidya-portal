@@ -269,7 +269,7 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
                       </td>
                       <td>
                         {/* SME Link connects directly to profile */}
-                        <Link href={`/smes/${entry.smeId}`} className={styles.smeLink}>
+                        <Link href={`/smes/${entry.smeId}`} prefetch={true} className={styles.smeLink}>
                           {entry.sme?.name}
                         </Link>
                         {entry.sme?.institute && (
@@ -329,6 +329,7 @@ export default function SmeListClient({ initialWorkEntries, role }: SmeListClien
                             <>
                               <Link
                                 href={`/smes/${entry.smeId}`}
+                                prefetch={true}
                                 className={styles.btnEdit}
                                 title="Edit SME details"
                               >

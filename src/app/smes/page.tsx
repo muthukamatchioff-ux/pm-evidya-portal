@@ -5,6 +5,7 @@ import styles from './smes.module.css';
 import SmeListClient from './SmeListClient';
 import { getRole, requireAuth } from '@/lib/auth';
 import { findSmeContact } from '@/lib/smeContacts';
+import { getCachedSmeList, setCachedSmeList } from '@/app/smes/cache';
 
 export const metadata = {
   title: 'SME Records | PM e-Vidya Portal',
@@ -17,6 +18,41 @@ export const revalidate = 0;
 export default async function SMEsPage() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
   const role = await getRole();
+
+  // Fast-path: Return cached SME records immediately if available
+  const cached = getCachedSmeList();
+  if (cached && Array.isArray(cached) && cached.length > 0) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.breadcrumb}>
+          <Link href="/dashboard" prefetch={true} style={{ color: 'inherit', textDecoration: 'none' }}>
+            Dashboard
+          </Link>
+          <span>/</span>
+          <span>Core Modules</span>
+          <span>/</span>
+          <span style={{ color: '#2563eb', fontWeight: 600 }}>SME Records</span>
+        </div>
+
+        <header className={styles.header}>
+          <div className={styles.headerLeft}>
+            <h1>SME Management</h1>
+            <div className={styles.headerSubtitle}>
+              Directory of Subject Matter Experts and work assignments
+            </div>
+          </div>
+          {role === 'ADMIN' && (
+            <Link href="/smes/new" className={styles.btnAddSme}>
+              <span>➕</span>
+              <span>Add New SME</span>
+            </Link>
+          )}
+        </header>
+
+        <SmeListClient initialWorkEntries={cached} role={role} />
+      </div>
+    );
+  }
   let workEntries: any[] = [];
   try {
     workEntries = await prisma.sMEWorkEntry.findMany({
@@ -91,8 +127,12 @@ export default async function SMEsPage() {
         const contact = findSmeContact(entry.sme.name, entry.epicSequence);
         if (contact) {
           const wasMissing = !entry.sme.contactNumber || !entry.sme.email;
-          if (!entry.sme.contactNumber && contact.phone) entry.sme.contactNumber = contact.phone;
-          if (!entry.sme.email && contact.email) entry.sme.email = contact.email;
+          if ((entry.sme.contactNumber === null || entry.sme.contactNumber === undefined || entry.sme.contactNumber === '') && contact.phone) {
+            entry.sme.contactNumber = contact.phone;
+          }
+          if ((entry.sme.email === null || entry.sme.email === undefined || entry.sme.email === '') && contact.email) {
+            entry.sme.email = contact.email;
+          }
           if (wasMissing && entry.sme.id) {
             needsDbSync.push({ id: entry.sme.id, phone: entry.sme.contactNumber, email: entry.sme.email });
           }
@@ -118,6 +158,9 @@ export default async function SMEsPage() {
 
     workEntries.sort((a, b) => (b.epicSequence || 0) - (a.epicSequence || 0));
   }
+
+  // Cache the sorted records for instant fast-path navigation
+  setCachedSmeList(workEntries);
 
   return (
     <div className={styles.container}>

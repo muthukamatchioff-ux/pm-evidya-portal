@@ -257,13 +257,35 @@ function attachWorkEntryRelations(entry: any) {
   const schedules = liveStore.shootingSchedules.filter((s: any) => s.workEntryId === entry.id);
   const editorRecs = liveStore.videoEditorRecords.filter((e: any) => e.workEntryId === entry.id);
   const vids = liveStore.videoLibraries.filter((v: any) => v.epicId === entry.id);
+  const sme = entry.sme || liveStore.smes.find((s: any) => s.id === entry.smeId) || null;
 
   return {
     ...entry,
+    sme,
     shootingSchedules: schedules,
     videoEditorRecords: editorRecs,
     videoLibraries: vids
   };
+}
+
+function attachSmeRelations(sme: any) {
+  if (!sme) return null;
+  const clone = { ...sme };
+  const matchingWorkEntries = liveStore.smeWorkEntries
+    .filter((we: any) => we.smeId === sme.id || we.sme?.id === sme.id || (we.sme?.name && sme.name && we.sme.name.trim().toLowerCase() === sme.name.trim().toLowerCase()))
+    .map(attachWorkEntryRelations);
+
+  if (matchingWorkEntries.length > 0) {
+    clone.workEntries = matchingWorkEntries;
+  } else if (Array.isArray(sme.workEntries) && sme.workEntries.length > 0) {
+    clone.workEntries = sme.workEntries.map((we: any) => {
+      const full = liveStore.smeWorkEntries.find((e: any) => e.id === we.id || e.epicSequence === we.epicSequence);
+      return full ? attachWorkEntryRelations(full) : we;
+    });
+  } else {
+    clone.workEntries = [];
+  }
+  return clone;
 }
 
 // =========================================================================
@@ -725,48 +747,58 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
   // =======================================================================
   if (model === 'SME') {
     if (operation === 'findMany') {
-      return liveStore.smes.map(sme => {
-        const workEntries = (sme.workEntries || []).map((we: any) => {
-          if (!we.documents || we.documents.length === 0) {
-            const matchedWe = liveStore.smeWorkEntries.find(
-              (e: any) => e.id === we.id || e.epicSequence === we.epicSequence || (e.smeId === sme.id && e.trade === we.trade)
-            );
-            if (matchedWe && Array.isArray(matchedWe.documents) && matchedWe.documents.length > 0) {
-              return { ...we, documents: matchedWe.documents };
-            }
-          }
-          return we;
-        });
-        return { ...sme, workEntries };
-      });
+      return liveStore.smes.map(attachSmeRelations);
     }
     if (operation === 'findUnique' || operation === 'findFirst') {
       const id = args?.where?.id;
+      const name = args?.where?.name;
+      let sme: any = null;
       if (id) {
-        return liveStore.smes.find(s => s.id === id) || null;
+        sme = liveStore.smes.find((s: any) => s.id === id);
+      } else if (name) {
+        const target = typeof name === 'string' ? name : (name.equals || name.contains || '');
+        sme = liveStore.smes.find((s: any) => s.name?.toLowerCase().includes(target.toLowerCase()));
+      } else {
+        sme = liveStore.smes[0];
       }
-      return liveStore.smes[0] || null;
+      return attachSmeRelations(sme);
     }
     if (operation === 'update') {
       const id = args?.where?.id;
-      const sme = liveStore.smes.find(s => s.id === id);
+      let sme = liveStore.smes.find((s: any) => s.id === id);
+      if (!sme && args?.where?.name) {
+        const target = typeof args.where.name === 'string' ? args.where.name : (args.where.name.equals || '');
+        sme = liveStore.smes.find((s: any) => s.name?.toLowerCase() === target.toLowerCase());
+      }
       if (sme && args?.data) {
         Object.assign(sme, args.data);
         sme.updatedAt = new Date().toISOString();
-        liveStore.smeWorkEntries.forEach(e => {
-          if (e.smeId === id || e.sme?.id === id) {
+        liveStore.smeWorkEntries.forEach((e: any) => {
+          if (e.smeId === sme.id || e.sme?.id === sme.id) {
             if (!e.sme) e.sme = {};
             Object.assign(e.sme, args.data);
           }
         });
         persistLiveStore();
-        return sme;
+        return attachSmeRelations(sme);
       }
-      return sme || { id, ...args?.data };
+      return attachSmeRelations(sme) || (id ? { id, ...args?.data } : null);
+    }
+    if (operation === 'updateMany') {
+      const id = args?.where?.id;
+      if (id) {
+        const sme = liveStore.smes.find((s: any) => s.id === id);
+        if (sme && args?.data) {
+          Object.assign(sme, args.data);
+          sme.updatedAt = new Date().toISOString();
+          persistLiveStore();
+        }
+      }
+      return { count: 1 };
     }
     if (operation === 'delete') {
       const id = args?.where?.id;
-      const idx = liveStore.smes.findIndex(s => s.id === id);
+      const idx = liveStore.smes.findIndex((s: any) => s.id === id);
       if (idx !== -1) {
         const removed = liveStore.smes.splice(idx, 1)[0];
         persistLiveStore();
@@ -782,44 +814,16 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
         institute: args?.data?.institute || '',
         location: args?.data?.location || '',
         address: args?.data?.address || '',
+        email: args?.data?.email || null,
+        contactNumber: args?.data?.contactNumber || null,
         status: 'ACTIVE',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        workEntries: []
       };
       liveStore.smes.push(newSme);
-
-      if (args?.data?.workEntries?.create) {
-        const weData = args.data.workEntries.create as any;
-        const newEntry = {
-          id: `sme-work-${Date.now()}`,
-          smeId: newSme.id,
-          trade: weData.trade || 'General',
-          topic: weData.topic || 'PM e-Vidya Content Development',
-          attendanceFrom: weData.attendanceFrom,
-          attendanceTo: weData.attendanceTo,
-          days: weData.days || 0,
-          ratePerDay: weData.ratePerDay || 0,
-          taAmount: weData.taAmount || 0,
-          otherAmount: weData.otherAmount || 0,
-          status: 'INITIATED',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          epicSequence: liveStore.smeWorkEntries.length + 1,
-          sme: newSme,
-          payments: [{
-            id: `pay-${Date.now()}`,
-            status: 'INITIATED',
-            grossAmount: (weData.days || 0) * (weData.ratePerDay || 0),
-            taAmount: weData.taAmount || 0,
-            otherAmount: weData.otherAmount || 0,
-            totalAmount: ((weData.days || 0) * (weData.ratePerDay || 0)) + (weData.taAmount || 0) + (weData.otherAmount || 0)
-          }],
-          documents: []
-        };
-        liveStore.smeWorkEntries.unshift(newEntry);
-      }
       persistLiveStore();
-      return newSme;
+      return attachSmeRelations(newSme);
     }
   }
 
@@ -947,16 +951,40 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
 
     if (operation === 'findUnique' || operation === 'findFirst') {
       const id = args?.where?.id;
-      const entry = id ? liveStore.smeWorkEntries.find((e: any) => e.id === id) : liveStore.smeWorkEntries[0];
+      const smeId = args?.where?.smeId;
+      const epicSeq = args?.where?.epicSequence;
+      let entry: any = null;
+      if (id) {
+        entry = liveStore.smeWorkEntries.find((e: any) => e.id === id);
+      } else if (smeId) {
+        entry = liveStore.smeWorkEntries.find((e: any) => e.smeId === smeId);
+      } else if (epicSeq) {
+        entry = liveStore.smeWorkEntries.find((e: any) => e.epicSequence === epicSeq);
+      } else if (args?.where?.OR) {
+        entry = liveStore.smeWorkEntries.find((e: any) => 
+          args.where.OR.some((cond: any) => (cond.id && e.id === cond.id) || (cond.smeId && e.smeId === cond.smeId))
+        );
+      } else {
+        entry = liveStore.smeWorkEntries[0];
+      }
       return attachWorkEntryRelations(entry);
     }
 
     if (operation === 'update') {
       const id = args?.where?.id;
-      const entry = liveStore.smeWorkEntries.find((e: any) => e.id === id);
+      let entry = id ? liveStore.smeWorkEntries.find((e: any) => e.id === id) : null;
+      if (!entry && args?.where?.smeId) {
+        entry = liveStore.smeWorkEntries.find((e: any) => e.smeId === args.where.smeId);
+      }
       if (entry && args?.data) {
         Object.assign(entry, args.data);
         entry.updatedAt = new Date().toISOString();
+        liveStore.smes.forEach((s: any) => {
+          if (s.id === entry.smeId && Array.isArray(s.workEntries)) {
+            const nested = s.workEntries.find((we: any) => we.id === entry.id || we.epicSequence === entry.epicSequence);
+            if (nested) Object.assign(nested, args.data);
+          }
+        });
         persistLiveStore();
         return attachWorkEntryRelations(entry);
       }
@@ -975,7 +1003,6 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
     }
   }
 
-  // =======================================================================
   // SHOOTING SCHEDULE
   // =======================================================================
   if (model === 'ShootingSchedule') {
@@ -1550,8 +1577,34 @@ const createPrismaClient = () => {
           }
 
           try {
-            return await query(args);
+            const result = await query(args);
+            // Universal Dual-Write on mutation to keep memory and disk 100% synchronized with DB
+            if (operation === 'update' || operation === 'create' || operation === 'delete' || operation === 'upsert' || operation === 'updateMany' || operation === 'deleteMany') {
+              try {
+                handleMemoryFallback(model, operation, args);
+              } catch (_) {}
+            }
+            return result;
           } catch (error: any) {
+            // Neon connection auto-reconnect retry on dropped idle socket
+            if (
+              error?.code === 'P1001' ||
+              error?.code === 'P1012' ||
+              error?.message?.includes('database connection') ||
+              error?.message?.includes('connection closed') ||
+              error?.message?.includes('socket') ||
+              error?.message?.includes('ECONNRESET')
+            ) {
+              try {
+                await new Promise(r => setTimeout(r, 200));
+                const retryResult = await query(args);
+                if (operation === 'update' || operation === 'create' || operation === 'delete' || operation === 'upsert') {
+                  try { handleMemoryFallback(model, operation, args); } catch (_) {}
+                }
+                return retryResult;
+              } catch (_) {}
+            }
+
             if (
               error?.name === 'PrismaClientInitializationError' ||
               error?.name === 'PrismaClientKnownRequestError' ||

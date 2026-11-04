@@ -5,6 +5,7 @@ import { storage } from '@/lib/storage';
 import { revalidatePath } from 'next/cache';
 import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
+import { clearSmeListCache } from '@/app/smes/cache';
 
 export async function uploadDocument(
   smeId: string, 
@@ -166,27 +167,25 @@ export async function updateSMERecord(smeId: string, entryId: string | undefined
       contactNumber: data.smeContact !== undefined ? (data.smeContact ? data.smeContact.trim() : null) : null,
     };
 
-    if (existingSme) {
-      await prisma.sME.update({
-        where: { id: smeId },
-        data: smePayload as any
-      });
-    } else {
-      await prisma.sME.create({
-        data: {
-          id: smeId,
-          ...smePayload,
-          status: 'ACTIVE'
-        } as any
-      });
-    }
+    const updateSmePromise = existingSme
+      ? prisma.sME.update({ where: { id: smeId }, data: smePayload as any })
+      : prisma.sME.create({ data: { id: smeId, ...smePayload, status: 'ACTIVE' } as any });
 
-    // 2. Update Work Entry data if it exists
-    if (entryId) {
-      const existingEntry = await prisma.sMEWorkEntry.findUnique({ where: { id: entryId } });
-      if (existingEntry) {
+    // 2. Update Work Entry data
+    const workEntryWhere = entryId 
+      ? { OR: [{ id: entryId }, { smeId }] } 
+      : { smeId };
+
+    const existingEntry = await prisma.sMEWorkEntry.findFirst({ where: workEntryWhere });
+    let updateEntryPromise: Promise<any> = Promise.resolve();
+
+    if (existingEntry) {
+      const baseAmount = (data.totalDays || 0) * (data.ratePerDay || 0);
+      const totalCalculated = baseAmount + (data.taAmount || 0) + (data.otherAmount || 0);
+
+      updateEntryPromise = (async () => {
         await prisma.sMEWorkEntry.update({
-          where: { id: entryId },
+          where: { id: existingEntry.id },
           data: {
             trade: data.trade,
             topic: data.topic,
@@ -198,11 +197,9 @@ export async function updateSMERecord(smeId: string, entryId: string | undefined
             otherAmount: data.otherAmount,
           }
         });
-        
-        const payments = await prisma.payment.findMany({ where: { workEntryId: entryId } });
+
+        const payments = await prisma.payment.findMany({ where: { workEntryId: existingEntry.id } });
         if (payments.length > 0) {
-          const baseAmount = (data.totalDays || 0) * (data.ratePerDay || 0);
-          const totalCalculated = baseAmount + (data.taAmount || 0) + (data.otherAmount || 0);
           await prisma.payment.update({
             where: { id: payments[0].id },
             data: {
@@ -213,25 +210,29 @@ export async function updateSMERecord(smeId: string, entryId: string | undefined
             }
           });
         }
-      }
+      })();
     }
-    
-    const userEmail = await getEmail();
-    await logAudit({
-      action: 'UPDATE_SME_RECORD',
-      entity: 'SME',
-      entityId: smeId,
-      newData: `Updated SME ${data.smeName} and Entry ${entryId || 'none'}`,
-      userEmail
-    });
 
+    // Run updates concurrently
+    await Promise.all([updateSmePromise, updateEntryPromise]);
+
+    // Clear SME list in-memory cache
+    clearSmeListCache();
+
+    // Asynchronous audit log
+    getEmail().then(userEmail => {
+      logAudit({
+        action: 'UPDATE_SME_RECORD',
+        entity: 'SME',
+        entityId: smeId,
+        newData: `Updated SME ${data.smeName} and Entry ${entryId || 'none'}`,
+        userEmail
+      }).catch(() => null);
+    }).catch(() => null);
+
+    // Fast synchronous revalidation for immediate reflection
     revalidatePath('/smes');
     revalidatePath(`/smes/${smeId}`);
-    revalidatePath('/communications');
-    revalidatePath('/generator/deputation');
-    revalidatePath('/dashboard');
-    revalidatePath('/reports');
-    revalidatePath('/video-production');
     return { success: true };
   } catch (error) {
     console.error("Failed to update SME:", error);
@@ -251,6 +252,7 @@ export async function deleteSMEWorkEntry(entryId: string) {
       try { await prisma.payment.deleteMany({ where: { workEntry: { smeId: orphanSmeId } } }); } catch (_) {}
       try { await prisma.sMEWorkEntry.deleteMany({ where: { smeId: orphanSmeId } }); } catch (_) {}
       try { await prisma.sME.delete({ where: { id: orphanSmeId } }); } catch (_) {}
+      clearSmeListCache();
       revalidatePath('/smes');
       revalidatePath('/dashboard');
       revalidatePath('/reports');
@@ -270,6 +272,7 @@ export async function deleteSMEWorkEntry(entryId: string) {
         try { await prisma.payment.deleteMany({ where: { workEntry: { smeId: entryId } } }); } catch (_) {}
         try { await prisma.sMEWorkEntry.deleteMany({ where: { smeId: entryId } }); } catch (_) {}
         try { await prisma.sME.delete({ where: { id: entryId } }); } catch (_) {}
+        clearSmeListCache();
         revalidatePath('/smes');
         revalidatePath('/dashboard');
         revalidatePath('/reports');
@@ -315,6 +318,7 @@ export async function deleteSMEWorkEntry(entryId: string) {
       userEmail
     });
 
+    clearSmeListCache();
     revalidatePath('/smes');
     revalidatePath('/dashboard');
     revalidatePath('/reports');

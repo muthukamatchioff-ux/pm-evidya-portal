@@ -88,7 +88,6 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any; rol
         entry.trade = trade;
         entry.topic = topic;
         showToast('✓ SME Master Record saved successfully!');
-        router.refresh();
       } else {
         alert('Error saving SME record: ' + (res.error || 'Failed to save'));
       }
@@ -242,6 +241,7 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any; rol
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <Link
               href="/smes"
+              prefetch={true}
               style={{
                 background: '#ffffff',
                 color: '#475569',

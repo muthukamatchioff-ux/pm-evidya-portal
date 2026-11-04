@@ -68,8 +68,12 @@ export default async function SMEProfilePage(props: { params: Promise<{ id: stri
     const seq = sme.workEntries?.[0]?.epicSequence;
     const contact = findSmeContact(sme.name, seq);
     if (contact) {
-      if (!sme.contactNumber && contact.phone) sme.contactNumber = contact.phone;
-      if (!sme.email && contact.email) sme.email = contact.email;
+      if ((sme.contactNumber === null || sme.contactNumber === undefined || sme.contactNumber === '') && contact.phone) {
+        sme.contactNumber = contact.phone;
+      }
+      if ((sme.email === null || sme.email === undefined || sme.email === '') && contact.email) {
+        sme.email = contact.email;
+      }
     }
   }
 
@@ -93,6 +97,7 @@ export default async function SMEProfilePage(props: { params: Promise<{ id: stri
       <div style={{ marginBottom: '16px' }}>
         <Link 
           href="/smes" 
+          prefetch={true}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
