@@ -630,7 +630,7 @@ export async function GET(
             'Content-Type': contentType,
             'Content-Disposition': `${disposition}; filename="${cleanFilename}"; filename*=UTF-8''${encodeURIComponent(cleanFilename)}`,
             'Content-Length': fileBuffer.length.toString(),
-            'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+            'Cache-Control': 'private, max-age=300, stale-while-revalidate=86400',
           },
         });
       } catch (storageErr: any) {

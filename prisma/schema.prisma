@@ -57,7 +57,6 @@ model SMEWorkEntry {
   status         String     @default("PENDING")
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
-  topicId        String?
   epicSequence   Int        @default(autoincrement())
   cameramanId         String?
   cameraman           User?              @relation("CameramanAssignments", fields: [cameramanId], references: [id])
@@ -71,7 +70,6 @@ model SMEWorkEntry {
   documents      Document[]
   payments       Payment[]
   sme            SME        @relation(fields: [smeId], references: [id], onDelete: Cascade)
-  topicRef       Topic?     @relation(fields: [topicId], references: [id])
   shootingSchedules   ShootingSchedule[]
   videoEditorRecords  VideoEditorRecord[]
   animationRecords    AnimationRecord[]
@@ -232,7 +230,6 @@ model Topic {
   id             String         @id @default(cuid())
   name           String
   moduleId       String
-  smeWorkEntries SMEWorkEntry[]
   module         Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 }
 

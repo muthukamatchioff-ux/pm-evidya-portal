@@ -116,16 +116,12 @@ function isRealUploadedDoc(doc: any): boolean {
   if (!doc) return false;
   if (!doc.filePath || typeof doc.filePath !== 'string') return false;
   const p = doc.filePath.trim();
-  if (p.startsWith('{')) return false; // JSON parameters, not a real file
-  if (doc.status === 'SAVED' || doc.status === 'GENERATED') return false;
-  return (
-    doc.status === 'UPLOADED' ||
-    p.startsWith('http://') ||
-    p.startsWith('https://') ||
-    p.startsWith('data:') ||
-    p.startsWith('/') ||
-    /\.(pdf|docx?|xlsx?|pptx?|jpe?g|png|webp|gif|txt|csv)$/i.test(p)
-  );
+  if (p.startsWith('{') || p === 'null' || p === 'undefined' || p === '') return false; // JSON parameters, not a real file
+  if (doc.status === 'UPLOADED') return true;
+  if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('data:') || p.startsWith('/')) {
+    return true;
+  }
+  return /\.(pdf|docx?|xlsx?|pptx?|jpe?g|png|webp|gif|txt|csv)$/i.test(p);
 }
 
   const docDefinitions = [
@@ -158,6 +154,8 @@ function isRealUploadedDoc(doc: any): boolean {
         return (
           d.type === 'SME_ATTENDANCE' ||
           d.type === 'ATTENDANCE' ||
+          d.type === 'ATTENDANCE_COPY' ||
+          d.type === 'ATTENDANCE_CERTIFICATE' ||
           d.type === 'TRADE_DETAILS'
         );
       }
@@ -165,7 +163,11 @@ function isRealUploadedDoc(doc: any): boolean {
         return d.type === 'APPROVAL_LETTER' || d.type === 'STAGE_A_APPROVAL_LETTER';
       }
       if (type === 'WORK_COMPLETION') {
-        return d.type === 'WORK_COMPLETION' || d.type === 'STAGE_B_WORK_COMPLETION';
+        return (
+          d.type === 'WORK_COMPLETION' ||
+          d.type === 'STAGE_B_WORK_COMPLETION' ||
+          d.type === 'WORK_COMPLETION_CERTIFICATE'
+        );
       }
       return d.type === type;
     });

@@ -266,9 +266,29 @@ function attachWorkEntryRelations(entry: any) {
   const vids = liveStore.videoLibraries.filter((v: any) => v.epicId === entry.id);
   const sme = entry.sme || liveStore.smes.find((s: any) => s.id === entry.smeId) || null;
 
+  // Preserve and sort documents with UPLOADED documents prioritized
+  let docs = Array.isArray(entry.documents) ? [...entry.documents] : [];
+  docs.sort((a: any, b: any) => {
+    const isUpA = a.status === 'UPLOADED' || (a.filePath && !a.filePath.startsWith('{')) ? 1 : 0;
+    const isUpB = b.status === 'UPLOADED' || (b.filePath && !b.filePath.startsWith('{')) ? 1 : 0;
+    if (isUpB !== isUpA) return isUpB - isUpA;
+    const vA = a.version || 1;
+    const vB = b.version || 1;
+    if (vB !== vA) return vB - vA;
+    const tA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const tB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    return tB - tA;
+  });
+
+  const payments = Array.isArray(entry.payments) && entry.payments.length > 0
+    ? entry.payments
+    : (Array.isArray((liveStore as any).payments) ? (liveStore as any).payments.filter((p: any) => p.workEntryId === entry.id) : []);
+
   return {
     ...entry,
     sme,
+    documents: docs,
+    payments,
     shootingSchedules: schedules,
     videoEditorRecords: editorRecs,
     videoLibraries: vids
@@ -979,7 +999,24 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
   // =======================================================================
   if (model === 'SMEWorkEntry') {
     if (operation === 'findMany') {
-      return liveStore.smeWorkEntries.map(attachWorkEntryRelations);
+      let entries = liveStore.smeWorkEntries.map(attachWorkEntryRelations);
+      if (args?.where) {
+        if (args.where.smeId) entries = entries.filter((e: any) => e.smeId === args.where.smeId);
+        if (args.where.id) entries = entries.filter((e: any) => e.id === args.where.id);
+        if (args.where.epicSequence) entries = entries.filter((e: any) => e.epicSequence === args.where.epicSequence);
+        if (Array.isArray(args.where.OR)) {
+          entries = entries.filter((e: any) =>
+            args.where.OR.some((cond: any) => (cond.id && e.id === cond.id) || (cond.smeId && e.smeId === cond.smeId) || (cond.epicSequence && e.epicSequence === cond.epicSequence))
+          );
+        }
+      }
+      if (args?.orderBy) {
+        const ob = Array.isArray(args.orderBy) ? args.orderBy[0] : args.orderBy;
+        if (ob?.epicSequence === 'desc') entries.sort((a: any, b: any) => (b.epicSequence || 0) - (a.epicSequence || 0));
+        else if (ob?.epicSequence === 'asc') entries.sort((a: any, b: any) => (a.epicSequence || 0) - (b.epicSequence || 0));
+        else if (ob?.createdAt === 'desc') entries.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      }
+      return entries;
     }
 
     if (operation === 'findUnique' || operation === 'findFirst') {
@@ -1323,6 +1360,9 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
 
     const sortDocs = (docs: any[]) => {
       return [...docs].sort((a: any, b: any) => {
+        const isUpA = a.status === 'UPLOADED' || (a.filePath && !a.filePath.startsWith('{')) ? 1 : 0;
+        const isUpB = b.status === 'UPLOADED' || (b.filePath && !b.filePath.startsWith('{')) ? 1 : 0;
+        if (isUpB !== isUpA) return isUpB - isUpA;
         const vA = a.version || 1;
         const vB = b.version || 1;
         if (vB !== vA) return vB - vA;
