@@ -161,6 +161,30 @@
   z-index: 40;
 }
 
+.subNavLink {
+  padding: 8px 16px 8px 36px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.subNavLink:hover {
+  background-color: var(--indigo-50);
+  color: var(--indigo-900);
+}
+
+.subNavLink.activeSub {
+  color: var(--primary);
+  font-weight: 700;
+  background-color: #f1f5f9;
+}
+
 /* Responsive adjustments */
 @media (max-width: 1024px) {
   .sidebar {

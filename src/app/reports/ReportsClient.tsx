@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { getEpicCompleteHistory } from './actions';
 import EpicWorkflowReport from './EpicWorkflowReport';
 import VideoProductionTrackerReport from './VideoProductionTrackerReport';
@@ -358,6 +359,48 @@ export default function ReportsClient({
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
       
+      {/* SECTION 0: Monthly Expenditure Report Banner */}
+      <div className={styles.sectionCard} style={{ gridColumn: '1 / -1', border: '2px solid #6366f1', background: 'linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%)', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.08)' }}>
+        <div className={styles.sectionTitle} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '24px' }}>📊</span>
+            <span style={{ fontSize: '18px', fontWeight: 800, color: '#0f2942' }}>PM e-Vidya — Monthly Expenditure Report (All Annexures – 6 Plan Heads)</span>
+          </div>
+          <span style={{ fontSize: '12px', fontWeight: 700, background: '#ede9fe', color: '#6d28d9', padding: '4px 12px', borderRadius: '12px', border: '1px solid #ddd6fe' }}>
+            6 Online Components &bull; 39 Records &bull; 07-Oct-2026
+          </span>
+        </div>
+        <p style={{ color: '#475569', marginBottom: '16px', fontSize: '14px' }}>
+          Consolidated month-wise expenditure analysis with interactive drill-down voucher audit ledger, doughnut head-wise distribution, monthly vs. target tracking, and multi-tab Excel/PDF exports.
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', background: '#ffffff', padding: '12px 18px', borderRadius: '8px', border: '1px solid #e0e7ff' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap', fontSize: '13px' }}>
+            <div><span style={{ color: '#64748b' }}>Approved Budget:</span> <strong style={{ color: '#0f172a' }}>₹ 1,94,38,520</strong></div>
+            <div><span style={{ color: '#64748b' }}>Expenditure:</span> <strong style={{ color: '#16a34a' }}>₹ 7,58,795 (3.90%)</strong></div>
+            <div><span style={{ color: '#64748b' }}>Balance:</span> <strong style={{ color: '#d97706' }}>₹ 1,86,79,725</strong></div>
+            <div><span style={{ color: '#64748b' }}>Records:</span> <strong style={{ color: '#7c3aed' }}>39 Source Records</strong></div>
+          </div>
+          <Link
+            href="/reports/monthly-expenditure"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '9px 18px',
+              background: '#4f46e5',
+              color: '#ffffff',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: 700,
+              textDecoration: 'none',
+              boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)'
+            }}
+          >
+            <span>Open Monthly Expenditure Report &rarr;</span>
+          </Link>
+        </div>
+      </div>
+
       {/* SECTION 1: SME Epic Workflow Complete History Report Card (Prominent Top Banner) */}
       <div className={styles.sectionCard} style={{ gridColumn: '1 / -1', border: '2px solid #0284c7', background: 'linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%)', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.08)' }}>
         <div className={styles.sectionTitle} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>

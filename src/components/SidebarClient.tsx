@@ -265,21 +265,59 @@ export default function SidebarClient({
               }
 
               const isWorkAssignmentItem = item.path === '/production-workflow';
+              const isReportsItem = item.path === '/reports';
               const isActive = isWorkAssignmentItem 
                 ? pathname === '/production-workflow'
                 : (pathname === item.path || (item.path !== '/' && pathname?.startsWith(`${item.path}/`)));
 
               return (
-                <Link
-                  key={item.path}
-                  href={item.path!}
-                  prefetch={true}
-                  onClick={closeMobile}
-                  className={`${styles.navLink} ${isActive ? styles.active : ''}`}
-                >
-                  <span className={styles.iconPlaceholder}>{item.icon}</span>
-                  <span className={styles.navLinkText}>{item.name}</span>
-                </Link>
+                <React.Fragment key={item.path}>
+                  <Link
+                    href={item.path!}
+                    prefetch={true}
+                    onClick={closeMobile}
+                    className={`${styles.navLink} ${isActive ? styles.active : ''}`}
+                  >
+                    <span className={styles.iconPlaceholder}>{item.icon}</span>
+                    <span className={styles.navLinkText}>{item.name}</span>
+                  </Link>
+                  {isReportsItem && !collapsed && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px', marginBottom: '4px' }}>
+                      <Link
+                        href="/reports/monthly-expenditure"
+                        onClick={closeMobile}
+                        className={`${styles.subNavLink} ${pathname === '/reports/monthly-expenditure' ? styles.activeSub : ''}`}
+                      >
+                        <span style={{ fontSize: '11px', opacity: 0.7 }}>•</span>
+                        <span>Monthly Expenditure</span>
+                      </Link>
+                      <Link
+                        href="/reports?type=head_wise"
+                        onClick={closeMobile}
+                        className={`${styles.subNavLink} ${pathname === '/reports' && searchParams.get('type') === 'head_wise' ? styles.activeSub : ''}`}
+                      >
+                        <span style={{ fontSize: '11px', opacity: 0.7 }}>•</span>
+                        <span>Head-wise Analysis</span>
+                      </Link>
+                      <Link
+                        href="/reports?type=annexure_summary"
+                        onClick={closeMobile}
+                        className={`${styles.subNavLink} ${pathname === '/reports' && searchParams.get('type') === 'annexure_summary' ? styles.activeSub : ''}`}
+                      >
+                        <span style={{ fontSize: '11px', opacity: 0.7 }}>•</span>
+                        <span>Annexure Summary</span>
+                      </Link>
+                      <Link
+                        href="/reports?type=custom"
+                        onClick={closeMobile}
+                        className={`${styles.subNavLink} ${pathname === '/reports' && searchParams.get('type') === 'custom' ? styles.activeSub : ''}`}
+                      >
+                        <span style={{ fontSize: '11px', opacity: 0.7 }}>•</span>
+                        <span>Custom Reports</span>
+                      </Link>
+                    </div>
+                  )}
+                </React.Fragment>
               );
             })
           )}
