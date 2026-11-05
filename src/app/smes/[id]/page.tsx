@@ -95,8 +95,8 @@ export default async function SMEProfilePage(props: { params: Promise<{ id: stri
   return (
     <div className={styles.container}>
       <div style={{ marginBottom: '16px' }}>
-        <Link 
-          href="/smes" 
+        <Link
+          href="/smes"
           prefetch={true}
           style={{
             display: 'inline-flex',

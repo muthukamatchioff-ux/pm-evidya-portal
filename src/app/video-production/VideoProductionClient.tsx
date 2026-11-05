@@ -131,6 +131,52 @@ function cleanEditorDisplay(name?: string | null): string {
   return trimmed;
 }
 
+// =========================================================================
+// ACCURATE DURATION PARSING & FORMATTING (HH:MM:SS)
+// =========================================================================
+export function parseDurationToSeconds(duration: string | null | undefined): number | null {
+  if (!duration || typeof duration !== 'string') return null;
+  const trimmed = duration.trim();
+  if (
+    !trimmed || 
+    trimmed === '-' || 
+    trimmed === '—' || 
+    trimmed === 'null' || 
+    trimmed === 'undefined' ||
+    trimmed.toLowerCase().includes('pending')
+  ) {
+    return null;
+  }
+  
+  // Exclude 0:00:00, 00:00:00, 0:00, 0 as uncalculated duration pending (Requirement 9 & 10)
+  if (/^0+(:0+)*$/.test(trimmed)) {
+    return null;
+  }
+
+  const parts = trimmed.split(':').map(p => parseInt(p, 10));
+  if (parts.some(isNaN)) return null;
+
+  let seconds = 0;
+  if (parts.length === 3) {
+    seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+  } else if (parts.length === 2) {
+    seconds = parts[0] * 60 + parts[1];
+  } else if (parts.length === 1) {
+    seconds = parts[0];
+  }
+  return seconds > 0 ? seconds : null;
+}
+
+export function formatSecondsToHms(totalSeconds: number): string {
+  if (!totalSeconds || isNaN(totalSeconds) || totalSeconds <= 0) {
+    return '00:00:00';
+  }
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 // Unified Video Row Model
 export interface VideoRegisterRow {
   slNo: number;
@@ -169,6 +215,8 @@ export interface VideoRegisterRow {
   duration: string | null;
   finalVideoLink: string | null;
   hasLink: boolean;
+  isPublished?: boolean;
+  isCompleted?: boolean;
 }
 
 export default function VideoProductionClient({ initialRecords = [], role = 'VIEWER', currentUser = null }: any) {
@@ -342,11 +390,6 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
   const monthDropdownRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = role === 'ADMIN' || role === 'TEAM_MEMBER';
-  const [activeStageTab, setActiveStageTab] = useState<'SHOOTING' | 'POST_PRODUCTION'>('SHOOTING');
-
-  const handleStageTabClick = (stage: 'SHOOTING' | 'POST_PRODUCTION') => {
-    setActiveStageTab(stage);
-  };
 
   // Close month dropdown when clicking outside
   useEffect(() => {
@@ -517,7 +560,9 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
           reviewComments: ed?.reviewComments || null,
           duration,
           finalVideoLink: hasLink ? finalVideoLink : null,
-          hasLink
+          hasLink,
+          isPublished: Boolean(entry.isPublished || (submissionStatus || '').toLowerCase() === 'admin approved' || (submissionStatus || '').toLowerCase() === 'published'),
+          isCompleted: Boolean((editingStatus || '').toLowerCase().includes('completed') || hasLink || (submissionStatus || '').toLowerCase() === 'completed')
         });
 
         subIdx++;
@@ -745,6 +790,118 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
       return true;
     });
   }, [videoRegister, viewFilter, selectedMonths, filterTrade, filterEpicId, filterShootingStatus, filterEditingStatus, activeSearch, onlyMyAssigned, role]);
+
+  // Computed Duration Analytics dynamically from records (Requirements 1-10)
+  const durationAnalytics = useMemo(() => {
+    // 1. Overall Calculations across ALL canonical deduplicated topics (76 topics)
+    let overallSeconds = 0;
+    let completedSeconds = 0;
+    let publishedSeconds = 0;
+    let validCount = 0;
+    let pendingCount = 0;
+
+    videoRegister.forEach(r => {
+      const sec = parseDurationToSeconds(r.duration);
+      const isCompleted = Boolean(
+        (r.editingStatus || '').toLowerCase().includes('completed') || 
+        r.hasLink || 
+        (r.submissionStatus || '').toLowerCase() === 'completed' ||
+        (r.submissionStatus || '').toLowerCase() === 'admin approved'
+      );
+      const isPublished = Boolean(
+        (r.submissionStatus || '').toLowerCase() === 'published' || 
+        (r.submissionStatus || '').toLowerCase() === 'admin approved' ||
+        r.isPublished
+      );
+
+      if (sec !== null) {
+        overallSeconds += sec;
+        validCount++;
+        if (isCompleted) completedSeconds += sec;
+        if (isPublished) publishedSeconds += sec;
+      } else {
+        pendingCount++;
+      }
+    });
+
+    // 2. Filtered Calculations across filteredRows
+    let filteredSeconds = 0;
+    let filteredCompletedSeconds = 0;
+    let filteredPublishedSeconds = 0;
+    let filteredValidCount = 0;
+    let filteredPendingCount = 0;
+
+    filteredRows.forEach(r => {
+      const sec = parseDurationToSeconds(r.duration);
+      const isCompleted = Boolean(
+        (r.editingStatus || '').toLowerCase().includes('completed') || 
+        r.hasLink || 
+        (r.submissionStatus || '').toLowerCase() === 'completed' ||
+        (r.submissionStatus || '').toLowerCase() === 'admin approved'
+      );
+      const isPublished = Boolean(
+        (r.submissionStatus || '').toLowerCase() === 'published' || 
+        (r.submissionStatus || '').toLowerCase() === 'admin approved' ||
+        r.isPublished
+      );
+
+      if (sec !== null) {
+        filteredSeconds += sec;
+        filteredValidCount++;
+        if (isCompleted) filteredCompletedSeconds += sec;
+        if (isPublished) filteredPublishedSeconds += sec;
+      } else {
+        filteredPendingCount++;
+      }
+    });
+
+    const isFiltered = 
+      filteredRows.length !== videoRegister.length || 
+      selectedMonths.length > 0 || 
+      filterTrade !== 'ALL' || 
+      filterEpicId !== 'ALL' || 
+      filterShootingStatus !== 'ALL' || 
+      filterEditingStatus !== 'ALL' || 
+      activeSearch.trim() !== '' || 
+      viewFilter === 'COMPLETED' ||
+      onlyMyAssigned;
+
+    return {
+      // Overall
+      overallTotalTopics: videoRegister.length,
+      overallValidCount: validCount,
+      overallPendingCount: pendingCount,
+      overallSeconds,
+      overallHms: formatSecondsToHms(overallSeconds),
+      completedSeconds,
+      completedHms: formatSecondsToHms(completedSeconds),
+      publishedSeconds,
+      publishedHms: formatSecondsToHms(publishedSeconds),
+
+      // Filtered
+      isFiltered,
+      filteredTotalTopics: filteredRows.length,
+      filteredValidCount,
+      filteredPendingCount,
+      filteredSeconds,
+      filteredHms: formatSecondsToHms(filteredSeconds),
+      filteredCompletedSeconds,
+      filteredCompletedHms: formatSecondsToHms(filteredCompletedSeconds),
+      filteredPublishedSeconds,
+      filteredPublishedHms: formatSecondsToHms(filteredPublishedSeconds)
+    };
+  }, [
+    videoRegister, 
+    filteredRows, 
+    selectedMonths, 
+    filterTrade, 
+    filterEpicId, 
+    filterShootingStatus, 
+    filterEditingStatus, 
+    activeSearch, 
+    viewFilter, 
+    onlyMyAssigned
+  ]);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredRows.length / pageSize) || 1;
@@ -1212,7 +1369,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         escapeCsv(formatDateDotDisplay(row.editingEndDate)),
         escapeCsv(row.editor),
         escapeCsv(row.editingStatus),
-        escapeCsv(row.duration || '—'),
+        escapeCsv(parseDurationToSeconds(row.duration) !== null ? row.duration : 'Duration Pending'),
         escapeCsv(row.finalVideoLink || '—')
       ].join(','));
     });
@@ -1366,56 +1523,20 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
         </div>
       )}
 
-      {/* Header Section (Role-Aware) */}
-      {isAdmin ? (
-        <div className={styles.adminHeaderSection}>
-          <div className={styles.adminHeaderTopRow}>
-            <div className={styles.adminHeaderTitleCol}>
-              <h1 className={styles.pageTitle}>
-                <span className={styles.titleIcon}>🎬</span>
-                <span>Video Production Tracker (Admin View – Shooting &amp; Post Production)</span>
-              </h1>
-              <p className={styles.headerSubtitle}>
-                Manage complete EPIC ID workflows for SME Document Compliance, Production &amp; Telecast Tracking
-              </p>
-            </div>
-
-            {/* Admin Header Stage Navigation Tabs */}
-            <div className={styles.adminStageTabs} role="tablist" aria-label="Production Stages">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeStageTab === 'SHOOTING'}
-                className={`${styles.adminStageTabBtn} ${activeStageTab === 'SHOOTING' ? styles.adminStageTabBtnActive : ''}`}
-                onClick={() => handleStageTabClick('SHOOTING')}
-              >
-                <span className={styles.adminStageTabIcon}>🎥</span>
-                <span>Shooting Stage</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeStageTab === 'POST_PRODUCTION'}
-                className={`${styles.adminStageTabBtn} ${activeStageTab === 'POST_PRODUCTION' ? styles.adminStageTabBtnActive : ''}`}
-                onClick={() => handleStageTabClick('POST_PRODUCTION')}
-              >
-                <span className={styles.adminStageTabIcon}>✂️</span>
-                <span>Post Production Stage</span>
-              </button>
-            </div>
+      {/* Header Section (Unified Admin View – Shooting & Post Production) */}
+      <div className={styles.adminHeaderSection}>
+        <div className={styles.adminHeaderTopRow}>
+          <div className={styles.adminHeaderTitleCol}>
+            <h1 className={styles.pageTitle}>
+              <span className={styles.titleIcon}>🎬</span>
+              <span>Video Production Tracker (Admin View – Shooting &amp; Post Production)</span>
+            </h1>
+            <p className={styles.headerSubtitle}>
+              Manage complete EPIC ID workflows for SME Document Compliance, Production &amp; Telecast Tracking
+            </p>
           </div>
         </div>
-      ) : (
-        <div className={styles.standardHeaderSection}>
-          <h1 className={styles.pageTitle}>
-            <span className={styles.titleIcon}>🎬</span>
-            <span>Video Production Tracker</span>
-          </h1>
-          <p className={styles.headerSubtitle}>
-            Manage complete EPIC ID workflows for SME Document Compliance, Production &amp; Telecast Tracking
-          </p>
-        </div>
-      )}
+      </div>
 
       {/* Toast Notification */}
       {notification && (
@@ -1470,6 +1591,167 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
           </label>
         </div>
       )}
+
+      {/* ========================================================
+          OVERALL VIDEO DURATION & AUTOMATIC DURATION ANALYTICS (Requirements 2 & 3)
+         ======================================================== */}
+      <div className={styles.durationAnalyticsSection}>
+        {/* Prominent Hero Summary Card */}
+        <div className={styles.overallDurationHero}>
+          <div className={styles.overallDurationHeroLeft}>
+            <div className={styles.overallDurationBadge}>
+              <span>⏱️</span>
+              <span>PM e-Vidya Master Video Repository</span>
+            </div>
+            <h2 className={styles.overallDurationTitle}>
+              {durationAnalytics.isFiltered ? 'Filtered Video Duration' : 'Overall Video Duration'}
+            </h2>
+            <div className={styles.overallDurationTimerRow}>
+              <span className={`${styles.overallDurationTimer} ${durationAnalytics.isFiltered ? styles.overallDurationTimerFiltered : ''}`}>
+                {durationAnalytics.isFiltered ? durationAnalytics.filteredHms : durationAnalytics.overallHms}
+              </span>
+              <span className={styles.overallDurationUnit}>HH:MM:SS</span>
+            </div>
+            <div className={styles.overallDurationSubtitle}>
+              {durationAnalytics.isFiltered ? (
+                <>
+                  <span>
+                    Active filter applied: showing <strong>{durationAnalytics.filteredValidCount}</strong> of <strong>{durationAnalytics.overallValidCount}</strong> videos with valid runtime
+                  </span>
+                  <span className={styles.overallDurationOverallTag}>
+                    Full Repository: {durationAnalytics.overallHms} ({durationAnalytics.overallTotalTopics} Topics)
+                  </span>
+                </>
+              ) : (
+                <span>
+                  Accumulated duration of all <strong>{durationAnalytics.overallValidCount}</strong> recorded videos ({durationAnalytics.overallPendingCount} pending duration)
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className={styles.overallDurationHeroRight}>
+            <div className={styles.overallDurationSyncBadge}>
+              <span className={styles.syncPulseDot}></span>
+              <span>Live Dynamic Duration Sync</span>
+            </div>
+            {durationAnalytics.isFiltered && (
+              <button
+                type="button"
+                className={styles.overallDurationHeroClearBtn}
+                onClick={() => {
+                  setSelectedMonths([]);
+                  setFilterTrade('ALL');
+                  setFilterEpicId('ALL');
+                  setFilterShootingStatus('ALL');
+                  setFilterEditingStatus('ALL');
+                  setActiveSearch('');
+                  setViewFilter('ALL');
+                  setOnlyMyAssigned(false);
+                  setCurrentPage(1);
+                }}
+              >
+                ✕ Reset to Full Overall View
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 6 Duration Analytics Metric Cards */}
+        <div className={styles.durationAnalyticsGrid}>
+          {/* Card 1: Overall / Filtered Video Duration */}
+          <div className={styles.durationMetricCard}>
+            <div className={styles.durationMetricTop}>
+              <span className={styles.durationMetricLabel}>
+                {durationAnalytics.isFiltered ? 'Filtered Duration' : 'Overall Duration'}
+              </span>
+              <span className={styles.durationMetricIcon}>⏱️</span>
+            </div>
+            <div className={styles.durationMetricValue} style={{ color: '#0284c7' }}>
+              {durationAnalytics.isFiltered ? durationAnalytics.filteredHms : durationAnalytics.overallHms}
+            </div>
+            <div className={styles.durationMetricSub}>
+              {durationAnalytics.isFiltered ? `Full Portal: ${durationAnalytics.overallHms}` : 'Total accumulated runtime'}
+            </div>
+          </div>
+
+          {/* Card 2: Total Video Topics */}
+          <div className={styles.durationMetricCard}>
+            <div className={styles.durationMetricTop}>
+              <span className={styles.durationMetricLabel}>Total Video Topics</span>
+              <span className={styles.durationMetricIcon}>📚</span>
+            </div>
+            <div className={styles.durationMetricValue}>
+              {durationAnalytics.isFiltered 
+                ? `${durationAnalytics.filteredTotalTopics} / ${durationAnalytics.overallTotalTopics}` 
+                : durationAnalytics.overallTotalTopics}
+            </div>
+            <div className={styles.durationMetricSub}>
+              {durationAnalytics.isFiltered ? 'Filtered topics in view' : 'Canonical syllabus topics'}
+            </div>
+          </div>
+
+          {/* Card 3: Videos with Valid Duration */}
+          <div className={styles.durationMetricCard}>
+            <div className={styles.durationMetricTop}>
+              <span className={styles.durationMetricLabel}>Valid Duration</span>
+              <span className={styles.durationMetricIcon}>✅</span>
+            </div>
+            <div className={styles.durationMetricValue} style={{ color: '#059669' }}>
+              {durationAnalytics.isFiltered 
+                ? `${durationAnalytics.filteredValidCount} / ${durationAnalytics.overallValidCount}` 
+                : durationAnalytics.overallValidCount}
+            </div>
+            <div className={styles.durationMetricSub}>
+              Recorded &amp; verified runtime
+            </div>
+          </div>
+
+          {/* Card 4: Videos with Duration Pending */}
+          <div className={styles.durationMetricCard}>
+            <div className={styles.durationMetricTop}>
+              <span className={styles.durationMetricLabel}>Duration Pending</span>
+              <span className={styles.durationMetricIcon}>⏳</span>
+            </div>
+            <div className={styles.durationMetricValue} style={{ color: '#d97706' }}>
+              {durationAnalytics.isFiltered 
+                ? `${durationAnalytics.filteredPendingCount} / ${durationAnalytics.overallPendingCount}` 
+                : durationAnalytics.overallPendingCount}
+            </div>
+            <div className={styles.durationMetricSub}>
+              Excluded from total runtime
+            </div>
+          </div>
+
+          {/* Card 5: Completed Video Duration */}
+          <div className={styles.durationMetricCard}>
+            <div className={styles.durationMetricTop}>
+              <span className={styles.durationMetricLabel}>Completed Duration</span>
+              <span className={styles.durationMetricIcon}>🎬</span>
+            </div>
+            <div className={styles.durationMetricValue} style={{ color: '#16a34a' }}>
+              {durationAnalytics.isFiltered ? durationAnalytics.filteredCompletedHms : durationAnalytics.completedHms}
+            </div>
+            <div className={styles.durationMetricSub}>
+              Editing &amp; cut completed
+            </div>
+          </div>
+
+          {/* Card 6: Published Video Duration */}
+          <div className={styles.durationMetricCard}>
+            <div className={styles.durationMetricTop}>
+              <span className={styles.durationMetricLabel}>Published Duration</span>
+              <span className={styles.durationMetricIcon}>📡</span>
+            </div>
+            <div className={styles.durationMetricValue} style={{ color: '#7c3aed' }}>
+              {durationAnalytics.isFiltered ? durationAnalytics.filteredPublishedHms : durationAnalytics.publishedHms}
+            </div>
+            <div className={styles.durationMetricSub}>
+              Approved for telecast / live
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* ========================================================
           ADMIN DASHBOARD: SUMMARY CARDS, MONTH BREAKDOWN & WORK ASSIGNMENT
@@ -1875,7 +2157,7 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
               <th style={{ minWidth: '120px' }}>Video Editor</th>
               <th style={{ minWidth: '120px' }}>Current Status (Editing)</th>
               {/* Video Output */}
-              <th style={{ minWidth: '85px' }}>Duration</th>
+              <th style={{ minWidth: '135px' }}>Duration</th>
               <th style={{ minWidth: '85px' }}>Video Link</th>
               {/* Actions */}
               <th style={{ minWidth: '85px', textAlign: 'center' }}>Actions</th>
@@ -1991,7 +2273,21 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
 
                   {/* 15. Duration */}
                   <td style={{ whiteSpace: 'nowrap', color: '#334155', fontWeight: 500 }}>
-                    {row.duration || '—'}
+                    {(() => {
+                      const sec = parseDurationToSeconds(row.duration);
+                      if (sec !== null) {
+                        return (
+                          <span className={styles.durationValidBadge}>
+                            <span style={{ fontSize: '11px' }}>⏱️</span> {row.duration}
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className={styles.durationPendingBadge}>
+                          <span>⏳</span> Duration Pending
+                        </span>
+                      );
+                    })()}
                   </td>
 
                   {/* 16. Video Link */}
@@ -2504,7 +2800,17 @@ export default function VideoProductionClient({ initialRecords = [], role = 'VIE
                   </tr>
                   <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
                     <td style={{ padding: '8px', fontWeight: 600, color: '#64748b' }}>Duration:</td>
-                    <td style={{ padding: '8px' }}>{detailsTargetRow.duration || '-'}</td>
+                    <td style={{ padding: '8px' }}>
+                      {parseDurationToSeconds(detailsTargetRow.duration) !== null ? (
+                        <span className={styles.durationValidBadge}>
+                          ⏱️ {detailsTargetRow.duration}
+                        </span>
+                      ) : (
+                        <span className={styles.durationPendingBadge}>
+                          ⏳ Duration Pending
+                        </span>
+                      )}
+                    </td>
                   </tr>
                   <tr>
                     <td style={{ padding: '8px', fontWeight: 600, color: '#64748b' }}>Video Link:</td>
