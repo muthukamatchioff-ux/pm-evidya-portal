@@ -651,9 +651,14 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
       return list.find((x: any) => x.id === args?.where?.id) || null;
     }
     if (operation === 'create') {
+      const createData = { ...args?.data };
+      if (createData.budgetComponent?.connect?.id) {
+        createData.budgetComponentId = createData.budgetComponent.connect.id;
+        delete createData.budgetComponent;
+      }
       const newItem = {
-        id: args?.data?.id || `aiv-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
-        ...args?.data,
+        id: createData.id || `aiv-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        ...createData,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -664,7 +669,12 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
     if (operation === 'update') {
       const idx = list.findIndex((x: any) => x.id === args?.where?.id);
       if (idx !== -1) {
-        list[idx] = { ...list[idx], ...args?.data, updatedAt: new Date().toISOString() };
+        const updateData = { ...args?.data };
+        if (updateData.budgetComponent?.connect?.id) {
+          updateData.budgetComponentId = updateData.budgetComponent.connect.id;
+          delete updateData.budgetComponent;
+        }
+        list[idx] = { ...list[idx], ...updateData, updatedAt: new Date().toISOString() };
         persistLiveStore();
         return list[idx];
       }

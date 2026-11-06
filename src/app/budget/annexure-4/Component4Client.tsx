@@ -109,6 +109,25 @@ export default function Component4Client({
   // Client-side pre-validation
   const validateForm = () => {
     const errors: Record<string, string> = {};
+    const code = (formData.coaCode || '').trim();
+    if (!code) {
+      errors.coaCode = 'Please select a Chart of Accounts code.';
+    } else if (
+      code === '70112' ||
+      code.startsWith('7') ||
+      /studio\s*setup|studio\s*upgradation/i.test(formData.coaName)
+    ) {
+      errors.coaCode =
+        'Head 7 (Studio Upgradation - 70112) is offline-only. Annexure IV entries must belong to Component 4 (4.1 to 4.6).';
+    } else if (
+      !COMPONENT_4_COA_MASTER.some(
+        (c) => c.code.toLowerCase() === code.toLowerCase()
+      )
+    ) {
+      errors.coaCode =
+        'Please select an approved Component 4 CoA code (4.1 to 4.6).';
+    }
+
     if (!formData.name.trim()) {
       errors.name = 'Please enter a valid vendor, agency, or party name.';
     }
@@ -590,25 +609,21 @@ export default function Component4Client({
                 <label className={styles.label}>
                   1. CoA Code <span className={styles.requiredAsterisk}>*</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   name="coaCode"
-                  list="coaCodeOptions"
                   value={formData.coaCode}
                   onChange={(e) => handleCoaCodeChange(e.target.value)}
-                  placeholder="e.g. 4.1, 4.2, 40101"
-                  className={`${styles.input} ${
+                  className={`${styles.select} ${
                     fieldErrors.coaCode ? styles.inputError : ''
                   }`}
                   required
-                />
-                <datalist id="coaCodeOptions">
+                >
                   {COMPONENT_4_COA_MASTER.map((item) => (
                     <option key={item.code} value={item.code}>
                       {item.code} — {item.name}
                     </option>
                   ))}
-                </datalist>
+                </select>
                 {fieldErrors.coaCode && (
                   <span className={styles.fieldErrorText}>
                     {fieldErrors.coaCode}
