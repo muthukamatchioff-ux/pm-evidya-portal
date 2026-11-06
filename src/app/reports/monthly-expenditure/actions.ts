@@ -719,23 +719,6 @@ function getAuthoritativeVouchers(): DrillDownVoucher[] {
       paidAmount: 145000,
       status: 'VERIFIED',
     },
-    {
-      id: 'v-c3-02',
-      headId: 3,
-      headName: '3. Human Resource & Technical Support',
-      monthKey: 'Oct 2026',
-      annexureSource: 'Annexure III',
-      expertOrVendor: 'PM e-Vidya Technical & Editorial Staff',
-      designation: 'Technical Assistant, Video Editors, Graphic Designers',
-      description: 'Staff remuneration for Technical Assistant, Video Editors and Graphic Designers for October 2026',
-      voucherOrUtr: 'JV20000078/26-27',
-      date: '2026-10-28',
-      claimedAmount: 136774,
-      approvedAmount: 136774,
-      paidAmount: 136774,
-      status: 'VERIFIED',
-    },
-
 
     // -------------------------------------------------------------------------
     // Component 4: Digital Infrastructure, Archive & Network Services (1 record, ₹45,865)
@@ -758,8 +741,40 @@ function getAuthoritativeVouchers(): DrillDownVoucher[] {
     },
 
     // -------------------------------------------------------------------------
-    // Component 5: School Telecast & Distribution Infrastructure (0 records, ₹0 - Not yet incurred)
+    // Component 5: School Telecast & Distribution Infrastructure (2 records, ₹1,41,226)
     // -------------------------------------------------------------------------
+    {
+      id: 'v-c5-01',
+      headId: 5,
+      headName: '5. School Telecast & Distribution Infrastructure',
+      monthKey: 'Aug 2026',
+      annexureSource: 'Annexure V',
+      expertOrVendor: 'Broadcast Network Service Unit',
+      designation: 'Telecast Integration Directorate',
+      description: 'DTH Signal Distribution Equipment & Channel Feed Relay Integration',
+      voucherOrUtr: 'CN2/001980/26-27',
+      date: '2026-08-18',
+      claimedAmount: 70000,
+      approvedAmount: 70000,
+      paidAmount: 70000,
+      status: 'RECONCILED',
+    },
+    {
+      id: 'v-c5-02',
+      headId: 5,
+      headName: '5. School Telecast & Distribution Infrastructure',
+      monthKey: 'Sep 2026',
+      annexureSource: 'Annexure V',
+      expertOrVendor: 'Regional Telecast Hardware Services',
+      designation: 'Distribution Provider',
+      description: 'Satellite Receiver & Channel Distribution Hardware Calibration',
+      voucherOrUtr: 'CN2/002340/26-27',
+      date: '2026-09-15',
+      claimedAmount: 71226,
+      approvedAmount: 71226,
+      paidAmount: 71226,
+      status: 'AUDITED',
+    },
 
     // -------------------------------------------------------------------------
     // Component 6: Outreach, Feedback, Research & Advocacy (1 record, ₹60,000)
@@ -778,22 +793,6 @@ function getAuthoritativeVouchers(): DrillDownVoucher[] {
       claimedAmount: 60000,
       approvedAmount: 60000,
       paidAmount: 60000,
-      status: 'RECONCILED',
-    },
-    {
-      id: 'v-c6-02',
-      headId: 6,
-      headName: '6. Outreach, Feedback, Research & Advocacy',
-      monthKey: 'Aug 2026',
-      annexureSource: 'Annexure VI',
-      expertOrVendor: 'National Outreach & Digital Marketing Partner',
-      designation: 'Campaign Execution Partner',
-      description: 'Paid Campaign 2.0 via Meta & Google Ads to promote channels NIMI_OFFICIAL_SKILL SAKTHI & SKILL INDIA',
-      voucherOrUtr: 'CN2/001940/26-27',
-      date: '2026-08-31',
-      claimedAmount: 40000,
-      approvedAmount: 40000,
-      paidAmount: 40000,
       status: 'RECONCILED',
     },
 
