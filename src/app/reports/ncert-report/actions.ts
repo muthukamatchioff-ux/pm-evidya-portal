@@ -546,11 +546,11 @@ export async function getNcertReportData(options?: {
     : {
         head1Video: 10000000,      // ₹ 1,00,00,000
         head2Capacity: 1000000,    // ₹ 10,00,000
-        head3Hr: 7044000,          // ₹ 70,44,000
-        head4Archive: 499520,      // ₹ 4,99,520
-        head5Telecast: 395000,     // ₹ 3,95,000
+        head3Hr: 7200000,          // ₹ 72,00,000
+        head4Archive: 500000,      // ₹ 5,00,000
+        head5Telecast: 500000,     // ₹ 5,00,000
         head6Feedback: 500000,     // ₹ 5,00,000
-        totalAllocation: 19438520, // ₹ 1,94,38,520
+        totalAllocation: 19700000, // ₹ 1,97,00,000
       };
 
   const baselineVouchers = getAuthoritativeLedgerVouchers();
@@ -665,15 +665,10 @@ export async function getNcertReportData(options?: {
 
     const totalDurationHours = Number((totalDurationSec / 3600).toFixed(2));
 
-    // Video Fund Utilized (Col K)
-    // In template_accrual: row 7 has 0, rows 8-18 have 0 (blank) matching official template
-    // In full_consolidated: includes the Annexure I vouchers (Jul 30745, Aug 15837, Sep 109153)
-    let fundUtilizedVideo = 0;
-    if (accountingBasis === 'full_consolidated') {
-      fundUtilizedVideo = monthVouchers
-        .filter((v) => v.headId === 1)
-        .reduce((sum, v) => sum + v.paidAmount, 0);
-    }
+    // Video Fund Utilized (Col K) - dynamically reflect live vouchers
+    const fundUtilizedVideo = monthVouchers
+      .filter((v) => v.headId === 1)
+      .reduce((sum, v) => sum + v.paidAmount, 0);
     cumSpentVideo += fundUtilizedVideo;
     const fundBalanceVideo = allocations.head1Video - cumSpentVideo;
 
@@ -702,12 +697,10 @@ export async function getNcertReportData(options?: {
       };
     }
 
-    let fundUtilizedCapacity = 0;
-    if (accountingBasis === 'full_consolidated') {
-      fundUtilizedCapacity = monthVouchers
-        .filter((v) => v.headId === 2)
-        .reduce((sum, v) => sum + v.paidAmount, 0);
-    }
+    // Capacity Fund Utilized (Col R) - dynamically reflect live vouchers
+    const fundUtilizedCapacity = monthVouchers
+      .filter((v) => v.headId === 2)
+      .reduce((sum, v) => sum + v.paidAmount, 0);
     cumSpentCapacity += fundUtilizedCapacity;
     const fundBalanceCapacity = allocations.head2Capacity - cumSpentCapacity;
 
@@ -741,19 +734,13 @@ export async function getNcertReportData(options?: {
       };
     }
 
-    // HR Fund Utilized (Col X)
-    let fundUtilizedHr = 0;
-    if (accountingBasis === 'full_consolidated') {
-      fundUtilizedHr = monthVouchers
-        .filter((v) => v.headId === 3)
-        .reduce((sum, v) => sum + v.paidAmount, 0);
-    } else {
-      if (monthKey === 'Sep 2026') {
-        fundUtilizedHr = 145000;
-      } else if (monthKey === 'Oct 2026') {
-        fundUtilizedHr = 136774;
-      }
-    }
+    // HR Fund Utilized (Col X) - dynamically reflect live vouchers
+    const voucherHrSpend = monthVouchers
+      .filter((v) => v.headId === 3)
+      .reduce((sum, v) => sum + v.paidAmount, 0);
+    const fundUtilizedHr = voucherHrSpend > 0 ? voucherHrSpend : (
+      monthKey === 'Sep 2026' ? 145000 : (monthKey === 'Oct 2026' ? 136774 : 0)
+    );
     cumSpentHr += fundUtilizedHr;
     const fundBalanceHr = allocations.head3Hr - cumSpentHr;
 
@@ -761,12 +748,10 @@ export async function getNcertReportData(options?: {
     let infraRequired = '';
     let infraStatus = '';
     let infraComment = '';
-    let fundUtilizedArchive = 0;
-    if (accountingBasis === 'full_consolidated') {
-      fundUtilizedArchive = monthVouchers
-        .filter((v) => v.headId === 4)
-        .reduce((sum, v) => sum + v.paidAmount, 0);
-    }
+    // Archive Fund Utilized (Col AD) - dynamically reflect live vouchers
+    const fundUtilizedArchive = monthVouchers
+      .filter((v) => v.headId === 4)
+      .reduce((sum, v) => sum + v.paidAmount, 0);
     cumSpentArchive += fundUtilizedArchive;
     const fundBalanceArchive = allocations.head4Archive - cumSpentArchive;
 
@@ -775,12 +760,10 @@ export async function getNcertReportData(options?: {
     let schoolsWithTv = '';
     let schoolsWithDth = '';
     let totalSchoolsSetup = '';
-    let fundUtilizedTelecast = 0;
-    if (accountingBasis === 'full_consolidated') {
-      fundUtilizedTelecast = monthVouchers
-        .filter((v) => v.headId === 5)
-        .reduce((sum, v) => sum + v.paidAmount, 0);
-    }
+    // Telecast Fund Utilized (Col AJ) - dynamically reflect live vouchers
+    const fundUtilizedTelecast = monthVouchers
+      .filter((v) => v.headId === 5)
+      .reduce((sum, v) => sum + v.paidAmount, 0);
     cumSpentTelecast += fundUtilizedTelecast;
     const fundBalanceTelecast = allocations.head5Telecast - cumSpentTelecast;
 
@@ -825,19 +808,13 @@ export async function getNcertReportData(options?: {
       };
     }
 
-    // Feedback Fund Utilized (Col AO)
-    let fundUtilizedFeedback = 0;
-    if (accountingBasis === 'full_consolidated') {
-      fundUtilizedFeedback = monthVouchers
-        .filter((v) => v.headId === 6)
-        .reduce((sum, v) => sum + v.paidAmount, 0);
-    } else {
-      if (monthKey === 'Jul 2026') {
-        fundUtilizedFeedback = 60000;
-      } else if (monthKey === 'Aug 2026') {
-        fundUtilizedFeedback = 40000;
-      }
-    }
+    // Feedback Fund Utilized (Col AO) - dynamically reflect live vouchers
+    const voucherFeedbackSpend = monthVouchers
+      .filter((v) => v.headId === 6)
+      .reduce((sum, v) => sum + v.paidAmount, 0);
+    const fundUtilizedFeedback = voucherFeedbackSpend > 0 ? voucherFeedbackSpend : (
+      monthKey === 'Jul 2026' ? 60000 : (monthKey === 'Aug 2026' ? 40000 : 0)
+    );
     cumSpentFeedback += fundUtilizedFeedback;
     const fundBalanceFeedback = allocations.head6Feedback - cumSpentFeedback;
 

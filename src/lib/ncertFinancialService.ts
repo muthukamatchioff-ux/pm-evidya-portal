@@ -44,7 +44,7 @@ export const NCERT_HEAD_MAPPINGS: NcertHeadMapping[] = [
     annexureRef: 'Annexure III',
     color: '#7c3aed', // Purple
     ncertSanction: 7200000,   // ₹ 72,00,000 (Col I4)
-    portalSanction: 7044000,  // ₹ 70,44,000
+    portalSanction: 7200000,  // ₹ 72,00,000
   },
   {
     headId: 4,
@@ -53,7 +53,7 @@ export const NCERT_HEAD_MAPPINGS: NcertHeadMapping[] = [
     annexureRef: 'Annexure IV',
     color: '#ea580c', // Orange
     ncertSanction: 500000,    // ₹ 5,00,000 (Col J4)
-    portalSanction: 499520,   // ₹ 4,99,520
+    portalSanction: 500000,   // ₹ 5,00,000
   },
   {
     headId: 5,
@@ -62,7 +62,7 @@ export const NCERT_HEAD_MAPPINGS: NcertHeadMapping[] = [
     annexureRef: 'Annexure V',
     color: '#db2777', // Pink
     ncertSanction: 500000,    // ₹ 5,00,000 (Col K4)
-    portalSanction: 395000,   // ₹ 3,95,000
+    portalSanction: 500000,   // ₹ 5,00,000
   },
   {
     headId: 6,

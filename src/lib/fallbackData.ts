@@ -904,7 +904,7 @@ export const REAL_PM_EVIDYA_BUDGET_COMPONENTS = [
     "id": "cmup22i140002v0oygvd0qe1o",
     "componentNo": 3,
     "name": "Human Resource & Technical Support",
-    "approvedBudget": 7044000,
+    "approvedBudget": 7200000,
     "createdAt": "2026-10-01T04:50:10.505Z",
     "updatedAt": "2026-10-07T00:00:00.000Z",
     "annexureI": [],
@@ -973,7 +973,7 @@ export const REAL_PM_EVIDYA_BUDGET_COMPONENTS = [
     "id": "cmup22i170003v0oyo6geozay",
     "componentNo": 4,
     "name": "Digital Infrastructure, Archive & Network Services",
-    "approvedBudget": 499520,
+    "approvedBudget": 500000,
     "createdAt": "2026-10-01T04:50:10.507Z",
     "updatedAt": "2026-10-01T04:50:10.507Z",
     "annexureI": [],
@@ -1012,7 +1012,7 @@ export const REAL_PM_EVIDYA_BUDGET_COMPONENTS = [
     "id": "cmup22i190004v0oyvch41nj5",
     "componentNo": 5,
     "name": "School Telecast & Distribution Infrastructure",
-    "approvedBudget": 395000,
+    "approvedBudget": 500000,
     "createdAt": "2026-10-01T04:50:10.510Z",
     "updatedAt": "2026-10-01T04:50:10.510Z",
     "annexureI": [],
@@ -1128,7 +1128,7 @@ export const REAL_PM_EVIDYA_BUDGET_HEADS = [
   {
     "id": "cmuo25r8p000714erdsnmtk61",
     "name": "3. HUMAN RESOURCE SUPPORT",
-    "approvedBudget": 7044000,
+    "approvedBudget": 7200000,
     "utilizedAmount": 145000,
     "createdAt": "2026-09-30T12:04:56.234Z",
     "updatedAt": "2026-10-07T00:00:00.000Z"
@@ -1136,7 +1136,7 @@ export const REAL_PM_EVIDYA_BUDGET_HEADS = [
   {
     "id": "cmuo25r8u000814erfalty83i",
     "name": "4. ARCHIVE / BANDWIDTH / NETWORKING",
-    "approvedBudget": 499520,
+    "approvedBudget": 500000,
     "utilizedAmount": 0,
     "createdAt": "2026-09-30T12:04:56.238Z",
     "updatedAt": "2026-10-07T00:00:00.000Z"
@@ -1144,7 +1144,7 @@ export const REAL_PM_EVIDYA_BUDGET_HEADS = [
   {
     "id": "cmuo25r8x000914errfahzghn",
     "name": "5. TELECAST SETUP IN SCHOOLS",
-    "approvedBudget": 395000,
+    "approvedBudget": 500000,
     "utilizedAmount": 0,
     "createdAt": "2026-09-30T12:04:56.241Z",
     "updatedAt": "2026-10-07T00:00:00.000Z"

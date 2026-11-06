@@ -70,15 +70,15 @@ for (let m of months) {
   console.log(`${m.padEnd(10)}: ₹ ${(monthTotals[m] || 0).toLocaleString('en-IN')}`);
 }
 
-const approvedBudget = 19438520;
+const approvedBudget = 19700000;
 const balance = approvedBudget - grandTotal;
 const util = Number(((grandTotal / approvedBudget) * 100).toFixed(2));
 
 console.log('\n--- CONSOLIDATED TOTALS ---');
 console.log(`Grand Total Expenditure: ₹ ${grandTotal.toLocaleString('en-IN')} (Target: 7,94,343)`);
-console.log(`Total Approved Budget:   ₹ ${approvedBudget.toLocaleString('en-IN')} (Target: 1,94,38,520)`);
-console.log(`Available Balance:       ₹ ${balance.toLocaleString('en-IN')} (Target: 1,86,44,177)`);
-console.log(`Overall Utilization:     ${util}% (Target: 4.09%)`);
+console.log(`Total Approved Budget:   ₹ ${approvedBudget.toLocaleString('en-IN')} (Target: 1,97,00,000)`);
+console.log(`Available Balance:       ₹ ${balance.toLocaleString('en-IN')} (Target: 1,89,05,657)`);
+console.log(`Overall Utilization:     ${util}% (Target: 4.03%)`);
 
 // Verify the two additional records
 const vC302 = vouchers.find(v => v.id === 'v-c3-02');
@@ -99,9 +99,9 @@ console.log(`Net Baseline Variance: ₹${twoSum} - ₹${comp5Sum} = ₹${twoSum 
 const assertions = [
   vouchers.length === 41,
   grandTotal === 794343,
-  approvedBudget === 19438520,
-  balance === 18644177,
-  util === 4.09,
+  approvedBudget === 19700000,
+  balance === 18905657,
+  util === 4.03,
   compTotals[1] === 155735,
   compTotals[2] === 210969,
   compTotals[3] === 281774,

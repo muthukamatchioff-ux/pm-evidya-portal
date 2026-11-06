@@ -26,7 +26,7 @@ export default function Component4Client({
   role,
   budgetComponentId,
   entries,
-  approvedBudget = 499520,
+  approvedBudget = 500000,
 }: Props) {
   const router = useRouter();
   const [records, setRecords] = useState<any[]>(entries || []);
@@ -207,14 +207,18 @@ export default function Component4Client({
         return;
       }
 
-      const savedData = res.data || {
+      const updatedAmount = Number(payload.expenditure) || 0;
+      const savedData = {
+        ...(res.data || {}),
         ...payload,
-        id: editingId || `aiv-${Date.now()}`,
+        expenditure: updatedAmount,
+        totalExpenditure: updatedAmount,
+        id: editingId || res.data?.id || `aiv-${Date.now()}`,
       };
 
       if (editingId) {
         setRecords((prev) =>
-          prev.map((r) => (r.id === editingId ? { ...r, ...savedData } : r))
+          prev.map((r) => (r.id === editingId ? { ...r, ...savedData, expenditure: updatedAmount, totalExpenditure: updatedAmount } : r))
         );
         setAlertInfo({
           type: 'success',
@@ -384,7 +388,7 @@ export default function Component4Client({
 
   // Financial Calculations for this Budget Head
   const totalExpenditure = useMemo(() => {
-    return records.reduce((acc, r) => acc + (Number(r.expenditure ?? r.totalExpenditure) || 0), 0);
+    return records.reduce((acc, r) => acc + (Number(r.totalExpenditure ?? r.expenditure) || 0), 0);
   }, [records]);
 
   const availableBalance = approvedBudget - totalExpenditure;
@@ -392,7 +396,7 @@ export default function Component4Client({
 
   // Filtered sum
   const filteredExpenditure = useMemo(() => {
-    return filteredRecords.reduce((acc, r) => acc + (Number(r.expenditure ?? r.totalExpenditure) || 0), 0);
+    return filteredRecords.reduce((acc, r) => acc + (Number(r.totalExpenditure ?? r.expenditure) || 0), 0);
   }, [filteredRecords]);
 
   // Export to Excel with 10 Columns
@@ -413,7 +417,7 @@ export default function Component4Client({
     ];
 
     const dataRows = filteredRecords.map((r, idx) => {
-      const exp = Number(r.expenditure ?? r.totalExpenditure) || 0;
+      const exp = Number(r.totalExpenditure ?? r.expenditure) || 0;
       return [
         r.coaCode || '4.1',
         idx + 1,
@@ -921,7 +925,7 @@ export default function Component4Client({
               ) : (
                 filteredRecords.map((entry, idx) => {
                   const exp =
-                    Number(entry.expenditure ?? entry.totalExpenditure) || 0;
+                    Number(entry.totalExpenditure ?? entry.expenditure) || 0;
                   return (
                     <tr key={entry.id || idx}>
                       {/* 1. CoA Code */}

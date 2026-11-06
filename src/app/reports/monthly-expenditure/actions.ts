@@ -120,21 +120,21 @@ const CANONICAL_ONLINE_COMPONENTS: Array<{
     name: '3. Human Resource & Technical Support',
     shortName: 'Human Resource Support',
     color: '#7c3aed', // Purple
-    sanctionedBudget: 7044000,
+    sanctionedBudget: 7200000,
   },
   {
     id: 4,
     name: '4. Digital Infrastructure, Archive & Network Services',
     shortName: 'Archive / Bandwidth',
     color: '#ea580c', // Orange
-    sanctionedBudget: 499520,
+    sanctionedBudget: 500000,
   },
   {
     id: 5,
     name: '5. School Telecast & Distribution Infrastructure',
     shortName: 'School Telecast Infrastructure',
     color: '#db2777', // Pink/Magenta
-    sanctionedBudget: 395000,
+    sanctionedBudget: 500000,
   },
   {
     id: 6,
@@ -1195,7 +1195,7 @@ export async function getMonthlyExpenditureReportData(filters?: {
   const monthsCoveredCount = operationalMonthsCovered.length;
   const monthsCoveredStr = `${monthsCoveredCount} / ${totalFiscalMonthsCount}`;
   const monthsCoveredSub = 'June 2026 – October 2026';
-  const monthlyTarget = Math.round(grandSanctionedBudget / totalFiscalMonthsCount); // ₹ 19,43,852
+  const monthlyTarget = Math.round(grandSanctionedBudget / totalFiscalMonthsCount); // ₹ 19,70,000
 
   // Total Output Hours dynamically computed from verified video library
   const videoMetrics = await fetchVideoOutputMetrics();
