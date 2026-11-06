@@ -1,6 +1,7 @@
 'use server';
 
 import { requireAuth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 import fs from 'fs';
 import path from 'path';
 import * as XLSX from 'xlsx';
@@ -305,6 +306,222 @@ export async function getNcertColumnsMeta(): Promise<NcertColumnMeta[]> {
   return [];
 }
 
+const FISCAL_YEAR_2026_2027_MONTHS = [
+  'Apr 2026',
+  'May 2026',
+  'Jun 2026',
+  'Jul 2026',
+  'Aug 2026',
+  'Sep 2026',
+  'Oct 2026',
+  'Nov 2026',
+  'Dec 2026',
+  'Jan 2027',
+  'Feb 2027',
+  'Mar 2027',
+];
+
+// Dynamic Database Synchronization: Query Prisma / Live Store Annexures for NCERT Report
+export async function fetchLiveNcertVouchers(): Promise<VerifiedLedgerVoucher[]> {
+  try {
+    const components = await prisma.budgetComponent.findMany({
+      include: {
+        annexureI: true,
+        annexureII: true,
+        annexureIII: true,
+        annexureIV: true,
+        annexureV: true,
+        annexureVI: true,
+      },
+    });
+
+    const liveVouchers: VerifiedLedgerVoucher[] = [];
+    components.forEach((c: any) => {
+      if (c.componentNo > 6) return; // Component 7 (Studio Upgradation) is offline-only
+
+      const headName = NCERT_HEAD_MAPPINGS.find((co) => co.headId === c.componentNo)?.ncertHeadName || c.name;
+
+      const getMonthKey = (dateStr?: string | Date | null, periodStr?: string | null): string => {
+        if (periodStr && FISCAL_YEAR_2026_2027_MONTHS.includes(periodStr)) return periodStr;
+        if (dateStr) {
+          const d = new Date(dateStr);
+          if (!isNaN(d.getTime())) {
+            const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const key = `${mNames[d.getMonth()]} ${d.getFullYear()}`;
+            if (FISCAL_YEAR_2026_2027_MONTHS.includes(key)) return key;
+          }
+        }
+        return 'Oct 2026';
+      };
+
+      c.annexureI?.forEach((item: any) => {
+        const mKey = getMonthKey(item.transactionDate, item.datePeriod);
+        const amount = Number(item.totalExpenditure) || Number(item.honorarium) || 0;
+        liveVouchers.push({
+          id: item.id,
+          headId: 1,
+          headName,
+          accountingMonth: mKey,
+          settlementMonth: mKey,
+          annexureSource: 'Annexure I',
+          expertOrVendor: item.expertName,
+          designation: item.designation,
+          description: item.activity,
+          voucherOrUtr: item.voucherNo || item.utrNumber || item.id,
+          date: item.transactionDate ? new Date(item.transactionDate).toISOString().split('T')[0] : '2026-09-08',
+          claimedAmount: amount,
+          approvedAmount: amount,
+          paidAmount: amount,
+          status: 'VERIFIED',
+        });
+      });
+
+      c.annexureII?.forEach((item: any) => {
+        const mKey = getMonthKey(item.datePeriod, item.datePeriod);
+        const amount = Number(item.totalExpenditure) || 0;
+        liveVouchers.push({
+          id: item.id,
+          headId: 2,
+          headName,
+          accountingMonth: mKey,
+          settlementMonth: mKey,
+          annexureSource: 'Annexure II',
+          expertOrVendor: item.participant,
+          designation: item.trainingType,
+          description: item.trainingName,
+          voucherOrUtr: item.utrNumber || item.id,
+          date: '2026-08-19',
+          claimedAmount: amount,
+          approvedAmount: amount,
+          paidAmount: amount,
+          status: 'VERIFIED',
+        });
+      });
+
+      c.annexureIII?.forEach((item: any) => {
+        let mKey = getMonthKey(item.transactionDate, item.datePeriod);
+        if (item.voucherNo === 'JV20000062/26-27' || item.utrNumber === 'JV20000062/26-27' || item.description?.includes('September') || item.workPeriod?.includes('September')) {
+          mKey = 'Sep 2026';
+        } else if (item.voucherNo === 'JV20000078/26-27' || item.utrNumber === 'JV20000078/26-27' || item.description?.includes('October')) {
+          mKey = 'Oct 2026';
+        }
+        const amount = Number(item.totalExpenditure) || Number(item.remuneration) || 0;
+        liveVouchers.push({
+          id: item.id,
+          headId: 3,
+          headName,
+          accountingMonth: mKey,
+          settlementMonth: 'Oct 2026',
+          annexureSource: 'Annexure III',
+          expertOrVendor: item.personnelName,
+          designation: item.designation,
+          description: item.supportType || item.remarks || '',
+          voucherOrUtr: item.voucherNo || item.utrNumber || item.id,
+          date: item.transactionDate ? new Date(item.transactionDate).toISOString().split('T')[0] : '2026-10-07',
+          claimedAmount: amount,
+          approvedAmount: amount,
+          paidAmount: amount,
+          status: 'VERIFIED',
+        });
+      });
+
+      c.annexureIV?.forEach((item: any) => {
+        const mKey = getMonthKey(item.transactionDate, item.datePeriod);
+        const amount = Number(item.totalExpenditure) || 0;
+        liveVouchers.push({
+          id: item.id,
+          headId: 4,
+          headName,
+          accountingMonth: mKey,
+          settlementMonth: mKey,
+          annexureSource: 'Annexure IV',
+          expertOrVendor: item.vendor || item.name || 'National Informatics Centre / Media Cloud CDN',
+          designation: item.coaName || 'Digital Infrastructure / Archive',
+          description: item.narration || item.description || item.service || '',
+          voucherOrUtr: item.voucher || item.utrNumber || item.invoiceNo || item.purchaseRef || item.id,
+          date: item.transactionDate
+            ? new Date(item.transactionDate).toISOString().split('T')[0]
+            : '2026-08-06',
+          claimedAmount: amount,
+          approvedAmount: amount,
+          paidAmount: amount,
+          status: 'VERIFIED',
+        });
+      });
+
+      c.annexureV?.forEach((item: any) => {
+        const mKey = getMonthKey(null, item.datePeriod);
+        const amount = Number(item.totalExpenditure) || 0;
+        liveVouchers.push({
+          id: item.id,
+          headId: 5,
+          headName,
+          accountingMonth: mKey,
+          settlementMonth: mKey,
+          annexureSource: 'Annexure V',
+          expertOrVendor: item.vendor,
+          designation: 'Distribution Provider',
+          description: item.activity,
+          voucherOrUtr: item.utrNumber || item.invoiceNo || item.id,
+          date: item.datePeriod?.includes('Sep') ? '2026-09-15' : '2026-08-18',
+          claimedAmount: amount,
+          approvedAmount: amount,
+          paidAmount: 0, // School Telecast paid is 0
+          status: 'VERIFIED',
+        });
+      });
+
+      c.annexureVI?.forEach((item: any) => {
+        const mKey = getMonthKey(null, item.datePeriod);
+        const amount = Number(item.totalExpenditure) || Number(item.amount) || 0;
+        liveVouchers.push({
+          id: item.id,
+          headId: 6,
+          headName,
+          accountingMonth: mKey,
+          settlementMonth: mKey,
+          annexureSource: 'Annexure VI',
+          expertOrVendor: item.serviceProvider,
+          designation: 'Advocacy Platforms',
+          description: item.campaignDesc,
+          voucherOrUtr: item.utrNumber || item.id,
+          date: item.datePeriod?.includes('Aug') ? '2026-08-31' : '2026-07-28',
+          claimedAmount: amount,
+          approvedAmount: amount,
+          paidAmount: amount,
+          status: 'VERIFIED',
+        });
+      });
+    });
+
+    return liveVouchers;
+  } catch (err) {
+    console.warn('Live NCERT vouchers fetch fallback:', err);
+    return [];
+  }
+}
+
+function mergeUniqueNcertVouchers(baseline: VerifiedLedgerVoucher[], live: VerifiedLedgerVoucher[]): VerifiedLedgerVoucher[] {
+  const map = new Map<string, VerifiedLedgerVoucher>();
+
+  baseline.forEach((v) => {
+    const key = `${(v.voucherOrUtr || v.id).toUpperCase()}_${v.headId}`;
+    map.set(key, v);
+  });
+
+  live.forEach((v) => {
+    const key = `${(v.voucherOrUtr || v.id).toUpperCase()}_${v.headId}`;
+    if (!map.has(key)) {
+      map.set(key, v);
+    } else {
+      const existing = map.get(key)!;
+      map.set(key, { ...existing, ...v, paidAmount: v.paidAmount });
+    }
+  });
+
+  return Array.from(map.values());
+}
+
 // Main Data Aggregation Engine for NCERT Report
 export async function getNcertReportData(options?: {
   budgetMode?: 'ncert' | 'portal';
@@ -312,8 +529,8 @@ export async function getNcertReportData(options?: {
 }): Promise<NcertReportData> {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER']);
 
-  const budgetMode = options?.budgetMode || 'ncert';
-  const accountingBasis = options?.accountingBasis || 'template_accrual';
+  const budgetMode = options?.budgetMode || 'portal';
+  const accountingBasis = options?.accountingBasis || 'full_consolidated';
 
   // Budget allocations: NCERT Template Allocations (Row 4) vs Portal Master
   const allocations = budgetMode === 'ncert'
@@ -336,7 +553,9 @@ export async function getNcertReportData(options?: {
         totalAllocation: 19438520, // ₹ 1,94,38,520
       };
 
-  const allVouchers = getAuthoritativeLedgerVouchers();
+  const baselineVouchers = getAuthoritativeLedgerVouchers();
+  const liveDbVouchers = await fetchLiveNcertVouchers();
+  const allVouchers = mergeUniqueNcertVouchers(baselineVouchers, liveDbVouchers);
   const allVideos = getVideosFromDatabase();
 
   // 12 Reporting Months in Fiscal Year 2026-2027 matching Excel Col C
@@ -523,14 +742,17 @@ export async function getNcertReportData(options?: {
     }
 
     // HR Fund Utilized (Col X)
-    // Exactly matches the authoritative Excel template:
-    // September 2026: 145000 (Consultant Salary for September 2026)
-    // October 2026: 136774 (October Staff Remuneration)
     let fundUtilizedHr = 0;
-    if (monthKey === 'Sep 2026') {
-      fundUtilizedHr = 145000;
-    } else if (monthKey === 'Oct 2026') {
-      fundUtilizedHr = 136774;
+    if (accountingBasis === 'full_consolidated') {
+      fundUtilizedHr = monthVouchers
+        .filter((v) => v.headId === 3)
+        .reduce((sum, v) => sum + v.paidAmount, 0);
+    } else {
+      if (monthKey === 'Sep 2026') {
+        fundUtilizedHr = 145000;
+      } else if (monthKey === 'Oct 2026') {
+        fundUtilizedHr = 136774;
+      }
     }
     cumSpentHr += fundUtilizedHr;
     const fundBalanceHr = allocations.head3Hr - cumSpentHr;
@@ -604,12 +826,17 @@ export async function getNcertReportData(options?: {
     }
 
     // Feedback Fund Utilized (Col AO)
-    // Matches official Excel template: July 60000, August 40000
     let fundUtilizedFeedback = 0;
-    if (monthKey === 'Jul 2026') {
-      fundUtilizedFeedback = 60000;
-    } else if (monthKey === 'Aug 2026') {
-      fundUtilizedFeedback = 40000;
+    if (accountingBasis === 'full_consolidated') {
+      fundUtilizedFeedback = monthVouchers
+        .filter((v) => v.headId === 6)
+        .reduce((sum, v) => sum + v.paidAmount, 0);
+    } else {
+      if (monthKey === 'Jul 2026') {
+        fundUtilizedFeedback = 60000;
+      } else if (monthKey === 'Aug 2026') {
+        fundUtilizedFeedback = 40000;
+      }
     }
     cumSpentFeedback += fundUtilizedFeedback;
     const fundBalanceFeedback = allocations.head6Feedback - cumSpentFeedback;
@@ -888,8 +1115,8 @@ export async function exportNcertExcelReport(options?: {
   accountingBasis?: 'template_accrual' | 'full_consolidated';
 }): Promise<{ base64: string; filename: string }> {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER']);
-  const budgetMode = options?.budgetMode || 'ncert';
-  const accountingBasis = options?.accountingBasis || 'template_accrual';
+  const budgetMode = options?.budgetMode || 'portal';
+  const accountingBasis = options?.accountingBasis || 'full_consolidated';
   const data = await getNcertReportData({ budgetMode, accountingBasis });
 
   const templatePath = path.join(

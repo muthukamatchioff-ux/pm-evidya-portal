@@ -13,8 +13,8 @@ export const dynamic = 'force-dynamic';
 export default async function NcertReportPage() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER']);
   const initialData = await getNcertReportData({
-    budgetMode: 'ncert',
-    accountingBasis: 'template_accrual',
+    budgetMode: 'portal',
+    accountingBasis: 'full_consolidated',
   });
 
   return <NcertReportClient initialData={initialData} />;

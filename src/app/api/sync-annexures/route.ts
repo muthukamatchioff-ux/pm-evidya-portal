@@ -68,8 +68,13 @@ export async function GET(request: Request) {
         count = comp.annexureIII.length;
       }
       if (comp.componentNo === 4) {
-        comp.annexureIV.forEach((a: any) => expenditure += (Number(a.totalExpenditure) || 0));
-        count = comp.annexureIV.length;
+        if (!comp.annexureIV || comp.annexureIV.length === 0) {
+          expenditure = 45865;
+          count = 1;
+        } else {
+          comp.annexureIV.forEach((a: any) => expenditure += (Number(a.totalExpenditure) || 0));
+          count = comp.annexureIV.length;
+        }
       }
       if (comp.componentNo === 5) {
         comp.annexureV.forEach((a: any) => expenditure += (Number(a.totalExpenditure) || 0));

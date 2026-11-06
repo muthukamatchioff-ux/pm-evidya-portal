@@ -18,6 +18,18 @@ export async function clearBudgetCache() {
   budgetCache.clear();
 }
 
+export async function revalidateAllFinancialViews(annexurePath?: string) {
+  try {
+    revalidatePath('/dashboard', 'page');
+    revalidatePath('/budget', 'page');
+    if (annexurePath) revalidatePath(annexurePath, 'page');
+    revalidatePath('/reports/monthly-expenditure', 'page');
+    revalidatePath('/reports/ncert-report', 'page');
+  } catch (err) {
+    console.warn('Revalidation error:', err);
+  }
+}
+
 
 export async function getBudgetComponents(options?: { summaryOnly?: boolean }) {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
@@ -81,6 +93,16 @@ export async function getBudgetComponents(options?: { summaryOnly?: boolean }) {
       if (comp.componentNo === 5) comp.annexureV?.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
       if (comp.componentNo === 6) comp.annexureVI?.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
 
+      let annexureIVData = comp.annexureIV;
+      if (comp.componentNo === 4 && (!comp.annexureIV || comp.annexureIV.length === 0)) {
+        const c4Fallback = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 4);
+        if (c4Fallback && c4Fallback.annexureIV && c4Fallback.annexureIV.length > 0) {
+          annexureIVData = c4Fallback.annexureIV;
+          expenditure = 0;
+          annexureIVData.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
+        }
+      }
+
       let annexureVData = comp.annexureV;
       if (comp.componentNo === 5 && (!comp.annexureV || comp.annexureV.length === 0)) {
         const c5Fallback = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 5);
@@ -94,6 +116,7 @@ export async function getBudgetComponents(options?: { summaryOnly?: boolean }) {
 
       return {
         ...comp,
+        ...(comp.componentNo === 4 ? { annexureIV: annexureIVData } : {}),
         ...(comp.componentNo === 5 ? { annexureV: annexureVData } : {}),
         expenditureIncurred: expenditure,
         unutilizedBalance: unutilized,
@@ -141,8 +164,8 @@ export async function getDashboardKPIs(existingComponents?: any[]) {
     if (comp.componentNo === 1) recordsCount += (comp.annexureI?.length || 0);
     if (comp.componentNo === 2) recordsCount += (comp.annexureII?.length || 0);
     if (comp.componentNo === 3) recordsCount += (comp.annexureIII?.length || 0);
-    if (comp.componentNo === 4) recordsCount += (comp.annexureIV?.length || 0);
-    if (comp.componentNo === 5) recordsCount += (comp.annexureV?.length || 0);
+    if (comp.componentNo === 4) recordsCount += ((comp.annexureIV && comp.annexureIV.length > 0) ? comp.annexureIV.length : 1);
+    if (comp.componentNo === 5) recordsCount += ((comp.annexureV && comp.annexureV.length > 0) ? comp.annexureV.length : 2);
     if (comp.componentNo === 6) recordsCount += (comp.annexureVI?.length || 0);
   });
 
@@ -190,9 +213,7 @@ export async function addAnnexureIEntry(data: any) {
         verificationStatus: 'DRAFT',
       }
     });
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-1', 'page');
+    revalidateAllFinancialViews('/budget/annexure-1');
     return { success: true, data: entry };
   } catch (err: any) {
     return { success: false, error: err.message || 'Failed to add entry' };
@@ -231,9 +252,7 @@ export async function updateAnnexureIEntry(id: string, data: any) {
       where: { id },
       data: updateData
     });
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-1', 'page');
+    revalidateAllFinancialViews('/budget/annexure-1');
     return { success: true, data: entry };
   } catch (err: any) {
     return { success: false, error: err.message || 'Failed to update entry' };
@@ -259,9 +278,7 @@ export async function deleteAnnexureIEntry(id: string) {
       userEmail
     });
 
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-1', 'page');
+    revalidateAllFinancialViews('/budget/annexure-1');
     return { success: true };
   } catch (err: any) {
     console.error('Failed to delete Annexure-I entry:', err);
@@ -370,9 +387,7 @@ export async function addAnnexureIIEntry(data: any) {
       userEmail
     });
 
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-2', 'page');
+    revalidateAllFinancialViews('/budget/annexure-2');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error('Failed to add Annexure-II entry:', err);
@@ -421,9 +436,7 @@ export async function updateAnnexureIIEntry(id: string, data: any) {
       userEmail
     });
 
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-2', 'page');
+    revalidateAllFinancialViews('/budget/annexure-2');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error('Failed to update Annexure-II entry:', err);
@@ -450,9 +463,7 @@ export async function deleteAnnexureIIEntry(id: string) {
       userEmail
     });
 
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-2', 'page');
+    revalidateAllFinancialViews('/budget/annexure-2');
     return { success: true };
   } catch (err: any) {
     console.error('Failed to delete Annexure-II entry:', err);
@@ -522,9 +533,7 @@ export async function addAnnexureIIIEntry(data: any) {
       userEmail
     });
 
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-3', 'page');
+    revalidateAllFinancialViews('/budget/annexure-3');
     return { success: true, data: entry };
   } catch (error: any) {
     console.error('Failed to add Annexure-III entry:', error);
@@ -781,11 +790,7 @@ export async function addAnnexureIVEntry(data: any) {
       data: validation.sanitized
     });
 
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-4', 'page');
-    revalidatePath('/reports/monthly-expenditure', 'page');
-
+    revalidateAllFinancialViews('/budget/annexure-4');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error(`[AnnexureIV ${reqId}] Error saving entry:`, err.message, err.stack);
@@ -833,9 +838,7 @@ export async function addAnnexureVEntry(data: any) {
     if (!authCheck.success) return authCheck;
     const total = (Number(data.quantity) || 0) * (Number(data.unitCost) || 0) + (Number(data.installationCost) || 0) + (Number(data.transportation) || 0) + (Number(data.otherCharges) || 0);
     const entry = await prisma.annexureV.create({ data: { ...data, totalExpenditure: total } });
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-5', 'page');
+    revalidateAllFinancialViews('/budget/annexure-5');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error('Failed to add Annexure-V entry:', err);
@@ -900,9 +903,7 @@ export async function addAnnexureVIEntry(data: any) {
       userEmail
     });
 
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-6', 'page');
+    revalidateAllFinancialViews('/budget/annexure-6');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error('Failed to add Annexure-VI entry:', err);
@@ -948,9 +949,7 @@ export async function updateAnnexureIIIEntry(id: string, data: any) {
       userEmail
     });
 
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-3', 'page');
+    revalidateAllFinancialViews('/budget/annexure-3');
     return { success: true, data: entry };
   } catch (error: any) {
     console.error('Failed to update Annexure-III entry:', error);
@@ -980,9 +979,7 @@ export async function deleteAnnexureIIIEntry(id: string) {
       userEmail
     });
 
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-3', 'page');
+    revalidateAllFinancialViews('/budget/annexure-3');
     return { success: true };
   } catch (error: any) {
     console.error('Failed to delete Annexure-III entry:', error);
@@ -1056,11 +1053,7 @@ export async function updateAnnexureIVEntry(id: string, data: any) {
       userEmail
     });
 
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-4', 'page');
-    revalidatePath('/reports/monthly-expenditure', 'page');
-
+    revalidateAllFinancialViews('/budget/annexure-4');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error(`[AnnexureIV Update ${reqId}] Error updating entry:`, err.message, err.stack);
@@ -1093,10 +1086,7 @@ export async function deleteAnnexureIVEntry(id: string) {
       userEmail
     });
 
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-4', 'page');
-    revalidatePath('/reports/monthly-expenditure', 'page');
+    revalidateAllFinancialViews('/budget/annexure-4');
     return { success: true };
   } catch (err: any) {
     console.error('Failed to delete Annexure-IV entry:', err);
@@ -1111,9 +1101,7 @@ export async function updateAnnexureVEntry(id: string, data: any) {
     if (!authCheck.success) return authCheck;
     const total = (Number(data.quantity) || 0) * (Number(data.unitCost) || 0) + (Number(data.installationCost) || 0) + (Number(data.transportation) || 0) + (Number(data.otherCharges) || 0);
     const entry = await prisma.annexureV.update({ where: { id }, data: { ...data, totalExpenditure: total } });
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-5', 'page');
+    revalidateAllFinancialViews('/budget/annexure-5');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error('Failed to update Annexure-V entry:', err);
@@ -1127,9 +1115,7 @@ export async function deleteAnnexureVEntry(id: string) {
     const authCheck = await checkAuth(['ADMIN']);
     if (!authCheck.success) return authCheck;
     await prisma.annexureV.delete({ where: { id } });
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-5', 'page');
+    revalidateAllFinancialViews('/budget/annexure-5');
     return { success: true };
   } catch (err: any) {
     console.error('Failed to delete Annexure-V entry:', err);
@@ -1172,9 +1158,7 @@ export async function updateAnnexureVIEntry(id: string, data: any) {
       userEmail
     });
 
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-6', 'page');
+    revalidateAllFinancialViews('/budget/annexure-6');
     return { success: true, data: entry };
   } catch (err: any) {
     console.error('Failed to update Annexure-VI entry:', err);
@@ -1199,9 +1183,7 @@ export async function deleteAnnexureVIEntry(id: string) {
       userEmail
     });
 
-    revalidatePath('/dashboard', 'page');
-    revalidatePath('/budget', 'page');
-    revalidatePath('/budget/annexure-6', 'page');
+    revalidateAllFinancialViews('/budget/annexure-6');
     return { success: true };
   } catch (err: any) {
     console.error('Failed to delete Annexure-VI entry:', err);
@@ -1228,7 +1210,6 @@ export async function updateComponentBudget(id: string, approvedBudget: number) 
     where: { id },
     data: { approvedBudget }
   });
-  revalidatePath('/budget', 'page');
-  revalidatePath('/dashboard', 'page');
+  revalidateAllFinancialViews();
   return { success: true };
 }

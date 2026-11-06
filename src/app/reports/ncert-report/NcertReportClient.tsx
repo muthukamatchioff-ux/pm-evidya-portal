@@ -17,9 +17,9 @@ interface Props {
 
 export default function NcertReportClient({ initialData }: Props) {
   const [data, setData] = useState<NcertReportData>(initialData);
-  const [budgetMode, setBudgetMode] = useState<'ncert' | 'portal'>(initialData.metadata.budgetMode);
+  const [budgetMode, setBudgetMode] = useState<'ncert' | 'portal'>(initialData.metadata.budgetMode || 'portal');
   const [accountingBasis, setAccountingBasis] = useState<'template_accrual' | 'full_consolidated'>(
-    initialData.metadata.accountingBasis
+    initialData.metadata.accountingBasis || 'full_consolidated'
   );
   const [selectedQuarter, setSelectedQuarter] = useState<'ALL' | 'Q1' | 'Q2' | 'Q3' | 'Q4'>('ALL');
   const [activeTab, setActiveTab] = useState<'tracker' | 'audit' | 'analytics'>('tracker');
@@ -217,19 +217,19 @@ export default function NcertReportClient({ initialData }: Props) {
             <div className={styles.quarterTabs} style={{ marginRight: '0.25rem' }}>
               <button
                 type="button"
+                className={`${styles.quarterTab} ${accountingBasis === 'full_consolidated' ? styles.quarterTabActive : ''}`}
+                onClick={() => handleFilterUpdate(budgetMode, 'full_consolidated')}
+                title="Consolidated Live Portal Ledger Vouchers across all 6 heads (Total: ₹ 7,94,343)"
+              >
+                Live Portal Data (₹7.94 L)
+              </button>
+              <button
+                type="button"
                 className={`${styles.quarterTab} ${accountingBasis === 'template_accrual' ? styles.quarterTabActive : ''}`}
                 onClick={() => handleFilterUpdate(budgetMode, 'template_accrual')}
                 title="Authoritative NCERT Excel Template values (Total: ₹ 3,81,774)"
               >
-                Template Match (₹3.82 L)
-              </button>
-              <button
-                type="button"
-                className={`${styles.quarterTab} ${accountingBasis === 'full_consolidated' ? styles.quarterTabActive : ''}`}
-                onClick={() => handleFilterUpdate(budgetMode, 'full_consolidated')}
-                title="Consolidated Ledger Vouchers across all 6 heads (Total: ₹ 9,35,569)"
-              >
-                Full Ledger (₹9.36 L)
+                Offline Template (₹3.82 L)
               </button>
             </div>
 
@@ -237,19 +237,19 @@ export default function NcertReportClient({ initialData }: Props) {
             <div className={styles.quarterTabs} style={{ marginRight: '0.5rem' }}>
               <button
                 type="button"
-                className={`${styles.quarterTab} ${budgetMode === 'ncert' ? styles.quarterTabActive : ''}`}
-                onClick={() => handleFilterUpdate('ncert', accountingBasis)}
-                title="Official NCERT Sanction Allocation (₹ 1,97,00,000)"
-              >
-                NCERT (₹1.97 Cr)
-              </button>
-              <button
-                type="button"
                 className={`${styles.quarterTab} ${budgetMode === 'portal' ? styles.quarterTabActive : ''}`}
                 onClick={() => handleFilterUpdate('portal', accountingBasis)}
                 title="Portal Master Budget (₹ 1,94,38,520)"
               >
-                Portal (₹1.94 Cr)
+                Portal Master (₹1.94 Cr)
+              </button>
+              <button
+                type="button"
+                className={`${styles.quarterTab} ${budgetMode === 'ncert' ? styles.quarterTabActive : ''}`}
+                onClick={() => handleFilterUpdate('ncert', accountingBasis)}
+                title="Official NCERT Sanction Allocation (₹ 1,97,00,000)"
+              >
+                NCERT Sanction (₹1.97 Cr)
               </button>
             </div>
 
@@ -309,7 +309,7 @@ export default function NcertReportClient({ initialData }: Props) {
           <div className={styles.metaItem}>
             <span className={styles.metaLabel}>Accounting Basis & Statement</span>
             <span className={styles.metaValue}>
-              {accountingBasis === 'template_accrual' ? 'NCERT Template (Accrual)' : 'Consolidated Ledger (Cash)'} &bull; {metadata.statementDate}
+              {accountingBasis === 'full_consolidated' ? 'Live Consolidated Portal Ledger (Cash/Accrual)' : 'NCERT Template (Accrual)'} &bull; {metadata.statementDate}
             </span>
           </div>
         </div>
