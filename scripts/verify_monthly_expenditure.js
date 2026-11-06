@@ -27,7 +27,7 @@ console.log('2. Total Sanctioned Budget across 6 components:', totalSanctionedBu
 
 // 3. Verify voucher count
 const voucherMatches = actionsCode.match(/id:\s*['"]v-c[0-9]-[0-9]+['"]/g);
-console.log('3. Authoritative Voucher count:', voucherMatches ? voucherMatches.length : 0, voucherMatches.length === 39 ? 'PASS (39 records)' : 'FAIL');
+console.log('3. Authoritative Voucher count:', voucherMatches ? voucherMatches.length : 0, voucherMatches.length === 41 ? 'PASS (41 records)' : 'FAIL');
 
 // 4. Verify JV20000062/26-27
 const hasJV = actionsCode.includes("'JV20000062/26-27'") &&

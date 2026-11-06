@@ -1019,7 +1019,52 @@ export const REAL_PM_EVIDYA_BUDGET_COMPONENTS = [
     "annexureII": [],
     "annexureIII": [],
     "annexureIV": [],
-    "annexureV": [],
+    "annexureV": [
+      {
+        "id": "v-c5-01",
+        "budgetComponentId": "cmup22i190004v0oyvch41nj5",
+        "datePeriod": "Aug 2026",
+        "school": "PM e-Vidya Participating Schools (Tamil Nadu / Regional)",
+        "activity": "DTH Signal Distribution Equipment & Channel Feed Relay Integration (Commitment)",
+        "equipment": "DTH Signal Distribution Equipment",
+        "quantity": 1,
+        "unitCost": 0,
+        "installationCost": 0,
+        "transportation": 0,
+        "otherCharges": 0,
+        "totalExpenditure": 0,
+        "vendor": "Broadcast Network Service Unit",
+        "invoiceNo": null,
+        "utrNumber": "CN2/001980/26-27",
+        "remarks": "Pending disbursement - commitment recorded ₹70,000, actual payment ₹0 (Not yet incurred)",
+        "supportingDoc": null,
+        "verificationStatus": "AUDITED",
+        "createdAt": "2026-08-18T10:00:00.000Z",
+        "updatedAt": "2026-08-18T10:00:00.000Z"
+      },
+      {
+        "id": "v-c5-02",
+        "budgetComponentId": "cmup22i190004v0oyvch41nj5",
+        "datePeriod": "Sep 2026",
+        "school": "PM e-Vidya Participating Schools (Karnataka / Regional)",
+        "activity": "Satellite Receiver & Channel Distribution Hardware Calibration (Commitment)",
+        "equipment": "Satellite Receiver & Channel Distribution Hardware",
+        "quantity": 1,
+        "unitCost": 0,
+        "installationCost": 0,
+        "transportation": 0,
+        "otherCharges": 0,
+        "totalExpenditure": 0,
+        "vendor": "Regional Telecast Hardware Services",
+        "invoiceNo": null,
+        "utrNumber": "CN2/002340/26-27",
+        "remarks": "Pending disbursement - commitment recorded ₹71,226, actual payment ₹0 (Not yet incurred)",
+        "supportingDoc": null,
+        "verificationStatus": "AUDITED",
+        "createdAt": "2026-09-15T10:00:00.000Z",
+        "updatedAt": "2026-09-15T10:00:00.000Z"
+      }
+    ],
     "annexureVI": []
   },
   {
@@ -1091,6 +1136,16 @@ export function getCanonicalAnnexureII() {
 
 export function getCanonicalAnnexureIII() {
   return JSON.parse(JSON.stringify(CANONICAL_ANNEXURE_III_RAW));
+}
+
+const CANONICAL_ANNEXURE_IV_RAW = JSON.parse(JSON.stringify(REAL_PM_EVIDYA_BUDGET_COMPONENTS[3].annexureIV));
+export function getCanonicalAnnexureIV() {
+  return JSON.parse(JSON.stringify(CANONICAL_ANNEXURE_IV_RAW));
+}
+
+const CANONICAL_ANNEXURE_V_RAW = JSON.parse(JSON.stringify(REAL_PM_EVIDYA_BUDGET_COMPONENTS[4].annexureV));
+export function getCanonicalAnnexureV() {
+  return JSON.parse(JSON.stringify(CANONICAL_ANNEXURE_V_RAW));
 }
 
 const CANONICAL_ANNEXURE_VI_RAW = JSON.parse(JSON.stringify(REAL_PM_EVIDYA_BUDGET_COMPONENTS[5].annexureVI));

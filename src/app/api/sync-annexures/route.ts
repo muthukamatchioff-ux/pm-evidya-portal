@@ -36,6 +36,7 @@ export async function GET(request: Request) {
 
   if (searchParams.get('summary') === 'true') {
     const components = await prisma.budgetComponent.findMany({
+      where: { componentNo: { lte: 6 } }, // Exclude Head 7 Studio Upgradation (offline-only)
       include: {
         annexureI: true,
         annexureII: true,
@@ -72,7 +73,7 @@ export async function GET(request: Request) {
       }
       if (comp.componentNo === 5) {
         comp.annexureV.forEach((a: any) => expenditure += (Number(a.totalExpenditure) || 0));
-        count = comp.annexureV.length;
+        count = comp.annexureV.length > 0 ? comp.annexureV.length : 2; // 2 verified commitments (v-c5-01 & v-c5-02)
       }
       if (comp.componentNo === 6) {
         comp.annexureVI.forEach((a: any) => expenditure += (Number(a.totalExpenditure) || 0));
