@@ -144,7 +144,21 @@ export async function syncSchema(p: any = defaultPrisma) {
     // ShootingSchedule columns
     `ALTER TABLE "ShootingSchedule" ADD COLUMN IF NOT EXISTS "cameramanId" TEXT;`,
     // VideoEditorRecord columns
-    `ALTER TABLE "VideoEditorRecord" ADD COLUMN IF NOT EXISTS "editorId" TEXT;`
+    `ALTER TABLE "VideoEditorRecord" ADD COLUMN IF NOT EXISTS "editorId" TEXT;`,
+    // AnnexureIV CoA columns
+    `ALTER TABLE "AnnexureIV" ADD COLUMN IF NOT EXISTS "coaCode" TEXT;`,
+    `ALTER TABLE "AnnexureIV" ADD COLUMN IF NOT EXISTS "coaName" TEXT;`,
+    `ALTER TABLE "AnnexureIV" ADD COLUMN IF NOT EXISTS "transactionDate" TIMESTAMP(3);`,
+    `ALTER TABLE "AnnexureIV" ADD COLUMN IF NOT EXISTS "txnType" TEXT;`,
+    `ALTER TABLE "AnnexureIV" ADD COLUMN IF NOT EXISTS "voucher" TEXT;`,
+    `ALTER TABLE "AnnexureIV" ADD COLUMN IF NOT EXISTS "narration" TEXT;`,
+    `ALTER TABLE "AnnexureIV" ADD COLUMN IF NOT EXISTS "transcriptionNote" TEXT;`,
+    `ALTER TABLE "AnnexureIV" ALTER COLUMN "purchaseRef" SET DEFAULT '';`,
+    `ALTER TABLE "AnnexureIV" ALTER COLUMN "servicePeriod" SET DEFAULT '';`,
+    `ALTER TABLE "AnnexureIV" ALTER COLUMN "service" SET DEFAULT '';`,
+    `ALTER TABLE "AnnexureIV" ALTER COLUMN "description" SET DEFAULT '';`,
+    `ALTER TABLE "AnnexureIV" ALTER COLUMN "vendor" SET DEFAULT '';`,
+    `ALTER TABLE "AnnexureIV" ALTER COLUMN "datePeriod" SET DEFAULT '';`
   ];
 
   const results: any[] = [];

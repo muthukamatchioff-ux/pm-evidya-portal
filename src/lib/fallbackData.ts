@@ -911,6 +911,33 @@ export const REAL_PM_EVIDYA_BUDGET_COMPONENTS = [
     "annexureII": [],
     "annexureIII": [
       {
+                "id": "cmuv30rkv000sg0qvl802pvu4",
+        "budgetComponentId": "cmup22i140002v0oygvd0qe1o",
+        "datePeriod": "31-Oct-2026",
+        "personnelName": "Technical Operational Support Staff",
+        "designation": "Technical Support Personnel",
+        "supportType": "Sal (GSAL)",
+        "department": "PM e-Vidya Project",
+        "workPeriod": "1 Month (October 2026)",
+        "remuneration": 136774,
+        "taDa": 0,
+        "otherCharges": 0,
+        "totalExpenditure": 136774,
+        "utrNumber": "JV20000078/26-27",
+        "voucherNo": "JV20000078/26-27",
+        "commitmentNo": "00454/0002/26-2026/1",
+        "tranType": "Sal (GSAL)",
+        "transactionDate": "2026-10-31T00:00:00.000Z",
+        "commitmentDate": "2026-10-31T00:00:00.000Z",
+        "approvalRef": "00454/0002/26-2026/1",
+        "remarks": "PM e-Vidya Operational Technical Staff Remuneration for October 2026",
+        "narration": "PM e-Vidya Operational Technical Staff Remuneration for October 2026",
+        "supportingDoc": null,
+        "verificationStatus": "VERIFIED",
+        "createdAt": "2026-10-31T00:00:00.000Z",
+        "updatedAt": "2026-10-31T00:00:00.000Z"
+      },
+      {
         "id": "cmuv30rkv000sg0qvl802pvu3",
         "budgetComponentId": "cmup22i140002v0oygvd0qe1o",
         "datePeriod": "07-Oct-2026",
@@ -952,7 +979,32 @@ export const REAL_PM_EVIDYA_BUDGET_COMPONENTS = [
     "annexureI": [],
     "annexureII": [],
     "annexureIII": [],
-    "annexureIV": [],
+    "annexureIV": [
+          {
+                "id": "ann4_nic_01",
+                "budgetComponentId": "cmup22i170003v0oyo6geozay",
+                "datePeriod": "Aug 2026",
+                "service": "Media Cloud CDN & Studio Network",
+                "description": "Cloud Infrastructure Tier & Dedicated Studio Network for Content Streaming",
+                "vendor": "National Informatics Centre / Media Cloud CDN",
+                "purchaseRef": "NIC/CDN/2026/088",
+                "quantity": 1,
+                "unitCost": 45865,
+                "servicePeriod": "01.08.2026 to 31.08.2026",
+                "infrastructureCost": 35000,
+                "bandwidthCost": 10865,
+                "archiveCost": 0,
+                "otherCharges": 0,
+                "totalExpenditure": 45865,
+                "invoiceNo": "INV/NIC/26-27/0088",
+                "utrNumber": "JV20000017/26-27",
+                "remarks": "Dedicated High-Speed Studio CDN Uplink",
+                "supportingDoc": "/documents/nic-cdn-aug2026.pdf",
+                "verificationStatus": "VERIFIED",
+                "createdAt": "2026-08-06T10:00:00.000Z",
+                "updatedAt": "2026-08-06T10:00:00.000Z"
+          }
+    ],
     "annexureV": [],
     "annexureVI": []
   },
@@ -983,6 +1035,25 @@ export const REAL_PM_EVIDYA_BUDGET_COMPONENTS = [
     "annexureIV": [],
     "annexureV": [],
     "annexureVI": [
+      {
+                "id": "cmup22i1u000bv0oyqax4yftq",
+        "budgetComponentId": "cmup22i1b0005v0oygf37znxn",
+        "platform": "Meta Ads, Google Ads, YouTube Promo",
+        "campaignDesc": "PM e-Vidya Campaign 2.0 (NIMI_OFFICIAL_SKILL SAKTHI & SKILL INDIA Channels)",
+        "datePeriod": "15-Sep-2026 to 30-Sep-2026",
+        "serviceProvider": "National Outreach & Digital Marketing Partner",
+        "campaignType": "Social Media Visibility & Channel Growth",
+        "amount": 40000,
+        "tax": 0,
+        "totalExpenditure": 40000,
+        "utrNumber": "CN2/001940/26-27",
+        "approvalRef": "00454/0003/26-2026/1",
+        "remarks": "Paid campaign via Meta & Google Ads for YouTube channels awareness",
+        "supportingDoc": null,
+        "verificationStatus": "RECONCILED",
+        "createdAt": "2026-08-31T00:00:00.000Z",
+        "updatedAt": "2026-08-31T00:00:00.000Z"
+      },
       {
         "id": "cmup22i1u000bv0oyqax4yftp",
         "budgetComponentId": "cmup22i1b0005v0oygf37znxn",
@@ -1020,6 +1091,11 @@ export function getCanonicalAnnexureII() {
 
 export function getCanonicalAnnexureIII() {
   return JSON.parse(JSON.stringify(CANONICAL_ANNEXURE_III_RAW));
+}
+
+const CANONICAL_ANNEXURE_VI_RAW = JSON.parse(JSON.stringify(REAL_PM_EVIDYA_BUDGET_COMPONENTS[5].annexureVI));
+export function getCanonicalAnnexureVI() {
+  return JSON.parse(JSON.stringify(CANONICAL_ANNEXURE_VI_RAW));
 }
 
 export const REAL_PM_EVIDYA_BUDGET_HEADS = [

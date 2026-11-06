@@ -702,38 +702,224 @@
   background: #f8fafc;
 }
 
-/* Print Styles */
+/* Print Header Banner (Hidden on screen, shown in print) */
+.printHeaderBanner {
+  display: none;
+}
+
+.printGovHeading {
+  font-size: 8.5pt;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.printOrgHeading {
+  font-size: 13pt;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.02em;
+  margin-bottom: 2px;
+}
+
+.printProjectHeading {
+  font-size: 10.5pt;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-bottom: 6px;
+}
+
+.printMetaBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 8pt;
+  color: #334155;
+  background: #f8fafc;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+}
+
+/* Page Setup for A3 Landscape Print & PDF */
+@page {
+  size: A3 landscape;
+  margin: 10mm 12mm;
+}
+
+/* Master Print Styles */
 @media print {
   body {
     background: #ffffff !important;
     color: #000000 !important;
+    font-size: 8pt !important;
   }
 
+  /* Hide navigation, chrome, action buttons, toolbars, and modal */
+  :global(aside),
+  :global(header),
+  :global(nav),
   .btnExport,
   .btnGenerate,
   .headerActions,
   .filterToolbar,
-  .modalBackdrop {
+  .modalBackdrop,
+  .pageHeader {
     display: none !important;
+  }
+
+  /* Unconstrain viewport / containers */
+  :global(body),
+  :global(main),
+  :global(.main-content) {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
   }
 
   .container {
     max-width: 100% !important;
+    width: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
   }
 
-  .tableCard,
-  .metricCard,
-  .analyticsCard {
+  /* Display Official NIMI Header */
+  .printHeaderBanner {
+    display: block !important;
+    text-align: center;
+    border-bottom: 2px solid #0f172a;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+  }
+
+  /* KPI Summary Cards */
+  .metricsGrid {
+    display: grid !important;
+    grid-template-columns: repeat(5, 1fr) !important;
+    gap: 8px !important;
+    margin-bottom: 12px !important;
+    page-break-inside: avoid !important;
+  }
+
+  .metricCard {
     box-shadow: none !important;
     border: 1px solid #cbd5e1 !important;
-    page-break-inside: avoid;
+    padding: 8px 10px !important;
+    page-break-inside: avoid !important;
+    background: #ffffff !important;
+  }
+
+  .metricIconCircle {
+    display: none !important;
+  }
+
+  .metricValue {
+    font-size: 11pt !important;
+  }
+
+  .metricLabel {
+    font-size: 7.5pt !important;
+  }
+
+  .metricSubtext {
+    font-size: 7pt !important;
+  }
+
+  /* Table Container & Table */
+  .tableCard {
+    box-shadow: none !important;
+    border: 1px solid #cbd5e1 !important;
+    padding: 8px !important;
+    margin-bottom: 12px !important;
+    page-break-inside: auto !important;
+  }
+
+  .tableWrapper {
+    overflow: visible !important;
+    width: 100% !important;
+    border: none !important;
+  }
+
+  .summaryTable {
+    width: 100% !important;
+    font-size: 7.5pt !important;
+    border-collapse: collapse !important;
+  }
+
+  .summaryTable thead {
+    display: table-header-group !important;
+  }
+
+  .summaryTable tr {
+    page-break-inside: avoid !important;
+  }
+
+  .summaryTable th,
+  .summaryTable td {
+    padding: 4px 6px !important;
+    border: 1px solid #cbd5e1 !important;
+    position: static !important;
+    left: auto !important;
+    box-shadow: none !important;
+    white-space: nowrap !important;
   }
 
   .summaryTable th:first-child,
   .summaryTable td:first-child {
     position: static !important;
+    left: auto !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    min-width: auto !important;
+  }
+
+  .progressBarBg {
+    border: 1px solid #94a3b8 !important;
+  }
+
+  .progressBarFill {
+    background: #475569 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .totalRow td {
+    font-weight: 700 !important;
+    background: #f1f5f9 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Analytics Panels */
+  .analyticsGrid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+    margin-top: 10px !important;
+    page-break-inside: avoid !important;
+  }
+
+  .analyticsCard {
+    box-shadow: none !important;
+    border: 1px solid #cbd5e1 !important;
+    padding: 8px !important;
+    page-break-inside: avoid !important;
+    background: #ffffff !important;
+  }
+
+  .analyticsTitle {
+    font-size: 9pt !important;
+  }
+
+  .insightItem {
+    font-size: 7.5pt !important;
+    padding: 4px 0 !important;
   }
 }
 
@@ -752,4 +938,3 @@
     grid-template-columns: 1fr;
   }
 }
-

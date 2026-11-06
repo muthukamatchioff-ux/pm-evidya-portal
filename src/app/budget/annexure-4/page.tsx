@@ -55,7 +55,7 @@ export default async function Component4Page() {
         </div>
       </div>
 
-      <Component4Client role={role} budgetComponentId={compData.id} entries={compData.annexureIV} />
+      <Component4Client role={role} budgetComponentId={compData.id} entries={compData.annexureIV} approvedBudget={compData.approvedBudget} />
     </div>
   );
 }

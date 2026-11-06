@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
+import { COMPONENT_4_COA_MASTER } from '@/lib/coaMaster';
 // High-performance in-memory cache with instant invalidation on mutations
 interface BudgetCacheEntry {
   data: any;
@@ -466,38 +467,238 @@ export async function addAnnexureIIIEntry(data: any) {
   }
 }
 
+
+async function validateAndSanitizeAnnexureIVPayload(data: any): Promise<{
+  valid: boolean;
+  sanitized?: any;
+  error?: string;
+  fieldErrors?: Record<string, string>;
+}> {
+  const fieldErrors: Record<string, string> = {};
+
+  // 1. Resolve & Validate BudgetComponent ID
+  let compId = (data.budgetComponentId || data.BudgetComponentId || '').trim();
+  if (!compId) {
+    try {
+      const comp4 = await prisma.budgetComponent.findUnique({ where: { componentNo: 4 } });
+      compId = comp4?.id || '';
+    } catch {
+      // fallback
+    }
+  }
+
+  if (!compId) {
+    return {
+      valid: false,
+      error: 'The selected budget component is unavailable.',
+      fieldErrors: { budgetComponentId: 'The selected budget component is unavailable.' }
+    };
+  }
+
+  // 2. Validate Name (Vendor / Party)
+  const name = (data.name || data.vendor || '').trim();
+  if (!name) {
+    fieldErrors.name = 'Please enter a valid vendor, agency, or party name.';
+  }
+
+  // 3. Validate Date
+  const rawDate = data.date || data.transactionDate || data.datePeriod;
+  let parsedDate: Date | null = null;
+  let datePeriod = '';
+
+  if (!rawDate) {
+    fieldErrors.date = 'Please select a valid date.';
+  } else {
+    if (rawDate instanceof Date) {
+      parsedDate = rawDate;
+    } else if (typeof rawDate === 'string') {
+      const trimmed = rawDate.trim();
+      if (/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(trimmed)) {
+        const parts = trimmed.split(/[-/]/);
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        parsedDate = new Date(Date.UTC(year, month, day, 12, 0, 0));
+      } else {
+        const d = new Date(trimmed);
+        if (!isNaN(d.getTime())) {
+          parsedDate = d;
+        }
+      }
+    }
+
+    if (!parsedDate || isNaN(parsedDate.getTime())) {
+      fieldErrors.date = 'Please select a valid date.';
+    } else {
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      datePeriod = `${monthNames[parsedDate.getUTCMonth()]} ${parsedDate.getUTCFullYear()}`;
+    }
+  }
+
+  // 4. Validate Expenditure Amount (Exact Decimal Handling)
+  let rawExp = data.expenditure !== undefined && data.expenditure !== '' && data.expenditure !== null
+    ? data.expenditure
+    : (data.totalExpenditure !== undefined && data.totalExpenditure !== '' && data.totalExpenditure !== null
+      ? data.totalExpenditure
+      : null);
+
+  if (rawExp === null) {
+    const costBreakdown = (Number(data.infrastructureCost) || 0) +
+                          (Number(data.bandwidthCost) || 0) +
+                          (Number(data.archiveCost) || 0) +
+                          (Number(data.otherCharges) || 0);
+    rawExp = costBreakdown;
+  }
+
+  const expNum = Number(rawExp);
+  if (isNaN(expNum) || !isFinite(expNum)) {
+    fieldErrors.expenditure = 'Please enter a valid expenditure amount.';
+  } else if (expNum < 0) {
+    fieldErrors.expenditure = 'Expenditure amount cannot be negative.';
+  }
+
+  // 5. Validate Voucher / Reference
+  const voucher = (data.voucher || data.voucherNo || data.utrNumber || data.purchaseRef || '').trim();
+  if (!voucher) {
+    fieldErrors.voucher = 'Please enter a valid voucher or reference number.';
+  }
+
+  if (Object.keys(fieldErrors).length > 0) {
+    return {
+      valid: false,
+      error: Object.values(fieldErrors)[0],
+      fieldErrors
+    };
+  }
+
+  const totalExpenditure = Math.round((expNum || 0) * 100) / 100;
+  const coaCode = (data.coaCode || '').trim() || '4.1';
+  const matchedMaster = COMPONENT_4_COA_MASTER.find(c => c.code.toLowerCase() === coaCode.toLowerCase());
+  const coaName = (data.coaName || '').trim() || matchedMaster?.name || data.service || 'Archive / Bandwidth / Networking';
+  const txnType = (data.txnType || data.tranType || '').trim() || 'Journal Voucher';
+  const narration = (data.narration || data.description || coaName).trim();
+  const transcriptionNote = (data.transcriptionNote || data.remarks || '').trim();
+
+  const sanitized = {
+    budgetComponentId: compId,
+    datePeriod: datePeriod || data.datePeriod || 'Aug 2026',
+    service: coaName,
+    description: narration,
+    vendor: name,
+    purchaseRef: voucher,
+    quantity: Math.max(1, parseInt(data.quantity, 10) || 1),
+    unitCost: totalExpenditure,
+    servicePeriod: data.servicePeriod || datePeriod || 'FY 2026-2027',
+    infrastructureCost: Number(data.infrastructureCost) || totalExpenditure,
+    bandwidthCost: Number(data.bandwidthCost) || 0,
+    archiveCost: Number(data.archiveCost) || 0,
+    otherCharges: Number(data.otherCharges) || 0,
+    totalExpenditure,
+    invoiceNo: data.invoiceNo || null,
+    utrNumber: voucher,
+    remarks: transcriptionNote || null,
+    supportingDoc: data.supportingDoc || null,
+    verificationStatus: data.verificationStatus || 'VERIFIED',
+    coaCode,
+    coaName,
+    transactionDate: parsedDate,
+    txnType,
+    voucher,
+    narration,
+    transcriptionNote
+  };
+
+  return { valid: true, sanitized };
+}
+
 // --- Component 4 ---
 export async function getComponent4Data() {
-  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);
+  await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER']);
   const cached = budgetCache.get('comp_4');
   if (cached && cached.expiry > Date.now()) {
     return cached.data;
   }
   const comp = await prisma.budgetComponent.findUnique({
-    where: { componentNo: 4 }, include: { annexureIV: { orderBy: { createdAt: 'desc' } } }
+    where: { componentNo: 4 },
+    include: { annexureIV: { orderBy: { createdAt: 'desc' } } }
   });
   if (!comp) return null;
-  let expenditure = 0; comp.annexureIV.forEach((a: any) => expenditure += a.totalExpenditure);
-  const result = { ...comp, expenditureIncurred: expenditure, unutilizedBalance: comp.approvedBudget - expenditure, utilizationPercent: comp.approvedBudget > 0 ? ((expenditure / comp.approvedBudget) * 100).toFixed(2) : '0.00' };
+
+  let expenditure = 0;
+  const mappedAnnexureIV = (comp.annexureIV || []).map((item: any) => {
+    const exp = Number(item.totalExpenditure) || 0;
+    expenditure += exp;
+
+    const transactionDateStr = item.transactionDate
+      ? new Date(item.transactionDate).toISOString().split('T')[0]
+      : (item.createdAt ? new Date(item.createdAt).toISOString().split('T')[0] : '2026-08-06');
+
+    return {
+      ...item,
+      coaCode: item.coaCode || '4.1',
+      coaName: item.coaName || item.service || 'Archive, Cloud Storage & Data Repository',
+      name: item.vendor || item.service || 'National Informatics Centre / Media Cloud CDN',
+      date: transactionDateStr,
+      txnType: item.txnType || 'Journal Voucher',
+      voucher: item.voucher || item.utrNumber || item.invoiceNo || item.purchaseRef || 'JV20000017/26-27',
+      narration: item.narration || item.description || item.service || '',
+      expenditure: exp,
+      transcriptionNote: item.transcriptionNote || item.remarks || '',
+    };
+  });
+
+  const roundedExp = Math.round(expenditure * 100) / 100;
+  const result = {
+    ...comp,
+    annexureIV: mappedAnnexureIV,
+    expenditureIncurred: roundedExp,
+    unutilizedBalance: comp.approvedBudget - roundedExp,
+    utilizationPercent: comp.approvedBudget > 0 ? ((roundedExp / comp.approvedBudget) * 100).toFixed(2) : '0.00'
+  };
+
   budgetCache.set('comp_4', { data: result, expiry: Date.now() + BUDGET_CACHE_TTL });
   return result;
 }
+
 export async function addAnnexureIVEntry(data: any) {
   clearBudgetCache();
+  const reqId = `req-a4-add-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
   try {
     const authCheck = await checkAuth(['ADMIN']);
-    if (!authCheck.success) return authCheck;
-    const total = (Number(data.infrastructureCost) || 0) + (Number(data.bandwidthCost) || 0) + (Number(data.archiveCost) || 0) + (Number(data.otherCharges) || 0);
-    const entry = await prisma.annexureIV.create({ data: { ...data, totalExpenditure: total } });
+    if (!authCheck.success) {
+      return { success: false, error: 'Unauthorized: Admin role required to create expenditure entries.' };
+    }
+
+    const validation = await validateAndSanitizeAnnexureIVPayload(data);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: validation.error,
+        fieldErrors: validation.fieldErrors
+      };
+    }
+
+    const entry = await prisma.annexureIV.create({
+      data: validation.sanitized
+    });
+
     revalidatePath('/dashboard', 'page');
     revalidatePath('/budget', 'page');
     revalidatePath('/budget/annexure-4', 'page');
+    revalidatePath('/reports/monthly-expenditure', 'page');
+
     return { success: true, data: entry };
   } catch (err: any) {
-    console.error('Failed to add Annexure-IV entry:', err);
-    return { success: false, error: err.message || 'Failed to add entry' };
+    console.error(`[AnnexureIV ${reqId}] Error saving entry:`, err.message, err.stack);
+    return {
+      success: false,
+      error: 'Unable to save the entry. Please verify your inputs and try again.',
+      reqId
+    };
   }
 }
+
+// updateAnnexureIVEntry and deleteAnnexureIVEntry replaced above
 
 // --- Component 5 ---
 export async function getComponent5Data() {

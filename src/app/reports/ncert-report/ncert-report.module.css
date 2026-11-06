@@ -1,0 +1,775 @@
+/* NCERT Report Professional Government MIS Stylesheet */
+
+.container {
+  padding: 1.5rem;
+  max-width: 100%;
+  margin: 0 auto;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #1e293b;
+  background-color: #f8fafc;
+  min-height: 100vh;
+}
+
+/* Header Section */
+.headerCard {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.headerTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.headerTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.reportIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+}
+
+.title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.25rem 0;
+  line-height: 1.25;
+}
+
+.subtitle {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.actionsGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #4f46e5;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(79, 70, 229, 0.15);
+}
+
+.btnPrimary:hover {
+  background: #4338ca;
+}
+
+.btnExcel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #16a34a;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(22, 163, 74, 0.15);
+}
+
+.btnExcel:hover {
+  background: #15803d;
+}
+
+.btnPdf {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btnPdf:hover {
+  background: #b91c1c;
+}
+
+.btnOutline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #ffffff;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btnOutline:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+/* Institutional Metadata Box (Excel Rows 2-4) */
+.metadataBox {
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  padding: 1rem 1.25rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.metaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.metaLabel {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.03em;
+}
+
+.metaValue {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* KPI Summary Cards */
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.kpiCard {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 1.15rem;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: transform 0.15s ease;
+}
+
+.kpiCard:hover {
+  transform: translateY(-2px);
+}
+
+.kpiIconWrapper {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.kpiInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.kpiLabel {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+  margin-bottom: 0.15rem;
+}
+
+.kpiValue {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.kpiSub {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 0.2rem;
+}
+
+/* Quarter Selector & Filter Controls */
+.filterRow {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 0.875rem 1.25rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.quarterTabs {
+  display: flex;
+  align-items: center;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 0.25rem;
+  gap: 0.25rem;
+}
+
+.quarterTab {
+  border: none;
+  background: transparent;
+  padding: 0.45rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quarterTab:hover {
+  color: #0f172a;
+}
+
+.quarterTabActive {
+  background: #ffffff;
+  color: #4f46e5;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.filterControls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.badgeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #475569;
+  font-weight: 500;
+}
+
+/* Master Spreadsheet Table Container */
+.tableCard {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+
+.tableToolbar {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fafafa;
+}
+
+.tableTitle {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tableLegend {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.legendDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.tableWrapper {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
+}
+
+.ncertTable {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.775rem;
+  line-height: 1.35;
+}
+
+/* Table Headers */
+.ncertTable thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  font-weight: 700;
+  text-align: center;
+  padding: 0.65rem 0.5rem;
+  border-bottom: 1px solid #cbd5e1;
+  border-right: 1px solid #e2e8f0;
+  white-space: pre-line;
+}
+
+/* Tier 1 Group Headers */
+.headGroupTimeline {
+  background: #f1f5f9;
+  color: #334155;
+  border-top: 3px solid #64748b;
+}
+
+.headGroupVideo {
+  background: #eff6ff;
+  color: #1e40af;
+  border-top: 3px solid #3b82f6;
+}
+
+.headGroupCapacity {
+  background: #f0fdf4;
+  color: #166534;
+  border-top: 3px solid #22c55e;
+}
+
+.headGroupHr {
+  background: #faf5ff;
+  color: #6b21a8;
+  border-top: 3px solid #a855f7;
+}
+
+.headGroupArchive {
+  background: #fff7ed;
+  color: #9a3412;
+  border-top: 3px solid #f97316;
+}
+
+.headGroupTelecast {
+  background: #fdf2f8;
+  color: #9d174d;
+  border-top: 3px solid #ec4899;
+}
+
+.headGroupFeedback {
+  background: #f0fdfa;
+  color: #115e59;
+  border-top: 3px solid #14b8a6;
+}
+
+.headGroupTotal {
+  background: #eef2ff;
+  color: #3730a3;
+  border-top: 3px solid #6366f1;
+}
+
+.headGroupCompliance {
+  background: #fefce8;
+  color: #854d0e;
+  border-top: 3px solid #eab308;
+}
+
+/* Tier 2 Sub-Headers */
+.subHeader {
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.725rem;
+  font-weight: 600;
+  vertical-align: bottom;
+  border-bottom: 2px solid #cbd5e1;
+}
+
+/* Sticky First 2 Columns (Quarter & Month) */
+.colQuarterSticky {
+  position: sticky !important;
+  left: 0;
+  z-index: 5 !important;
+  background: #ffffff;
+  min-width: 65px;
+  width: 65px;
+  border-right: 2px solid #cbd5e1 !important;
+  text-align: center;
+  font-weight: 700;
+}
+
+.colMonthSticky {
+  position: sticky !important;
+  left: 65px;
+  z-index: 5 !important;
+  background: #ffffff;
+  min-width: 95px;
+  width: 95px;
+  border-right: 2px solid #cbd5e1 !important;
+  font-weight: 600;
+}
+
+.headQuarterSticky {
+  position: sticky !important;
+  left: 0;
+  z-index: 20 !important;
+  background: #f8fafc;
+  border-right: 2px solid #cbd5e1 !important;
+}
+
+.headMonthSticky {
+  position: sticky !important;
+  left: 65px;
+  z-index: 20 !important;
+  background: #f8fafc;
+  border-right: 2px solid #cbd5e1 !important;
+}
+
+/* Table Body Cells */
+.ncertTable tbody td {
+  padding: 0.55rem 0.6rem;
+  border-bottom: 1px solid #f1f5f9;
+  border-right: 1px solid #f1f5f9;
+  vertical-align: middle;
+  transition: background-color 0.15s ease;
+}
+
+.ncertTable tbody tr:hover td {
+  background-color: #f8fafc;
+}
+
+.cellClickable {
+  cursor: pointer;
+  position: relative;
+}
+
+.cellClickable:hover {
+  background-color: #eff6ff !important;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.cellClickable:hover::after {
+  content: '🔍';
+  font-size: 0.65rem;
+  margin-left: 0.25rem;
+}
+
+/* Text alignments */
+.textLeft {
+  text-align: left;
+}
+
+.textCenter {
+  text-align: center;
+}
+
+.textRight {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.currencyVal {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.balanceVal {
+  font-weight: 600;
+  color: #0284c7;
+}
+
+.durationVal {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: #0f766e;
+}
+
+/* Row variations */
+.quarterSubtotalRow {
+  background: #f1f5f9 !important;
+  font-weight: 700;
+  border-top: 1px solid #cbd5e1;
+  border-bottom: 2px solid #cbd5e1;
+}
+
+.quarterSubtotalRow td {
+  background: #f1f5f9 !important;
+  color: #1e293b;
+  padding: 0.65rem 0.6rem !important;
+}
+
+.grandTotalRow {
+  background: #e0e7ff !important;
+  font-weight: 800;
+  border-top: 2px solid #4f46e5;
+  border-bottom: 2px solid #4f46e5;
+}
+
+.grandTotalRow td {
+  background: #e0e7ff !important;
+  color: #1e1b4b;
+  font-size: 0.825rem;
+  padding: 0.75rem 0.6rem !important;
+}
+
+/* Compliance Badges */
+.badgeSuccess {
+  display: inline-block;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.badgeWarning {
+  display: inline-block;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  background: #fef9c3;
+  color: #a16207;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.badgeMuted {
+  display: inline-block;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
+/* Interactive Drill-Down Modal */
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.modalDialog {
+  background: #ffffff;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 860px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  animation: scaleUp 0.15s ease-out;
+  overflow: hidden;
+}
+
+.modalHeader {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fafafa;
+}
+
+.modalTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.modalTitle {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.modalCloseBtn {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.35rem;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.modalCloseBtn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.modalBody {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modalFooter {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+  background: #fafafa;
+}
+
+/* Analytics & Insights Section */
+.analyticsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.chartCard {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.insightsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.insightItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.insightCheck {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #16a34a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Print Styles */
+@media print {
+  .actionsGroup,
+  .filterRow,
+  .modalBackdrop,
+  .tableToolbar {
+    display: none !important;
+  }
+
+  .container {
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .headerCard,
+  .tableCard {
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .ncertTable thead th {
+    position: static !important;
+  }
+
+  .colQuarterSticky,
+  .colMonthSticky,
+  .headQuarterSticky,
+  .headMonthSticky {
+    position: static !important;
+  }
+}
+

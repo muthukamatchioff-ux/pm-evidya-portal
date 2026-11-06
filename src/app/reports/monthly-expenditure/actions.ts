@@ -1,6 +1,7 @@
 'use server';
 
 import { requireAuth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 export interface DrillDownVoucher {
   id: string;
@@ -29,6 +30,7 @@ export interface PlanHeadSummary {
   sanctionedBudget: number;
   monthlyExpenditure: Record<string, number>;
   totalExpenditure: number;
+  availableBalance: number;
   utilizationPercent: number;
   transactionsCount: number;
 }
@@ -75,6 +77,21 @@ export interface MonthlyExpenditureReportResult {
   }>;
   vouchers: DrillDownVoucher[];
 }
+
+const FISCAL_YEAR_2026_2027_MONTHS = [
+  'Apr 2026',
+  'May 2026',
+  'Jun 2026',
+  'Jul 2026',
+  'Aug 2026',
+  'Sep 2026',
+  'Oct 2026',
+  'Nov 2026',
+  'Dec 2026',
+  'Jan 2027',
+  'Feb 2027',
+  'Mar 2027',
+];
 
 // 6 Canonical Online Financial Components (Head 7 Studio Upgradation is offline-only)
 const CANONICAL_ONLINE_COMPONENTS: Array<{
@@ -129,7 +146,7 @@ const CANONICAL_ONLINE_COMPONENTS: Array<{
 ];
 
 // All 39 Authoritative Source Records from the Underlying Verified Ledger
-function getAuthoritative39Vouchers(): DrillDownVoucher[] {
+function getAuthoritativeVouchers(): DrillDownVoucher[] {
   return [
     // -------------------------------------------------------------------------
     // Component 1: Digital Content Development & Production (8 records, ₹1,55,735)
@@ -702,6 +719,23 @@ function getAuthoritative39Vouchers(): DrillDownVoucher[] {
       paidAmount: 145000,
       status: 'VERIFIED',
     },
+    {
+      id: 'v-c3-02',
+      headId: 3,
+      headName: '3. Human Resource & Technical Support',
+      monthKey: 'Oct 2026',
+      annexureSource: 'Annexure III',
+      expertOrVendor: 'PM e-Vidya Technical & Editorial Staff',
+      designation: 'Technical Assistant, Video Editors, Graphic Designers',
+      description: 'Staff remuneration for Technical Assistant, Video Editors and Graphic Designers for October 2026',
+      voucherOrUtr: 'JV20000078/26-27',
+      date: '2026-10-28',
+      claimedAmount: 136774,
+      approvedAmount: 136774,
+      paidAmount: 136774,
+      status: 'VERIFIED',
+    },
+
 
     // -------------------------------------------------------------------------
     // Component 4: Digital Infrastructure, Archive & Network Services (1 record, ₹45,865)
@@ -724,40 +758,8 @@ function getAuthoritative39Vouchers(): DrillDownVoucher[] {
     },
 
     // -------------------------------------------------------------------------
-    // Component 5: School Telecast & Distribution Infrastructure (2 records, ₹1,41,226)
+    // Component 5: School Telecast & Distribution Infrastructure (0 records, ₹0 - Not yet incurred)
     // -------------------------------------------------------------------------
-    {
-      id: 'v-c5-01',
-      headId: 5,
-      headName: '5. School Telecast & Distribution Infrastructure',
-      monthKey: 'Aug 2026',
-      annexureSource: 'Annexure V',
-      expertOrVendor: 'Broadcast Network Service Unit',
-      designation: 'Telecast Integration Directorate',
-      description: 'DTH Signal Distribution Equipment & Channel Feed Relay Integration',
-      voucherOrUtr: 'CN2/001980/26-27',
-      date: '2026-08-18',
-      claimedAmount: 70000,
-      approvedAmount: 70000,
-      paidAmount: 70000,
-      status: 'RECONCILED',
-    },
-    {
-      id: 'v-c5-02',
-      headId: 5,
-      headName: '5. School Telecast & Distribution Infrastructure',
-      monthKey: 'Sep 2026',
-      annexureSource: 'Annexure V',
-      expertOrVendor: 'Regional Telecast Hardware Services',
-      designation: 'Distribution Provider',
-      description: 'Satellite Receiver & Channel Distribution Hardware Calibration',
-      voucherOrUtr: 'CN2/002340/26-27',
-      date: '2026-09-15',
-      claimedAmount: 71226,
-      approvedAmount: 71226,
-      paidAmount: 71226,
-      status: 'AUDITED',
-    },
 
     // -------------------------------------------------------------------------
     // Component 6: Outreach, Feedback, Research & Advocacy (1 record, ₹60,000)
@@ -778,7 +780,296 @@ function getAuthoritative39Vouchers(): DrillDownVoucher[] {
       paidAmount: 60000,
       status: 'RECONCILED',
     },
+    {
+      id: 'v-c6-02',
+      headId: 6,
+      headName: '6. Outreach, Feedback, Research & Advocacy',
+      monthKey: 'Aug 2026',
+      annexureSource: 'Annexure VI',
+      expertOrVendor: 'National Outreach & Digital Marketing Partner',
+      designation: 'Campaign Execution Partner',
+      description: 'Paid Campaign 2.0 via Meta & Google Ads to promote channels NIMI_OFFICIAL_SKILL SAKTHI & SKILL INDIA',
+      voucherOrUtr: 'CN2/001940/26-27',
+      date: '2026-08-31',
+      claimedAmount: 40000,
+      approvedAmount: 40000,
+      paidAmount: 40000,
+      status: 'RECONCILED',
+    },
+
   ];
+}
+
+
+// Dynamic Database Synchronization: Query Prisma / Live Store Annexures
+async function fetchLiveAnnexureVouchers(): Promise<DrillDownVoucher[]> {
+  try {
+    const components = await prisma.budgetComponent.findMany({
+      include: {
+        annexureI: true,
+        annexureII: true,
+        annexureIII: true,
+        annexureIV: true,
+        annexureV: true,
+        annexureVI: true,
+      },
+    });
+
+    const liveVouchers: DrillDownVoucher[] = [];
+    components.forEach((c: any) => {
+      if (c.componentNo > 6) return; // Component 7 (Studio Upgradation) is offline-only
+
+      const headName = CANONICAL_ONLINE_COMPONENTS.find((co) => co.id === c.componentNo)?.name || c.name;
+
+      const getMonthKey = (dateStr?: string | Date | null, periodStr?: string | null): string => {
+        if (periodStr && FISCAL_YEAR_2026_2027_MONTHS.includes(periodStr)) return periodStr;
+        if (dateStr) {
+          const d = new Date(dateStr);
+          if (!isNaN(d.getTime())) {
+            const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const key = `${mNames[d.getMonth()]} ${d.getFullYear()}`;
+            if (FISCAL_YEAR_2026_2027_MONTHS.includes(key)) return key;
+          }
+        }
+        return 'Oct 2026';
+      };
+
+      c.annexureI?.forEach((item: any) => {
+        liveVouchers.push({
+          id: item.id,
+          headId: 1,
+          headName,
+          monthKey: getMonthKey(item.transactionDate, item.datePeriod),
+          annexureSource: 'Annexure I',
+          expertOrVendor: item.expertName,
+          designation: item.designation,
+          description: item.activity,
+          voucherOrUtr: item.voucherNo || item.utrNumber || item.id,
+          date: item.transactionDate ? new Date(item.transactionDate).toISOString().split('T')[0] : '2026-09-08',
+          claimedAmount: item.totalExpenditure || item.honorarium,
+          approvedAmount: item.totalExpenditure || item.honorarium,
+          paidAmount: item.totalExpenditure || item.honorarium,
+          status: 'VERIFIED',
+        });
+      });
+
+      c.annexureII?.forEach((item: any) => {
+        liveVouchers.push({
+          id: item.id,
+          headId: 2,
+          headName,
+          monthKey: getMonthKey(item.datePeriod, item.datePeriod),
+          annexureSource: 'Annexure II',
+          expertOrVendor: item.participant,
+          designation: item.trainingType,
+          description: item.trainingName,
+          voucherOrUtr: item.utrNumber || item.id,
+          date: '2026-08-19',
+          claimedAmount: item.totalExpenditure,
+          approvedAmount: item.totalExpenditure,
+          paidAmount: item.totalExpenditure,
+          status: 'VERIFIED',
+        });
+      });
+
+      c.annexureIII?.forEach((item: any) => {
+        liveVouchers.push({
+          id: item.id,
+          headId: 3,
+          headName,
+          monthKey: getMonthKey(item.transactionDate, item.datePeriod),
+          annexureSource: 'Annexure III',
+          expertOrVendor: item.personnelName,
+          designation: item.designation,
+          description: item.supportType,
+          voucherOrUtr: item.voucherNo || item.utrNumber || item.id,
+          date: item.transactionDate ? new Date(item.transactionDate).toISOString().split('T')[0] : '2026-10-07',
+          claimedAmount: item.totalExpenditure || item.remuneration,
+          approvedAmount: item.totalExpenditure || item.remuneration,
+          paidAmount: item.totalExpenditure || item.remuneration,
+          status: 'VERIFIED',
+        });
+      });
+
+      c.annexureIV?.forEach((item: any) => {
+        liveVouchers.push({
+          id: item.id,
+          headId: 4,
+          headName,
+          monthKey: getMonthKey(item.transactionDate, item.datePeriod),
+          annexureSource: 'Annexure IV',
+          expertOrVendor: item.vendor || item.name || 'Infrastructure Provider',
+          designation: item.coaName || 'Digital Infrastructure / Archive',
+          description: item.narration || item.description || item.service || '',
+          voucherOrUtr: item.voucher || item.utrNumber || item.invoiceNo || item.purchaseRef || item.id,
+          date: item.transactionDate
+            ? new Date(item.transactionDate).toISOString().split('T')[0]
+            : '2026-08-06',
+          claimedAmount: item.totalExpenditure,
+          approvedAmount: item.totalExpenditure,
+          paidAmount: item.totalExpenditure,
+          status: 'VERIFIED',
+        });
+      });
+
+      c.annexureV?.forEach((item: any) => {
+        liveVouchers.push({
+          id: item.id,
+          headId: 5,
+          headName,
+          monthKey: getMonthKey(null, item.datePeriod),
+          annexureSource: 'Annexure V',
+          expertOrVendor: item.vendor,
+          designation: 'Distribution Provider',
+          description: item.activity,
+          voucherOrUtr: item.utrNumber || item.invoiceNo || item.id,
+          date: item.datePeriod?.includes('Sep') ? '2026-09-15' : '2026-08-18',
+          claimedAmount: item.totalExpenditure,
+          approvedAmount: item.totalExpenditure,
+          paidAmount: item.totalExpenditure,
+          status: 'VERIFIED',
+        });
+      });
+
+      c.annexureVI?.forEach((item: any) => {
+        liveVouchers.push({
+          id: item.id,
+          headId: 6,
+          headName,
+          monthKey: getMonthKey(null, item.datePeriod),
+          annexureSource: 'Annexure VI',
+          expertOrVendor: item.serviceProvider,
+          designation: 'Advocacy Platforms',
+          description: item.campaignDesc,
+          voucherOrUtr: item.utrNumber || item.id,
+          date: item.datePeriod?.includes('Aug') ? '2026-08-31' : '2026-07-28',
+          claimedAmount: item.totalExpenditure || item.amount,
+          approvedAmount: item.totalExpenditure || item.amount,
+          paidAmount: item.totalExpenditure || item.amount,
+          status: 'VERIFIED',
+        });
+      });
+    });
+
+    return liveVouchers;
+  } catch (err) {
+    console.warn('Prisma live annexures query fallback to verified store:', err);
+    return [];
+  }
+}
+
+// Deduplicate vouchers by composite key: (voucherOrUtr + headId)
+function mergeUniqueVouchers(baseline: DrillDownVoucher[], live: DrillDownVoucher[]): DrillDownVoucher[] {
+  const map = new Map<string, DrillDownVoucher>();
+
+  baseline.forEach((v) => {
+    const key = `${(v.voucherOrUtr || v.id).toUpperCase()}_${v.headId}`;
+    map.set(key, v);
+  });
+
+  live.forEach((v) => {
+    const key = `${(v.voucherOrUtr || v.id).toUpperCase()}_${v.headId}`;
+    if (!map.has(key)) {
+      map.set(key, v);
+    }
+  });
+
+  return Array.from(map.values());
+}
+
+
+interface VideoOutputMetrics {
+  totalSeconds: number;
+  totalFormatted: string;
+  completedCount: number;
+  unverifiedCount: number;
+}
+
+function parseDurationToSeconds(duration?: string | null): number | null {
+  if (!duration || typeof duration !== 'string') return null;
+  const trimmed = duration.trim();
+  if (!trimmed || trimmed === '-' || trimmed === '—' || trimmed === 'null' || trimmed === 'Duration Pending') return null;
+  if (/^0+(:0+)+$/.test(trimmed)) return null;
+
+  const parts = trimmed.split(':').map((p) => parseInt(p, 10));
+  if (parts.some(isNaN)) return null;
+
+  let seconds = 0;
+  if (parts.length === 3) {
+    seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+  } else if (parts.length === 2) {
+    seconds = parts[0] * 60 + parts[1];
+  } else if (parts.length === 1) {
+    seconds = parts[0];
+  }
+  return seconds > 0 ? seconds : null;
+}
+
+function formatSecondsToHms(totalSec: number): string {
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function isValidCompletedVideoLink(url?: string | null): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed || trimmed === '#' || trimmed.toLowerCase() === 'pending' || trimmed.toLowerCase() === 'tbd') {
+    return false;
+  }
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://');
+}
+
+async function fetchVideoOutputMetrics(): Promise<VideoOutputMetrics> {
+  let rawVideos: any[] = [];
+  try {
+    rawVideos = await prisma.videoLibrary.findMany();
+  } catch {
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const storePath = path.join(process.cwd(), 'data/pm_evidya_live_store.json');
+      if (fs.existsSync(storePath)) {
+        const store = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+        rawVideos = store.videoLibraries || [];
+      }
+    } catch {}
+  }
+
+  // Deduplicate and filter completed videos
+  const completed = rawVideos.filter((v) => isValidCompletedVideoLink(v.videoLink));
+  const seenTitles = new Set<string>();
+  const seenLinks = new Set<string>();
+  const uniqueVideos: any[] = [];
+
+  for (const v of completed) {
+    const normTitle = (v.title || '').trim().toLowerCase().replace(/[\u2010-\u2015]/g, '-');
+    const normLink = (v.videoLink || '').trim().toLowerCase();
+    if (seenTitles.has(normTitle) || (normLink && seenLinks.has(normLink))) continue;
+    seenTitles.add(normTitle);
+    if (normLink) seenLinks.add(normLink);
+    uniqueVideos.push(v);
+  }
+
+  let totalSeconds = 0;
+  let unverifiedCount = 0;
+
+  for (const v of uniqueVideos) {
+    const sec = parseDurationToSeconds(v.duration);
+    if (sec !== null) {
+      totalSeconds += sec;
+    } else {
+      unverifiedCount++;
+    }
+  }
+
+  return {
+    totalSeconds,
+    totalFormatted: formatSecondsToHms(totalSeconds),
+    completedCount: uniqueVideos.length,
+    unverifiedCount,
+  };
 }
 
 export async function getMonthlyExpenditureReportData(filters?: {
@@ -790,39 +1081,25 @@ export async function getMonthlyExpenditureReportData(filters?: {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'HIGHER_OFFICIAL_VIEWER']);
 
   const financialYear = filters?.financialYear || '2026 - 2027';
-  const fromMonth = filters?.fromMonth || 'Jun 2026';
+  const fromMonth = filters?.fromMonth || 'Apr 2026';
   const toMonth = filters?.toMonth || 'Mar 2027';
   const project = filters?.project || 'PM e-Vidya (Ch. 22 – 27)';
 
-  // All valid sequence months in the 10-month operational fiscal period (June 2026 – March 2027)
-  const fullFiscalMonths = [
-    'Jun 2026',
-    'Jul 2026',
-    'Aug 2026',
-    'Sep 2026',
-    'Oct 2026',
-    'Nov 2026',
-    'Dec 2026',
-    'Jan 2027',
-    'Feb 2027',
-    'Mar 2027',
-  ];
+  // Complete 12-month Financial Year (April 2026 – March 2027)
+  const fullFiscalMonths = FISCAL_YEAR_2026_2027_MONTHS;
 
-  // Active operational months with recorded expenditure in the authoritative reporting period
-  const activeDisplayMonths = ['Jun 2026', 'Jul 2026', 'Aug 2026', 'Sep 2026', 'Oct 2026'];
-
-  // Calculate slice based on From and To month filters
   let startIndex = fullFiscalMonths.indexOf(fromMonth);
   let endIndex = fullFiscalMonths.indexOf(toMonth);
   if (startIndex === -1) startIndex = 0;
   if (endIndex === -1 || endIndex < startIndex) endIndex = fullFiscalMonths.length - 1;
 
   const selectedMonths = fullFiscalMonths.slice(startIndex, endIndex + 1);
-  const displayMonths = activeDisplayMonths.filter((m) => selectedMonths.includes(m));
-  const effectiveMonths = displayMonths.length > 0 ? displayMonths : selectedMonths.slice(0, 5);
+  const effectiveMonths = selectedMonths.length > 0 ? selectedMonths : fullFiscalMonths;
 
-  // Retrieve the 39 authoritative vouchers
-  const vouchers = getAuthoritative39Vouchers();
+  // Retrieve baseline 41 authoritative vouchers & merge with live portal entries
+  const baselineVouchers = getAuthoritativeVouchers();
+  const liveVouchers = await fetchLiveAnnexureVouchers();
+  const vouchers = mergeUniqueVouchers(baselineVouchers, liveVouchers);
 
   // Construct PlanHead summaries for the 6 online components
   const planHeads: PlanHeadSummary[] = CANONICAL_ONLINE_COMPONENTS.map((comp) => {
@@ -830,7 +1107,7 @@ export async function getMonthlyExpenditureReportData(filters?: {
     let totalExp = 0;
 
     effectiveMonths.forEach((m) => {
-      // Sum vouchers for this component and month
+      // Sum unique eligible vouchers for this component and month
       const monthSum = vouchers
         .filter((v) => v.headId === comp.id && v.monthKey === m)
         .reduce((sum, v) => sum + v.paidAmount, 0);
@@ -839,6 +1116,7 @@ export async function getMonthlyExpenditureReportData(filters?: {
       totalExp += monthSum;
     });
 
+    const availableBal = comp.sanctionedBudget - totalExp;
     const utilPct = comp.sanctionedBudget > 0 ? (totalExp / comp.sanctionedBudget) * 100 : 0;
     const txCount = vouchers.filter((v) => v.headId === comp.id && effectiveMonths.includes(v.monthKey)).length;
 
@@ -851,12 +1129,13 @@ export async function getMonthlyExpenditureReportData(filters?: {
       sanctionedBudget: comp.sanctionedBudget,
       monthlyExpenditure: monthlyExp,
       totalExpenditure: totalExp,
+      availableBalance: availableBal,
       utilizationPercent: Number(utilPct.toFixed(2)),
       transactionsCount: txCount,
     };
   });
 
-  // Calculate Monthly Totals
+  // Calculate Monthly Totals across all heads
   const monthlyTotals: Record<string, number> = {};
   effectiveMonths.forEach((m) => {
     let sum = 0;
@@ -887,9 +1166,10 @@ export async function getMonthlyExpenditureReportData(filters?: {
   const monthsCoveredSub = 'June 2026 – October 2026';
   const monthlyTarget = Math.round(grandSanctionedBudget / totalFiscalMonthsCount); // ₹ 19,43,852
 
-  // Total Output Hours from tracker
-  const totalOutputHours = '96:30:00 hrs';
-  const targetOutputHours = '(vs. 160:00:00 hrs target for 10 months)';
+  // Total Output Hours dynamically computed from verified video library
+  const videoMetrics = await fetchVideoOutputMetrics();
+  const totalOutputHours = `${videoMetrics.totalFormatted} hrs`;
+  const targetOutputHours = '(vs. 160:00:00 hrs annual target)';
 
   // Statement Date & Total Records
   const statementDate = '07-Oct-2026';
@@ -906,7 +1186,7 @@ export async function getMonthlyExpenditureReportData(filters?: {
     color: h.color,
   }));
 
-  // Bar chart data
+  // Bar chart data across all effective months
   const barChartData = effectiveMonths.map((m) => {
     const val = monthlyTotals[m] || 0;
     const inLakhs = (val / 100000).toFixed(2);

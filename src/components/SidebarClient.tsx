@@ -292,6 +292,14 @@ export default function SidebarClient({
                         <span>Monthly Expenditure</span>
                       </Link>
                       <Link
+                        href="/reports/ncert-report"
+                        onClick={closeMobile}
+                        className={`${styles.subNavLink} ${pathname === '/reports/ncert-report' ? styles.activeSub : ''}`}
+                      >
+                        <span style={{ fontSize: '11px', opacity: 0.7 }}>•</span>
+                        <span>NCERT Report</span>
+                      </Link>
+                      <Link
                         href="/reports?type=head_wise"
                         onClick={closeMobile}
                         className={`${styles.subNavLink} ${pathname === '/reports' && searchParams.get('type') === 'head_wise' ? styles.activeSub : ''}`}

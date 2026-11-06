@@ -638,10 +638,12 @@ function handleMemoryFallback(model: string, operation: string, args: any): any 
   // ANNEXURE IV (Component 4 - Digital Infrastructure, Archive & Network)
   // =======================================================================
   if (model === 'AnnexureIV') {
-    const list = (liveStore.budgetComponents[3]?.annexureIV || []) as any[];
+    const targetComp4 = liveStore.budgetComponents.find((c: any) => c.componentNo === 4) || liveStore.budgetComponents[3];
+    if (targetComp4 && !targetComp4.annexureIV) targetComp4.annexureIV = [];
+    const list = (targetComp4?.annexureIV || []) as any[];
     if (operation === 'findMany') return list;
     if (operation === 'deleteMany') {
-      liveStore.budgetComponents[3].annexureIV = [];
+      if (targetComp4) targetComp4.annexureIV = [];
       persistLiveStore();
       return { count: 0 };
     }

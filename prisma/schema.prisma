@@ -392,14 +392,14 @@ model AnnexureIII {
 model AnnexureIV {
   id                 String          @id @default(cuid())
   budgetComponentId  String
-  datePeriod         String
-  service            String
-  description        String
-  vendor             String
-  purchaseRef        String
+  datePeriod         String          @default("")
+  service            String          @default("")
+  description        String          @default("")
+  vendor             String          @default("")
+  purchaseRef        String          @default("")
   quantity           Int             @default(1)
   unitCost           Float           @default(0)
-  servicePeriod      String
+  servicePeriod      String          @default("")
   infrastructureCost Float           @default(0)
   bandwidthCost      Float           @default(0)
   archiveCost        Float           @default(0)
@@ -412,6 +412,16 @@ model AnnexureIV {
   verificationStatus String          @default("DRAFT")
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
+
+  // CoA-based Accounting Entry Fields (Additive, Backward-Compatible)
+  coaCode            String?
+  coaName            String?
+  transactionDate    DateTime?
+  txnType            String?
+  voucher            String?
+  narration          String?
+  transcriptionNote  String?
+
   budgetComponent    BudgetComponent @relation(fields: [budgetComponentId], references: [id], onDelete: Cascade)
 }
 

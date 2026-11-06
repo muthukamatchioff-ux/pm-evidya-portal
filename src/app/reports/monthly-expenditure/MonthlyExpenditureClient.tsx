@@ -99,93 +99,118 @@ export default function MonthlyExpenditureClient({ initialData }: Props) {
     });
   };
 
+  const handleExportPdf = () => {
+    const originalTitle = document.title;
+    document.title = 'PM_eVidya_Monthly_Expenditure_Report_2026-2027';
+    window.print();
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 1000);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
   // Excel Export Handler
   const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();
 
-    // Sheet 1: Monthly Summary
-    const summaryRows: any[] = [];
-    // Header
+    const monthCols = data.activeMonths;
     const headers = [
       'Sl. No.',
       'Plan Head / Activity',
-      ...data.activeMonths,
+      ...monthCols,
       'Total Expenditure (₹)',
       'Sanctioned Budget (₹)',
-      '% Utilization',
+      'Available Balance (₹)',
+      'Utilization %',
     ];
-    summaryRows.push(headers);
 
+    const summaryRows: any[] = [headers];
+
+    // Data Rows (Head 1 to 6)
     data.planHeads.forEach((h, idx) => {
+      const rowNum = idx + 2; // Excel 1-based row index (Header is row 1)
+      const startCol = 'C';
+      const endCol = String.fromCharCode('C'.charCodeAt(0) + monthCols.length - 1);
+      const totalCol = String.fromCharCode('C'.charCodeAt(0) + monthCols.length);
+      const budgetCol = String.fromCharCode('C'.charCodeAt(0) + monthCols.length + 1);
+      const balCol = String.fromCharCode('C'.charCodeAt(0) + monthCols.length + 2);
+
       const row = [
         idx + 1,
         h.name,
-        ...data.activeMonths.map((m) => h.monthlyExpenditure[m] || 0),
-        h.totalExpenditure,
+        ...monthCols.map((m) => h.monthlyExpenditure[m] || 0),
+        { t: 'n', v: h.totalExpenditure, f: `SUM(${startCol}${rowNum}:${endCol}${rowNum})` },
         h.sanctionedBudget,
-        `${h.utilizationPercent}%`,
+        { t: 'n', v: h.availableBalance, f: `${budgetCol}${rowNum}-${totalCol}${rowNum}` },
+        { t: 'n', v: Number(h.utilizationPercent.toFixed(2)), f: `ROUND((${totalCol}${rowNum}/${budgetCol}${rowNum})*100, 2)` },
       ];
       summaryRows.push(row);
     });
 
-    // Grand Total Row
-    summaryRows.push([
+    // Grand Total Row (Row 8)
+    const totalRowNum = data.planHeads.length + 2;
+    const lastDataRowNum = data.planHeads.length + 1;
+    const startCol = 'C';
+    const endCol = String.fromCharCode('C'.charCodeAt(0) + monthCols.length - 1);
+    const totalCol = String.fromCharCode('C'.charCodeAt(0) + monthCols.length);
+    const budgetCol = String.fromCharCode('C'.charCodeAt(0) + monthCols.length + 1);
+
+    const totalRow = [
       '',
       'TOTAL',
-      ...data.activeMonths.map((m) => data.monthlyTotals[m] || 0),
-      data.grandTotalExpenditure,
-      data.grandSanctionedBudget,
-      `${data.overallUtilizationPercent}%`,
-    ]);
+      ...monthCols.map((m, mIdx) => {
+        const colLetter = String.fromCharCode('C'.charCodeAt(0) + mIdx);
+        return {
+          t: 'n',
+          v: data.monthlyTotals[m] || 0,
+          f: `SUM(${colLetter}2:${colLetter}${lastDataRowNum})`,
+        };
+      }),
+      {
+        t: 'n',
+        v: data.grandTotalExpenditure,
+        f: `SUM(${totalCol}2:${totalCol}${lastDataRowNum})`,
+      },
+      {
+        t: 'n',
+        v: data.grandSanctionedBudget,
+        f: `SUM(${budgetCol}2:${budgetCol}${lastDataRowNum})`,
+      },
+      {
+        t: 'n',
+        v: data.balanceAvailable,
+        f: `${budgetCol}${totalRowNum}-${totalCol}${totalRowNum}`,
+      },
+      {
+        t: 'n',
+        v: Number(data.overallUtilizationPercent.toFixed(2)),
+        f: `ROUND((${totalCol}${totalRowNum}/${budgetCol}${totalRowNum})*100, 2)`,
+      },
+    ];
+    summaryRows.push(totalRow);
 
     const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
-    XLSX.utils.book_append_sheet(wb, wsSummary, 'Monthly Summary');
 
-    // Sheet 2: Voucher Ledger Details
-    const voucherRows: any[] = [
-      [
-        'S.No',
-        'Plan Head',
-        'Month',
-        'Annexure Source',
-        'Resource Person / Vendor',
-        'Designation',
-        'Description / Activity',
-        'Reference / UTR No.',
-        'Date',
-        'Claimed (₹)',
-        'Approved (₹)',
-        'Disbursed (₹)',
-        'Status',
-      ],
+    // Set professional column widths
+    wsSummary['!cols'] = [
+      { wch: 8 },  // Sl. No.
+      { wch: 54 }, // Plan Head / Activity
+      ...monthCols.map(() => ({ wch: 14 })), // Month columns
+      { wch: 24 }, // Total Expenditure (₹)
+      { wch: 24 }, // Sanctioned Budget (₹)
+      { wch: 24 }, // Available Balance (₹)
+      { wch: 16 }, // Utilization %
     ];
 
-    data.vouchers.forEach((v, idx) => {
-      voucherRows.push([
-        idx + 1,
-        v.headName,
-        v.monthKey,
-        v.annexureSource,
-        v.expertOrVendor,
-        v.designation,
-        v.description,
-        v.voucherOrUtr,
-        v.date,
-        v.claimedAmount,
-        v.approvedAmount,
-        v.paidAmount,
-        v.status,
-      ]);
-    });
+    // EXACTLY ONE WORKSHEET: 'Monthly Summary'
+    // 'Voucher Audit Ledger' worksheet is completely excluded
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Monthly Summary');
 
-    const wsVouchers = XLSX.utils.aoa_to_sheet(voucherRows);
-    XLSX.utils.book_append_sheet(wb, wsVouchers, 'Voucher Audit Ledger');
-
-    // Download file
-    XLSX.writeFile(
-      wb,
-      `PM_eVidya_Monthly_Expenditure_Report_${financialYear.replace(/\s+/g, '')}.xlsx`
-    );
+    // Download authoritative workbook
+    XLSX.writeFile(wb, 'PM_eVidya_Monthly_Expenditure_Report_2026-2027.xlsx');
   };
 
   const handleExportDrillDownExcel = () => {
@@ -246,6 +271,25 @@ export default function MonthlyExpenditureClient({ initialData }: Props) {
 
   return (
     <div className={styles.container}>
+      {/* Dedicated Print-Only Official NIMI Header Banner */}
+      <div className={styles.printHeaderBanner}>
+        <div className={styles.printGovHeading}>
+          GOVERNMENT OF INDIA &bull; MINISTRY OF SKILL DEVELOPMENT & ENTREPRENEURSHIP
+        </div>
+        <div className={styles.printOrgHeading}>
+          NATIONAL INSTRUCTIONAL MEDIA INSTITUTE (NIMI), CHENNAI
+        </div>
+        <div className={styles.printProjectHeading}>
+          PM e-Vidya Project (DTH Channels 22 – 27) &bull; Monthly Expenditure Statement (FY 2026–2027)
+        </div>
+        <div className={styles.printMetaBar}>
+          <span><strong>Reporting Window:</strong> {data.monthsCoveredSub} ({data.monthsCoveredStr})</span>
+          <span><strong>Authoritative Baseline:</strong> Verified Vouchers ({data.totalRecordsCount} Records)</span>
+          <span><strong>Statement Date:</strong> {data.statementDate}</span>
+          <span><strong>Output Generated:</strong> {data.totalOutputHours} (Target: 160:00:00 hrs)</span>
+        </div>
+      </div>
+
       {/* Top Header */}
       <div className={styles.pageHeader}>
         <div className={styles.titleArea}>
@@ -370,7 +414,7 @@ export default function MonthlyExpenditureClient({ initialData }: Props) {
               ₹ {formatInr(data.grandSanctionedBudget)}
             </span>
             <span className={styles.metricSubtext} style={{ color: '#64748b' }}>
-              (June 2026 – March 2027)
+              (April 2026 – March 2027)
             </span>
           </div>
         </div>

@@ -359,6 +359,49 @@ export default function ReportsClient({
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
       
+      {/* SECTION 0A: NCERT Report Banner (100% Template-Based Automated MIS Tracker) */}
+      <div className={styles.sectionCard} style={{ gridColumn: '1 / -1', border: '2px solid #059669', background: 'linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%)', boxShadow: '0 4px 12px rgba(5, 150, 105, 0.08)' }}>
+        <div className={styles.sectionTitle} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '24px' }}>📗</span>
+            <span style={{ fontSize: '18px', fontWeight: 800, color: '#064e3b' }}>PM e-Vidya — NCERT Report (Monthly & Quarterly Activity & Fund Tracker)</span>
+          </div>
+          <span style={{ fontSize: '12px', fontWeight: 700, background: '#d1fae5', color: '#065f46', padding: '4px 12px', borderRadius: '12px', border: '1px solid #a7f3d0' }}>
+            Authoritative 45-Column Template &bull; MSDE Channels 22 to 27 &bull; FY 2026-2027
+          </span>
+        </div>
+        <p style={{ color: '#334155', marginBottom: '16px', fontSize: '14px' }}>
+          Official 45-column spreadsheet report replicating <strong>Tracker-PM eVidya Fund to States, UTs ABs.xlsx</strong> with 100% fidelity. Includes dynamic video duration tracking, capacity building logs, HR staffing matrix, school telecast setups, and native formula-preserved Excel/PDF exports.
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', background: '#ffffff', padding: '12px 18px', borderRadius: '8px', border: '1px solid #a7f3d0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap', fontSize: '13px' }}>
+            <div><span style={{ color: '#64748b' }}>Sanctioned:</span> <strong style={{ color: '#0f172a' }}>₹ 1,97,00,000</strong></div>
+            <div><span style={{ color: '#64748b' }}>Fund Utilized:</span> <strong style={{ color: '#059669' }}>₹ 7,58,795 (3.85%)</strong></div>
+            <div><span style={{ color: '#64748b' }}>Video Content:</span> <strong style={{ color: '#2563eb' }}>84 Videos (35:18:43 hrs)</strong></div>
+            <div><span style={{ color: '#64748b' }}>Capacity Building:</span> <strong style={{ color: '#7c3aed' }}>35 Master Trainers</strong></div>
+            <div><span style={{ color: '#64748b' }}>HR Posts:</span> <strong style={{ color: '#d97706' }}>3 Filled / 10 Approved</strong></div>
+          </div>
+          <Link
+            href="/reports/ncert-report"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '9px 18px',
+              background: '#059669',
+              color: '#ffffff',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: 700,
+              textDecoration: 'none',
+              boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)'
+            }}
+          >
+            <span>Open NCERT Report &rarr;</span>
+          </Link>
+        </div>
+      </div>
+
       {/* SECTION 0: Monthly Expenditure Report Banner */}
       <div className={styles.sectionCard} style={{ gridColumn: '1 / -1', border: '2px solid #6366f1', background: 'linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%)', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.08)' }}>
         <div className={styles.sectionTitle} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
