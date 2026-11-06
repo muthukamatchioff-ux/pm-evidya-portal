@@ -12,12 +12,7 @@ export default function Component5Client({ role, budgetComponentId, entries }: {
 
   useEffect(() => {
     if (entries && Array.isArray(entries)) {
-      setRecords(prev => {
-        const filteredIncoming = entries.filter((e: any) => !deletedIds.has(e.id));
-        const incomingMap = new Map(filteredIncoming.map((e: any) => [e.id, e]));
-        const preservedLocals = prev.filter((p: any) => !incomingMap.has(p.id) && !deletedIds.has(p.id));
-        return [...filteredIncoming, ...preservedLocals];
-      });
+      setRecords(entries.filter((e: any) => !deletedIds.has(e.id)));
     }
   }, [entries, deletedIds]);
 

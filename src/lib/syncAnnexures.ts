@@ -62,7 +62,7 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
     const comp2NeedsSync = force || (!comp2.annexureII || comp2.annexureII.length === 0);
     const comp3NeedsSync = force || (!comp3.annexureIII || comp3.annexureIII.length === 0);
     const comp4NeedsSync = force || (!comp4.annexureIV || comp4.annexureIV.length === 0);
-    const comp5NeedsSync = force || (!comp5.annexureV || comp5.annexureV.length === 0);
+    const comp5NeedsSync = false; // Head 5 has ₹0 baseline expenditure; records only exist if added by user
     const comp6NeedsSync = force || (!comp6.annexureVI || comp6.annexureVI.length === 0);
 
     if (!comp1NeedsSync && !comp2NeedsSync && !comp3NeedsSync && !comp4NeedsSync && !comp5NeedsSync && !comp6NeedsSync) {

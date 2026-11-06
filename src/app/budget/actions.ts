@@ -103,13 +103,7 @@ export async function getBudgetComponents(options?: { summaryOnly?: boolean }) {
         }
       }
 
-      let annexureVData = comp.annexureV;
-      if (comp.componentNo === 5 && (!comp.annexureV || comp.annexureV.length === 0)) {
-        const c5Fallback = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 5);
-        if (c5Fallback && c5Fallback.annexureV) {
-          annexureVData = c5Fallback.annexureV;
-        }
-      }
+      let annexureVData = comp.annexureV || [];
 
       const unutilized = comp.approvedBudget - expenditure;
       const utilization = comp.approvedBudget > 0 ? (expenditure / comp.approvedBudget) * 100 : 0;
@@ -164,8 +158,8 @@ export async function getDashboardKPIs(existingComponents?: any[]) {
     if (comp.componentNo === 1) recordsCount += (comp.annexureI?.length || 0);
     if (comp.componentNo === 2) recordsCount += (comp.annexureII?.length || 0);
     if (comp.componentNo === 3) recordsCount += (comp.annexureIII?.length || 0);
-    if (comp.componentNo === 4) recordsCount += ((comp.annexureIV && comp.annexureIV.length > 0) ? comp.annexureIV.length : 1);
-    if (comp.componentNo === 5) recordsCount += ((comp.annexureV && comp.annexureV.length > 0) ? comp.annexureV.length : 2);
+    if (comp.componentNo === 4) recordsCount += (comp.annexureIV?.length || 0);
+    if (comp.componentNo === 5) recordsCount += (comp.annexureV?.length || 0);
     if (comp.componentNo === 6) recordsCount += (comp.annexureVI?.length || 0);
   });
 
@@ -651,7 +645,7 @@ async function validateAndSanitizeAnnexureIVPayload(
   }
 
   // Baseline protection for ann4_nic_01
-  if ((rawExp === null || Number(rawExp) === 0) && options?.recordId === 'ann4_nic_01') {
+  if (rawExp === null && !options?.isUpdate && options?.recordId === 'ann4_nic_01') {
     rawExp = 45865;
   }
 
@@ -815,7 +809,7 @@ export async function getComponent5Data() {
     where: { componentNo: 5 }, include: { annexureV: { orderBy: { createdAt: 'desc' } } }
   }).catch(() => null);
 
-  if (!comp || !comp.annexureV || comp.annexureV.length === 0) {
+  if (!comp) {
     comp = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 5) as any;
   }
   if (!comp) return null;
@@ -1025,24 +1019,22 @@ export async function updateAnnexureIVEntry(id: string, data: any) {
       }
     };
 
-    // If updating baseline record ann4_nic_01, enforce financial integrity constraints
     if (id === 'ann4_nic_01') {
-      updateInput.totalExpenditure = 45865;
-      updateInput.unitCost = 45865;
-      updateInput.infrastructureCost = 35000;
-      updateInput.bandwidthCost = 10865;
-      updateInput.archiveCost = 0;
-      updateInput.otherCharges = 0;
-      updateInput.coaCode = '4.1';
-      updateInput.coaName = 'Archive, Cloud Storage & Data Repository';
       updateInput.voucher = updateInput.voucher || 'JV20000017/26-27';
       updateInput.utrNumber = updateInput.utrNumber || 'JV20000017/26-27';
+      updateInput.coaCode = updateInput.coaCode || '4.1';
+      updateInput.coaName = updateInput.coaName || 'Archive, Cloud Storage & Data Repository';
     }
 
     const entry = await prisma.annexureIV.update({
       where: { id },
       data: updateInput
     });
+
+    const c4Item = REAL_PM_EVIDYA_BUDGET_COMPONENTS[3]?.annexureIV?.find((x: any) => x.id === id);
+    if (c4Item) {
+      Object.assign(c4Item, entry);
+    }
 
     const userEmail = await getEmail();
     await logAudit({
@@ -1114,7 +1106,13 @@ export async function deleteAnnexureVEntry(id: string) {
   try {
     const authCheck = await checkAuth(['ADMIN']);
     if (!authCheck.success) return authCheck;
-    await prisma.annexureV.delete({ where: { id } });
+    await prisma.annexureV.delete({ where: { id } }).catch((e: any) => {
+      console.warn('[Annexure V delete] Prisma delete for ' + id + ':', e.message);
+    });
+
+    if (REAL_PM_EVIDYA_BUDGET_COMPONENTS[4]?.annexureV) {
+      REAL_PM_EVIDYA_BUDGET_COMPONENTS[4].annexureV = REAL_PM_EVIDYA_BUDGET_COMPONENTS[4].annexureV.filter((x: any) => x.id !== id);
+    }
     revalidateAllFinancialViews('/budget/annexure-5');
     return { success: true };
   } catch (err: any) {

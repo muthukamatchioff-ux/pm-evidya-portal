@@ -78,7 +78,7 @@ export async function GET(request: Request) {
       }
       if (comp.componentNo === 5) {
         comp.annexureV.forEach((a: any) => expenditure += (Number(a.totalExpenditure) || 0));
-        count = comp.annexureV.length > 0 ? comp.annexureV.length : 2; // 2 verified commitments (v-c5-01 & v-c5-02)
+        count = comp.annexureV ? comp.annexureV.length : 0;
       }
       if (comp.componentNo === 6) {
         comp.annexureVI.forEach((a: any) => expenditure += (Number(a.totalExpenditure) || 0));
