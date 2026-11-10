@@ -137,3 +137,4 @@ console.log(allPass ? 'AUDIT RESULT: ALL DASHBOARD & NCERT REPORT ASSERTIONS PAS
 console.log('================================================================================\n');
 
 if (!allPass) process.exit(1);
+

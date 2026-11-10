@@ -39,3 +39,4 @@ if (!funcRegex.test(ncertServiceCode)) {
 const newNcertServiceCode = ncertServiceCode.replace(funcRegex, updatedFunction);
 fs.writeFileSync('src/lib/ncertFinancialService.ts', newNcertServiceCode, 'utf8');
 console.log('Successfully updated src/lib/ncertFinancialService.ts with 41 authoritative vouchers!');
+

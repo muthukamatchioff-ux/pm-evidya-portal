@@ -35,3 +35,4 @@ if (vouchers.length === 41 && total === 794343 && compTotals[5] === 0) {
   console.error('FAILED ASSERTIONS!');
   process.exit(1);
 }
+
