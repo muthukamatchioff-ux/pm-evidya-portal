@@ -34,7 +34,47 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, logs });
   }
 
-  if (searchParams.get('summary') === 'true') {
+  if (searchParams.get('summary') === 'true' || searchParams.get('update_budgets') === 'true') {
+    // Authoritative Approved Budget Baseline: ₹1,97,00,000 across 6 online components
+    const targetBudgets: Record<number, number> = {
+      1: 10000000,
+      2: 1000000,
+      3: 7200000,
+      4: 500000,
+      5: 500000,
+      6: 500000
+    };
+
+    let needsBudgetUpdate = searchParams.get('update_budgets') === 'true';
+    const initialComps = await prisma.budgetComponent.findMany({
+      where: { componentNo: { lte: 6 } },
+      orderBy: { componentNo: 'asc' }
+    });
+
+    for (const c of initialComps) {
+      if (targetBudgets[c.componentNo] && c.approvedBudget !== targetBudgets[c.componentNo]) {
+        needsBudgetUpdate = true;
+        break;
+      }
+    }
+
+    if (needsBudgetUpdate) {
+      for (const [compNoStr, budget] of Object.entries(targetBudgets)) {
+        const compNo = parseInt(compNoStr, 10);
+        try {
+          await prisma.budgetComponent.update({
+            where: { componentNo: compNo },
+            data: { approvedBudget: budget }
+          });
+        } catch (_) {}
+      }
+      try {
+        await prisma.budgetHead.updateMany({ where: { name: { contains: 'HUMAN RESOURCE' } }, data: { approvedBudget: 7200000 } });
+        await prisma.budgetHead.updateMany({ where: { name: { contains: 'ARCHIVE' } }, data: { approvedBudget: 500000 } });
+        await prisma.budgetHead.updateMany({ where: { name: { contains: 'TELECAST' } }, data: { approvedBudget: 500000 } });
+      } catch (_) {}
+    }
+
     const components = await prisma.budgetComponent.findMany({
       where: { componentNo: { lte: 6 } }, // Exclude Head 7 Studio Upgradation (offline-only)
       include: {
@@ -104,6 +144,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
+      version: 'v2.4.5-budget-revision-197L',
       reportingPeriod: 'June 2026 – September 2026 (Q2 FY 2026-27)',
       statementDate: '07-Oct-2026',
       grandTotals: {
