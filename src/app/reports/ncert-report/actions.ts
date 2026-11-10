@@ -602,9 +602,10 @@ export async function getNcertReportData(options?: {
     totalAllocation: budgetMaster.totalSanctionedBudget > 0 ? budgetMaster.totalSanctionedBudget : 19700000,
   };
 
-  const baselineVouchers = getAuthoritativeLedgerVouchers();
+  // Authoritatively use live Annexure vouchers from Budget Master directly
+  // Fall back to baseline vouchers ONLY if database query returns 0 records
   const liveDbVouchers = await fetchLiveNcertVouchers();
-  const allVouchers = mergeUniqueNcertVouchers(baselineVouchers, liveDbVouchers);
+  const allVouchers = liveDbVouchers.length > 0 ? liveDbVouchers : getAuthoritativeLedgerVouchers();
   const allVideos = getVideosFromDatabase();
 
   // 12 Reporting Months in Fiscal Year 2026-2027 matching Excel Col C
@@ -787,9 +788,7 @@ export async function getNcertReportData(options?: {
     const voucherHrSpend = monthVouchers
       .filter((v) => v.headId === 3)
       .reduce((sum, v) => sum + v.paidAmount, 0);
-    const fundUtilizedHr = voucherHrSpend > 0 ? voucherHrSpend : (
-      monthKey === 'Sep 2026' ? 145000 : (monthKey === 'Oct 2026' ? 136774 : 0)
-    );
+    const fundUtilizedHr = voucherHrSpend;
     cumSpentHr += fundUtilizedHr;
     const fundBalanceHr = allocations.head3Hr - cumSpentHr;
 
@@ -861,9 +860,7 @@ export async function getNcertReportData(options?: {
     const voucherFeedbackSpend = monthVouchers
       .filter((v) => v.headId === 6)
       .reduce((sum, v) => sum + v.paidAmount, 0);
-    const fundUtilizedFeedback = voucherFeedbackSpend > 0 ? voucherFeedbackSpend : (
-      monthKey === 'Jul 2026' ? 60000 : (monthKey === 'Aug 2026' ? 40000 : 0)
-    );
+    const fundUtilizedFeedback = voucherFeedbackSpend;
     cumSpentFeedback += fundUtilizedFeedback;
     const fundBalanceFeedback = allocations.head6Feedback - cumSpentFeedback;
 
@@ -1023,13 +1020,13 @@ export async function getNcertReportData(options?: {
     return acc + (parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : 0);
   }, 0);
 
-  const grandUtilVideo = rows.reduce((acc, r) => acc + r.fundUtilizedVideo, 0);
-  const grandUtilCapacity = rows.reduce((acc, r) => acc + r.fundUtilizedCapacity, 0);
-  const grandUtilHr = rows.reduce((acc, r) => acc + r.fundUtilizedHr, 0);
-  const grandUtilArchive = rows.reduce((acc, r) => acc + r.fundUtilizedArchive, 0);
-  const grandUtilTelecast = rows.reduce((acc, r) => acc + r.fundUtilizedTelecast, 0);
-  const grandUtilFeedback = rows.reduce((acc, r) => acc + r.fundUtilizedFeedback, 0);
-  const grandTotalExpenditure = rows.reduce((acc, r) => acc + r.monthlyTotalUtilized, 0);
+  const grandUtilVideo = allVouchers.filter((v) => v.headId === 1).reduce((acc, v) => acc + (Number(v.paidAmount) || 0), 0);
+  const grandUtilCapacity = allVouchers.filter((v) => v.headId === 2).reduce((acc, v) => acc + (Number(v.paidAmount) || 0), 0);
+  const grandUtilHr = allVouchers.filter((v) => v.headId === 3).reduce((acc, v) => acc + (Number(v.paidAmount) || 0), 0);
+  const grandUtilArchive = allVouchers.filter((v) => v.headId === 4).reduce((acc, v) => acc + (Number(v.paidAmount) || 0), 0);
+  const grandUtilTelecast = allVouchers.filter((v) => v.headId === 5).reduce((acc, v) => acc + (Number(v.paidAmount) || 0), 0);
+  const grandUtilFeedback = allVouchers.filter((v) => v.headId === 6).reduce((acc, v) => acc + (Number(v.paidAmount) || 0), 0);
+  const grandTotalExpenditure = allVouchers.reduce((acc, v) => acc + (Number(v.paidAmount) || 0), 0);
   const grandBalanceAvailable = allocations.totalAllocation - grandTotalExpenditure;
   const grandUtilizationPercent = Number(
     (allocations.totalAllocation > 0 ? (grandTotalExpenditure / allocations.totalAllocation) * 100 : 0).toFixed(2)

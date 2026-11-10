@@ -1128,10 +1128,10 @@ export async function getMonthlyExpenditureReportData(filters?: {
   const selectedMonths = fullFiscalMonths.slice(startIndex, endIndex + 1);
   const effectiveMonths = selectedMonths.length > 0 ? selectedMonths : fullFiscalMonths;
 
-  // Retrieve baseline 41 authoritative vouchers & merge with live portal entries
-  const baselineVouchers = getAuthoritativeVouchers();
+  // Authoritatively use live Annexure vouchers from Budget Master directly
+  // Fall back to baseline vouchers ONLY if database query returns 0 records
   const liveVouchers = await fetchLiveAnnexureVouchers();
-  const vouchers = mergeUniqueVouchers(baselineVouchers, liveVouchers);
+  const vouchers = liveVouchers.length > 0 ? liveVouchers : getAuthoritativeVouchers();
 
   // Authoritative Sanctioned Budgets dynamically retrieved from Budget Master
   const budgetMaster = await getAuthoritativeSanctionedBudgets();
@@ -1139,22 +1139,24 @@ export async function getMonthlyExpenditureReportData(filters?: {
   // Construct PlanHead summaries for the 6 online components
   const planHeads: PlanHeadSummary[] = CANONICAL_ONLINE_COMPONENTS.map((comp) => {
     const monthlyExp: Record<string, number> = {};
-    let totalExp = 0;
 
     effectiveMonths.forEach((m) => {
       // Sum unique eligible vouchers for this component and month
       const monthSum = vouchers
         .filter((v) => v.headId === comp.id && v.monthKey === m)
-        .reduce((sum, v) => sum + v.paidAmount, 0);
+        .reduce((sum, v) => sum + (Number(v.paidAmount) || 0), 0);
 
       monthlyExp[m] = monthSum;
-      totalExp += monthSum;
     });
+
+    const totalExp = vouchers
+      .filter((v) => v.headId === comp.id)
+      .reduce((sum, v) => sum + (Number(v.paidAmount) || 0), 0);
 
     const sanctionedBudget = budgetMaster.componentBudgetMap[comp.id] ?? comp.sanctionedBudget;
     const availableBal = sanctionedBudget - totalExp;
     const utilPct = sanctionedBudget > 0 ? (totalExp / sanctionedBudget) * 100 : 0;
-    const txCount = vouchers.filter((v) => v.headId === comp.id && effectiveMonths.includes(v.monthKey)).length;
+    const txCount = vouchers.filter((v) => v.headId === comp.id).length;
 
     return {
       id: comp.id,
@@ -1182,7 +1184,7 @@ export async function getMonthlyExpenditureReportData(filters?: {
   });
 
   // Grand Totals across the 6 online components
-  const grandTotalExpenditure = planHeads.reduce((acc, h) => acc + h.totalExpenditure, 0);
+  const grandTotalExpenditure = vouchers.reduce((acc, v) => acc + (Number(v.paidAmount) || 0), 0);
   const grandSanctionedBudget = budgetMaster.totalSanctionedBudget > 0
     ? budgetMaster.totalSanctionedBudget
     : planHeads.reduce((acc, h) => acc + h.sanctionedBudget, 0);
