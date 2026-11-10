@@ -761,6 +761,14 @@ export async function getNcertReportData(options?: {
     let hrVacantPosts = '';
     let hrItem: HrDetailItem | undefined;
 
+    // HR Fund Utilized (Col X) - dynamically reflect live vouchers
+    const voucherHrSpend = monthVouchers
+      .filter((v) => v.headId === 3)
+      .reduce((sum, v) => sum + v.paidAmount, 0);
+    const fundUtilizedHr = voucherHrSpend;
+    cumSpentHr += fundUtilizedHr;
+    const fundBalanceHr = allocations.head3Hr - cumSpentHr;
+
     if (monthKey === 'Sep 2026' || monthKey === 'Oct 2026') {
       hrApprovedPosts = '10';
       hrHiringStatus = 'Onboarded';
@@ -777,20 +785,12 @@ export async function getNcertReportData(options?: {
           'Lead Studio Video Editor & Motion Graphics Specialist',
           'Technical Assistant / Streaming Infrastructure Operator',
         ],
-        salaryExpenditure: monthKey === 'Sep 2026' ? 145000 : 136774,
+        salaryExpenditure: voucherHrSpend,
         accountingNote: monthKey === 'Sep 2026'
           ? 'Work period September 2026 Consultant Remuneration (settled 07-Oct-2026)'
           : 'Work period October 2026 Operational Staff Remuneration',
       };
     }
-
-    // HR Fund Utilized (Col X) - dynamically reflect live vouchers
-    const voucherHrSpend = monthVouchers
-      .filter((v) => v.headId === 3)
-      .reduce((sum, v) => sum + v.paidAmount, 0);
-    const fundUtilizedHr = voucherHrSpend;
-    cumSpentHr += fundUtilizedHr;
-    const fundBalanceHr = allocations.head3Hr - cumSpentHr;
 
     // Head 4: Archive / Bandwidth / Networking (Cols Z to AD)
     let infraRequired = '';
@@ -822,6 +822,14 @@ export async function getNcertReportData(options?: {
     let feedbackRemarks = '';
     let feedbackItem: FeedbackCampaignItem | undefined;
 
+    // Feedback Fund Utilized (Col AO) - dynamically reflect live vouchers
+    const voucherFeedbackSpend = monthVouchers
+      .filter((v) => v.headId === 6)
+      .reduce((sum, v) => sum + v.paidAmount, 0);
+    const fundUtilizedFeedback = voucherFeedbackSpend;
+    cumSpentFeedback += fundUtilizedFeedback;
+    const fundBalanceFeedback = allocations.head6Feedback - cumSpentFeedback;
+
     if (monthKey === 'Jul 2026') {
       feedbackActivities = 'The campaign is a paid advertising via Meta & Google advertisement strategies to maximize awareness for promote PM e-Vidya YouTube channel. \n\nMultiple content formats including videos, reels, posters, stories, and creatives were utilized to improve audience reach and engagement\n\nCampaign Period: 21st July to 31st July 2026';
       feedbackTarget = 'The awareness campaign successfully generated visibility among ITI, Diploma,\nEngineering, and vocational students across multiple regions.';
@@ -835,7 +843,7 @@ export async function getNcertReportData(options?: {
         impressions: 12989732,
         views: 140202,
         newSubscribers: 67,
-        expenditure: 60000,
+        expenditure: voucherFeedbackSpend,
         voucherNo: 'CN2/00150/26-27',
       };
     } else if (monthKey === 'Aug 2026') {
@@ -851,18 +859,10 @@ export async function getNcertReportData(options?: {
         impressions: 5787762,
         views: 87041,
         newSubscribers: 81,
-        expenditure: 40000,
+        expenditure: voucherFeedbackSpend,
         voucherNo: 'CN2/001940/26-27',
       };
     }
-
-    // Feedback Fund Utilized (Col AO) - dynamically reflect live vouchers
-    const voucherFeedbackSpend = monthVouchers
-      .filter((v) => v.headId === 6)
-      .reduce((sum, v) => sum + v.paidAmount, 0);
-    const fundUtilizedFeedback = voucherFeedbackSpend;
-    cumSpentFeedback += fundUtilizedFeedback;
-    const fundBalanceFeedback = allocations.head6Feedback - cumSpentFeedback;
 
     // Total Monthly Utilized & Cumulative Balance (Cols AQ & AR)
     const monthlyTotalUtilized =
