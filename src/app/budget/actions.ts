@@ -6,6 +6,7 @@ import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { COMPONENT_4_COA_MASTER } from '@/lib/coaMaster';
 import { REAL_PM_EVIDYA_BUDGET_COMPONENTS } from '@/lib/fallbackData';
+import { syncBudgetComponentToBudgetHead } from '@/lib/budgetMasterService';
 // High-performance in-memory cache with instant invalidation on mutations
 interface BudgetCacheEntry {
   data: any;
@@ -20,11 +21,19 @@ export async function clearBudgetCache() {
 
 export async function revalidateAllFinancialViews(annexurePath?: string) {
   try {
+    clearBudgetCache();
     revalidatePath('/dashboard', 'page');
     revalidatePath('/budget', 'page');
-    if (annexurePath) revalidatePath(annexurePath, 'page');
+    revalidatePath('/reports', 'page');
     revalidatePath('/reports/monthly-expenditure', 'page');
     revalidatePath('/reports/ncert-report', 'page');
+    revalidatePath('/settings', 'page');
+    if (annexurePath) {
+      revalidatePath(annexurePath, 'page');
+    }
+    for (let i = 1; i <= 6; i++) {
+      revalidatePath(`/budget/annexure-${i}`, 'page');
+    }
   } catch (err) {
     console.warn('Revalidation error:', err);
   }
@@ -1106,14 +1115,33 @@ export async function deleteAnnexureVEntry(id: string) {
   try {
     const authCheck = await checkAuth(['ADMIN']);
     if (!authCheck.success) return authCheck;
-    await prisma.annexureV.delete({ where: { id } }).catch((e: any) => {
+
+    try {
+      await prisma.annexureV.delete({ where: { id } });
+    } catch (e: any) {
       console.warn('[Annexure V delete] Prisma delete for ' + id + ':', e.message);
-    });
+    }
 
     if (REAL_PM_EVIDYA_BUDGET_COMPONENTS[4]?.annexureV) {
       REAL_PM_EVIDYA_BUDGET_COMPONENTS[4].annexureV = REAL_PM_EVIDYA_BUDGET_COMPONENTS[4].annexureV.filter((x: any) => x.id !== id);
     }
-    revalidateAllFinancialViews('/budget/annexure-5');
+
+    // Direct removal from liveStore memory reference if present
+    const liveStore = (globalThis as any).__pmLiveStore;
+    if (liveStore?.budgetComponents?.[4]?.annexureV) {
+      liveStore.budgetComponents[4].annexureV = liveStore.budgetComponents[4].annexureV.filter((x: any) => x.id !== id);
+    }
+
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'DELETE_ANNEXURE_V_ENTRY',
+      entity: 'AnnexureV',
+      entityId: id,
+      newData: `Deleted Annexure-V entry: ${id}`,
+      userEmail
+    });
+
+    await revalidateAllFinancialViews('/budget/annexure-5');
     return { success: true };
   } catch (err: any) {
     console.error('Failed to delete Annexure-V entry:', err);
@@ -1204,10 +1232,42 @@ export async function updateComponentBudget(id: string, approvedBudget: number) 
   clearBudgetCache();
   const authCheck = await checkAuth(['ADMIN']);
   if (!authCheck.success) return authCheck;
-  await prisma.budgetComponent.update({
-    where: { id },
-    data: { approvedBudget }
-  });
-  revalidateAllFinancialViews();
-  return { success: true };
+
+  const numBudget = Number(approvedBudget);
+  if (isNaN(numBudget) || numBudget < 0) {
+    return { success: false, error: 'Approved budget must be a non-negative number.' };
+  }
+
+  try {
+    const updated = await prisma.budgetComponent.update({
+      where: { id },
+      data: { approvedBudget: numBudget }
+    });
+
+    // Sync in-memory fallback
+    const fallbackComp = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.id === id || c.componentNo === updated?.componentNo);
+    if (fallbackComp) {
+      fallbackComp.approvedBudget = numBudget;
+    }
+
+    // Synchronize to BudgetHead so legacy reports and settings stay in sync
+    if (updated?.componentNo) {
+      await syncBudgetComponentToBudgetHead(updated.componentNo, numBudget).catch(() => null);
+    }
+
+    const userEmail = await getEmail();
+    await logAudit({
+      action: 'UPDATE_BUDGET_COMPONENT',
+      entity: 'BudgetComponent',
+      entityId: id,
+      newData: `Updated sanctioned budget for Component ${updated?.componentNo || id} to ₹${numBudget.toLocaleString('en-IN')}`,
+      userEmail
+    });
+
+    await revalidateAllFinancialViews();
+    return { success: true, data: updated };
+  } catch (err: any) {
+    console.error('Failed to update component budget:', err);
+    return { success: false, error: err.message || 'Failed to update component budget' };
+  }
 }

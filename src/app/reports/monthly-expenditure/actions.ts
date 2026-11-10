@@ -2,6 +2,7 @@
 
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getAuthoritativeSanctionedBudgets } from '@/lib/budgetMasterService';
 
 export interface DrillDownVoucher {
   id: string;
@@ -1132,6 +1133,9 @@ export async function getMonthlyExpenditureReportData(filters?: {
   const liveVouchers = await fetchLiveAnnexureVouchers();
   const vouchers = mergeUniqueVouchers(baselineVouchers, liveVouchers);
 
+  // Authoritative Sanctioned Budgets dynamically retrieved from Budget Master
+  const budgetMaster = await getAuthoritativeSanctionedBudgets();
+
   // Construct PlanHead summaries for the 6 online components
   const planHeads: PlanHeadSummary[] = CANONICAL_ONLINE_COMPONENTS.map((comp) => {
     const monthlyExp: Record<string, number> = {};
@@ -1147,8 +1151,9 @@ export async function getMonthlyExpenditureReportData(filters?: {
       totalExp += monthSum;
     });
 
-    const availableBal = comp.sanctionedBudget - totalExp;
-    const utilPct = comp.sanctionedBudget > 0 ? (totalExp / comp.sanctionedBudget) * 100 : 0;
+    const sanctionedBudget = budgetMaster.componentBudgetMap[comp.id] ?? comp.sanctionedBudget;
+    const availableBal = sanctionedBudget - totalExp;
+    const utilPct = sanctionedBudget > 0 ? (totalExp / sanctionedBudget) * 100 : 0;
     const txCount = vouchers.filter((v) => v.headId === comp.id && effectiveMonths.includes(v.monthKey)).length;
 
     return {
@@ -1157,7 +1162,7 @@ export async function getMonthlyExpenditureReportData(filters?: {
       shortName: comp.shortName,
       color: comp.color,
       badge: comp.id,
-      sanctionedBudget: comp.sanctionedBudget,
+      sanctionedBudget,
       monthlyExpenditure: monthlyExp,
       totalExpenditure: totalExp,
       availableBalance: availableBal,
@@ -1178,7 +1183,9 @@ export async function getMonthlyExpenditureReportData(filters?: {
 
   // Grand Totals across the 6 online components
   const grandTotalExpenditure = planHeads.reduce((acc, h) => acc + h.totalExpenditure, 0);
-  const grandSanctionedBudget = planHeads.reduce((acc, h) => acc + h.sanctionedBudget, 0);
+  const grandSanctionedBudget = budgetMaster.totalSanctionedBudget > 0
+    ? budgetMaster.totalSanctionedBudget
+    : planHeads.reduce((acc, h) => acc + h.sanctionedBudget, 0);
   const balanceAvailable = grandSanctionedBudget - grandTotalExpenditure;
   const overallUtilizationPercent = Number(
     (grandSanctionedBudget > 0 ? (grandTotalExpenditure / grandSanctionedBudget) * 100 : 0).toFixed(2)

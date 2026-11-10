@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth, checkAuth, getCurrentUser } from '@/lib/auth';
 import { parseAssignedEpics } from '@/lib/epicHelpers';
 import { getTopicProductionRecords } from '@/app/video-production/actions';
+import { getAuthoritativeSanctionedBudgets } from '@/lib/budgetMasterService';
 
 export async function generateReportData(reportId: string, dateFrom: string, dateTo: string) {
   const authCheck = await checkAuth(['ADMIN', 'TEAM_MEMBER', 'HIGHER_OFFICIAL_VIEWER']);
@@ -19,9 +20,24 @@ export async function generateReportData(reportId: string, dateFrom: string, dat
 
   switch (reportId) {
     case 'financial_overview':
-    case 'seven_head':
-      data = await prisma.budgetHead.findMany({ orderBy: { name: 'asc' } });
+    case 'seven_head': {
+      const budgetMaster = await getAuthoritativeSanctionedBudgets();
+      const heads = await prisma.budgetHead.findMany({ orderBy: { name: 'asc' } });
+      data = heads.map((h: any) => {
+        const m = h.name.match(/^([0-9]+)/);
+        if (m) {
+          const compNo = parseInt(m[1], 10);
+          if (compNo <= 6 && budgetMaster.componentBudgetMap[compNo] !== undefined) {
+            return {
+              ...h,
+              approvedBudget: budgetMaster.componentBudgetMap[compNo],
+            };
+          }
+        }
+        return h;
+      });
       break;
+    }
     case 'video_content':
     case 'capacity_building':
     case 'hr_support':

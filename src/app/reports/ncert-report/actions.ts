@@ -11,6 +11,7 @@ import {
   VerifiedLedgerVoucher,
 } from '@/lib/ncertFinancialService';
 import { REAL_PM_EVIDYA_BUDGET_COMPONENTS } from '@/lib/fallbackData';
+import { getAuthoritativeSanctionedBudgets } from '@/lib/budgetMasterService';
 
 export interface NcertColumnMeta {
   index: number;
@@ -85,7 +86,7 @@ export interface NcertMonthlyRow {
   monthDateStr: string; // "2026-04-01", etc. matching Excel Col C
   monthLabel: string; // "April 2026", etc.
   isQuarterFirstRow: boolean;
-  
+
   // Head 1: Video Content Development (Cols D to L)
   videoCount: number; // Col D
   newTextbookBased: string; // Col E ("Yes" or "-")
@@ -269,9 +270,9 @@ function getVideosFromDatabase(): VideoDetailItem[] {
 
     const assignedMonth = videoMonthMap[v.id] || videoMonthMap[v.epicId] || (
       idx < 1 ? 'Jun 2026' :
-      idx < 10 ? 'Jul 2026' :
-      idx < 37 ? 'Aug 2026' :
-      idx < 71 ? 'Sep 2026' : 'Oct 2026'
+        idx < 10 ? 'Jul 2026' :
+          idx < 37 ? 'Aug 2026' :
+            idx < 71 ? 'Sep 2026' : 'Oct 2026'
     );
 
     return {
@@ -587,26 +588,19 @@ export async function getNcertReportData(options?: {
   const budgetMode = options?.budgetMode || 'portal';
   const accountingBasis = options?.accountingBasis || 'full_consolidated';
 
-  // Budget allocations: NCERT Template Allocations (Row 4) vs Portal Master
-  const allocations = budgetMode === 'ncert'
-    ? {
-        head1Video: 10000000,      // G4: ₹ 1,00,00,000
-        head2Capacity: 1000000,    // H4: ₹ 10,00,000
-        head3Hr: 7200000,          // I4: ₹ 72,00,000
-        head4Archive: 500000,      // J4: ₹ 5,00,000
-        head5Telecast: 500000,     // K4: ₹ 5,00,000
-        head6Feedback: 500000,     // L4: ₹ 5,00,000
-        totalAllocation: 19700000, // M4: ₹ 1,97,00,000
-      }
-    : {
-        head1Video: 10000000,      // ₹ 1,00,00,000
-        head2Capacity: 1000000,    // ₹ 10,00,000
-        head3Hr: 7200000,          // ₹ 72,00,000
-        head4Archive: 500000,      // ₹ 5,00,000
-        head5Telecast: 500000,     // ₹ 5,00,000
-        head6Feedback: 500000,     // ₹ 5,00,000
-        totalAllocation: 19700000, // ₹ 1,97,00,000
-      };
+  // Retrieve dynamic authoritative budgets from Budget Master
+  const budgetMaster = await getAuthoritativeSanctionedBudgets();
+
+  // Budget allocations: dynamically populated from canonical Budget Master
+  const allocations = {
+    head1Video: budgetMaster.componentBudgetMap[1] ?? 10000000,
+    head2Capacity: budgetMaster.componentBudgetMap[2] ?? 1000000,
+    head3Hr: budgetMaster.componentBudgetMap[3] ?? 7200000,
+    head4Archive: budgetMaster.componentBudgetMap[4] ?? 500000,
+    head5Telecast: budgetMaster.componentBudgetMap[5] ?? 500000,
+    head6Feedback: budgetMaster.componentBudgetMap[6] ?? 500000,
+    totalAllocation: budgetMaster.totalSanctionedBudget > 0 ? budgetMaster.totalSanctionedBudget : 19700000,
+  };
 
   const baselineVouchers = getAuthoritativeLedgerVouchers();
   const liveDbVouchers = await fetchLiveNcertVouchers();
@@ -622,19 +616,19 @@ export async function getNcertReportData(options?: {
     monthLabel: string;
     isQuarterFirstRow: boolean;
   }> = [
-    { rowNumber: 7, quarter: 'Q1', monthKey: 'Apr 2026', monthDateStr: '2026-04-01', monthLabel: 'April 2026', isQuarterFirstRow: true },
-    { rowNumber: 8, quarter: 'Q1', monthKey: 'May 2026', monthDateStr: '2026-05-01', monthLabel: 'May 2026', isQuarterFirstRow: false },
-    { rowNumber: 9, quarter: 'Q1', monthKey: 'Jun 2026', monthDateStr: '2026-06-01', monthLabel: 'June 2026', isQuarterFirstRow: false },
-    { rowNumber: 10, quarter: 'Q2', monthKey: 'Jul 2026', monthDateStr: '2026-07-01', monthLabel: 'July 2026', isQuarterFirstRow: true },
-    { rowNumber: 11, quarter: 'Q2', monthKey: 'Aug 2026', monthDateStr: '2026-08-01', monthLabel: 'August 2026', isQuarterFirstRow: false },
-    { rowNumber: 12, quarter: 'Q2', monthKey: 'Sep 2026', monthDateStr: '2026-09-01', monthLabel: 'September 2026', isQuarterFirstRow: false },
-    { rowNumber: 13, quarter: 'Q3', monthKey: 'Oct 2026', monthDateStr: '2026-10-01', monthLabel: 'October 2026', isQuarterFirstRow: true },
-    { rowNumber: 14, quarter: 'Q3', monthKey: 'Nov 2026', monthDateStr: '2026-11-01', monthLabel: 'November 2026', isQuarterFirstRow: false },
-    { rowNumber: 15, quarter: 'Q3', monthKey: 'Dec 2026', monthDateStr: '2026-12-01', monthLabel: 'December 2026', isQuarterFirstRow: false },
-    { rowNumber: 16, quarter: 'Q4', monthKey: 'Jan 2027', monthDateStr: '2027-01-01', monthLabel: 'January 2027', isQuarterFirstRow: true },
-    { rowNumber: 17, quarter: 'Q4', monthKey: 'Feb 2027', monthDateStr: '2027-02-01', monthLabel: 'February 2027', isQuarterFirstRow: false },
-    { rowNumber: 18, quarter: 'Q4', monthKey: 'Mar 2027', monthDateStr: '2027-03-01', monthLabel: 'March 2027', isQuarterFirstRow: false },
-  ];
+      { rowNumber: 7, quarter: 'Q1', monthKey: 'Apr 2026', monthDateStr: '2026-04-01', monthLabel: 'April 2026', isQuarterFirstRow: true },
+      { rowNumber: 8, quarter: 'Q1', monthKey: 'May 2026', monthDateStr: '2026-05-01', monthLabel: 'May 2026', isQuarterFirstRow: false },
+      { rowNumber: 9, quarter: 'Q1', monthKey: 'Jun 2026', monthDateStr: '2026-06-01', monthLabel: 'June 2026', isQuarterFirstRow: false },
+      { rowNumber: 10, quarter: 'Q2', monthKey: 'Jul 2026', monthDateStr: '2026-07-01', monthLabel: 'July 2026', isQuarterFirstRow: true },
+      { rowNumber: 11, quarter: 'Q2', monthKey: 'Aug 2026', monthDateStr: '2026-08-01', monthLabel: 'August 2026', isQuarterFirstRow: false },
+      { rowNumber: 12, quarter: 'Q2', monthKey: 'Sep 2026', monthDateStr: '2026-09-01', monthLabel: 'September 2026', isQuarterFirstRow: false },
+      { rowNumber: 13, quarter: 'Q3', monthKey: 'Oct 2026', monthDateStr: '2026-10-01', monthLabel: 'October 2026', isQuarterFirstRow: true },
+      { rowNumber: 14, quarter: 'Q3', monthKey: 'Nov 2026', monthDateStr: '2026-11-01', monthLabel: 'November 2026', isQuarterFirstRow: false },
+      { rowNumber: 15, quarter: 'Q3', monthKey: 'Dec 2026', monthDateStr: '2026-12-01', monthLabel: 'December 2026', isQuarterFirstRow: false },
+      { rowNumber: 16, quarter: 'Q4', monthKey: 'Jan 2027', monthDateStr: '2027-01-01', monthLabel: 'January 2027', isQuarterFirstRow: true },
+      { rowNumber: 17, quarter: 'Q4', monthKey: 'Feb 2027', monthDateStr: '2027-02-01', monthLabel: 'February 2027', isQuarterFirstRow: false },
+      { rowNumber: 18, quarter: 'Q4', monthKey: 'Mar 2027', monthDateStr: '2027-03-01', monthLabel: 'March 2027', isQuarterFirstRow: false },
+    ];
 
   // Cumulative running spend trackers for Excel formula replication:
   // L{i} = $G$4 - SUM(K$7:K{i})
