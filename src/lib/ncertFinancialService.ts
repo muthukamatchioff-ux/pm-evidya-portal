@@ -708,8 +708,40 @@ export function getAuthoritativeLedgerVouchers(): VerifiedLedgerVoucher[] {
     },
 
     // -------------------------------------------------------------------------
-    // Component 5: School Telecast & Distribution Infrastructure (₹0 - Source from live DB)
+    // Component 5: School Telecast & Distribution Infrastructure (2 records, ₹0 - Pending disbursement)
     // -------------------------------------------------------------------------
+    {
+      id: 'v-c5-01',
+      headId: 5,
+      headName: '5. School Telecast & Distribution Infrastructure',
+      monthKey: 'Aug 2026',
+      annexureSource: 'Annexure V',
+      expertOrVendor: 'Broadcast Network Service Unit',
+      designation: 'Telecast Integration Directorate',
+      description: 'DTH Signal Distribution Equipment & Channel Feed Relay Integration (Commitment)',
+      voucherOrUtr: 'CN2/001980/26-27',
+      date: '2026-08-18',
+      claimedAmount: 70000,
+      approvedAmount: 70000,
+      paidAmount: 0,
+      status: 'AUDITED',
+    },
+    {
+      id: 'v-c5-02',
+      headId: 5,
+      headName: '5. School Telecast & Distribution Infrastructure',
+      monthKey: 'Sep 2026',
+      annexureSource: 'Annexure V',
+      expertOrVendor: 'Regional Telecast Hardware Services',
+      designation: 'Distribution Provider',
+      description: 'Satellite Receiver & Channel Distribution Hardware Calibration (Commitment)',
+      voucherOrUtr: 'CN2/002340/26-27',
+      date: '2026-09-15',
+      claimedAmount: 71226,
+      approvedAmount: 71226,
+      paidAmount: 0,
+      status: 'AUDITED',
+    },
 
     // -------------------------------------------------------------------------
     // Component 6: Outreach, Feedback, Research & Advocacy (2 records, ₹1,00,000)

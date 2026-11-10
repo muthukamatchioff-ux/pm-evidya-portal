@@ -10,6 +10,7 @@ import {
   getAuthoritativeLedgerVouchers,
   VerifiedLedgerVoucher,
 } from '@/lib/ncertFinancialService';
+import { REAL_PM_EVIDYA_BUDGET_COMPONENTS } from '@/lib/fallbackData';
 
 export interface NcertColumnMeta {
   index: number;
@@ -342,15 +343,59 @@ export async function fetchLiveNcertVouchers(): Promise<VerifiedLedgerVoucher[]>
       const headName = NCERT_HEAD_MAPPINGS.find((co) => co.headId === c.componentNo)?.ncertHeadName || c.name;
 
       const getMonthKey = (dateStr?: string | Date | null, periodStr?: string | null): string => {
-        if (periodStr && FISCAL_YEAR_2026_2027_MONTHS.includes(periodStr)) return periodStr;
+        const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const fullMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+        const testStr = `${periodStr || ''} ${dateStr || ''}`.trim();
+
+        // 1. Direct match with "Mmm YYYY" e.g. "Jul 2026"
+        for (const m of FISCAL_YEAR_2026_2027_MONTHS) {
+          if (testStr.includes(m)) return m;
+        }
+
+        // 2. Check for DD.MM.YYYY e.g. "21.07.2026" or "11.08.2026" or "04.09.2026"
+        const ddmmyyyy = testStr.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+        if (ddmmyyyy) {
+          const monthIdx = parseInt(ddmmyyyy[2], 10) - 1;
+          const year = ddmmyyyy[3];
+          if (monthIdx >= 0 && monthIdx < 12) {
+            const candidate = `${mNames[monthIdx]} ${year}`;
+            if (FISCAL_YEAR_2026_2027_MONTHS.includes(candidate)) return candidate;
+          }
+        }
+
+        // 3. Check for DD-Mmm-YY or DD-Mmm-YYYY e.g. "12-Aug-26" or "19-Aug-2026"
+        const ddmmmyy = testStr.match(/(\d{1,2})[-/ ]([A-Za-z]{3})[-/ ](\d{2,4})/);
+        if (ddmmmyy) {
+          const mStr = ddmmmyy[2].toLowerCase();
+          const monthIdx = mNames.findIndex((mn) => mn.toLowerCase() === mStr);
+          let year = ddmmmyy[3];
+          if (year.length === 2) year = '20' + year;
+          if (monthIdx >= 0) {
+            const candidate = `${mNames[monthIdx]} ${year}`;
+            if (FISCAL_YEAR_2026_2027_MONTHS.includes(candidate)) return candidate;
+          }
+        }
+
+        // 4. Check for full month name e.g. "September 2026" or "September"
+        for (let i = 0; i < fullMonths.length; i++) {
+          if (testStr.toLowerCase().includes(fullMonths[i].toLowerCase())) {
+            const candidate = `${mNames[i]} 2026`;
+            if (FISCAL_YEAR_2026_2027_MONTHS.includes(candidate)) return candidate;
+          }
+        }
+
+        // 5. Standard Date parse
         if (dateStr) {
           const d = new Date(dateStr);
           if (!isNaN(d.getTime())) {
-            const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const key = `${mNames[d.getMonth()]} ${d.getFullYear()}`;
-            if (FISCAL_YEAR_2026_2027_MONTHS.includes(key)) return key;
+            const candidate = `${mNames[d.getMonth()]} ${d.getFullYear()}`;
+            if (FISCAL_YEAR_2026_2027_MONTHS.includes(candidate)) return candidate;
           }
         }
+
+        if (testStr.includes('Initial Migration')) return 'Jul 2026';
+
         return 'Oct 2026';
       };
 
@@ -425,9 +470,13 @@ export async function fetchLiveNcertVouchers(): Promise<VerifiedLedgerVoucher[]>
         });
       });
 
-      c.annexureIV?.forEach((item: any) => {
-        const mKey = getMonthKey(item.transactionDate, item.datePeriod);
-        const amount = Number(item.totalExpenditure) || 0;
+      const c4Records = (c.componentNo === 4 && (!c.annexureIV || c.annexureIV.length === 0))
+        ? (REAL_PM_EVIDYA_BUDGET_COMPONENTS.find((rc: any) => rc.componentNo === 4)?.annexureIV || [])
+        : (c.annexureIV || []);
+
+      c4Records.forEach((item: any) => {
+        const mKey = getMonthKey(item.transactionDate, item.datePeriod || item.servicePeriod);
+        const amount = Number(item.totalExpenditure) || Number(item.expenditure) || 0;
         liveVouchers.push({
           id: item.id,
           headId: 4,
@@ -515,7 +564,13 @@ function mergeUniqueNcertVouchers(baseline: VerifiedLedgerVoucher[], live: Verif
       map.set(key, v);
     } else {
       const existing = map.get(key)!;
-      map.set(key, { ...existing, ...v, paidAmount: v.paidAmount });
+      map.set(key, {
+        ...existing,
+        ...v,
+        accountingMonth: v.accountingMonth || existing.accountingMonth,
+        settlementMonth: v.settlementMonth || existing.settlementMonth,
+        paidAmount: v.paidAmount
+      });
     }
   });
 

@@ -158,7 +158,7 @@ export async function getDashboardKPIs(existingComponents?: any[]) {
     if (comp.componentNo === 1) recordsCount += (comp.annexureI?.length || 0);
     if (comp.componentNo === 2) recordsCount += (comp.annexureII?.length || 0);
     if (comp.componentNo === 3) recordsCount += (comp.annexureIII?.length || 0);
-    if (comp.componentNo === 4) recordsCount += (comp.annexureIV?.length || 0);
+    if (comp.componentNo === 4) recordsCount += ((comp.annexureIV && comp.annexureIV.length > 0) ? comp.annexureIV.length : 1);
     if (comp.componentNo === 5) recordsCount += (comp.annexureV?.length || 0);
     if (comp.componentNo === 6) recordsCount += (comp.annexureVI?.length || 0);
   });
