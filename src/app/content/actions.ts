@@ -391,3 +391,26 @@ export async function getVideos() {
     return [];
   }
 }
+
+export async function getEpicDropdownList() {
+  try {
+    const entries = await prisma.sMEWorkEntry.findMany({
+      select: {
+        id: true,
+        epicSequence: true,
+        topic: true,
+        sme: {
+          select: {
+            id: true,
+            name: true,
+          }
+        }
+      },
+      orderBy: { epicSequence: 'asc' }
+    });
+    return entries || [];
+  } catch (err) {
+    console.warn('Fallback loading epic dropdown list:', err);
+    return [];
+  }
+}

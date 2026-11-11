@@ -837,6 +837,7 @@ function getAuthoritativeVouchers(): DrillDownVoucher[] {
 async function fetchLiveAnnexureVouchers(): Promise<DrillDownVoucher[]> {
   try {
     const components = await prisma.budgetComponent.findMany({
+      where: { componentNo: { lte: 6 } }, // Exclude Head 7 Studio Upgradation (offline-only)
       include: {
         annexureI: true,
         annexureII: true,

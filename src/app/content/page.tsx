@@ -1,8 +1,6 @@
 import React from 'react';
 import ContentClient from './ContentClient';
-import { getVideos } from './actions';
-import { getTopicProductionRecords } from '../video-production/actions';
-
+import { getVideos, getEpicDropdownList } from './actions';
 import { requireAuth, getRole } from '@/lib/auth';
 
 export const metadata = {
@@ -15,10 +13,9 @@ export const revalidate = 0;
 export default async function ContentPage() {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER', 'CAMERAMAN', 'EDITOR']);
   const role = await getRole();
-  const [videos, epicsResult] = await Promise.all([
+  const [videos, epics] = await Promise.all([
     getVideos(),
-    getTopicProductionRecords()
+    getEpicDropdownList()
   ]);
-  const epics = epicsResult.success ? epicsResult.data : [];
   return <ContentClient initialData={videos} epics={epics} role={role} />;
 }

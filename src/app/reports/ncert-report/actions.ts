@@ -230,19 +230,27 @@ export interface NcertReportData {
 // -----------------------------------------------------------------------------
 // Live Database Video Retrieval & Topic-Level Aggregation
 // -----------------------------------------------------------------------------
+let cachedSnapshotData: { rawVideos: any[]; rawEditors: any[] } | null = null;
+
 function getVideosFromDatabase(): VideoDetailItem[] {
   let rawVideos: any[] = [];
   let rawEditors: any[] = [];
 
-  try {
-    const snapshotPath = path.join(process.cwd(), 'scripts', 'live_snapshot.json');
-    if (fs.existsSync(snapshotPath)) {
-      const snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
-      rawVideos = snapshot?.data?.videoLibrary || [];
-      rawEditors = snapshot?.data?.videoEditorRecords || [];
+  if (cachedSnapshotData) {
+    rawVideos = cachedSnapshotData.rawVideos;
+    rawEditors = cachedSnapshotData.rawEditors;
+  } else {
+    try {
+      const snapshotPath = path.join(process.cwd(), 'scripts', 'live_snapshot.json');
+      if (fs.existsSync(snapshotPath)) {
+        const snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+        rawVideos = snapshot?.data?.videoLibrary || [];
+        rawEditors = snapshot?.data?.videoEditorRecords || [];
+        cachedSnapshotData = { rawVideos, rawEditors };
+      }
+    } catch (err) {
+      console.warn('Could not read live_snapshot.json:', err);
     }
-  } catch (err) {
-    console.warn('Could not read live_snapshot.json:', err);
   }
 
   // Map editor review comments to associate videos with tracker months
@@ -327,6 +335,7 @@ const FISCAL_YEAR_2026_2027_MONTHS = [
 export async function fetchLiveNcertVouchers(): Promise<VerifiedLedgerVoucher[]> {
   try {
     const components = await prisma.budgetComponent.findMany({
+      where: { componentNo: { lte: 6 } }, // Exclude Head 7 Studio Upgradation (offline-only)
       include: {
         annexureI: true,
         annexureII: true,
