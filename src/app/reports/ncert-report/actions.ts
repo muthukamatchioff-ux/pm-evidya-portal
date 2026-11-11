@@ -12,6 +12,7 @@ import {
 } from '@/lib/ncertFinancialService';
 import { REAL_PM_EVIDYA_BUDGET_COMPONENTS } from '@/lib/fallbackData';
 import { getAuthoritativeSanctionedBudgets } from '@/lib/budgetMasterService';
+import { getAuthoritativeVideoLibrary, formatDurationSeconds, BundledVideoItem } from '@/lib/videoCatalogService';
 
 export interface NcertColumnMeta {
   index: number;
@@ -230,81 +231,26 @@ export interface NcertReportData {
 // -----------------------------------------------------------------------------
 // Live Database Video Retrieval & Topic-Level Aggregation
 // -----------------------------------------------------------------------------
-let cachedSnapshotData: { rawVideos: any[]; rawEditors: any[] } | null = null;
-
-function getVideosFromDatabase(): VideoDetailItem[] {
-  let rawVideos: any[] = [];
-  let rawEditors: any[] = [];
-
-  if (cachedSnapshotData) {
-    rawVideos = cachedSnapshotData.rawVideos;
-    rawEditors = cachedSnapshotData.rawEditors;
-  } else {
-    try {
-      const snapshotPath = path.join(process.cwd(), 'scripts', 'live_snapshot.json');
-      if (fs.existsSync(snapshotPath)) {
-        const snapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
-        rawVideos = snapshot?.data?.videoLibrary || [];
-        rawEditors = snapshot?.data?.videoEditorRecords || [];
-        cachedSnapshotData = { rawVideos, rawEditors };
-      }
-    } catch (err) {
-      console.warn('Could not read live_snapshot.json:', err);
-    }
-  }
-
-  // Map editor review comments to associate videos with tracker months
-  const videoMonthMap: Record<string, string> = {};
-  rawEditors.forEach((ed: any) => {
-    const comments = ed.reviewComments || '';
-    let m = 'Jul 2026';
-    if (comments.includes('Month: June') || comments.includes('Month:Jun')) m = 'Jun 2026';
-    else if (comments.includes('Month: July') || comments.includes('Month:Jul')) m = 'Jul 2026';
-    else if (comments.includes('Month: August') || comments.includes('Month:Aug')) m = 'Aug 2026';
-    else if (comments.includes('Month: September') || comments.includes('Month:Sep')) m = 'Sep 2026';
-    else if (comments.includes('Month: October') || comments.includes('Month:Oct')) m = 'Oct 2026';
-
-    if (ed.videoLibraryId) videoMonthMap[ed.videoLibraryId] = m;
-    if (ed.workEntryId) videoMonthMap[ed.workEntryId] = m;
-  });
-
-  return rawVideos.map((v: any, idx: number) => {
-    let durSec = 0;
-    if (v.duration && v.duration.includes(':')) {
-      const parts = v.duration.split(':').map(Number);
-      if (parts.length === 3) durSec = parts[0] * 3600 + parts[1] * 60 + parts[2];
-      else if (parts.length === 2) durSec = parts[0] * 60 + parts[1];
-    }
-
-    const assignedMonth = videoMonthMap[v.id] || videoMonthMap[v.epicId] || (
-      idx < 1 ? 'Jun 2026' :
-        idx < 10 ? 'Jul 2026' :
-          idx < 37 ? 'Aug 2026' :
-            idx < 71 ? 'Sep 2026' : 'Oct 2026'
-    );
-
-    return {
-      id: v.id,
-      title: v.title,
-      duration: v.duration || '00:00:00',
-      durationSeconds: durSec,
-      trade: v.trade || 'Vocational Education',
-      subject: v.trade || 'Vocational Education',
-      language: 'English / Hindi',
-      smeName: v.smeName || 'NIMI Expert',
-      videoLink: v.videoLink,
-      status: 'PUBLISHED',
-      month: assignedMonth,
-    };
-  });
+async function getVideosFromDatabase(): Promise<VideoDetailItem[]> {
+  const videos = await getAuthoritativeVideoLibrary();
+  return videos.map((v) => ({
+    id: v.id,
+    title: v.title,
+    duration: v.duration,
+    durationSeconds: v.durationSeconds,
+    trade: v.trade,
+    subject: v.subject,
+    language: 'English / Hindi',
+    smeName: v.smeName,
+    videoLink: v.videoLink,
+    status: v.status,
+    month: v.month,
+  }));
 }
 
 // Convert seconds into HH:MM:SS (supports > 24 hours)
 function formatDuration(totalSeconds: number): string {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = Math.floor(totalSeconds % 60);
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  return formatDurationSeconds(totalSeconds);
 }
 
 // All 45 Official NCERT Columns Meta
@@ -615,7 +561,7 @@ export async function getNcertReportData(options?: {
   // Fall back to baseline vouchers ONLY if database query returns 0 records
   const liveDbVouchers = await fetchLiveNcertVouchers();
   const allVouchers = liveDbVouchers.length > 0 ? liveDbVouchers : getAuthoritativeLedgerVouchers();
-  const allVideos = getVideosFromDatabase();
+  const allVideos = await getVideosFromDatabase();
 
   // 12 Reporting Months in Fiscal Year 2026-2027 matching Excel Col C
   const monthsConfig: Array<{
@@ -676,50 +622,31 @@ export async function getNcertReportData(options?: {
     let totalDurationSec = 0;
     let totalDurationStr = '00:00:00';
 
-    if (monthKey === 'Apr 2026' || monthKey === 'May 2026') {
+    if (monthKey === 'Apr 2026' || monthKey === 'May 2026' || monthKey === 'Jun 2026') {
       videoCount = 0;
       subjectsStr = '-';
       generalFiller = '-';
       language = '-';
       totalDurationStr = '';
-    } else if (monthKey === 'Jun 2026') {
+      totalDurationSec = 0;
+    } else if (monthVideos.length > 0) {
+      videoCount = monthVideos.length;
+      totalDurationSec = monthVideos.reduce((acc, v) => acc + (v.durationSeconds || 0), 0);
+      totalDurationStr = totalDurationSec > 0 ? formatDuration(totalDurationSec) : '00:00:00';
+      classGrade = 'Vocational Education';
+      generalFiller = 'General';
+      language = 'English / Hindi';
+      const uniqueTrades = Array.from(new Set(monthVideos.map((v) => v.trade || v.subject).filter(Boolean)));
+      if (uniqueTrades.length > 0) {
+        subjectsStr = uniqueTrades.map((t, idx) => `${idx + 1}. ${t}`).join('\n');
+      }
+    } else {
       videoCount = 0;
-      subjectsStr = '';
-      generalFiller = '';
-      language = '';
+      subjectsStr = '-';
+      generalFiller = '-';
+      language = '-';
       totalDurationStr = '';
-    } else if (monthKey === 'Jul 2026') {
-      videoCount = 9;
-      classGrade = 'Vocational Education';
-      subjectsStr = '1. COPA\n2. POT\n3. Advanced CNC\n4. Drone Technician';
-      generalFiller = 'General';
-      language = 'English';
-      totalDurationStr = '06:39:12';
-      totalDurationSec = 6 * 3600 + 39 * 60 + 12;
-    } else if (monthKey === 'Aug 2026') {
-      videoCount = 26;
-      classGrade = 'Vocational Education';
-      subjectsStr = '1. AI Programming Assistant\n2. Instrument Mechanic\n3. Drone Technician\n4. Employability Skills\n5. Mass Media Studies ';
-      generalFiller = 'General';
-      language = 'English';
-      totalDurationStr = '11:06:45';
-      totalDurationSec = 11 * 3600 + 6 * 60 + 45;
-    } else if (monthKey === 'Sep 2026') {
-      videoCount = 19;
-      classGrade = 'Vocational Education';
-      subjectsStr = '1. Drone Technician\n2. AI Programming Assistant\n3. Wireman';
-      generalFiller = 'General';
-      language = 'English';
-      totalDurationStr = '10:11:23';
-      totalDurationSec = 10 * 3600 + 11 * 60 + 23;
-    } else if (monthKey === 'Oct 2026') {
-      videoCount = 28;
-      classGrade = 'Vocational Education';
-      subjectsStr = '1. Wireman \n2. Drone Pilot \n3. Instrument Mechanic\n4. Solar Technician';
-      generalFiller = 'General';
-      language = 'English';
-      totalDurationStr = '18:00:00';
-      totalDurationSec = 18 * 3600;
+      totalDurationSec = 0;
     }
 
     const totalDurationHours = Number((totalDurationSec / 3600).toFixed(2));

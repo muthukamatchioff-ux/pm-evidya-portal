@@ -120,19 +120,21 @@ export default function NcertReportClient({ initialData }: Props) {
 
   // Drill-down open helpers
   const openVideoDrillDown = (row: NcertMonthlyRow) => {
-    if (row.videoCount === 0 && (!row.videoItems || row.videoItems.length === 0)) return;
+    const vids = row.videoItems || [];
+    if (row.videoCount === 0 && vids.length === 0) return;
+    const count = vids.length > 0 ? vids.length : row.videoCount;
     setModalState({
       isOpen: true,
       title: `Video Content Developed — ${row.monthLabel}`,
-      subtitle: `Total: ${row.videoCount} Modules | Duration: ${row.totalDurationStr} hrs | Head 1: Video Content Development`,
+      subtitle: `Total: ${count} Modules | Duration: ${row.totalDurationStr || '00:00:00'} hrs | Head 1: Video Content Development`,
       category: 'video',
       monthLabel: row.monthLabel,
-      items: row.videoItems || [],
+      items: vids,
       singleItem: {
         subjects: row.subjects,
         language: row.language,
         duration: row.totalDurationStr,
-        count: row.videoCount,
+        count: count,
       },
     });
   };
@@ -1121,53 +1123,129 @@ export default function NcertReportClient({ initialData }: Props) {
 
             <div className={styles.modalBody}>
               {/* VIDEO CATEGORY DRILL DOWN */}
-              {modalState.category === 'video' && (
-                <div>
-                  <div style={{ marginBottom: '1rem', background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem', fontSize: '0.8rem' }}>
-                      <div><strong>Curriculum Focus:</strong> Vocational Education</div>
-                      <div><strong>Language:</strong> English / Hindi</div>
-                      <div><strong>Total Modules:</strong> {modalState.singleItem?.count || modalState.items?.length || 0}</div>
-                      <div><strong>Total Duration:</strong> {modalState.singleItem?.duration}</div>
+              {modalState.category === 'video' && (() => {
+                const videoList = modalState.items || [];
+                const linkedCount = videoList.filter((v: any) => v.videoLink && String(v.videoLink).trim().startsWith('http')).length;
+                const totalDurSec = videoList.reduce((acc: number, v: any) => {
+                  const d = v.duration;
+                  if (!d || d === 'null' || d === '00:00:00') return acc;
+                  const parts = String(d).trim().split(':').map(Number);
+                  if (parts.length === 3 && !parts.some(isNaN)) return acc + parts[0] * 3600 + parts[1] * 60 + parts[2];
+                  if (parts.length === 2 && !parts.some(isNaN)) return acc + parts[0] * 60 + parts[1];
+                  return acc;
+                }, 0);
+                const computedDurStr = totalDurSec > 0
+                  ? `${String(Math.floor(totalDurSec / 3600)).padStart(2, '0')}:${String(Math.floor((totalDurSec % 3600) / 60)).padStart(2, '0')}:${String(totalDurSec % 60).padStart(2, '0')}`
+                  : (modalState.singleItem?.duration || '00:00:00');
+
+                return (
+                  <div>
+                    <div style={{ marginBottom: '1rem', background: '#f8fafc', padding: '0.85rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem', fontSize: '0.8rem' }}>
+                        <div><strong>Curriculum Focus:</strong> Vocational Education</div>
+                        <div><strong>Language:</strong> English / Hindi</div>
+                        <div><strong>Total Modules:</strong> <span style={{ color: '#1d4ed8', fontWeight: 700 }}>{videoList.length || modalState.singleItem?.count || 0}</span></div>
+                        <div><strong>Total Duration:</strong> <span style={{ color: '#047857', fontWeight: 700 }}>⏱️ {computedDurStr} hrs</span></div>
+                        <div><strong>Streaming Links:</strong> <span style={{ color: linkedCount > 0 ? '#15803d' : '#94a3b8', fontWeight: 600 }}>{linkedCount} of {videoList.length} Active</span></div>
+                      </div>
+                    </div>
+
+                    <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                        <thead>
+                          <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
+                            <th style={{ padding: '0.6rem 0.5rem', width: '35px' }}>#</th>
+                            <th style={{ padding: '0.6rem 0.5rem' }}>Module Title</th>
+                            <th style={{ padding: '0.6rem 0.5rem' }}>Trade / Subject</th>
+                            <th style={{ padding: '0.6rem 0.5rem' }}>SME / Expert</th>
+                            <th style={{ padding: '0.6rem 0.5rem', textAlign: 'center' }}>Duration</th>
+                            <th style={{ padding: '0.6rem 0.5rem', textAlign: 'center', minWidth: '130px' }}>Video Link</th>
+                            <th style={{ padding: '0.6rem 0.5rem', textAlign: 'center' }}>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {videoList.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#64748b' }}>
+                                <div style={{ fontSize: '1.8rem', marginBottom: '0.4rem' }}>🎬</div>
+                                <div style={{ fontWeight: 600, color: '#334155' }}>No video modules found for this reporting month.</div>
+                                <div style={{ fontSize: '0.75rem', marginTop: '0.2rem', color: '#94a3b8' }}>Video records and streaming links will automatically appear once verified.</div>
+                              </td>
+                            </tr>
+                          ) : (
+                            videoList.map((v: any, idx: number) => {
+                              const hasLink = v.videoLink && String(v.videoLink).trim().startsWith('http');
+                              return (
+                                <tr key={v.id || idx} style={{ borderBottom: '1px solid #e2e8f0', background: idx % 2 === 0 ? '#ffffff' : '#fcfcfd' }}>
+                                  <td style={{ padding: '0.55rem 0.5rem', color: '#64748b', fontWeight: 500 }}>{idx + 1}</td>
+                                  <td style={{ padding: '0.55rem 0.5rem', fontWeight: 600, color: '#0f172a' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span style={{ fontSize: '13px' }}>🎬</span>
+                                      <span>{v.title}</span>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '0.55rem 0.5rem' }}>
+                                    <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 500 }}>
+                                      {v.trade}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '0.55rem 0.5rem', color: '#475569' }}>{v.smeName}</td>
+                                  <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', fontFamily: 'monospace', fontWeight: 600, color: '#0f172a' }}>
+                                    {v.duration && v.duration !== '00:00:00' ? (
+                                      <span style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
+                                        ⏱️ {v.duration}
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>—</span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center' }}>
+                                    {hasLink ? (
+                                      <a
+                                        href={v.videoLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '5px',
+                                          background: '#eff6ff',
+                                          color: '#1d4ed8',
+                                          border: '1px solid #93c5fd',
+                                          padding: '4px 10px',
+                                          borderRadius: '6px',
+                                          fontSize: '0.74rem',
+                                          fontWeight: 600,
+                                          textDecoration: 'none',
+                                          whiteSpace: 'nowrap',
+                                          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                                          cursor: 'pointer'
+                                        }}
+                                        title={`Watch video: ${v.title}`}
+                                      >
+                                        <span>▶</span> Watch Video
+                                      </a>
+                                    ) : (
+                                      <span style={{ color: '#94a3b8', fontSize: '0.72rem', fontStyle: 'italic', background: '#f8fafc', padding: '2px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                                        ⏳ Link Pending
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center' }}>
+                                    <span className={hasLink ? styles.badgeSuccess : styles.badgeInfo}>
+                                      {hasLink ? 'PUBLISHED' : (v.status || 'COMPLETED')}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
-
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                    <thead>
-                      <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
-                        <th style={{ padding: '0.5rem' }}>#</th>
-                        <th style={{ padding: '0.5rem' }}>Module Title</th>
-                        <th style={{ padding: '0.5rem' }}>Trade / Subject</th>
-                        <th style={{ padding: '0.5rem' }}>SME / Expert</th>
-                        <th style={{ padding: '0.5rem', textAlign: 'center' }}>Duration</th>
-                        <th style={{ padding: '0.5rem', textAlign: 'center' }}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(modalState.items || []).map((v: any, idx: number) => (
-                        <tr key={v.id || idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                          <td style={{ padding: '0.5rem', color: '#64748b' }}>{idx + 1}</td>
-                          <td style={{ padding: '0.5rem', fontWeight: 600, color: '#0f172a' }}>
-                            {v.title}
-                          </td>
-                          <td style={{ padding: '0.5rem' }}>
-                            <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '0.15rem 0.4rem', borderRadius: '4px', fontSize: '0.75rem' }}>
-                              {v.trade}
-                            </span>
-                          </td>
-                          <td style={{ padding: '0.5rem', color: '#475569' }}>{v.smeName}</td>
-                          <td style={{ padding: '0.5rem', textAlign: 'center', fontFamily: 'monospace' }}>
-                            {v.duration}
-                          </td>
-                          <td style={{ padding: '0.5rem', textAlign: 'center' }}>
-                            <span className={styles.badgeSuccess}>{v.status}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                );
+              })()}
 
               {/* VOUCHER EXPENDITURE DRILL DOWN */}
               {modalState.category === 'voucher' && (
