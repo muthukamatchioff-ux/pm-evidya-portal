@@ -110,7 +110,7 @@ export default function ProjectsTable({ projects }: { projects: ProjectRow[] }) 
                       {p.status?.name || 'Draft'}
                     </span>
                   </td>
-                  <td>{p._count.documents}</td>
+                  <td>{p._count?.documents ?? 0}</td>
                   <td>{new Date(p.updatedAt).toLocaleDateString('en-IN')}</td>
                   <td>
                     <div className={styles.actionMenu}>

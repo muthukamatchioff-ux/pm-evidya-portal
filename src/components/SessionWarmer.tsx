@@ -15,6 +15,7 @@ const ADMIN_WARM_ROUTES = [
   '/budget/annexure-6',
   '/reports/monthly-expenditure',
   '/reports/ncert-report',
+  '/production-workflow',
   '/smes',
   '/documents',
   '/content',

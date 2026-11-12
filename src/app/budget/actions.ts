@@ -1,7 +1,7 @@
 'use server';
 
 import { cachedQuery, CACHE_TAGS, invalidateFinancialCaches } from '@/lib/dataCache';
-import { getCachedComponentByNo } from '@/lib/portalCacheWarmers';
+import { getCachedComponentByNo, getCachedBudgetComponentsResult } from '@/lib/portalCacheWarmers';
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
@@ -52,84 +52,10 @@ export async function getBudgetComponents(options?: { summaryOnly?: boolean }) {
     return cached.data;
   }
   try {
-    const components = await prisma.budgetComponent.findMany({
-      where: { componentNo: { lte: 6 } }, // Head 7 Studio Upgradation is offline-only
-      include: isSummary ? {
-        annexureI: { select: { id: true, totalExpenditure: true } },
-        annexureII: { select: { id: true, totalExpenditure: true } },
-        annexureIII: { select: { id: true, totalExpenditure: true } },
-        annexureIV: { select: { id: true, totalExpenditure: true } },
-        annexureV: { select: { id: true, totalExpenditure: true } },
-        annexureVI: { select: { id: true, totalExpenditure: true } },
-      } : {
-        annexureI: { orderBy: { createdAt: 'asc' } },
-        annexureII: { orderBy: { createdAt: 'asc' } },
-        annexureIII: { orderBy: { createdAt: 'desc' } },
-        annexureIV: { orderBy: { createdAt: 'desc' } },
-        annexureV: { orderBy: { createdAt: 'desc' } },
-        annexureVI: { orderBy: { createdAt: 'desc' } },
-      },
-      orderBy: { componentNo: 'asc' },
-    });
-
-    if (!components || components.length === 0) {
-      const canonicalResult = REAL_PM_EVIDYA_BUDGET_COMPONENTS.map((c: any) => {
-        let expenditure = 0;
-        if (c.componentNo === 1) c.annexureI?.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
-        if (c.componentNo === 2) c.annexureII?.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
-        if (c.componentNo === 3) c.annexureIII?.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
-        if (c.componentNo === 4) c.annexureIV?.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
-        if (c.componentNo === 5) c.annexureV?.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
-        if (c.componentNo === 6) c.annexureVI?.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
-
-        const unutilized = c.approvedBudget - expenditure;
-        const utilization = c.approvedBudget > 0 ? (expenditure / c.approvedBudget) * 100 : 0;
-        return {
-          ...c,
-          expenditureIncurred: expenditure,
-          unutilizedBalance: unutilized,
-          utilizationPercent: utilization.toFixed(2),
-        };
-      });
-      budgetCache.set(cacheKey, { data: canonicalResult, expiry: Date.now() + BUDGET_CACHE_TTL });
-      return canonicalResult;
-    }
-
-    // Calculate dynamic expenditures
-    const calculatedResult = components.map((comp: any) => {
-      let expenditure = 0;
-      if (comp.componentNo === 1) comp.annexureI?.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
-      if (comp.componentNo === 2) comp.annexureII?.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
-      if (comp.componentNo === 3) comp.annexureIII?.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
-      if (comp.componentNo === 4) comp.annexureIV?.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
-      if (comp.componentNo === 5) comp.annexureV?.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
-      if (comp.componentNo === 6) comp.annexureVI?.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
-
-      let annexureIVData = comp.annexureIV;
-      if (comp.componentNo === 4 && (!comp.annexureIV || comp.annexureIV.length === 0)) {
-        const c4Fallback = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 4);
-        if (c4Fallback && c4Fallback.annexureIV && c4Fallback.annexureIV.length > 0) {
-          annexureIVData = c4Fallback.annexureIV;
-          expenditure = 0;
-          annexureIVData.forEach((a: any) => (expenditure += Number(a.totalExpenditure) || 0));
-        }
-      }
-
-      let annexureVData = comp.annexureV || [];
-
-      const unutilized = comp.approvedBudget - expenditure;
-      const utilization = comp.approvedBudget > 0 ? (expenditure / comp.approvedBudget) * 100 : 0;
-
-      return {
-        ...comp,
-        ...(comp.componentNo === 4 ? { annexureIV: annexureIVData } : {}),
-        ...(comp.componentNo === 5 ? { annexureV: annexureVData } : {}),
-        expenditureIncurred: expenditure,
-        unutilizedBalance: unutilized,
-        utilizationPercent: utilization.toFixed(2),
-      };
-    });
-    budgetCache.set(cacheKey, { data: calculatedResult, expiry: Date.now() + BUDGET_CACHE_TTL });
+    // Only online components matching componentNo: { lte: 6 } are returned; Head 7 is offline-only
+    const rawResult = await getCachedBudgetComponentsResult(isSummary);
+    const calculatedResult = (rawResult || []).filter((c: any) => c.componentNo <= 6);
+    budgetCache.set(cacheKey, { data: calculatedResult, expiry: Date.now() + Math.min(BUDGET_CACHE_TTL, 10 * 1000) });
     return calculatedResult;
   } catch (error) {
     console.error('Failed to fetch budget components due to database connection error', error);

@@ -47,12 +47,13 @@ assertCheck(
   'connection_limit=5, pool_timeout=10, connect_timeout=10'
 );
 
-// 2. Layout skips Sidebar/Header/SessionWarmer for VISITOR
+// 2. Layout skips Sidebar/Header/SessionWarmer for VISITOR without importing Prisma
 const layoutSrc = read('src/app/layout.tsx');
 assertCheck(
   'layout.tsx skips Sidebar, Header, and SessionWarmer when role === VISITOR',
   layoutSrc.includes("const isAuthenticated = role !== 'VISITOR'") &&
-    layoutSrc.includes('isAuthenticated ? <Sidebar /> : null') &&
+    layoutSrc.includes("import('@/components/Sidebar')") &&
+    layoutSrc.includes('sidebar={SidebarComponent ? <SidebarComponent /> : null}') &&
     layoutSrc.includes('isAuthenticated && <SessionWarmer'),
   'login screen avoids heavy authenticated shell & DB initialization'
 );
