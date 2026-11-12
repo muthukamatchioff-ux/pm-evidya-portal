@@ -2,8 +2,12 @@
 
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { getAuthoritativeSanctionedBudgets } from '@/lib/budgetMasterService';
+import {
+  getAuthoritativeSanctionedBudgets,
+  getCachedBudgetComponentsWithAnnexures,
+} from '@/lib/budgetMasterService';
 import { getAuthoritativeVideoLibrary } from '@/lib/videoCatalogService';
+import { cachedQuery, CACHE_TAGS } from '@/lib/dataCache';
 
 export interface DrillDownVoucher {
   id: string;
@@ -834,20 +838,10 @@ function getAuthoritativeVouchers(): DrillDownVoucher[] {
 }
 
 
-// Dynamic Database Synchronization: Query Prisma / Live Store Annexures
+// Dynamic Database Synchronization: Query Shared Cross-Lambda Annexures Cache
 async function fetchLiveAnnexureVouchers(): Promise<DrillDownVoucher[]> {
   try {
-    const components = await prisma.budgetComponent.findMany({
-      where: { componentNo: { lte: 6 } }, // Exclude Head 7 Studio Upgradation (offline-only)
-      include: {
-        annexureI: true,
-        annexureII: true,
-        annexureIII: true,
-        annexureIV: true,
-        annexureV: true,
-        annexureVI: true,
-      },
-    });
+    const components = await getCachedBudgetComponentsWithAnnexures();
 
     const liveVouchers: DrillDownVoucher[] = [];
     components.forEach((c: any) => {
@@ -1128,13 +1122,12 @@ export async function getMonthlyExpenditureReportData(filters?: {
   const selectedMonths = fullFiscalMonths.slice(startIndex, endIndex + 1);
   const effectiveMonths = selectedMonths.length > 0 ? selectedMonths : fullFiscalMonths;
 
-  // Authoritatively use live Annexure vouchers from Budget Master directly
-  // Fall back to baseline vouchers ONLY if database query returns 0 records
-  const liveVouchers = await fetchLiveAnnexureVouchers();
+  // Parallelize independent shared-cached fetches across budget, vouchers, and video metrics
+  const [liveVouchers, budgetMaster] = await Promise.all([
+    fetchLiveAnnexureVouchers(),
+    getAuthoritativeSanctionedBudgets(),
+  ]);
   const vouchers = liveVouchers.length > 0 ? liveVouchers : getAuthoritativeVouchers();
-
-  // Authoritative Sanctioned Budgets dynamically retrieved from Budget Master
-  const budgetMaster = await getAuthoritativeSanctionedBudgets();
 
   // Construct PlanHead summaries for the 6 online components
   const planHeads: PlanHeadSummary[] = CANONICAL_ONLINE_COMPONENTS.map((comp) => {

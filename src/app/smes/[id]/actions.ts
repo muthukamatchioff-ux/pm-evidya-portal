@@ -130,6 +130,7 @@ export async function uploadDocument(
       userEmail
     });
 
+    clearSmeListCache();
     revalidatePath(`/smes/${smeId}`);
     revalidatePath('/accounts');
     revalidatePath('/documents');
@@ -369,6 +370,7 @@ export async function updateSmePaymentInline(workEntryId: string, totalAmount: n
       userEmail
     });
 
+    clearSmeListCache();
     revalidatePath('/smes');
     revalidatePath('/accounts');
     revalidatePath('/dashboard');
@@ -432,6 +434,7 @@ export async function saveGeneratedDocumentRecord(
       userEmail
     });
 
+    clearSmeListCache();
     revalidatePath(`/smes/${smeId}`);
     revalidatePath('/documents');
     return { success: true, document: savedDoc };

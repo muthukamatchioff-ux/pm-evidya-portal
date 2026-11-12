@@ -8,7 +8,6 @@ import {
   DrillDownVoucher,
   getMonthlyExpenditureReportData,
 } from './actions';
-import * as XLSX from 'xlsx';
 
 interface Props {
   initialData: MonthlyExpenditureReportResult;
@@ -113,7 +112,8 @@ export default function MonthlyExpenditureClient({ initialData }: Props) {
   };
 
   // Excel Export Handler
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
 
     const monthCols = data.activeMonths;
@@ -213,8 +213,9 @@ export default function MonthlyExpenditureClient({ initialData }: Props) {
     XLSX.writeFile(wb, 'PM_eVidya_Monthly_Expenditure_Report_2026-2027.xlsx');
   };
 
-  const handleExportDrillDownExcel = () => {
+  const handleExportDrillDownExcel = async () => {
     if (!drillDownCell) return;
+    const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
     const voucherRows: any[] = [
       [

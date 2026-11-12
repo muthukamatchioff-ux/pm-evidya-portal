@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import * as XLSX from 'xlsx';
+import type * as XLSXTypes from 'xlsx';
 import styles from './import.module.css';
 
 const STEPS = [
@@ -17,7 +17,8 @@ const STEPS = [
 export default function ImportWizard() {
   const [currentStep, setCurrentStep] = useState(0);
   const [file, setFile] = useState<File | null>(null);
-  const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
+  const [workbook, setWorkbook] = useState<XLSXTypes.WorkBook | null>(null);
+  const [xlsxLib, setXlsxLib] = useState<typeof XLSXTypes | null>(null);
   const [sheets, setSheets] = useState<string[]>([]);
   const [selectedSheets, setSelectedSheets] = useState<string[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -34,6 +35,8 @@ export default function ImportWizard() {
     if (!uploadedFile) return;
     setFile(uploadedFile);
     
+    const XLSX = await import('xlsx');
+    setXlsxLib(XLSX);
     const data = await uploadedFile.arrayBuffer();
     const wb = XLSX.read(data);
     setWorkbook(wb);
@@ -48,9 +51,9 @@ export default function ImportWizard() {
   };
 
   const extractHeaders = () => {
-    if (!workbook || selectedSheets.length === 0) return;
+    if (!workbook || !xlsxLib || selectedSheets.length === 0) return;
     const firstSheet = workbook.Sheets[selectedSheets[0]];
-    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+    const jsonData = xlsxLib.utils.sheet_to_json(firstSheet, { header: 1 });
     if (jsonData.length > 0) {
       const detectedHeaders = jsonData[0] as string[];
       setHeaders(detectedHeaders);
@@ -71,9 +74,9 @@ export default function ImportWizard() {
   };
 
   const generatePreview = () => {
-    if (!workbook || selectedSheets.length === 0) return;
+    if (!workbook || !xlsxLib || selectedSheets.length === 0) return;
     const firstSheet = workbook.Sheets[selectedSheets[0]];
-    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+    const jsonData = xlsxLib.utils.sheet_to_json(firstSheet);
     setPreviewData(jsonData.slice(0, 5)); // show first 5 rows
     setCurrentStep(3);
   };

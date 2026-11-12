@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { login } from '@/lib/auth';
 import styles from './login.module.css';
@@ -12,6 +12,14 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Pre-warm Neon PostgreSQL compute and shared server Data Cache silently while user signs in
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem('pm_evidya_session_warmed_v1');
+    } catch {}
+    fetch('/api/warmup?phase=db', { cache: 'no-store' }).catch(() => {});
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

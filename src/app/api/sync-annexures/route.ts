@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { syncAnnexuresIfNeeded } from '@/lib/syncAnnexures';
 import { prisma } from '@/lib/prisma';
+import { getCachedBudgetComponentsWithAnnexures } from '@/lib/budgetMasterService';
+import { invalidateFinancialCaches } from '@/lib/dataCache';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -63,20 +65,23 @@ export async function GET(request: Request) {
         await prisma.budgetHead.updateMany({ where: { name: { contains: 'ARCHIVE' } }, data: { approvedBudget: 500000 } });
         await prisma.budgetHead.updateMany({ where: { name: { contains: 'TELECAST' } }, data: { approvedBudget: 500000 } });
       } catch (_) {}
+      invalidateFinancialCaches();
     }
 
-    const components = await prisma.budgetComponent.findMany({
-      where: { componentNo: { lte: 6 } }, // Exclude Head 7 Studio Upgradation (offline-only)
-      include: {
-        annexureI: true,
-        annexureII: true,
-        annexureIII: true,
-        annexureIV: true,
-        annexureV: true,
-        annexureVI: true,
-      },
-      orderBy: { componentNo: 'asc' }
-    });
+    const components = needsBudgetUpdate
+      ? await prisma.budgetComponent.findMany({
+          where: { componentNo: { lte: 6 } }, // Exclude Head 7 Studio Upgradation (offline-only)
+          include: {
+            annexureI: true,
+            annexureII: true,
+            annexureIII: true,
+            annexureIV: true,
+            annexureV: true,
+            annexureVI: true,
+          },
+          orderBy: { componentNo: 'asc' }
+        })
+      : await getCachedBudgetComponentsWithAnnexures();
 
     let grandBudget = 0;
     let grandExpenditure = 0;

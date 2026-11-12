@@ -13,7 +13,6 @@ import {
 } from '@/lib/coaMaster';
 import styles from './annexure4.module.css';
 import { downloadTableAsDocx } from '@/lib/tableToDocx';
-import * as XLSX from 'xlsx';
 
 interface Props {
   role?: string;
@@ -400,7 +399,8 @@ export default function Component4Client({
   }, [filteredRecords]);
 
   // Export to Excel with 10 Columns
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
 
     const headers = [

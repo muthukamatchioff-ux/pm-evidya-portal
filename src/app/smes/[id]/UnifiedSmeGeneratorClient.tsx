@@ -241,7 +241,7 @@ export default function UnifiedSmeGeneratorClient({ sme, role }: { sme: any; rol
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <Link
               href="/smes"
-              prefetch={true}
+              prefetch={false}
               style={{
                 background: '#ffffff',
                 color: '#475569',

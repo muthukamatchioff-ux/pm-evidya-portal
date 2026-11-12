@@ -237,8 +237,22 @@ function loadLiveStore(): LiveStoreData {
   return store;
 }
 
-const liveStore: LiveStoreData = (globalThis as any).__pmLiveStore || loadLiveStore();
-(globalThis as any).__pmLiveStore = liveStore;
+function getLiveStore(): LiveStoreData {
+  if (!(globalThis as any).__pmLiveStore) {
+    (globalThis as any).__pmLiveStore = loadLiveStore();
+  }
+  return (globalThis as any).__pmLiveStore;
+}
+
+const liveStore: LiveStoreData = new Proxy({} as LiveStoreData, {
+  get(_target, prop) {
+    return (getLiveStore() as any)[prop];
+  },
+  set(_target, prop, value) {
+    (getLiveStore() as any)[prop] = value;
+    return true;
+  },
+});
 
 function persistLiveStore() {
   try {
@@ -339,9 +353,9 @@ const getDbUrl = () => {
         let url = clean.includes('schema=')
           ? clean
           : (clean.includes('?') ? `${clean}&schema=public` : `${clean}?schema=public`);
-        if (!url.includes('connection_limit=')) url += '&connection_limit=15';
-        if (!url.includes('pool_timeout=')) url += '&pool_timeout=5';
-        if (!url.includes('connect_timeout=')) url += '&connect_timeout=5';
+        if (!url.includes('connection_limit=')) url += '&connection_limit=5';
+        if (!url.includes('pool_timeout=')) url += '&pool_timeout=10';
+        if (!url.includes('connect_timeout=')) url += '&connect_timeout=10';
         return url;
       }
     }

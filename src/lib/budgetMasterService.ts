@@ -14,7 +14,51 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { cachedQuery, CACHE_TAGS, invalidateFinancialCaches } from '@/lib/dataCache';
 import { REAL_PM_EVIDYA_BUDGET_COMPONENTS, REAL_PM_EVIDYA_BUDGET_HEADS } from '@/lib/fallbackData';
+
+const fetchOnlineBudgetComponentsCached = cachedQuery(
+  async () => {
+    return await prisma.budgetComponent.findMany({
+      where: { componentNo: { lte: 6 } }, // Strictly online components 1 to 6 (Head 7 offline-only)
+      orderBy: { componentNo: 'asc' }
+    });
+  },
+  ['budget-master-online-components-v1'],
+  { revalidate: 300, tags: [CACHE_TAGS.BUDGET_MASTER] }
+);
+
+export const getCachedBudgetComponentsWithAnnexures = cachedQuery(
+  async () => {
+    return await prisma.budgetComponent.findMany({
+      where: { componentNo: { lte: 6 } },
+      include: {
+        annexureI: true,
+        annexureII: true,
+        annexureIII: true,
+        annexureIV: true,
+        annexureV: true,
+        annexureVI: true,
+      },
+      orderBy: { componentNo: 'asc' }
+    });
+  },
+  ['budget-master-components-with-annexures-v1'],
+  {
+    revalidate: 300,
+    tags: [
+      CACHE_TAGS.BUDGET_MASTER,
+      CACHE_TAGS.ANNEXURES,
+      CACHE_TAGS.ANNEXURE_1,
+      CACHE_TAGS.ANNEXURE_2,
+      CACHE_TAGS.ANNEXURE_3,
+      CACHE_TAGS.ANNEXURE_4,
+      CACHE_TAGS.ANNEXURE_5,
+      CACHE_TAGS.ANNEXURE_6,
+      CACHE_TAGS.REPORTS,
+    ],
+  }
+);
 
 export interface AuthoritativeBudgetComponent {
   componentNo: number;
@@ -126,10 +170,7 @@ export async function getAuthoritativeSanctionedBudgets(): Promise<Authoritative
   const components: AuthoritativeBudgetComponent[] = [];
 
   try {
-    const dbComponents = await prisma.budgetComponent.findMany({
-      where: { componentNo: { lte: 6 } }, // Strictly online components 1 to 6 (Head 7 offline-only)
-      orderBy: { componentNo: 'asc' }
-    });
+    const dbComponents = await fetchOnlineBudgetComponentsCached();
 
     if (dbComponents && dbComponents.length > 0) {
       dbComponents.forEach((c: any) => {
@@ -189,34 +230,21 @@ export async function getAuthoritativeBudgetSummary(options?: {
   financialYear?: string;
   projectId?: string;
 }): Promise<AuthoritativeBudgetSummaryResult> {
-  const { componentBudgetMap, totalSanctionedBudget, components: masterComps } = await getAuthoritativeSanctionedBudgets();
+  const [{ componentBudgetMap, totalSanctionedBudget, components: masterComps }, dbComps] = await Promise.all([
+    getAuthoritativeSanctionedBudgets(),
+    getCachedBudgetComponentsWithAnnexures().catch((err) => {
+      console.warn('[BudgetMasterService] Prisma expenditure fetch error, using fallback records:', err);
+      return [] as any[];
+    })
+  ]);
 
   let totalExpenditure = 0;
   let totalRecordsCount = 0;
 
-  // Retrieve actual expenditures from BudgetComponent relation or fallback data
-  let dbComps: any[] = [];
-  try {
-    dbComps = await prisma.budgetComponent.findMany({
-      where: { componentNo: { lte: 6 } },
-      include: {
-        annexureI: { select: { id: true, totalExpenditure: true } },
-        annexureII: { select: { id: true, totalExpenditure: true } },
-        annexureIII: { select: { id: true, totalExpenditure: true } },
-        annexureIV: { select: { id: true, totalExpenditure: true } },
-        annexureV: { select: { id: true, totalExpenditure: true } },
-        annexureVI: { select: { id: true, totalExpenditure: true } }
-      },
-      orderBy: { componentNo: 'asc' }
-    });
-  } catch (err) {
-    console.warn('[BudgetMasterService] Prisma expenditure fetch error, using fallback records:', err);
-  }
-
   const componentSummaries: AuthoritativeComponentSummary[] = CANONICAL_ONLINE_COMPONENT_META.map((meta) => {
     const sanctioned = componentBudgetMap[meta.componentNo] ?? 0;
-    const dbComp = dbComps.find(c => c.componentNo === meta.componentNo);
-    const fallbackComp = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === meta.componentNo);
+    const dbComp = dbComps.find((c: any) => c.componentNo === meta.componentNo);
+    const fallbackComp = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find((c: any) => c.componentNo === meta.componentNo);
 
     let compExp = 0;
     let recCount = 0;
@@ -331,4 +359,6 @@ export async function syncBudgetComponentToBudgetHead(componentNo: number, appro
   if (fallbackHead) {
     fallbackHead.approvedBudget = approvedBudget;
   }
+
+  invalidateFinancialCaches();
 }

@@ -587,12 +587,10 @@ export async function saveCommunicationsStage(
     }
 
     try {
+      const { invalidateSmeAndDocumentCaches } = await import('@/lib/dataCache');
+      invalidateSmeAndDocumentCaches(workEntry.smeId);
       revalidatePath('/generator/deputation');
       revalidatePath('/communications');
-      revalidatePath('/smes');
-      if (workEntry.smeId) {
-        revalidatePath(`/smes/${workEntry.smeId}`);
-      }
     } catch {}
 
     return {

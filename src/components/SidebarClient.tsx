@@ -274,7 +274,12 @@ export default function SidebarClient({
                 <React.Fragment key={item.path}>
                   <Link
                     href={item.path!}
-                    prefetch={true}
+                    prefetch={false}
+                    onMouseEnter={() => {
+                      if (item.path && item.path !== pathname) {
+                        try { router.prefetch(item.path); } catch {}
+                      }
+                    }}
                     onClick={closeMobile}
                     className={`${styles.navLink} ${isActive ? styles.active : ''}`}
                   >
@@ -285,6 +290,8 @@ export default function SidebarClient({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px', marginBottom: '4px' }}>
                       <Link
                         href="/reports/monthly-expenditure"
+                        prefetch={false}
+                        onMouseEnter={() => { try { router.prefetch('/reports/monthly-expenditure'); } catch {} }}
                         onClick={closeMobile}
                         className={`${styles.subNavLink} ${pathname === '/reports/monthly-expenditure' ? styles.activeSub : ''}`}
                       >
@@ -293,6 +300,8 @@ export default function SidebarClient({
                       </Link>
                       <Link
                         href="/reports/ncert-report"
+                        prefetch={false}
+                        onMouseEnter={() => { try { router.prefetch('/reports/ncert-report'); } catch {} }}
                         onClick={closeMobile}
                         className={`${styles.subNavLink} ${pathname === '/reports/ncert-report' ? styles.activeSub : ''}`}
                       >
@@ -301,6 +310,8 @@ export default function SidebarClient({
                       </Link>
                       <Link
                         href="/reports?type=head_wise"
+                        prefetch={false}
+                        onMouseEnter={() => { try { router.prefetch('/reports'); } catch {} }}
                         onClick={closeMobile}
                         className={`${styles.subNavLink} ${pathname === '/reports' && searchParams.get('type') === 'head_wise' ? styles.activeSub : ''}`}
                       >
@@ -309,6 +320,8 @@ export default function SidebarClient({
                       </Link>
                       <Link
                         href="/reports?type=annexure_summary"
+                        prefetch={false}
+                        onMouseEnter={() => { try { router.prefetch('/reports'); } catch {} }}
                         onClick={closeMobile}
                         className={`${styles.subNavLink} ${pathname === '/reports' && searchParams.get('type') === 'annexure_summary' ? styles.activeSub : ''}`}
                       >
@@ -317,6 +330,8 @@ export default function SidebarClient({
                       </Link>
                       <Link
                         href="/reports?type=custom"
+                        prefetch={false}
+                        onMouseEnter={() => { try { router.prefetch('/reports'); } catch {} }}
                         onClick={closeMobile}
                         className={`${styles.subNavLink} ${pathname === '/reports' && searchParams.get('type') === 'custom' ? styles.activeSub : ''}`}
                       >

@@ -1,3 +1,5 @@
+import { CACHE_TAGS, expireTags } from '@/lib/dataCache';
+
 interface SmeListCache {
   data: any[];
   timestamp: number;
@@ -22,5 +24,12 @@ export function setCachedSmeList(data: any[]): void {
 
 export function clearSmeListCache(): void {
   cachedSmes = null;
+  expireTags([
+    CACHE_TAGS.SMES,
+    CACHE_TAGS.DOCUMENTS,
+    CACHE_TAGS.PRODUCTION,
+    CACHE_TAGS.REPORTS,
+    CACHE_TAGS.SIDEBAR,
+  ]);
 }
 

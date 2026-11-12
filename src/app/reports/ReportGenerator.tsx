@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from 'react';
-import * as XLSX from 'xlsx';
 import { generateReportData } from './actions';
 import styles from './reports.module.css';
 
@@ -43,6 +42,7 @@ export default function ReportGenerator() {
         sheetData = [{ Message: 'No records found for this period.' }];
       }
       
+      const XLSX = await import('xlsx');
       const ws = XLSX.utils.json_to_sheet(sheetData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Report");

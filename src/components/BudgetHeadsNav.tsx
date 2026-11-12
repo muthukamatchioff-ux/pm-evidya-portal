@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import styles from './BudgetHeadsNav.module.css';
 
 interface HeadTab {
@@ -22,8 +22,19 @@ const BUDGET_HEADS: HeadTab[] = [
   { name: 'Head 6: Media Production', shortName: 'Annexure-VI', path: '/budget/annexure-6', annexure: 'VI' },
 ];
 
+const prefetchedBudgetRoutes = new Set<string>();
+
 export default function BudgetHeadsNav() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleHoverPrefetch = (path: string) => {
+    if (prefetchedBudgetRoutes.has(path) || path === pathname) return;
+    prefetchedBudgetRoutes.add(path);
+    try {
+      router.prefetch(path);
+    } catch {}
+  };
 
   return (
     <nav className={styles.navContainer} aria-label="Budget Heads Navigation">
@@ -33,7 +44,9 @@ export default function BudgetHeadsNav() {
           <Link
             key={tab.path}
             href={tab.path}
-            prefetch={true}
+            prefetch={false}
+            onMouseEnter={() => handleHoverPrefetch(tab.path)}
+            onFocus={() => handleHoverPrefetch(tab.path)}
             className={`${styles.navItem} ${isActive ? styles.activeNavItem : ''}`}
           >
             <span>{tab.name}</span>

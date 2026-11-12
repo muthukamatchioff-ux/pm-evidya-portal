@@ -12,17 +12,24 @@ export const metadata = {
   description: 'Internal Accounts and Document Monitoring System',
 };
 
+import SessionWarmer from '@/components/SessionWarmer';
+
 export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const role = await getRole();
+  const isAuthenticated = role !== 'VISITOR';
   
   return (
     <html lang="en">
       <body className={inter.className}>
-        <ClientLayoutWrapper sidebar={<Sidebar />} header={<Header role={role} />}>
+        {isAuthenticated && <SessionWarmer role={role} />}
+        <ClientLayoutWrapper
+          sidebar={isAuthenticated ? <Sidebar /> : null}
+          header={isAuthenticated ? <Header role={role} /> : null}
+        >
           {children}
         </ClientLayoutWrapper>
       </body>

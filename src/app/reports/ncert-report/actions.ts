@@ -4,14 +4,16 @@ import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import fs from 'fs';
 import path from 'path';
-import * as XLSX from 'xlsx';
 import {
   NCERT_HEAD_MAPPINGS,
   getAuthoritativeLedgerVouchers,
   VerifiedLedgerVoucher,
 } from '@/lib/ncertFinancialService';
 import { REAL_PM_EVIDYA_BUDGET_COMPONENTS } from '@/lib/fallbackData';
-import { getAuthoritativeSanctionedBudgets } from '@/lib/budgetMasterService';
+import {
+  getAuthoritativeSanctionedBudgets,
+  getCachedBudgetComponentsWithAnnexures,
+} from '@/lib/budgetMasterService';
 import { getAuthoritativeVideoLibrary, formatDurationSeconds, BundledVideoItem } from '@/lib/videoCatalogService';
 
 export interface NcertColumnMeta {
@@ -277,20 +279,10 @@ const FISCAL_YEAR_2026_2027_MONTHS = [
   'Mar 2027',
 ];
 
-// Dynamic Database Synchronization: Query Prisma / Live Store Annexures for NCERT Report
+// Dynamic Database Synchronization: Query Shared Cross-Lambda Annexures Cache for NCERT Report
 export async function fetchLiveNcertVouchers(): Promise<VerifiedLedgerVoucher[]> {
   try {
-    const components = await prisma.budgetComponent.findMany({
-      where: { componentNo: { lte: 6 } }, // Exclude Head 7 Studio Upgradation (offline-only)
-      include: {
-        annexureI: true,
-        annexureII: true,
-        annexureIII: true,
-        annexureIV: true,
-        annexureV: true,
-        annexureVI: true,
-      },
-    });
+    const components = await getCachedBudgetComponentsWithAnnexures();
 
     const liveVouchers: VerifiedLedgerVoucher[] = [];
     components.forEach((c: any) => {
@@ -543,8 +535,12 @@ export async function getNcertReportData(options?: {
   const budgetMode = options?.budgetMode || 'portal';
   const accountingBasis = options?.accountingBasis || 'full_consolidated';
 
-  // Retrieve dynamic authoritative budgets from Budget Master
-  const budgetMaster = await getAuthoritativeSanctionedBudgets();
+  // Parallelize shared-cached fetches: authoritative budgets, vouchers, and video catalog
+  const [budgetMaster, liveDbVouchers, allVideos] = await Promise.all([
+    getAuthoritativeSanctionedBudgets(),
+    fetchLiveNcertVouchers(),
+    getVideosFromDatabase(),
+  ]);
 
   // Budget allocations: dynamically populated from canonical Budget Master
   const allocations = {
@@ -559,9 +555,7 @@ export async function getNcertReportData(options?: {
 
   // Authoritatively use live Annexure vouchers from Budget Master directly
   // Fall back to baseline vouchers ONLY if database query returns 0 records
-  const liveDbVouchers = await fetchLiveNcertVouchers();
   const allVouchers = liveDbVouchers.length > 0 ? liveDbVouchers : getAuthoritativeLedgerVouchers();
-  const allVideos = await getVideosFromDatabase();
 
   // 12 Reporting Months in Fiscal Year 2026-2027 matching Excel Col C
   const monthsConfig: Array<{
@@ -1085,6 +1079,7 @@ export async function exportNcertExcelReport(options?: {
     'templates',
     'Tracker-PM eVidya Fund to States, UTs  ABs.xlsx'
   );
+  const XLSX = await import('xlsx');
   const wb = XLSX.readFile(templatePath, {
     cellFormula: true,
     cellStyles: true,

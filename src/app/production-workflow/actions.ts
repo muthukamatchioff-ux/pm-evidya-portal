@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { checkAuth, getEmail, getRole } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
+import { invalidateVideoAndProductionCaches } from '@/lib/dataCache';
 import { queueNotification, getRecentNotificationLogs, retryNotification } from '@/lib/notifications';
 
 function formatEpicCode(epicSeq: number | null | undefined): string {
@@ -587,6 +588,7 @@ export async function assignCameramanToEpic(params: {
       notifNotice = notifRes.notice;
     }
 
+    invalidateVideoAndProductionCaches();
     revalidatePath('/production-workflow');
     revalidatePath('/video-production');
 
@@ -734,6 +736,7 @@ export async function assignEditorToEpic(params: {
       notifNotice = notifRes.notice;
     }
 
+    invalidateVideoAndProductionCaches();
     revalidatePath('/production-workflow');
     revalidatePath('/video-production');
 
@@ -905,6 +908,7 @@ export async function publishEpicToLibrary(params: {
     });
 
     revalidatePath('/content');
+    invalidateVideoAndProductionCaches();
     revalidatePath('/production-workflow');
     revalidatePath('/video-production');
 
@@ -1021,6 +1025,8 @@ export async function reviewEditorSubmission(params: {
       }
     });
 
+    invalidateVideoAndProductionCaches();
+    invalidateVideoAndProductionCaches();
     revalidatePath('/production-workflow');
     revalidatePath('/video-production');
     revalidatePath('/content');
@@ -1151,6 +1157,7 @@ export async function assignCameramanToVideo(params: {
       notifNotice = notifRes.notice;
     }
 
+    invalidateVideoAndProductionCaches();
     revalidatePath('/production-workflow');
     revalidatePath('/video-production');
 
@@ -1301,6 +1308,7 @@ export async function assignEditorToVideo(params: {
       notifNotice = notifRes.notice;
     }
 
+    invalidateVideoAndProductionCaches();
     revalidatePath('/production-workflow');
     revalidatePath('/video-production');
 

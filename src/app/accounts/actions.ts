@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
+import { invalidateSmeAndDocumentCaches } from '@/lib/dataCache';
 
 export async function updatePaymentStatus(paymentId: string, status: string, utrNumber?: string, remarks?: string) {
   try {
@@ -34,8 +35,7 @@ export async function updatePaymentStatus(paymentId: string, status: string, utr
       userEmail
     });
 
-    revalidatePath('/accounts');
-    revalidatePath('/dashboard');
+    invalidateSmeAndDocumentCaches();
     return { success: true };
   } catch (error) {
     console.error('Failed to update payment:', error);

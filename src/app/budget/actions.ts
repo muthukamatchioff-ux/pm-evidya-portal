@@ -1,5 +1,8 @@
 'use server';
 
+import { cachedQuery, CACHE_TAGS, invalidateFinancialCaches } from '@/lib/dataCache';
+import { getCachedComponentByNo } from '@/lib/portalCacheWarmers';
+
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { requireAuth, checkAuth, getEmail } from '@/lib/auth';
@@ -216,6 +219,7 @@ export async function addAnnexureIEntry(data: any) {
         verificationStatus: 'DRAFT',
       }
     });
+    invalidateFinancialCaches('/budget/annexure-1');
     revalidateAllFinancialViews('/budget/annexure-1');
     return { success: true, data: entry };
   } catch (err: any) {
@@ -255,6 +259,7 @@ export async function updateAnnexureIEntry(id: string, data: any) {
       where: { id },
       data: updateData
     });
+    invalidateFinancialCaches('/budget/annexure-1');
     revalidateAllFinancialViews('/budget/annexure-1');
     return { success: true, data: entry };
   } catch (err: any) {
@@ -281,6 +286,7 @@ export async function deleteAnnexureIEntry(id: string) {
       userEmail
     });
 
+    invalidateFinancialCaches('/budget/annexure-1');
     revalidateAllFinancialViews('/budget/annexure-1');
     return { success: true };
   } catch (err: any) {
@@ -295,14 +301,7 @@ export async function getComponent1Data() {
   if (cached && cached.expiry > Date.now()) {
     return cached.data;
   }
-  let comp = await prisma.budgetComponent.findUnique({
-    where: { componentNo: 1 },
-    include: {
-      annexureI: {
-        orderBy: { createdAt: 'asc' }
-      }
-    }
-  }).catch(() => null);
+  let comp = await getCachedComponentByNo(1);
 
   if (!comp || !comp.annexureI || comp.annexureI.length === 0) {
     comp = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 1) as any;
@@ -329,10 +328,7 @@ export async function getComponent2Data() {
   if (cached && cached.expiry > Date.now()) {
     return cached.data;
   }
-  let comp = await prisma.budgetComponent.findUnique({
-    where: { componentNo: 2 },
-    include: { annexureII: { orderBy: { createdAt: 'asc' } } }
-  }).catch(() => null);
+  let comp = await getCachedComponentByNo(2);
 
   if (!comp || !comp.annexureII || comp.annexureII.length === 0) {
     comp = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 2) as any;
@@ -390,6 +386,7 @@ export async function addAnnexureIIEntry(data: any) {
       userEmail
     });
 
+    invalidateFinancialCaches('/budget/annexure-2');
     revalidateAllFinancialViews('/budget/annexure-2');
     return { success: true, data: entry };
   } catch (err: any) {
@@ -439,6 +436,7 @@ export async function updateAnnexureIIEntry(id: string, data: any) {
       userEmail
     });
 
+    invalidateFinancialCaches('/budget/annexure-2');
     revalidateAllFinancialViews('/budget/annexure-2');
     return { success: true, data: entry };
   } catch (err: any) {
@@ -466,6 +464,7 @@ export async function deleteAnnexureIIEntry(id: string) {
       userEmail
     });
 
+    invalidateFinancialCaches('/budget/annexure-2');
     revalidateAllFinancialViews('/budget/annexure-2');
     return { success: true };
   } catch (err: any) {
@@ -481,9 +480,7 @@ export async function getComponent3Data() {
   if (cached && cached.expiry > Date.now()) {
     return cached.data;
   }
-  let comp = await prisma.budgetComponent.findUnique({
-    where: { componentNo: 3 }, include: { annexureIII: { orderBy: { createdAt: 'desc' } } }
-  }).catch(() => null);
+  let comp = await getCachedComponentByNo(3);
 
   if (!comp || !comp.annexureIII || comp.annexureIII.length === 0) {
     comp = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 3) as any;
@@ -536,6 +533,7 @@ export async function addAnnexureIIIEntry(data: any) {
       userEmail
     });
 
+    invalidateFinancialCaches('/budget/annexure-3');
     revalidateAllFinancialViews('/budget/annexure-3');
     return { success: true, data: entry };
   } catch (error: any) {
@@ -725,10 +723,7 @@ export async function getComponent4Data() {
   if (cached && cached.expiry > Date.now()) {
     return cached.data;
   }
-  let comp = await prisma.budgetComponent.findUnique({
-    where: { componentNo: 4 },
-    include: { annexureIV: { orderBy: { createdAt: 'desc' } } }
-  }).catch(() => null);
+  let comp = await getCachedComponentByNo(4);
 
   if (!comp || !comp.annexureIV || comp.annexureIV.length === 0) {
     comp = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 4) as any;
@@ -793,6 +788,7 @@ export async function addAnnexureIVEntry(data: any) {
       data: validation.sanitized
     });
 
+    invalidateFinancialCaches('/budget/annexure-4');
     revalidateAllFinancialViews('/budget/annexure-4');
     return { success: true, data: entry };
   } catch (err: any) {
@@ -814,9 +810,7 @@ export async function getComponent5Data() {
   if (cached && cached.expiry > Date.now()) {
     return cached.data;
   }
-  let comp = await prisma.budgetComponent.findUnique({
-    where: { componentNo: 5 }, include: { annexureV: { orderBy: { createdAt: 'desc' } } }
-  }).catch(() => null);
+  let comp = await getCachedComponentByNo(5);
 
   if (!comp) {
     comp = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 5) as any;
@@ -841,6 +835,7 @@ export async function addAnnexureVEntry(data: any) {
     if (!authCheck.success) return authCheck;
     const total = (Number(data.quantity) || 0) * (Number(data.unitCost) || 0) + (Number(data.installationCost) || 0) + (Number(data.transportation) || 0) + (Number(data.otherCharges) || 0);
     const entry = await prisma.annexureV.create({ data: { ...data, totalExpenditure: total } });
+    invalidateFinancialCaches('/budget/annexure-5');
     revalidateAllFinancialViews('/budget/annexure-5');
     return { success: true, data: entry };
   } catch (err: any) {
@@ -856,9 +851,7 @@ export async function getComponent6Data() {
   if (cached && cached.expiry > Date.now()) {
     return cached.data;
   }
-  let comp = await prisma.budgetComponent.findUnique({
-    where: { componentNo: 6 }, include: { annexureVI: { orderBy: { createdAt: 'desc' } } }
-  }).catch(() => null);
+  let comp = await getCachedComponentByNo(6);
 
   if (!comp || !comp.annexureVI || comp.annexureVI.length === 0) {
     comp = REAL_PM_EVIDYA_BUDGET_COMPONENTS.find(c => c.componentNo === 6) as any;
@@ -906,6 +899,7 @@ export async function addAnnexureVIEntry(data: any) {
       userEmail
     });
 
+    invalidateFinancialCaches('/budget/annexure-6');
     revalidateAllFinancialViews('/budget/annexure-6');
     return { success: true, data: entry };
   } catch (err: any) {
@@ -952,6 +946,7 @@ export async function updateAnnexureIIIEntry(id: string, data: any) {
       userEmail
     });
 
+    invalidateFinancialCaches('/budget/annexure-3');
     revalidateAllFinancialViews('/budget/annexure-3');
     return { success: true, data: entry };
   } catch (error: any) {
@@ -982,6 +977,7 @@ export async function deleteAnnexureIIIEntry(id: string) {
       userEmail
     });
 
+    invalidateFinancialCaches('/budget/annexure-3');
     revalidateAllFinancialViews('/budget/annexure-3');
     return { success: true };
   } catch (error: any) {
@@ -1054,6 +1050,7 @@ export async function updateAnnexureIVEntry(id: string, data: any) {
       userEmail
     });
 
+    invalidateFinancialCaches('/budget/annexure-4');
     revalidateAllFinancialViews('/budget/annexure-4');
     return { success: true, data: entry };
   } catch (err: any) {
@@ -1087,6 +1084,7 @@ export async function deleteAnnexureIVEntry(id: string) {
       userEmail
     });
 
+    invalidateFinancialCaches('/budget/annexure-4');
     revalidateAllFinancialViews('/budget/annexure-4');
     return { success: true };
   } catch (err: any) {
@@ -1102,6 +1100,7 @@ export async function updateAnnexureVEntry(id: string, data: any) {
     if (!authCheck.success) return authCheck;
     const total = (Number(data.quantity) || 0) * (Number(data.unitCost) || 0) + (Number(data.installationCost) || 0) + (Number(data.transportation) || 0) + (Number(data.otherCharges) || 0);
     const entry = await prisma.annexureV.update({ where: { id }, data: { ...data, totalExpenditure: total } });
+    invalidateFinancialCaches('/budget/annexure-5');
     revalidateAllFinancialViews('/budget/annexure-5');
     return { success: true, data: entry };
   } catch (err: any) {
@@ -1141,6 +1140,7 @@ export async function deleteAnnexureVEntry(id: string) {
       userEmail
     });
 
+    invalidateFinancialCaches('/budget/annexure-5');
     await revalidateAllFinancialViews('/budget/annexure-5');
     return { success: true };
   } catch (err: any) {
@@ -1184,6 +1184,7 @@ export async function updateAnnexureVIEntry(id: string, data: any) {
       userEmail
     });
 
+    invalidateFinancialCaches('/budget/annexure-6');
     revalidateAllFinancialViews('/budget/annexure-6');
     return { success: true, data: entry };
   } catch (err: any) {
@@ -1209,6 +1210,7 @@ export async function deleteAnnexureVIEntry(id: string) {
       userEmail
     });
 
+    invalidateFinancialCaches('/budget/annexure-6');
     revalidateAllFinancialViews('/budget/annexure-6');
     return { success: true };
   } catch (err: any) {
@@ -1264,6 +1266,7 @@ export async function updateComponentBudget(id: string, approvedBudget: number) 
       userEmail
     });
 
+    invalidateFinancialCaches();
     await revalidateAllFinancialViews();
     return { success: true, data: updated };
   } catch (err: any) {

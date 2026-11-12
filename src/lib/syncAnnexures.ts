@@ -9,6 +9,7 @@ import {
   getCanonicalAnnexureVI
 } from './fallbackData';
 import { revalidatePath } from 'next/cache';
+import { invalidateFinancialCaches } from './dataCache';
 
 export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean = false) {
   const p = customPrisma || defaultPrisma;
@@ -304,19 +305,7 @@ export async function syncAnnexuresIfNeeded(customPrisma?: any, force: boolean =
       console.warn('[SyncAnnexures] Transaction fallback to canonical components:', txErr.message);
     }
 
-    try {
-      revalidatePath('/dashboard');
-      revalidatePath('/budget');
-      revalidatePath('/budget/annexure-1');
-      revalidatePath('/budget/annexure-2');
-      revalidatePath('/budget/annexure-3');
-      revalidatePath('/budget/annexure-4');
-      revalidatePath('/budget/annexure-5');
-      revalidatePath('/budget/annexure-6');
-      revalidatePath('/reports');
-      revalidatePath('/reports/monthly-expenditure');
-      revalidatePath('/reports/ncert-report');
-    } catch {}
+    invalidateFinancialCaches();
 
     const [u1, u2, u3, u4, u5, u6] = await Promise.all([
       p.budgetComponent.findUnique({ where: { componentNo: 1 }, include: { annexureI: true } }),
