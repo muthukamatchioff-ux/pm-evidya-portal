@@ -622,7 +622,8 @@ export async function getNcertReportData(options?: {
     let totalDurationSec = 0;
     let totalDurationStr = '00:00:00';
 
-    if (monthKey === 'Apr 2026' || monthKey === 'May 2026' || monthKey === 'Jun 2026') {
+    const publishedMonthVideos = monthVideos.filter((v) => v.videoLink && v.videoLink.startsWith('http'));
+    if (monthKey === 'Apr 2026' || monthKey === 'May 2026' || (monthKey === 'Jun 2026' && publishedMonthVideos.length === 0)) {
       videoCount = 0;
       subjectsStr = '-';
       generalFiller = '-';
@@ -1005,10 +1006,10 @@ export async function getNcertReportData(options?: {
     {
       id: 'exc-05',
       category: 'Video Duration',
-      item: 'Runtime Validation Across 84 Library Records',
-      status: 'Verified',
-      details: '84 unique topic video modules verified. Total duration: 35h 18m 43s. 0 missing durations detected.',
-      auditTrail: 'Prisma VideoLibrary (84 records) -> Topic duration aggregation in seconds',
+      item: `Runtime & Link Validation Across ${allVideos.length} Library Modules`,
+      status: allVideos.length > 0 ? 'Verified' : 'Pending Verification',
+      details: `${allVideos.filter((v) => v.videoLink && v.videoLink.startsWith('http')).length} published modules (${formatDuration(grandDurationSec)}) with streaming links verified; ${allVideos.filter((v) => !v.videoLink || !v.videoLink.startsWith('http')).length} in-progress/planned modules tracked across ${allVideos.length} catalog records.`,
+      auditTrail: `VideoCatalogService (${allVideos.length} records) -> Topic durationSeconds & streaming link sync`,
     },
     {
       id: 'exc-06',

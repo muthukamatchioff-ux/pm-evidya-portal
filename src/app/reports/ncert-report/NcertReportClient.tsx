@@ -36,6 +36,7 @@ export default function NcertReportClient({ initialData }: Props) {
     items?: any[];
     singleItem?: any;
   } | null>(null);
+  const [videoFilterTerm, setVideoFilterTerm] = useState('');
 
   // Format currency in Indian Rupees format (₹ XX,XX,XXX)
   const formatINR = (val: number | undefined | null): string => {
@@ -123,6 +124,7 @@ export default function NcertReportClient({ initialData }: Props) {
     const vids = row.videoItems || [];
     if (row.videoCount === 0 && vids.length === 0) return;
     const count = vids.length > 0 ? vids.length : row.videoCount;
+    setVideoFilterTerm('');
     setModalState({
       isOpen: true,
       title: `Video Content Developed — ${row.monthLabel}`,
@@ -135,6 +137,44 @@ export default function NcertReportClient({ initialData }: Props) {
         language: row.language,
         duration: row.totalDurationStr,
         count: count,
+      },
+    });
+  };
+
+  const openQuarterVideoDrillDown = (quarter: string) => {
+    const qRows = data.rows.filter((r) => r.quarter === quarter);
+    const qVideos = qRows.flatMap((r) => r.videoItems || []);
+    if (qVideos.length === 0) return;
+    const qSummary = quarterSummaries.find((q) => q.quarter === quarter);
+    setVideoFilterTerm('');
+    setModalState({
+      isOpen: true,
+      title: `Video Content Developed — ${quarter} Consolidated`,
+      subtitle: `Total: ${qVideos.length} Modules | Duration: ${qSummary?.totalDurationStr || '00:00:00'} hrs | Head 1: Video Content Development`,
+      category: 'video',
+      monthLabel: `${quarter} Consolidated`,
+      items: qVideos,
+      singleItem: {
+        duration: qSummary?.totalDurationStr,
+        count: qVideos.length,
+      },
+    });
+  };
+
+  const openGrandTotalVideoDrillDown = () => {
+    const allVideos = data.rows.flatMap((r) => r.videoItems || []);
+    if (allVideos.length === 0) return;
+    setVideoFilterTerm('');
+    setModalState({
+      isOpen: true,
+      title: 'Video Content Developed — Consolidated Project Catalogue',
+      subtitle: `Total: ${allVideos.length} Modules | Duration: ${grandTotals.totalDurationStr} hrs | All Reporting Periods`,
+      category: 'video',
+      monthLabel: 'All Months (June - October 2026)',
+      items: allVideos,
+      singleItem: {
+        duration: grandTotals.totalDurationStr,
+        count: allVideos.length,
       },
     });
   };
@@ -193,6 +233,7 @@ export default function NcertReportClient({ initialData }: Props) {
 
   const closeModal = () => {
     setModalState(null);
+    setVideoFilterTerm('');
   };
 
   const { metadata, kpis, quarterSummaries, grandTotals, exceptionAudits } = data;
@@ -356,7 +397,12 @@ export default function NcertReportClient({ initialData }: Props) {
           </div>
         </div>
 
-        <div className={styles.kpiCard}>
+        <div
+          className={`${styles.kpiCard} ${styles.cellClickable}`}
+          onClick={openGrandTotalVideoDrillDown}
+          title="Click to view all video modules and streaming links across all reporting periods"
+          style={{ cursor: 'pointer' }}
+        >
           <div className={styles.kpiIconWrapper} style={{ background: '#e0f2fe', color: '#0369a1' }}>
             🎬
           </div>
@@ -633,7 +679,12 @@ export default function NcertReportClient({ initialData }: Props) {
                       </td>
                       <td className={styles.textCenter}>{r.newTextbookBased === '-' ? '' : r.newTextbookBased}</td>
                       <td className={styles.textCenter}>{r.classGrade === '-' ? '' : r.classGrade}</td>
-                      <td className={styles.textLeft} style={{ whiteSpace: 'pre-line' }}>
+                      <td
+                        className={`${styles.textLeft} ${isVideoClickable ? styles.cellClickable : ''}`}
+                        style={{ whiteSpace: 'pre-line' }}
+                        onClick={() => isVideoClickable && openVideoDrillDown(r)}
+                        title={isVideoClickable ? 'Click to view subject video modules, durations and streaming links' : undefined}
+                      >
                         {r.subjects}
                       </td>
                       <td className={styles.textCenter}>{r.generalFiller === '-' ? '' : r.generalFiller}</td>
@@ -824,11 +875,21 @@ export default function NcertReportClient({ initialData }: Props) {
                         <td colSpan={2} className={styles.textCenter}>
                           <strong>{qSummary.quarter} Subtotal</strong>
                         </td>
-                        <td className={styles.textCenter}>
-                          <strong>{qSummary.totalVideoCount}</strong>
+                        <td
+                          className={`${styles.textCenter} ${qSummary.totalVideoCount > 0 ? styles.cellClickable : ''}`}
+                          onClick={() => qSummary.totalVideoCount > 0 && openQuarterVideoDrillDown(qSummary.quarter)}
+                          title={qSummary.totalVideoCount > 0 ? `Click to view all video modules for ${qSummary.quarter}` : undefined}
+                        >
+                          <strong style={{ color: qSummary.totalVideoCount > 0 ? '#1d4ed8' : 'inherit' }}>
+                            {qSummary.totalVideoCount}
+                          </strong>
                         </td>
                         <td colSpan={5} className={styles.textCenter}>—</td>
-                        <td className={`${styles.textCenter} ${styles.durationVal}`}>
+                        <td
+                          className={`${styles.textCenter} ${styles.durationVal} ${qSummary.totalVideoCount > 0 ? styles.cellClickable : ''}`}
+                          onClick={() => qSummary.totalVideoCount > 0 && openQuarterVideoDrillDown(qSummary.quarter)}
+                          title={qSummary.totalVideoCount > 0 ? `Click to inspect ${qSummary.quarter} video durations and streaming links` : undefined}
+                        >
                           <strong>{qSummary.totalDurationStr}</strong>
                         </td>
                         <td className={styles.textRight}>
@@ -874,11 +935,19 @@ export default function NcertReportClient({ initialData }: Props) {
                   <td colSpan={2} className={styles.textCenter}>
                     <strong>ANNUAL GRAND TOTAL</strong>
                   </td>
-                  <td className={styles.textCenter}>
-                    <strong>{grandTotals.totalVideoCount}</strong>
+                  <td
+                    className={`${styles.textCenter} ${grandTotals.totalVideoCount > 0 ? styles.cellClickable : ''}`}
+                    onClick={openGrandTotalVideoDrillDown}
+                    title="Click to view all video modules across the entire project"
+                  >
+                    <strong style={{ color: '#1d4ed8' }}>{grandTotals.totalVideoCount}</strong>
                   </td>
                   <td colSpan={5} className={styles.textCenter}>—</td>
-                  <td className={`${styles.textCenter} ${styles.durationVal}`}>
+                  <td
+                    className={`${styles.textCenter} ${styles.durationVal} ${grandTotals.totalVideoCount > 0 ? styles.cellClickable : ''}`}
+                    onClick={openGrandTotalVideoDrillDown}
+                    title="Click to inspect all video durations and streaming links"
+                  >
                     <strong>{grandTotals.totalDurationStr}</strong>
                   </td>
                   <td className={styles.textRight}>
@@ -1125,6 +1194,16 @@ export default function NcertReportClient({ initialData }: Props) {
               {/* VIDEO CATEGORY DRILL DOWN */}
               {modalState.category === 'video' && (() => {
                 const videoList = modalState.items || [];
+                const searchLower = videoFilterTerm.trim().toLowerCase();
+                const filteredList = searchLower
+                  ? videoList.filter((v: any) =>
+                      (v.title && v.title.toLowerCase().includes(searchLower)) ||
+                      (v.trade && v.trade.toLowerCase().includes(searchLower)) ||
+                      (v.smeName && v.smeName.toLowerCase().includes(searchLower)) ||
+                      (v.month && v.month.toLowerCase().includes(searchLower))
+                    )
+                  : videoList;
+
                 const linkedCount = videoList.filter((v: any) => v.videoLink && String(v.videoLink).trim().startsWith('http')).length;
                 const totalDurSec = videoList.reduce((acc: number, v: any) => {
                   const d = v.duration;
@@ -1140,7 +1219,7 @@ export default function NcertReportClient({ initialData }: Props) {
 
                 return (
                   <div>
-                    <div style={{ marginBottom: '1rem', background: '#f8fafc', padding: '0.85rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ marginBottom: '0.75rem', background: '#f8fafc', padding: '0.85rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem', fontSize: '0.8rem' }}>
                         <div><strong>Curriculum Focus:</strong> Vocational Education</div>
                         <div><strong>Language:</strong> English / Hindi</div>
@@ -1148,6 +1227,47 @@ export default function NcertReportClient({ initialData }: Props) {
                         <div><strong>Total Duration:</strong> <span style={{ color: '#047857', fontWeight: 700 }}>⏱️ {computedDurStr} hrs</span></div>
                         <div><strong>Streaming Links:</strong> <span style={{ color: linkedCount > 0 ? '#15803d' : '#94a3b8', fontWeight: 600 }}>{linkedCount} of {videoList.length} Active</span></div>
                       </div>
+                    </div>
+
+                    {/* Quick Filter Search Input */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
+                      <div style={{ position: 'relative', flex: '1', minWidth: '240px' }}>
+                        <input
+                          type="text"
+                          placeholder="🔍 Search video module by title, trade, or SME expert..."
+                          value={videoFilterTerm}
+                          onChange={(e) => setVideoFilterTerm(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '0.45rem 0.75rem',
+                            borderRadius: '6px',
+                            border: '1px solid #cbd5e1',
+                            fontSize: '0.8rem',
+                            outline: 'none',
+                            background: '#ffffff'
+                          }}
+                        />
+                      </div>
+                      {videoFilterTerm && (
+                        <button
+                          type="button"
+                          onClick={() => setVideoFilterTerm('')}
+                          style={{
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '6px',
+                            background: '#f1f5f9',
+                            border: '1px solid #cbd5e1',
+                            fontSize: '0.75rem',
+                            cursor: 'pointer',
+                            color: '#475569'
+                          }}
+                        >
+                          Clear Search
+                        </button>
+                      )}
+                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                        Showing <strong>{filteredList.length}</strong> of {videoList.length} modules
+                      </span>
                     </div>
 
                     <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
@@ -1164,16 +1284,18 @@ export default function NcertReportClient({ initialData }: Props) {
                           </tr>
                         </thead>
                         <tbody>
-                          {videoList.length === 0 ? (
+                          {filteredList.length === 0 ? (
                             <tr>
                               <td colSpan={7} style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#64748b' }}>
                                 <div style={{ fontSize: '1.8rem', marginBottom: '0.4rem' }}>🎬</div>
-                                <div style={{ fontWeight: 600, color: '#334155' }}>No video modules found for this reporting month.</div>
+                                <div style={{ fontWeight: 600, color: '#334155' }}>
+                                  {videoList.length === 0 ? 'No video modules found for this reporting period.' : 'No modules matching your search query.'}
+                                </div>
                                 <div style={{ fontSize: '0.75rem', marginTop: '0.2rem', color: '#94a3b8' }}>Video records and streaming links will automatically appear once verified.</div>
                               </td>
                             </tr>
                           ) : (
-                            videoList.map((v: any, idx: number) => {
+                            filteredList.map((v: any, idx: number) => {
                               const hasLink = v.videoLink && String(v.videoLink).trim().startsWith('http');
                               return (
                                 <tr key={v.id || idx} style={{ borderBottom: '1px solid #e2e8f0', background: idx % 2 === 0 ? '#ffffff' : '#fcfcfd' }}>
@@ -1182,6 +1304,11 @@ export default function NcertReportClient({ initialData }: Props) {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                       <span style={{ fontSize: '13px' }}>🎬</span>
                                       <span>{v.title}</span>
+                                      {v.month && modalState.monthLabel.includes('Consolidated') && (
+                                        <span style={{ fontSize: '0.68rem', background: '#e2e8f0', color: '#475569', padding: '1px 5px', borderRadius: '4px', marginLeft: '4px' }}>
+                                          {v.month}
+                                        </span>
+                                      )}
                                     </div>
                                   </td>
                                   <td style={{ padding: '0.55rem 0.5rem' }}>
@@ -1191,12 +1318,16 @@ export default function NcertReportClient({ initialData }: Props) {
                                   </td>
                                   <td style={{ padding: '0.55rem 0.5rem', color: '#475569' }}>{v.smeName}</td>
                                   <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center', fontFamily: 'monospace', fontWeight: 600, color: '#0f172a' }}>
-                                    {v.duration && v.duration !== '00:00:00' ? (
+                                    {hasLink && v.duration && v.duration !== '00:00:00' ? (
                                       <span style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
                                         ⏱️ {v.duration}
                                       </span>
+                                    ) : v.duration && v.duration !== '00:00:00' && v.duration !== '0:00:00' ? (
+                                      <span style={{ background: '#f8fafc', color: '#64748b', padding: '2px 6px', borderRadius: '4px', fontSize: '0.73rem' }} title="Estimated target duration prior to final publication">
+                                        ⏱️ {v.duration} (Est.)
+                                      </span>
                                     ) : (
-                                      <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>—</span>
+                                      <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Pending</span>
                                     )}
                                   </td>
                                   <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center' }}>
@@ -1226,15 +1357,22 @@ export default function NcertReportClient({ initialData }: Props) {
                                         <span>▶</span> Watch Video
                                       </a>
                                     ) : (
-                                      <span style={{ color: '#94a3b8', fontSize: '0.72rem', fontStyle: 'italic', background: '#f8fafc', padding: '2px 8px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
-                                        ⏳ Link Pending
+                                      <span style={{ color: '#64748b', fontSize: '0.72rem', fontStyle: 'italic', background: '#f8fafc', padding: '2px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
+                                        {v.status === 'Yet to Shoot' ? '🎬 Yet to Shoot' : v.status === 'In Progress' || v.status === 'On Process' ? '✂️ Editing' : '⏳ Link Pending'}
                                       </span>
                                     )}
                                   </td>
                                   <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center' }}>
-                                    <span className={hasLink ? styles.badgeSuccess : styles.badgeInfo}>
-                                      {hasLink ? 'PUBLISHED' : (v.status || 'COMPLETED')}
-                                    </span>
+                                    {(() => {
+                                      const st = hasLink ? 'PUBLISHED' : (v.status || 'Not Yet Started');
+                                      const stLower = st.toLowerCase();
+                                      const badgeClass = hasLink
+                                        ? styles.badgeSuccess
+                                        : (stLower.includes('progress') || stLower.includes('process') || stLower.includes('pending'))
+                                          ? styles.badgeWarning
+                                          : styles.badgeMuted;
+                                      return <span className={badgeClass}>{st}</span>;
+                                    })()}
                                   </td>
                                 </tr>
                               );

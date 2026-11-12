@@ -3,6 +3,7 @@
 import { requireAuth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getAuthoritativeSanctionedBudgets } from '@/lib/budgetMasterService';
+import { getAuthoritativeVideoLibrary } from '@/lib/videoCatalogService';
 
 export interface DrillDownVoucher {
   id: string;
@@ -1057,21 +1058,15 @@ function isValidCompletedVideoLink(url?: string | null): boolean {
 async function fetchVideoOutputMetrics(): Promise<VideoOutputMetrics> {
   let rawVideos: any[] = [];
   try {
-    rawVideos = await prisma.videoLibrary.findMany();
-  } catch {
+    rawVideos = await getAuthoritativeVideoLibrary();
+  } catch (err) {
     try {
-      const fs = await import('fs');
-      const path = await import('path');
-      const storePath = path.join(process.cwd(), 'data/pm_evidya_live_store.json');
-      if (fs.existsSync(storePath)) {
-        const store = JSON.parse(fs.readFileSync(storePath, 'utf8'));
-        rawVideos = store.videoLibraries || [];
-      }
+      rawVideos = await prisma.videoLibrary.findMany();
     } catch {}
   }
 
   // Deduplicate and filter completed videos
-  const completed = rawVideos.filter((v) => isValidCompletedVideoLink(v.videoLink));
+  const completed = rawVideos.filter((v: any) => isValidCompletedVideoLink(v.videoLink));
   const seenTitles = new Set<string>();
   const seenLinks = new Set<string>();
   const uniqueVideos: any[] = [];
@@ -1089,11 +1084,15 @@ async function fetchVideoOutputMetrics(): Promise<VideoOutputMetrics> {
   let unverifiedCount = 0;
 
   for (const v of uniqueVideos) {
-    const sec = parseDurationToSeconds(v.duration);
-    if (sec !== null) {
-      totalSeconds += sec;
+    if (v.durationSeconds && v.durationSeconds > 0) {
+      totalSeconds += v.durationSeconds;
     } else {
-      unverifiedCount++;
+      const sec = parseDurationToSeconds(v.duration);
+      if (sec !== null && sec > 0) {
+        totalSeconds += sec;
+      } else {
+        unverifiedCount++;
+      }
     }
   }
 

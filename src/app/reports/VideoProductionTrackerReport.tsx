@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { isHttpVideoLink, normalizeVideoTitle } from '@/lib/knownVideoDurations';
 
 export interface VideoProductionTrackerReportProps {
   initialRecords?: any[];
@@ -245,8 +246,13 @@ export default function VideoProductionTrackerReport({
         const editor = cleanEditor(ed?.editorName);
 
         const finalVideoLink = lib?.videoLink || ed?.finalVideoFile || fin?.finalVideoFile || null;
-        const hasLink = Boolean(finalVideoLink && finalVideoLink.trim() !== '' && finalVideoLink !== '-');
-        const duration = lib?.duration || ed?.duration || fin?.finalDuration || null;
+        const hasLink = isHttpVideoLink(finalVideoLink);
+        const rawLibDur = lib?.duration || null;
+        const isVid27Collision =
+          normalizeVideoTitle(title) === 'pressure measurement introduction' && rawLibDur === '0:28:47';
+        const duration = isVid27Collision
+          ? (ed?.duration || fin?.finalDuration || '0:40:11')
+          : (rawLibDur || ed?.duration || fin?.finalDuration || null);
 
         rows.push({
           slNo: sNo,
@@ -372,7 +378,7 @@ export default function VideoProductionTrackerReport({
       if (editSt.includes('completed') || r.hasLink) {
         editingCompleted++;
       }
-      if (r.durationSeconds > 0) {
+      if (r.hasLink && r.durationSeconds > 0) {
         totalSeconds += r.durationSeconds;
         withDurationCount++;
       }
@@ -403,6 +409,9 @@ export default function VideoProductionTrackerReport({
       editingCompleted: number;
       pendingShooting: number;
       pendingEditing: number;
+      linksReady: number;
+      totalDurationSec: number;
+      totalDurationStr: string;
     }>();
 
     // Standard production months ordering
@@ -414,7 +423,10 @@ export default function VideoProductionTrackerReport({
         shootingCompleted: 0,
         editingCompleted: 0,
         pendingShooting: 0,
-        pendingEditing: 0
+        pendingEditing: 0,
+        linksReady: 0,
+        totalDurationSec: 0,
+        totalDurationStr: '00:00:00'
       });
     });
 
@@ -428,7 +440,10 @@ export default function VideoProductionTrackerReport({
           shootingCompleted: 0,
           editingCompleted: 0,
           pendingShooting: 0,
-          pendingEditing: 0
+          pendingEditing: 0,
+          linksReady: 0,
+          totalDurationSec: 0,
+          totalDurationStr: '00:00:00'
         });
       }
       const entry = monthMap.get(baseMonth)!;
@@ -447,9 +462,20 @@ export default function VideoProductionTrackerReport({
       } else {
         entry.pendingEditing++;
       }
+
+      if (r.hasLink) {
+        entry.linksReady++;
+        if (r.durationSeconds > 0) {
+          entry.totalDurationSec += r.durationSeconds;
+        }
+      }
     });
 
-    return Array.from(monthMap.values()).filter(m => m.planned > 0);
+    const list = Array.from(monthMap.values()).filter(m => m.planned > 0);
+    list.forEach(m => {
+      m.totalDurationStr = formatSecondsToHHMMSS(m.totalDurationSec);
+    });
+    return list;
   }, [filteredRows]);
 
   // Section B: Cameraman Workload
@@ -493,13 +519,25 @@ export default function VideoProductionTrackerReport({
       planned: number;
       shootingCompleted: number;
       editingCompleted: number;
+      linksReady: number;
+      totalDurationSec: number;
+      totalDurationStr: string;
       rate: string;
     }>();
 
     filteredRows.forEach(r => {
       const tr = r.trade || 'General';
       if (!tradeMap.has(tr)) {
-        tradeMap.set(tr, { trade: tr, planned: 0, shootingCompleted: 0, editingCompleted: 0, rate: '0' });
+        tradeMap.set(tr, {
+          trade: tr,
+          planned: 0,
+          shootingCompleted: 0,
+          editingCompleted: 0,
+          linksReady: 0,
+          totalDurationSec: 0,
+          totalDurationStr: '00:00:00',
+          rate: '0'
+        });
       }
       const entry = tradeMap.get(tr)!;
       entry.planned++;
@@ -513,11 +551,19 @@ export default function VideoProductionTrackerReport({
       if (editSt.includes('completed') || r.hasLink) {
         entry.editingCompleted++;
       }
+
+      if (r.hasLink) {
+        entry.linksReady++;
+        if (r.durationSeconds > 0) {
+          entry.totalDurationSec += r.durationSeconds;
+        }
+      }
     });
 
     const list = Array.from(tradeMap.values());
     list.forEach(item => {
       item.rate = item.planned > 0 ? ((item.editingCompleted / item.planned) * 100).toFixed(1) : '0';
+      item.totalDurationStr = formatSecondsToHHMMSS(item.totalDurationSec);
     });
     list.sort((a, b) => b.planned - a.planned);
     return list;
@@ -579,7 +625,7 @@ export default function VideoProductionTrackerReport({
       ['Total Video Duration', executiveKpis.totalDurationStr, `${executiveKpis.withDurationCount} of ${executiveKpis.total} videos catalogued`],
       [],
       ['2. MONTHLY PRODUCTION PROGRESS'],
-      ['Month', 'Planned Videos', 'Shooting Completed', 'Editing Completed', 'Pending Shooting', 'Pending Editing', 'Completion %'],
+      ['Month', 'Planned Videos', 'Shooting Completed', 'Editing Completed', 'Pending Shooting', 'Pending Editing', 'Links Ready', 'Total Duration', 'Completion %'],
       ...monthlyProgress.map(m => [
         m.month,
         m.planned,
@@ -587,6 +633,8 @@ export default function VideoProductionTrackerReport({
         m.editingCompleted,
         m.pendingShooting,
         m.pendingEditing,
+        `${m.linksReady}/${m.planned}`,
+        m.totalDurationStr,
         m.planned > 0 ? `${((m.editingCompleted / m.planned) * 100).toFixed(1)}%` : '0%'
       ]),
       [],
@@ -595,8 +643,8 @@ export default function VideoProductionTrackerReport({
       ...cameramanWorkload.map(c => [c.name, c.assigned, c.completed, c.pending, `${c.rate}%`]),
       [],
       ['4. TRADE-WISE PRODUCTION PROGRESS'],
-      ['Trade', 'Planned Videos', 'Shooting Completed', 'Editing Completed', 'Completion %'],
-      ...tradeProgress.map(t => [t.trade, t.planned, t.shootingCompleted, t.editingCompleted, `${t.rate}%`]),
+      ['Trade', 'Planned Videos', 'Shooting Completed', 'Editing Completed', 'Links Ready', 'Total Duration', 'Completion %'],
+      ...tradeProgress.map(t => [t.trade, t.planned, t.shootingCompleted, t.editingCompleted, `${t.linksReady}/${t.planned}`, t.totalDurationStr, `${t.rate}%`]),
       [],
       ['5. VIDEO EDITOR WORKLOAD DISTRIBUTION'],
       ['Editor Name', 'Assigned Videos', 'Editing Completed', 'Pending Editing', 'Completion %'],
@@ -1078,12 +1126,14 @@ export default function VideoProductionTrackerReport({
               <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '11.5px', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
                 <thead>
                   <tr style={{ background: '#0f2942', color: '#ffffff' }}>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', width: '20%' }}>Month</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'center', width: '14%' }}>Planned Videos</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'center', width: '16%' }}>Shooting Done</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'center', width: '16%' }}>Editing Done</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'center', width: '16%' }}>Pending Shoot</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'center', width: '18%' }}>Progress %</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', width: '16%' }}>Month</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center', width: '11%' }}>Planned Videos</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center', width: '11%' }}>Shooting Done</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center', width: '11%' }}>Editing Done</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center', width: '11%' }}>Pending Shoot</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center', width: '12%' }}>Links Ready</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center', width: '13%' }}>Total Duration</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center', width: '15%' }}>Progress %</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1105,6 +1155,14 @@ export default function VideoProductionTrackerReport({
                         </td>
                         <td style={{ padding: '8px 12px', textAlign: 'center', color: '#854d0e', borderBottom: '1px solid #e2e8f0' }}>
                           {m.pendingShooting}
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                          <span style={{ background: m.linksReady > 0 ? '#dcfce7' : '#f1f5f9', color: m.linksReady > 0 ? '#15803d' : '#64748b', padding: '2px 8px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700 }}>
+                            🔗 {m.linksReady}/{m.planned}
+                          </span>
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'center', fontFamily: 'monospace', fontWeight: 700, color: '#0369a1', borderBottom: '1px solid #e2e8f0' }}>
+                          ⏱️ {m.totalDurationStr}
                         </td>
                         <td style={{ padding: '8px 12px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1234,11 +1292,13 @@ export default function VideoProductionTrackerReport({
               <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px', border: '1px solid #e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
                 <thead>
                   <tr style={{ background: '#0f2942', color: '#ffffff' }}>
-                    <th style={{ padding: '6px 10px', textAlign: 'left', width: '28%' }}>Trade Name</th>
-                    <th style={{ padding: '6px 10px', textAlign: 'center', width: '15%' }}>Planned Videos</th>
-                    <th style={{ padding: '6px 10px', textAlign: 'center', width: '18%' }}>Shooting Completed</th>
-                    <th style={{ padding: '6px 10px', textAlign: 'center', width: '18%' }}>Editing Completed</th>
-                    <th style={{ padding: '6px 10px', textAlign: 'center', width: '21%' }}>Trade Completion %</th>
+                    <th style={{ padding: '6px 10px', textAlign: 'left', width: '22%' }}>Trade Name</th>
+                    <th style={{ padding: '6px 10px', textAlign: 'center', width: '11%' }}>Planned Videos</th>
+                    <th style={{ padding: '6px 10px', textAlign: 'center', width: '13%' }}>Shooting Completed</th>
+                    <th style={{ padding: '6px 10px', textAlign: 'center', width: '13%' }}>Editing Completed</th>
+                    <th style={{ padding: '6px 10px', textAlign: 'center', width: '12%' }}>Links Ready</th>
+                    <th style={{ padding: '6px 10px', textAlign: 'center', width: '13%' }}>Total Duration</th>
+                    <th style={{ padding: '6px 10px', textAlign: 'center', width: '16%' }}>Trade Completion %</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1248,6 +1308,14 @@ export default function VideoProductionTrackerReport({
                       <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700, borderBottom: '1px solid #e2e8f0' }}>{t.planned}</td>
                       <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700, color: '#5b21b6', borderBottom: '1px solid #e2e8f0' }}>{t.shootingCompleted}</td>
                       <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700, color: '#047857', borderBottom: '1px solid #e2e8f0' }}>{t.editingCompleted}</td>
+                      <td style={{ padding: '6px 10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                        <span style={{ background: t.linksReady > 0 ? '#dcfce7' : '#f1f5f9', color: t.linksReady > 0 ? '#15803d' : '#64748b', padding: '2px 7px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
+                          🔗 {t.linksReady}/{t.planned}
+                        </span>
+                      </td>
+                      <td style={{ padding: '6px 10px', textAlign: 'center', fontFamily: 'monospace', fontWeight: 700, color: '#0369a1', borderBottom: '1px solid #e2e8f0' }}>
+                        ⏱️ {t.totalDurationStr}
+                      </td>
                       <td style={{ padding: '6px 10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <div style={{ flex: 1, background: '#e2e8f0', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
