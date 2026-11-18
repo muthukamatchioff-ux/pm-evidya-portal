@@ -5,6 +5,8 @@ import { verifySession } from '@/lib/session';
 import Header from '@/components/Header';
 import ClientLayoutWrapper from '@/components/ClientLayoutWrapper';
 import SessionWarmer from '@/components/SessionWarmer';
+import TopProgressBar from '@/components/TopProgressBar';
+import { Suspense } from 'react';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -42,6 +44,9 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        <Suspense fallback={null}>
+          <TopProgressBar />
+        </Suspense>
         {isAuthenticated && <SessionWarmer role={role} />}
         <ClientLayoutWrapper
           sidebar={SidebarComponent ? <SidebarComponent /> : null}

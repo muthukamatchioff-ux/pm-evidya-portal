@@ -27,6 +27,11 @@ const prefetchedBudgetRoutes = new Set<string>();
 export default function BudgetHeadsNav() {
   const pathname = usePathname();
   const router = useRouter();
+  const [navigatingTo, setNavigatingTo] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setNavigatingTo(null);
+  }, [pathname]);
 
   const handleHoverPrefetch = (path: string) => {
     if (prefetchedBudgetRoutes.has(path) || path === pathname) return;
@@ -39,13 +44,14 @@ export default function BudgetHeadsNav() {
   return (
     <nav className={styles.navContainer} aria-label="Budget Heads Navigation">
       {BUDGET_HEADS.map((tab) => {
-        const isActive = pathname === tab.path;
+        const isActive = (navigatingTo ? navigatingTo === tab.path : pathname === tab.path);
         return (
           <Link
             key={tab.path}
             href={tab.path}
-            prefetch={false}
+            onClick={() => setNavigatingTo(tab.path)}
             onMouseEnter={() => handleHoverPrefetch(tab.path)}
+            onTouchStart={() => handleHoverPrefetch(tab.path)}
             onFocus={() => handleHoverPrefetch(tab.path)}
             className={`${styles.navItem} ${isActive ? styles.activeNavItem : ''}`}
           >

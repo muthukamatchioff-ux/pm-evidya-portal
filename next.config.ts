@@ -13,6 +13,10 @@ if (!currentDbUrl || (!currentDbUrl.startsWith('postgresql://') && !currentDbUrl
 
 const nextConfig: NextConfig = {
   experimental: {
+    staleTimes: {
+      dynamic: 180,
+      static: 300,
+    },
     serverActions: {
       bodySizeLimit: "10mb",
     },
