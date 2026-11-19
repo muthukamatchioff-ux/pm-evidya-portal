@@ -10,8 +10,20 @@ import { invalidateVideoCatalogCache } from '@/lib/videoCatalogService';
 import { formatDurationSeconds, isHttpVideoLink, parseDurationToSeconds } from '@/lib/knownVideoDurations';
 import { probeVideoDuration } from '@/lib/videoDurationDetector';
 
+interface TopicProductionCache {
+  data: any;
+  timestamp: number;
+}
+const cachedTopicProductionRecords = new Map<string, TopicProductionCache>();
+const TOPIC_PRODUCTION_TTL_MS = 60 * 1000; // 60s TTL
+
+export async function clearTopicProductionCache() {
+  cachedTopicProductionRecords.clear();
+}
+
 function safeRevalidate() {
   try {
+    clearTopicProductionCache();
     invalidateVideoCatalogCache();
     revalidatePath('/video-production');
     revalidatePath('/production-workflow');
@@ -175,6 +187,11 @@ export async function getEpicWorkEntries() {
 export async function getTopicProductionRecords() {
   const role = await getRole();
   const email = await getEmail();
+  const cacheKey = `${role || 'VIEWER'}_${email || 'anon'}`;
+  const cached = cachedTopicProductionRecords.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < TOPIC_PRODUCTION_TTL_MS) {
+    return cached.data;
+  }
 
   try {
     // Concurrently fetch work entries, videos, and staff mapping in a single parallel batch
@@ -450,6 +467,8 @@ export async function getTopicProductionRecords() {
     const userNameLower = (user.name || '').toLowerCase().trim();
     const userEmailLower = user.email.toLowerCase().trim();
 
+    let response: { success: boolean; data?: any[]; error?: string } = { success: true, data: allRecords };
+
     if (role === 'CAMERAMAN') {
       const filtered = allRecords.filter((entry: any) => {
         const matchesCanonical = (entry.cameramanId && entry.cameramanId === user.id) ||
@@ -460,10 +479,8 @@ export async function getTopicProductionRecords() {
         });
         return matchesCanonical || matchesSequence || matchesCameraman;
       });
-      return { success: true, data: filtered };
-    }
-
-    if (role === 'EDITOR') {
+      response = { success: true, data: filtered };
+    } else if (role === 'EDITOR') {
       const filtered = allRecords.filter((entry: any) => {
         const matchesCanonical = (entry.editorId && entry.editorId === user.id) ||
           entry.videoEditorRecords?.some((e: any) => e.editorId === user.id);
@@ -473,10 +490,11 @@ export async function getTopicProductionRecords() {
         });
         return matchesCanonical || matchesSequence || matchesEditor;
       });
-      return { success: true, data: filtered };
+      response = { success: true, data: filtered };
     }
 
-    return { success: true, data: allRecords };
+    cachedTopicProductionRecords.set(cacheKey, { data: response, timestamp: Date.now() });
+    return response;
   } catch (error: any) {
     return { success: false, error: error.message };
   }

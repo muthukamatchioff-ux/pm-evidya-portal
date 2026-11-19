@@ -15,7 +15,11 @@ import {
 } from './fallbackData';
 import { TRACKER_SOURCE_RECORDS } from './trackerInitialData';
 
-const globalForPrisma = global as unknown as { prisma: any };
+const globalForPrisma = global as unknown as {
+  prisma: any;
+  rawClient: any;
+  hasRegisteredShutdown: boolean;
+};
 
 // =========================================================================
 // CANONICAL VIDEO PRODUCTION TRACKER DATA INITIALIZATION (76 TOPICS)
@@ -344,7 +348,7 @@ const getDbUrl = () => {
   ];
   for (const raw of candidates) {
     if (typeof raw === 'string') {
-      const clean = raw.trim().replace(/^["']|["']$/g, '');
+      let clean = raw.trim().replace(/^["']|["']$/g, '');
       if (
         (clean.startsWith('postgresql://') || clean.startsWith('postgres://')) &&
         !clean.includes('[SENSITIVE]') &&
@@ -353,9 +357,34 @@ const getDbUrl = () => {
         let url = clean.includes('schema=')
           ? clean
           : (clean.includes('?') ? `${clean}&schema=public` : `${clean}?schema=public`);
-        if (!url.includes('connection_limit=')) url += '&connection_limit=5';
-        if (!url.includes('pool_timeout=')) url += '&pool_timeout=10';
-        if (!url.includes('connect_timeout=')) url += '&connect_timeout=10';
+
+        // Tune connection pool limits for production stability:
+        // Upgrade connection_limit to 15 to handle concurrent queries & bursts without queueing
+        if (/connection_limit=\d+/.test(url)) {
+          url = url.replace(/connection_limit=\d+/, 'connection_limit=15');
+        } else {
+          url += '&connection_limit=15';
+        }
+
+        // Tune pool_timeout to 30 seconds to prevent premature queue aborts under load
+        if (/pool_timeout=\d+/.test(url)) {
+          url = url.replace(/pool_timeout=\d+/, 'pool_timeout=30');
+        } else {
+          url += '&pool_timeout=30';
+        }
+
+        // Tune connect_timeout to 20 seconds to allow Neon cold serverless compute to wake up
+        if (/connect_timeout=\d+/.test(url)) {
+          url = url.replace(/connect_timeout=\d+/, 'connect_timeout=20');
+        } else {
+          url += '&connect_timeout=20';
+        }
+
+        // Neon Pooled Connection: PgBouncer requires pgbouncer=true to disable prepared statements
+        if (url.includes('-pooler') && !url.includes('pgbouncer=')) {
+          url += '&pgbouncer=true';
+        }
+
         return url;
       }
     }
@@ -1702,6 +1731,23 @@ const createPrismaClient = () => {
     datasources: { db: { url: effectiveUrl } }
   });
 
+  globalForPrisma.rawClient = client;
+
+  // Process lifecycle & graceful connection termination on hosting container SIGTERM / SIGINT
+  if (typeof process !== 'undefined' && !globalForPrisma.hasRegisteredShutdown) {
+    globalForPrisma.hasRegisteredShutdown = true;
+    const handleShutdown = async (signal: string) => {
+      console.log(`[Lifecycle] Received ${signal}. Gracefully closing Prisma connections...`);
+      try {
+        await client.$disconnect();
+        console.log('[Lifecycle] Prisma client disconnected cleanly.');
+      } catch (_) {}
+      process.exit(0);
+    };
+    process.once('SIGTERM', () => handleShutdown('SIGTERM'));
+    process.once('SIGINT', () => handleShutdown('SIGINT'));
+  }
+
   const extendedPrisma: any = client.$extends({
     query: {
       $allModels: {
@@ -1724,23 +1770,40 @@ const createPrismaClient = () => {
             }
             return result;
           } catch (error: any) {
-            // Neon connection auto-reconnect retry on dropped idle socket
-            if (
+            // Neon connection auto-reconnect retry on dropped idle socket, pool timeout, or compute wake-up
+            const isConnectionDrop =
               error?.code === 'P1001' ||
               error?.code === 'P1012' ||
+              error?.code === 'P2024' ||
               error?.message?.includes('database connection') ||
               error?.message?.includes('connection closed') ||
+              error?.message?.includes('Connection terminated') ||
               error?.message?.includes('socket') ||
-              error?.message?.includes('ECONNRESET')
-            ) {
-              try {
-                await new Promise(r => setTimeout(r, 200));
-                const retryResult = await query(args);
-                if (operation === 'update' || operation === 'create' || operation === 'delete' || operation === 'upsert') {
-                  try { handleMemoryFallback(model, operation, args); } catch (_) {}
+              error?.message?.includes('ECONNRESET');
+
+            if (isConnectionDrop) {
+              // Retry up to 2 times with progressive backoff: 300ms, then 1000ms
+              for (const delay of [300, 1000]) {
+                try {
+                  await new Promise(r => setTimeout(r, delay));
+                  const retryResult = await query(args);
+                  if (operation === 'update' || operation === 'create' || operation === 'delete' || operation === 'upsert') {
+                    try { handleMemoryFallback(model, operation, args); } catch (_) {}
+                  }
+                  return retryResult;
+                } catch (retryErr: any) {
+                  const isStillConnErr =
+                    retryErr?.code === 'P1001' ||
+                    retryErr?.code === 'P1012' ||
+                    retryErr?.code === 'P2024' ||
+                    retryErr?.message?.includes('connection') ||
+                    retryErr?.message?.includes('socket') ||
+                    retryErr?.message?.includes('ECONNRESET');
+                  if (!isStillConnErr) {
+                    break;
+                  }
                 }
-                return retryResult;
-              } catch (_) {}
+              }
             }
 
             if (

@@ -33,7 +33,7 @@ export default async function SMEsPage() {
     <div className={styles.container}>
       {/* Breadcrumb */}
       <div className={styles.breadcrumb}>
-        <Link href="/dashboard" prefetch={false} style={{ color: 'inherit', textDecoration: 'none' }}>
+        <Link href="/dashboard" style={{ color: 'inherit', textDecoration: 'none' }}>
           Dashboard
         </Link>
         <span>/</span>
@@ -50,7 +50,7 @@ export default async function SMEsPage() {
           </div>
         </div>
         {role === 'ADMIN' && (
-          <Link href="/smes/new" prefetch={false} className={styles.btnAddSme}>
+          <Link href="/smes/new" className={styles.btnAddSme}>
             <span>➕</span>
             <span>Add New SME</span>
           </Link>

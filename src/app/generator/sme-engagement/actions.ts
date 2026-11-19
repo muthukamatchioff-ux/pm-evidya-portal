@@ -1,10 +1,8 @@
 "use server";
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { requireAuth, checkAuth } from '@/lib/auth';
-
-const prisma = new PrismaClient();
 
 export async function saveSMERecord(smeData: any, trades: any[]) {
   const authCheck = await checkAuth(['ADMIN']);

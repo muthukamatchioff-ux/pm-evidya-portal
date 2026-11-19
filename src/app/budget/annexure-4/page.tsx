@@ -23,7 +23,7 @@ export default async function Component4Page() {
             <p className={styles.subtitle}>Reference: Annexure-IV</p>
           </div>
           <div>
-            <Link href="/dashboard" prefetch={false}>
+            <Link href="/dashboard" >
               <button className={styles.btnSecondary}>Back to Dashboard</button>
             </Link>
           </div>

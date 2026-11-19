@@ -31,7 +31,17 @@ export default function BudgetHeadsNav() {
 
   React.useEffect(() => {
     setNavigatingTo(null);
-  }, [pathname]);
+    const timer = setTimeout(() => {
+      BUDGET_HEADS.forEach((tab) => {
+        if (tab.path !== pathname) {
+          try {
+            router.prefetch(tab.path);
+          } catch (_) {}
+        }
+      });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [pathname, router]);
 
   const handleHoverPrefetch = (path: string) => {
     if (prefetchedBudgetRoutes.has(path) || path === pathname) return;

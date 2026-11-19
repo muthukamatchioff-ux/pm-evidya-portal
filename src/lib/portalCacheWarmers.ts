@@ -238,59 +238,21 @@ export const getCachedSmeWorkEntriesList = cachedQuery(
           }
         }
 
-        const orphanTestSmes = dbSmes.filter(
-          (s: any) =>
-            !linkedSmeIds.has(s.id) &&
-            (s.name.toLowerCase().includes('muthu') ||
-              s.name.toLowerCase().includes('kamatchi') ||
-              s.name.toLowerCase().includes('test'))
-        );
-        for (const orphan of orphanTestSmes) {
-          try {
-            await prisma.document.deleteMany({ where: { workEntry: { smeId: orphan.id } } });
-            await prisma.payment.deleteMany({ where: { workEntry: { smeId: orphan.id } } });
-            await prisma.sMEWorkEntry.deleteMany({ where: { smeId: orphan.id } });
-            await prisma.sME.delete({ where: { id: orphan.id } });
-          } catch (_) {}
-        }
+        // All 17 authentic SMEs and linked work entries preserved strictly
       } catch (_) {}
 
-      const needsDbSync: any[] = [];
       for (const entry of workEntries) {
         if (entry.sme) {
           const contact = findSmeContact(entry.sme.name, entry.epicSequence);
           if (contact) {
-            const wasMissing = !entry.sme.contactNumber || !entry.sme.email;
             if ((entry.sme.contactNumber === null || entry.sme.contactNumber === undefined || entry.sme.contactNumber === '') && contact.phone) {
               entry.sme.contactNumber = contact.phone;
             }
             if ((entry.sme.email === null || entry.sme.email === undefined || entry.sme.email === '') && contact.email) {
               entry.sme.email = contact.email;
             }
-            if (wasMissing && entry.sme.id) {
-              needsDbSync.push({ id: entry.sme.id, phone: entry.sme.contactNumber, email: entry.sme.email });
-            }
           }
         }
-      }
-
-      if (needsDbSync.length > 0) {
-        Promise.all(
-          needsDbSync.map((item) =>
-            prisma.sME
-              .updateMany({
-                where: {
-                  id: item.id,
-                  OR: [{ contactNumber: null }, { contactNumber: '' }],
-                },
-                data: {
-                  contactNumber: item.phone || undefined,
-                  email: item.email || undefined,
-                },
-              })
-              .catch(() => null)
-          )
-        ).catch(() => null);
       }
 
       workEntries.sort((a, b) => (b.epicSequence || 0) - (a.epicSequence || 0));
@@ -311,31 +273,35 @@ export async function warmDatabaseAndCoreCaches() {
   try {
     await prisma.$queryRaw`SELECT 1`;
   } catch {}
-  await Promise.allSettled([
-    getAuthoritativeSanctionedBudgets(),
-    getCachedBudgetComponentsResult(true),
-    getCachedBudgetComponentsWithAnnexures(),
-  ]);
+  await getAuthoritativeSanctionedBudgets();
+  await getCachedBudgetComponentsResult(true);
 }
 
 /**
  * Full shared Data Cache pre-warming across all 6 Annexures, Budget Master,
- * Reports, SMEs, Documents, Accounts, and Videos in two non-contending batches.
+ * Reports, SMEs, Documents, Accounts, and Videos in smooth, staged micro-batches.
  */
 export async function warmAllPortalCaches() {
   await warmDatabaseAndCoreCaches();
+  // Batch 1: Annexures 1-3
   await Promise.allSettled([
-    getCachedBudgetComponentsResult(false),
     getCachedComponentByNo(1),
     getCachedComponentByNo(2),
     getCachedComponentByNo(3),
-    getAuthoritativeVideoLibrary(),
   ]);
+  // Batch 2: Annexures 4-6
   await Promise.allSettled([
     getCachedComponentByNo(4),
     getCachedComponentByNo(5),
     getCachedComponentByNo(6),
+  ]);
+  // Batch 3: Core libraries & work entries
+  await Promise.allSettled([
+    getAuthoritativeVideoLibrary(),
     getCachedSmeWorkEntriesList(),
+  ]);
+  // Batch 4: Documents and accounts
+  await Promise.allSettled([
     getCachedDocumentsAndSmes(),
     getCachedAccountsWorkEntries(),
   ]);

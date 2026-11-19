@@ -26,7 +26,7 @@ export default async function Component1Page() {
             <p className={styles.subtitle}>Reference: Annexure-I</p>
           </div>
           <div>
-            <Link href="/dashboard" prefetch={false}>
+            <Link href="/dashboard" >
               <button className={styles.btnSecondary}>Back to Dashboard</button>
             </Link>
           </div>

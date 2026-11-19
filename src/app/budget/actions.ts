@@ -55,7 +55,7 @@ export async function getBudgetComponents(options?: { summaryOnly?: boolean }) {
     // Only online components matching componentNo: { lte: 6 } are returned; Head 7 is offline-only
     const rawResult = await getCachedBudgetComponentsResult(isSummary);
     const calculatedResult = (rawResult || []).filter((c: any) => c.componentNo <= 6);
-    budgetCache.set(cacheKey, { data: calculatedResult, expiry: Date.now() + Math.min(BUDGET_CACHE_TTL, 10 * 1000) });
+    budgetCache.set(cacheKey, { data: calculatedResult, expiry: Date.now() + BUDGET_CACHE_TTL });
     return calculatedResult;
   } catch (error) {
     console.error('Failed to fetch budget components due to database connection error', error);

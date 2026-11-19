@@ -40,11 +40,11 @@ assertCheck(
   'lazy Proxy + tuned connection_limit'
 );
 assertCheck(
-  'prisma.ts uses conservative serverless pool parameters',
-  prismaSrc.includes('connection_limit=5') &&
-    prismaSrc.includes('pool_timeout=10') &&
-    prismaSrc.includes('connect_timeout=10'),
-  'connection_limit=5, pool_timeout=10, connect_timeout=10'
+  'prisma.ts uses tuned production pool parameters for stability',
+  prismaSrc.includes('connection_limit=15') &&
+    prismaSrc.includes('pool_timeout=30') &&
+    prismaSrc.includes('connect_timeout=20'),
+  'connection_limit=15, pool_timeout=30, connect_timeout=20'
 );
 
 // 2. Layout skips Sidebar/Header/SessionWarmer for VISITOR without importing Prisma

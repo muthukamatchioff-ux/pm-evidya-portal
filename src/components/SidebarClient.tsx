@@ -99,6 +99,27 @@ export default function SidebarClient({
     }
   }, [initialAssignmentCount]);
 
+  // Idle prefetch of primary heads so subsequent clicks are instantaneous (0ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const coreRoutes = [
+        '/budget',
+        '/reports/monthly-expenditure',
+        '/reports/ncert-report',
+        '/smes',
+        '/video-production',
+        '/content',
+        '/documents',
+      ];
+      coreRoutes.forEach((route) => {
+        try {
+          router.prefetch(route);
+        } catch (_) {}
+      });
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [router]);
+
   // Determine active tab for staff
   const currentTabParam = searchParams.get('tab');
   const activeStaffTab = useMemo(() => {
