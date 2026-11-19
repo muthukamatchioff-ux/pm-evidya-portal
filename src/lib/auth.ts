@@ -45,147 +45,172 @@ function isAdminEmail(email: string) {
 }
 
 async function createSession(email: string, role: string) {
-  const cookieStore = await cookies();
-  
-  const payload = btoa(JSON.stringify({ email, role, exp: Date.now() + 60 * 60 * 8 * 1000 }));
-  const signedToken = await signSession(payload);
+  try {
+    const cookieStore = await cookies();
+    
+    const payload = Buffer.from(
+      JSON.stringify({ email, role, exp: Date.now() + 60 * 60 * 8 * 1000 }),
+      'utf-8'
+    ).toString('base64');
+    const signedToken = await signSession(payload);
 
-  cookieStore.set('session_token', signedToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 60 * 60 * 8
-  });
-  return { success: true };
+    cookieStore.set('session_token', signedToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 8
+    });
+    return { success: true };
+  } catch (err: any) {
+    console.error('[createSession Exception]:', err?.message || err);
+    return { success: false, error: 'Failed to create session. Please try again.' };
+  }
 }
 
 export async function login(email: string, password: string): Promise<{ success: boolean; error?: string }> {
-  const normalizedEmail = email.toLowerCase().trim();
-  const officialConfig = getHigherOfficialConfig(normalizedEmail);
-
-  // First, always check DB for users (including admins and higher officials)
   try {
-    const dbUser = await prisma.user.findUnique({
-      where: { email: normalizedEmail }
-    });
+    const normalizedEmail = email.toLowerCase().trim();
+    const officialConfig = getHigherOfficialConfig(normalizedEmail);
 
-    if (dbUser && (dbUser.role === 'ADMIN' || dbUser.role === 'TEAM_MEMBER' || dbUser.role === 'VIEWER' || dbUser.role === 'CAMERAMAN' || dbUser.role === 'EDITOR' || dbUser.role === 'HIGHER_OFFICIAL_VIEWER')) {
-      if (dbUser.status !== 'ACTIVE' && !isAdminEmail(normalizedEmail) && !officialConfig) {
-        return { success: false, error: 'Account is deactivated.' };
+    // First, always check DB for users (including admins and higher officials)
+    try {
+      const dbUser = await prisma.user.findUnique({
+        where: { email: normalizedEmail }
+      });
+
+      if (dbUser && (dbUser.role === 'ADMIN' || dbUser.role === 'TEAM_MEMBER' || dbUser.role === 'VIEWER' || dbUser.role === 'CAMERAMAN' || dbUser.role === 'EDITOR' || dbUser.role === 'HIGHER_OFFICIAL_VIEWER')) {
+        if (dbUser.status !== 'ACTIVE' && !isAdminEmail(normalizedEmail) && !officialConfig) {
+          return { success: false, error: 'Account is deactivated.' };
+        }
+        // If DB user has a password, verify against it
+        if (dbUser.password) {
+          let passwordValid = false;
+          try {
+            passwordValid = await bcrypt.compare(password, dbUser.password);
+          } catch (bcryptErr) {
+            console.warn('[bcrypt compare exception on DB user]:', bcryptErr);
+            passwordValid = false;
+          }
+          if (passwordValid) {
+            // Update lastLogin in background without blocking login response
+            prisma.user.update({
+              where: { id: dbUser.id },
+              data: { 
+                lastLogin: new Date(),
+                ...(isAdminEmail(normalizedEmail) ? { status: 'ACTIVE', role: 'ADMIN' } : {}),
+                ...(officialConfig ? { status: 'ACTIVE', role: 'HIGHER_OFFICIAL_VIEWER' } : {})
+              }
+            }).catch((e: any) => console.warn('Could not update last login', e));
+            return await createSession(normalizedEmail, isAdminEmail(normalizedEmail) ? 'ADMIN' : dbUser.role);
+          }
+          // If DB password check fails, allow admin or higher official fallback to check
+          if (!isAdminEmail(normalizedEmail) && !officialConfig) {
+            return { success: false, error: 'Invalid credentials.' };
+          }
+        }
       }
-      // If DB user has a password, verify against it
-      if (dbUser.password) {
-        const passwordValid = await bcrypt.compare(password, dbUser.password);
-        if (passwordValid) {
-          // Update lastLogin in background without blocking login response
-          prisma.user.update({
-            where: { id: dbUser.id },
-            data: { 
+    } catch (error) {
+      console.warn('Database query failed during login, falling back to ENV/official config', error);
+    }
+
+    // Higher Official Account Verification & Self-Healing Provisioning
+    if (officialConfig) {
+      const expectedPassword = process.env.HIGHER_OFFICIAL_PASSWORD || 'Nimi@2026';
+      if (password === expectedPassword) {
+        try {
+          const hashedPassword = await bcrypt.hash(password, 10);
+          await prisma.user.upsert({
+            where: { email: normalizedEmail },
+            update: {
+              role: 'HIGHER_OFFICIAL_VIEWER',
+              status: 'ACTIVE',
               lastLogin: new Date(),
-              ...(isAdminEmail(normalizedEmail) ? { status: 'ACTIVE', role: 'ADMIN' } : {}),
-              ...(officialConfig ? { status: 'ACTIVE', role: 'HIGHER_OFFICIAL_VIEWER' } : {})
+              password: hashedPassword
+            },
+            create: {
+              email: normalizedEmail,
+              name: officialConfig.name,
+              role: 'HIGHER_OFFICIAL_VIEWER',
+              status: 'ACTIVE',
+              designation: officialConfig.designation,
+              department: officialConfig.department,
+              password: hashedPassword,
+              lastLogin: new Date(),
+              createdBy: 'System Provisioning'
             }
-          }).catch((e: any) => console.warn('Could not update last login', e));
-          return await createSession(normalizedEmail, isAdminEmail(normalizedEmail) ? 'ADMIN' : dbUser.role);
+          });
+        } catch (e) {
+          console.warn('Failed to upsert higher official user in DB, proceeding with session', e);
         }
-        // If DB password check fails, allow admin or higher official fallback to check
-        if (!isAdminEmail(normalizedEmail) && !officialConfig) {
-          return { success: false, error: 'Invalid credentials.' };
-        }
+        return await createSession(normalizedEmail, 'HIGHER_OFFICIAL_VIEWER');
       }
     }
-  } catch (error) {
-    console.warn('Database query failed during login, falling back to ENV/official config', error);
-  }
 
-  // Higher Official Account Verification & Self-Healing Provisioning
-  if (officialConfig) {
-    const expectedPassword = process.env.HIGHER_OFFICIAL_PASSWORD || 'Nimi@2026';
-    if (password === expectedPassword) {
+    // Fallback: If DB check failed or password was wrong, and this is an Admin Email, check the .env hash
+    if (isAdminEmail(normalizedEmail)) {
+      const passwordHash = process.env.ADMIN_PASSWORD_HASH;
+
+      if (!passwordHash) {
+        console.error('ADMIN_PASSWORD_HASH is not configured.');
+        return { success: false, error: 'Invalid admin credentials.' };
+      }
+      // Strip leading and trailing quotes if the user accidentally included them in Vercel dashboard
+      let finalHash = passwordHash.replace(/^["']|["']$/g, '');
+
+      // Explicit documented encoding mode to bypass Vercel parsing mutations
+      if (passwordHash.startsWith('b64:')) {
+        const b64Payload = passwordHash.slice(4);
+        // Strict Base64 structure validation
+        if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64Payload)) {
+          return { success: false, error: 'Invalid admin hash format configuration.' };
+        }
+        finalHash = Buffer.from(b64Payload, 'base64').toString('utf-8');
+
+        // Canonical Base64 check: re-encode and ensure strict match
+        if (Buffer.from(finalHash, 'utf-8').toString('base64') !== b64Payload) {
+          return { success: false, error: 'Invalid admin hash format configuration.' };
+        }
+      }
+
+      let passwordValid = false;
       try {
-        const hashedPassword = await bcrypt.hash(password, 10);
+        passwordValid = await bcrypt.compare(password, finalHash);
+      } catch (bcryptErr) {
+        console.warn('[bcrypt compare exception on admin fallback hash]:', bcryptErr);
+        passwordValid = false;
+      }
+
+      if (!passwordValid) {
+        return { success: false, error: 'Invalid admin credentials.' };
+      }
+
+      // Upsert legacy user in DB
+      try {
         await prisma.user.upsert({
           where: { email: normalizedEmail },
-          update: {
-            role: 'HIGHER_OFFICIAL_VIEWER',
-            status: 'ACTIVE',
-            lastLogin: new Date(),
-            password: hashedPassword
-          },
+          update: { role: 'ADMIN', status: 'ACTIVE', lastLogin: new Date(), password: finalHash },
           create: {
             email: normalizedEmail,
-            name: officialConfig.name,
-            role: 'HIGHER_OFFICIAL_VIEWER',
+            role: 'ADMIN',
             status: 'ACTIVE',
-            designation: officialConfig.designation,
-            department: officialConfig.department,
-            password: hashedPassword,
-            lastLogin: new Date(),
-            createdBy: 'System Provisioning'
+            name: normalizedEmail.split('@')[0],
+            password: finalHash,
+            lastLogin: new Date()
           }
         });
       } catch (e) {
-        console.warn('Failed to upsert higher official user in DB, proceeding with session', e);
+        console.warn('DB upsert failed, continuing admin login', e);
       }
-      return await createSession(normalizedEmail, 'HIGHER_OFFICIAL_VIEWER');
+
+      return await createSession(normalizedEmail, 'ADMIN');
     }
+
+    return { success: false, error: 'Invalid credentials.' };
+  } catch (outerErr: any) {
+    console.error('[Unhandled Login Exception]:', outerErr?.message || outerErr);
+    return { success: false, error: 'Unable to sign in. Please verify your credentials or try again.' };
   }
-
-  // Fallback: If DB check failed or password was wrong, and this is an Admin Email, check the .env hash
-  if (isAdminEmail(normalizedEmail)) {
-    const passwordHash = process.env.ADMIN_PASSWORD_HASH;
-
-    if (!passwordHash) {
-      console.error('ADMIN_PASSWORD_HASH is not configured.');
-      return { success: false, error: 'Invalid admin credentials.' };
-    }
-    // Strip leading and trailing quotes if the user accidentally included them in Vercel dashboard
-    let finalHash = passwordHash.replace(/^["']|["']$/g, '');
-
-    // Explicit documented encoding mode to bypass Vercel parsing mutations
-    if (passwordHash.startsWith('b64:')) {
-      const b64Payload = passwordHash.slice(4);
-      // Strict Base64 structure validation
-      if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64Payload)) {
-        return { success: false, error: 'Invalid admin hash format configuration.' };
-      }
-      finalHash = Buffer.from(b64Payload, 'base64').toString('utf-8');
-
-      // Canonical Base64 check: re-encode and ensure strict match
-      if (Buffer.from(finalHash, 'utf-8').toString('base64') !== b64Payload) {
-        return { success: false, error: 'Invalid admin hash format configuration.' };
-      }
-    }
-
-    const passwordValid = await bcrypt.compare(password, finalHash);
-
-    if (!passwordValid) {
-      return { success: false, error: 'Invalid admin credentials.' };
-    }
-
-    // Upsert legacy user in DB
-    try {
-      await prisma.user.upsert({
-        where: { email: normalizedEmail },
-        update: { role: 'ADMIN', status: 'ACTIVE', lastLogin: new Date(), password: finalHash },
-        create: {
-          email: normalizedEmail,
-          role: 'ADMIN',
-          status: 'ACTIVE',
-          name: normalizedEmail.split('@')[0],
-          password: finalHash,
-          lastLogin: new Date()
-        }
-      });
-    } catch (e) {
-      console.warn('DB upsert failed, continuing admin login', e);
-    }
-
-    return await createSession(normalizedEmail, 'ADMIN');
-  }
-
-  return { success: false, error: 'Invalid credentials.' };
 }
 
 export async function register(email: string, password: string): Promise<{ success: boolean; error?: string }> {

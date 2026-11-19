@@ -43,8 +43,19 @@ export default function LoginPage() {
 
       // Fast, immediate top-level redirection without client-side double-fetch stutter
       window.location.href = '/dashboard';
-    } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+    } catch (err: any) {
+      const msg = String(err?.message || '') + ' ' + String(err?.digest || '');
+      if (
+        msg.includes('Server Action') ||
+        msg.includes('action ID') ||
+        msg.includes('server reference') ||
+        msg.includes('Failed to find Server Action')
+      ) {
+        console.warn('[Login Recovery] Server Action ID mismatch detected. Reloading to obtain latest deployment bundle...');
+        window.location.reload();
+        return;
+      }
+      setError('Unable to sign in. Please check your credentials or try again.');
       setLoading(false);
     }
   };

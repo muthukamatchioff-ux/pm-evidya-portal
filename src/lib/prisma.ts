@@ -1781,13 +1781,23 @@ const createPrismaClient = () => {
               error?.message?.includes('socket') ||
               error?.message?.includes('ECONNRESET');
 
-            if (isConnectionDrop) {
+            // Prevent non-idempotent duplicate creation on connection drops
+            const isIdempotentOperation =
+              operation === 'findMany' ||
+              operation === 'findUnique' ||
+              operation === 'findFirst' ||
+              operation === 'count' ||
+              operation === 'aggregate' ||
+              operation === 'update' ||
+              operation === 'upsert';
+
+            if (isConnectionDrop && isIdempotentOperation) {
               // Retry up to 2 times with progressive backoff: 300ms, then 1000ms
               for (const delay of [300, 1000]) {
                 try {
                   await new Promise(r => setTimeout(r, delay));
                   const retryResult = await query(args);
-                  if (operation === 'update' || operation === 'create' || operation === 'delete' || operation === 'upsert') {
+                  if (operation === 'update' || operation === 'upsert') {
                     try { handleMemoryFallback(model, operation, args); } catch (_) {}
                   }
                   return retryResult;

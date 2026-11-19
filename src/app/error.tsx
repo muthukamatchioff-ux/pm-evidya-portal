@@ -16,17 +16,22 @@ export default function GlobalError({
     console.error('[PM e-Vidya Error Boundary caught error]:', error);
 
     // Auto-recover from Next.js Server Reference ID mismatches (e.g., after new production rollout)
-    const errorStr = (error?.message || '') + (error?.digest || '');
-    if (
+    const errorStr = (error?.message || '') + ' ' + (error?.digest || '');
+    const isServerActionMismatch =
       errorStr.includes('Server Action') ||
       errorStr.includes('action ID') ||
       errorStr.includes('server reference') ||
-      errorStr.includes('Failed to find Server Action') ||
-      errorStr.includes('digest')
-    ) {
-      console.warn('[Auto-Recovery] Detected Server Action mismatch from previous deployment. Reloading active bundle...');
+      errorStr.includes('Failed to find Server Action');
+
+    if (isServerActionMismatch) {
       try {
-        window.location.reload();
+        const lastReload = Number(sessionStorage.getItem('pm_last_sa_reload') || '0');
+        const now = Date.now();
+        if (now - lastReload > 30000) {
+          sessionStorage.setItem('pm_last_sa_reload', String(now));
+          console.warn('[Auto-Recovery] Detected Server Action mismatch from previous deployment. Reloading active bundle...');
+          window.location.reload();
+        }
       } catch (_) {}
     }
   }, [error]);
@@ -111,3 +116,4 @@ export default function GlobalError({
     </div>
   );
 }
+
