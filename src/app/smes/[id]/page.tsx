@@ -8,7 +8,7 @@ import { getRole, requireAuth } from '@/lib/auth';
 import { findSmeContact } from '@/lib/smeContacts';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const revalidate = 60;
 
 export default async function SMEProfilePage(props: { params: Promise<{ id: string }> }) {
   await requireAuth(['ADMIN', 'TEAM_MEMBER', 'VIEWER']);

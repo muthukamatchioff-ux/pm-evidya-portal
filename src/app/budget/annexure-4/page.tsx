@@ -7,7 +7,7 @@ import BudgetHeadsNav from '@/components/BudgetHeadsNav';
 import { getRole } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const revalidate = 60;
 
 export default async function Component4Page() {
   const role = await getRole();

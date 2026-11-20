@@ -103,20 +103,27 @@ export default function SidebarClient({
   useEffect(() => {
     const timer = setTimeout(() => {
       const coreRoutes = [
+        '/dashboard',
         '/budget',
+        '/budget/annexure-1',
+        '/budget/annexure-2',
+        '/budget/annexure-3',
+        '/production-workflow',
+        '/reports',
         '/reports/monthly-expenditure',
         '/reports/ncert-report',
         '/smes',
         '/video-production',
         '/content',
         '/documents',
+        '/accounts',
       ];
       coreRoutes.forEach((route) => {
         try {
           router.prefetch(route);
         } catch (_) {}
       });
-    }, 1200);
+    }, 200);
     return () => clearTimeout(timer);
   }, [router]);
 
@@ -301,6 +308,7 @@ export default function SidebarClient({
                 <React.Fragment key={item.path}>
                   <Link
                     href={item.path!}
+                    prefetch={true}
                     onMouseEnter={() => handleNavPrefetch(item.path!)}
                     onTouchStart={() => handleNavPrefetch(item.path!)}
                     onFocus={() => handleNavPrefetch(item.path!)}
@@ -314,6 +322,7 @@ export default function SidebarClient({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px', marginBottom: '4px' }}>
                       <Link
                         href="/reports/monthly-expenditure"
+                        prefetch={true}
                         onMouseEnter={() => handleNavPrefetch('/reports/monthly-expenditure')}
                         onTouchStart={() => handleNavPrefetch('/reports/monthly-expenditure')}
                         onClick={closeMobile}
@@ -324,6 +333,7 @@ export default function SidebarClient({
                       </Link>
                       <Link
                         href="/reports/ncert-report"
+                        prefetch={true}
                         onMouseEnter={() => handleNavPrefetch('/reports/ncert-report')}
                         onTouchStart={() => handleNavPrefetch('/reports/ncert-report')}
                         onClick={closeMobile}
@@ -334,6 +344,7 @@ export default function SidebarClient({
                       </Link>
                       <Link
                         href="/reports?type=head_wise"
+                        prefetch={true}
                         onMouseEnter={() => handleNavPrefetch('/reports?type=head_wise')}
                         onTouchStart={() => handleNavPrefetch('/reports?type=head_wise')}
                         onClick={closeMobile}
@@ -344,6 +355,7 @@ export default function SidebarClient({
                       </Link>
                       <Link
                         href="/reports?type=annexure_summary"
+                        prefetch={true}
                         onMouseEnter={() => handleNavPrefetch('/reports?type=annexure_summary')}
                         onTouchStart={() => handleNavPrefetch('/reports?type=annexure_summary')}
                         onClick={closeMobile}
@@ -354,6 +366,7 @@ export default function SidebarClient({
                       </Link>
                       <Link
                         href="/reports?type=custom"
+                        prefetch={true}
                         onMouseEnter={() => handleNavPrefetch('/reports?type=custom')}
                         onTouchStart={() => handleNavPrefetch('/reports?type=custom')}
                         onClick={closeMobile}
