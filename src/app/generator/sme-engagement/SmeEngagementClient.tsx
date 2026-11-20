@@ -131,8 +131,12 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
     element.style.boxShadow = 'none';
     element.style.border = 'none';
     try {
-      // Save record to DB automatically
-      await saveSMERecord(sme, trades);
+      // Safe non-blocking database record persistence (never blocks PDF generation)
+      try {
+        await saveSMERecord(sme, trades);
+      } catch (saveError: any) {
+        console.warn('[SmeEngagement] Non-blocking DB save notice:', saveError?.message || saveError);
+      }
 
       const html2pdf = (await import('html2pdf.js')).default;
       
@@ -146,10 +150,9 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
       };
       
       await html2pdf().from(element).set(opt).save();
-      alert("Success: Record saved to database and PDF generated!");
     } catch (error) {
       console.error(error);
-      alert("Error generating PDF or saving record.");
+      alert("Error generating PDF.");
     } finally {
       element.style.boxShadow = prevShadow;
       element.style.border = prevBorder;
@@ -160,8 +163,8 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
   const generateDOCX = async () => {
     try {
       await saveSMERecord(sme, trades);
-    } catch (e) {
-      console.error("Failed to save record", e);
+    } catch (e: any) {
+      console.warn("Non-blocking DB save notice on DOCX generation:", e?.message || e);
     }
 
     try {

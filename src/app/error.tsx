@@ -21,13 +21,14 @@ export default function GlobalError({
       errorStr.includes('Server Action') ||
       errorStr.includes('action ID') ||
       errorStr.includes('server reference') ||
+      errorStr.includes('was not found on the server') ||
       errorStr.includes('Failed to find Server Action');
 
     if (isServerActionMismatch) {
       try {
         const lastReload = Number(sessionStorage.getItem('pm_last_sa_reload') || '0');
         const now = Date.now();
-        if (now - lastReload > 30000) {
+        if (now - lastReload > 8000) {
           sessionStorage.setItem('pm_last_sa_reload', String(now));
           console.warn('[Auto-Recovery] Detected Server Action mismatch from previous deployment. Reloading active bundle...');
           window.location.reload();
