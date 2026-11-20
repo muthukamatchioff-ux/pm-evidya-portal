@@ -18,6 +18,7 @@ export default async function ProductionWorkflowPage() {
   const initialData = res.success && res.data ? res.data : {
     counts: {
       unassigned: 0,
+      inProgress: 0,
       shooting: 0,
       readyForEditor: 0,
       editing: 0,

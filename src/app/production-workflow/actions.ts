@@ -81,11 +81,12 @@ export interface WorkflowEpicItem {
 export interface DashboardWorkflowData {
   counts: {
     unassigned: number;
+    inProgress: number;
+    completed: number;
+    published: number;
     shooting: number;
     readyForEditor: number;
     editing: number;
-    completed: number;
-    published: number;
     total: number;
   };
   epics: WorkflowEpicItem[];
@@ -119,16 +120,9 @@ export async function getProductionWorkflowDashboardData(): Promise<{
   }
 
   try {
-    // 1. Fetch all canonical SMEWorkEntries with full video production relations
+    // 1. Fetch all canonical SMEWorkEntries (16 EPIC records) with full video production relations
     const [entries, cameramen, editors, notifications] = await Promise.all([
       prisma.sMEWorkEntry.findMany({
-        where: {
-          OR: [
-            { videoLibraries: { some: {} } },
-            { shootingSchedules: { some: {} } },
-            { videoEditorRecords: { some: {} } }
-          ]
-        },
         include: {
           sme: true,
           cameraman: { select: { id: true, name: true, email: true, status: true } },
@@ -144,7 +138,7 @@ export async function getProductionWorkflowDashboardData(): Promise<{
           },
           finalVideoRecords: true
         },
-        orderBy: { epicSequence: 'desc' }
+        orderBy: { epicSequence: 'asc' }
       }),
       prisma.user.findMany({
         where: { role: 'CAMERAMAN', status: 'ACTIVE' },
@@ -222,10 +216,10 @@ export async function getProductionWorkflowDashboardData(): Promise<{
       });
 
       // If entry had no topics at all, seed with the main entry.topic
-      if (topicMap.size === 0 && entry.topic) {
+      if (topicMap.size === 0) {
         topicMap.set(`${entry.id}-default`, {
           id: `${entry.id}-default`,
-          title: entry.topic
+          title: entry.topic || `Topic 1 - ${entry.trade}`
         });
       }
 
@@ -451,14 +445,24 @@ export async function getProductionWorkflowDashboardData(): Promise<{
       };
     });
 
+    const unassigned = workflowEpics.filter(e => e.workflowStage === 'UNASSIGNED').length;
+    const shooting = workflowEpics.filter(e => e.workflowStage === 'SHOOTING').length;
+    const readyForEditor = workflowEpics.filter(e => e.workflowStage === 'READY_FOR_EDITOR').length;
+    const editing = workflowEpics.filter(e => e.workflowStage === 'EDITING').length;
+    const completed = workflowEpics.filter(e => e.workflowStage === 'COMPLETED').length;
+    const published = workflowEpics.filter(e => e.workflowStage === 'PUBLISHED').length;
+    const inProgress = shooting + readyForEditor + editing;
+    const total = workflowEpics.length;
+
     const counts = {
-      unassigned: workflowEpics.filter(e => e.workflowStage === 'UNASSIGNED').length,
-      shooting: workflowEpics.filter(e => e.workflowStage === 'SHOOTING').length,
-      readyForEditor: workflowEpics.filter(e => e.workflowStage === 'READY_FOR_EDITOR').length,
-      editing: workflowEpics.filter(e => e.workflowStage === 'EDITING').length,
-      completed: workflowEpics.filter(e => e.workflowStage === 'COMPLETED').length,
-      published: workflowEpics.filter(e => e.workflowStage === 'PUBLISHED').length,
-      total: workflowEpics.length
+      unassigned,
+      inProgress,
+      completed,
+      published,
+      shooting,
+      readyForEditor,
+      editing,
+      total
     };
 
     return {
@@ -555,7 +559,23 @@ export async function assignCameramanToEpic(params: {
         }
       }
 
-      // 3. Log Audit
+      // 3. Update Cameraman sequence department for instant portal access
+      try {
+        let currentSeqs: number[] = [];
+        if (cameraman.department && cameraman.department.startsWith('[')) {
+          currentSeqs = JSON.parse(cameraman.department);
+        }
+        if (!currentSeqs.includes(entry.epicSequence)) {
+          currentSeqs.push(entry.epicSequence);
+          currentSeqs.sort((a, b) => a - b);
+          await tx.user.update({
+            where: { id: cameraman.id },
+            data: { department: JSON.stringify(currentSeqs) }
+          });
+        }
+      } catch (_) {}
+
+      // 4. Log Audit
       await tx.auditLog.create({
         data: {
           action: 'ASSIGN_CAMERAMAN',
@@ -703,7 +723,23 @@ export async function assignEditorToEpic(params: {
         }
       }
 
-      // 3. Log Audit
+      // 3. Update Editor sequence department for instant portal access
+      try {
+        let currentSeqs: number[] = [];
+        if (editor.department && editor.department.startsWith('[')) {
+          currentSeqs = JSON.parse(editor.department);
+        }
+        if (!currentSeqs.includes(entry.epicSequence)) {
+          currentSeqs.push(entry.epicSequence);
+          currentSeqs.sort((a, b) => a - b);
+          await tx.user.update({
+            where: { id: editor.id },
+            data: { department: JSON.stringify(currentSeqs) }
+          });
+        }
+      } catch (_) {}
+
+      // 4. Log Audit
       await tx.auditLog.create({
         data: {
           action: 'ASSIGN_EDITOR',

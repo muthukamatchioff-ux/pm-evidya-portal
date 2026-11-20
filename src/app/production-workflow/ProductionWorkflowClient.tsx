@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import styles from './workflow.module.css';
@@ -19,6 +19,17 @@ import {
 
 type TopicItem = WorkflowEpicItem['topics'][0];
 
+// Cross-tab BroadcastChannel for instant synchronization with Cameraman and Editor portals
+const broadcastProductionSync = () => {
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    try {
+      const channel = new BroadcastChannel('pmevidya_video_production_sync');
+      channel.postMessage({ type: 'RECORD_SAVED', timestamp: Date.now() });
+      channel.close();
+    } catch (_) {}
+  }
+};
+
 export default function ProductionWorkflowClient({
   initialData,
   role
@@ -31,15 +42,17 @@ export default function ProductionWorkflowClient({
 
   const [data, setData] = useState<DashboardWorkflowData>(initialData);
   const [loading, setLoading] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
+  const [lastSyncedTime, setLastSyncedTime] = useState<Date>(new Date());
+  const [timeAgoText, setTimeAgoText] = useState('Just now');
+  const lastRefreshTimeRef = useRef<number>(Date.now());
   const [notificationToast, setNotificationToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Tabs: ALL, UNASSIGNED, SHOOTING, READY_FOR_EDITOR, EDITING, SUBMITTED, REVISION_REQUIRED, APPROVED, COMPLETED, PUBLISHED
+  // 5 Primary Status Filters: ALL, UNASSIGNED, IN_PROGRESS, COMPLETED, PUBLISHED
   const tabParam = (searchParams.get('tab') || '').toUpperCase();
   const [activeTab, setActiveTab] = useState<string>(
     tabParam === 'UNASSIGNED' ? 'UNASSIGNED' :
-    tabParam === 'SHOOTING' ? 'SHOOTING' :
-    tabParam === 'READY_FOR_EDITOR' ? 'READY_FOR_EDITOR' :
-    tabParam === 'EDITING' ? 'EDITING' :
+    tabParam === 'IN_PROGRESS' || tabParam === 'SHOOTING' || tabParam === 'READY_FOR_EDITOR' || tabParam === 'EDITING' ? 'IN_PROGRESS' :
     tabParam === 'COMPLETED' ? 'COMPLETED' :
     tabParam === 'PUBLISHED' ? 'PUBLISHED' : 'ALL'
   );
@@ -48,14 +61,13 @@ export default function ProductionWorkflowClient({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTrade, setSelectedTrade] = useState('ALL');
 
-  // Level 2 Expansion State (supports expanding one or multiple EPICs)
+  // Level 2 Expansion State (one EPIC expanded at a time)
   const [expandedEpicId, setExpandedEpicId] = useState<string | null>(null);
 
   // Modals - EPIC Level
   const [cameramanModalOpen, setCameramanModalOpen] = useState(false);
   const [editorModalOpen, setEditorModalOpen] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
-  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [notificationsModalOpen, setNotificationsModalOpen] = useState(false);
 
   // Modals - Video Level
@@ -114,19 +126,87 @@ export default function ProductionWorkflowClient({
   };
 
   // Refresh data from server
-  const handleRefresh = async () => {
-    setLoading(true);
+  const handleRefresh = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
+    setSyncStatus('syncing');
     try {
       const res = await getProductionWorkflowDashboardData();
       if (res.success && res.data) {
         setData(res.data);
+        setSyncStatus('synced');
+        setLastSyncedTime(new Date());
+        lastRefreshTimeRef.current = Date.now();
+      } else {
+        setSyncStatus('error');
       }
     } catch (err: any) {
-      console.error(err);
+      console.error('Error refreshing workflow data:', err);
+      setSyncStatus('error');
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
-  };
+  }, []);
+
+  // Real-time synchronization: 10s background polling + visibilitychange + BroadcastChannel
+  useEffect(() => {
+    // 1. Cross-tab instantaneous synchronization via BroadcastChannel
+    let channel: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        channel = new BroadcastChannel('pmevidya_video_production_sync');
+        channel.onmessage = (event) => {
+          if (event.data?.type === 'RECORD_SAVED') {
+            handleRefresh(true);
+          }
+        };
+      }
+    } catch (_) {}
+
+    // 2. Tab focus & visibility change listener (immediate refresh if > 5s elapsed)
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        const now = Date.now();
+        if (now - lastRefreshTimeRef.current > 5000) {
+          handleRefresh(true);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
+    // 3. Controlled 10-second background polling (paused when tab hidden)
+    const intervalId = setInterval(() => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        handleRefresh(true);
+      }
+    }, 10000);
+
+    return () => {
+      clearInterval(intervalId);
+      if (channel) {
+        try { channel.close(); } catch (_) {}
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+    };
+  }, [handleRefresh]);
+
+  // Update "time ago" ticker every 5 seconds
+  useEffect(() => {
+    const updateTicker = () => {
+      const diffSecs = Math.round((Date.now() - lastSyncedTime.getTime()) / 1000);
+      if (diffSecs < 10) {
+        setTimeAgoText('Just now');
+      } else if (diffSecs < 60) {
+        setTimeAgoText(`${diffSecs}s ago`);
+      } else {
+        const mins = Math.floor(diffSecs / 60);
+        setTimeAgoText(`${mins}m ago`);
+      }
+    };
+    const tickerInterval = setInterval(updateTicker, 5000);
+    return () => clearInterval(tickerInterval);
+  }, [lastSyncedTime]);
 
   // Distinct trades for filter dropdown
   const tradesList = useMemo(() => {
@@ -137,41 +217,29 @@ export default function ProductionWorkflowClient({
     return Array.from(set).sort();
   }, [data.epics]);
 
-  // Dynamic counts for all filter tabs
+  // Dynamic counts for 4 primary categories calculated from actual live DB records
   const tabCounts = useMemo(() => {
     const total = data.epics.length;
     const unassigned = data.epics.filter(e => e.workflowStage === 'UNASSIGNED').length;
-    const shooting = data.epics.filter(e => e.workflowStage === 'SHOOTING').length;
-    const readyForEditor = data.epics.filter(e => e.workflowStage === 'READY_FOR_EDITOR').length;
-    const editing = data.epics.filter(e => e.workflowStage === 'EDITING').length;
+    const inProgress = data.epics.filter(e => 
+      e.workflowStage === 'SHOOTING' || 
+      e.workflowStage === 'READY_FOR_EDITOR' || 
+      e.workflowStage === 'EDITING'
+    ).length;
     const completed = data.epics.filter(e => e.workflowStage === 'COMPLETED').length;
     const published = data.epics.filter(e => e.workflowStage === 'PUBLISHED').length;
-    const submitted = data.epics.filter(e =>
-      e.topics.some(t => t.submissionStatus === 'Submitted – Awaiting Admin Approval')
-    ).length;
-    const revisionRequired = data.epics.filter(e =>
-      e.topics.some(t => t.submissionStatus === 'Revision Required')
-    ).length;
-    const approved = data.epics.filter(e =>
-      e.topics.some(t => t.submissionStatus === 'Admin Approved')
-    ).length;
 
-    return { total, unassigned, shooting, readyForEditor, editing, completed, published, submitted, revisionRequired, approved };
+    return { total, unassigned, inProgress, completed, published };
   }, [data.epics]);
 
-  // Filtered EPICs
+  // Filtered EPICs based on active primary tab, search keyword, and trade
   const filteredEpics = useMemo(() => {
     return data.epics.filter(e => {
-      // Tab filter
+      // 5 Primary Filter Tabs
       if (activeTab === 'UNASSIGNED' && e.workflowStage !== 'UNASSIGNED') return false;
-      if (activeTab === 'SHOOTING' && e.workflowStage !== 'SHOOTING') return false;
-      if (activeTab === 'READY_FOR_EDITOR' && e.workflowStage !== 'READY_FOR_EDITOR') return false;
-      if (activeTab === 'EDITING' && e.workflowStage !== 'EDITING') return false;
+      if (activeTab === 'IN_PROGRESS' && e.workflowStage !== 'SHOOTING' && e.workflowStage !== 'READY_FOR_EDITOR' && e.workflowStage !== 'EDITING') return false;
       if (activeTab === 'COMPLETED' && e.workflowStage !== 'COMPLETED') return false;
       if (activeTab === 'PUBLISHED' && e.workflowStage !== 'PUBLISHED') return false;
-      if (activeTab === 'SUBMITTED' && !e.topics.some(t => t.submissionStatus === 'Submitted – Awaiting Admin Approval')) return false;
-      if (activeTab === 'REVISION_REQUIRED' && !e.topics.some(t => t.submissionStatus === 'Revision Required')) return false;
-      if (activeTab === 'APPROVED' && !e.topics.some(t => t.submissionStatus === 'Admin Approved')) return false;
 
       // Trade filter
       if (selectedTrade !== 'ALL' && e.trade !== selectedTrade) return false;
@@ -230,7 +298,7 @@ export default function ProductionWorkflowClient({
   };
 
   // ==========================================
-  // ACTION HANDLERS
+  // ACTION HANDLERS WITH REAL-TIME SYNC
   // ==========================================
 
   // 1. Admin Approve Deliverable
@@ -245,6 +313,7 @@ export default function ProductionWorkflowClient({
       if (res.success) {
         setNotificationToast({ type: 'success', message: res.message || 'Submission approved successfully!' });
         await handleRefresh();
+        broadcastProductionSync();
       } else {
         setNotificationToast({ type: 'error', message: res.error || 'Failed to approve.' });
       }
@@ -281,6 +350,7 @@ export default function ProductionWorkflowClient({
         setNotificationToast({ type: 'success', message: res.message || 'Revision requested from Editor.' });
         setRevisionModalOpen(false);
         await handleRefresh();
+        broadcastProductionSync();
       } else {
         setNotificationToast({ type: 'error', message: res.error || 'Failed to request revision.' });
       }
@@ -324,6 +394,7 @@ export default function ProductionWorkflowClient({
         });
         setVideoCamModalOpen(false);
         await handleRefresh();
+        broadcastProductionSync();
       } else {
         setNotificationToast({ type: 'error', message: res.error || 'Failed to assign Cameraman.' });
       }
@@ -371,6 +442,7 @@ export default function ProductionWorkflowClient({
         });
         setVideoEdModalOpen(false);
         await handleRefresh();
+        broadcastProductionSync();
       } else {
         setNotificationToast({ type: 'error', message: res.error || 'Failed to assign Editor.' });
       }
@@ -419,6 +491,7 @@ export default function ProductionWorkflowClient({
         });
         setCameramanModalOpen(false);
         await handleRefresh();
+        broadcastProductionSync();
       } else {
         setNotificationToast({ type: 'error', message: res.error || 'Failed to assign Cameraman.' });
       }
@@ -465,6 +538,7 @@ export default function ProductionWorkflowClient({
         });
         setEditorModalOpen(false);
         await handleRefresh();
+        broadcastProductionSync();
       } else {
         setNotificationToast({ type: 'error', message: res.error || 'Failed to assign Editor.' });
       }
@@ -485,6 +559,7 @@ export default function ProductionWorkflowClient({
         setNotificationToast({ type: 'success', message: res.message || 'Published to Video Content Library successfully!' });
         setPublishModalOpen(false);
         await handleRefresh();
+        broadcastProductionSync();
       } else {
         setNotificationToast({ type: 'error', message: res.error || 'Failed to publish to library.' });
       }
@@ -560,10 +635,39 @@ export default function ProductionWorkflowClient({
         <div className={styles.titleArea}>
           <h1>🎬 Production Workflow &amp; Work Assignment</h1>
           <p>
-            Executive Production Management · Two-Level Workload Monitoring: EPIC Summary &amp; Video-Wise Assignment Lifecycle
+            Executive Production Management · EPIC-Wise Overview &amp; Real-Time Cameraman &amp; Editor Integration
           </p>
         </div>
         <div className={styles.headerActions}>
+          {/* Real-Time Live Sync Status Indicator */}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            backgroundColor: '#ffffff',
+            border: '1px solid #e2e8f0',
+            padding: '6px 14px',
+            borderRadius: '20px',
+            fontSize: '12px',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+          }}>
+            <span style={{
+              display: 'inline-block',
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: syncStatus === 'error' ? '#ef4444' : '#10b981',
+              boxShadow: syncStatus === 'error' ? '0 0 0 2px rgba(239, 68, 68, 0.2)' : '0 0 0 2px rgba(16, 185, 129, 0.2)',
+              animation: syncStatus === 'syncing' ? 'pulse 1s infinite' : 'none'
+            }} />
+            <span style={{ fontWeight: 600, color: '#0f2942' }}>
+              {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'error' ? 'Sync Paused' : 'Live Sync Active'}
+            </span>
+            <span style={{ color: '#94a3b8', fontSize: '11px' }}>
+              • {timeAgoText}
+            </span>
+          </div>
+
           <button 
             className={styles.btnSecondary}
             onClick={() => setNotificationsModalOpen(true)}
@@ -578,117 +682,95 @@ export default function ProductionWorkflowClient({
           </Link>
           <button 
             className={styles.btnPrimary}
-            onClick={handleRefresh}
+            onClick={() => handleRefresh(false)}
             disabled={loading}
           >
-            <span>🔄</span>
+            <span style={{ display: 'inline-block', animation: loading || syncStatus === 'syncing' ? 'spin 1s linear infinite' : 'none' }}>🔄</span>
             <span>{loading ? 'Refreshing...' : 'Refresh Live Data'}</span>
           </button>
         </div>
       </div>
 
-      {/* Single Source of Truth Notice Banner */}
+      {/* Notice Banner */}
       <div className={styles.noticeBanner}>
         <span>ℹ️</span>
         <div>
-          <strong>Executive Production Overview:</strong> All video topics remain managed and monitored here through field shooting and post-production editing. Assignments can be managed individually per video topic or at the EPIC level. Deliverables synchronize live into the Video Content Library upon Admin publication.
+          <strong>EPIC-Wise Production Overview:</strong> Real-time bi-directional integration active with Cameraman &amp; Editor portals. Updates made by Cameramen and Editors reflect automatically. Manage assignments individually per video topic or at the EPIC level.
         </div>
       </div>
 
-      {/* KPI Cards (6 Live Database-Derived Metrics) */}
-      <div className={styles.kpiGrid}>
+      {/* ========================================================
+          A. 4 COMPACT SUMMARY CARDS (Calculated from Actual DB)
+         ======================================================== */}
+      <div className={styles.kpiGrid} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
         {/* 1. Unassigned */}
         <div 
           className={`${styles.kpiCard} ${styles.kpiCardUnassigned} ${activeTab === 'UNASSIGNED' ? styles.kpiCardActive : ''}`}
           onClick={() => setActiveTab(activeTab === 'UNASSIGNED' ? 'ALL' : 'UNASSIGNED')}
+          title="Click to filter Unassigned EPICs"
         >
           <div className={styles.kpiLabel}>
-            <span>Unassigned EPICs</span>
+            <span>Unassigned</span>
             <span>⏳</span>
           </div>
           <div className={styles.kpiValue} style={{ color: '#dc2626' }}>
-            {data.counts.unassigned}
+            {tabCounts.unassigned}
           </div>
           <div className={styles.kpiSubtext}>Awaiting Cameraman Assignment</div>
         </div>
 
-        {/* 2. Shooting in Progress */}
+        {/* 2. In Progress */}
         <div 
-          className={`${styles.kpiCard} ${styles.kpiCardShooting} ${activeTab === 'SHOOTING' ? styles.kpiCardActive : ''}`}
-          onClick={() => setActiveTab(activeTab === 'SHOOTING' ? 'ALL' : 'SHOOTING')}
+          className={`${styles.kpiCard} ${styles.kpiCardShooting} ${activeTab === 'IN_PROGRESS' ? styles.kpiCardActive : ''}`}
+          onClick={() => setActiveTab(activeTab === 'IN_PROGRESS' ? 'ALL' : 'IN_PROGRESS')}
+          title="Click to filter In Progress EPICs (Shooting &amp; Editing)"
         >
           <div className={styles.kpiLabel}>
-            <span>Shooting in Progress</span>
-            <span>🎥</span>
+            <span>In Progress</span>
+            <span>⚡</span>
           </div>
           <div className={styles.kpiValue} style={{ color: '#0284c7' }}>
-            {data.counts.shooting}
+            {tabCounts.inProgress}
           </div>
-          <div className={styles.kpiSubtext}>Active Cameraman Field Shoots</div>
+          <div className={styles.kpiSubtext}>Active Shooting &amp; Post-Production</div>
         </div>
 
-        {/* 3. Ready for Editor */}
-        <div 
-          className={`${styles.kpiCard} ${styles.kpiCardReadyEditor} ${activeTab === 'READY_FOR_EDITOR' ? styles.kpiCardActive : ''}`}
-          onClick={() => setActiveTab(activeTab === 'READY_FOR_EDITOR' ? 'ALL' : 'READY_FOR_EDITOR')}
-        >
-          <div className={styles.kpiLabel}>
-            <span>Ready for Editor</span>
-            <span>✂️</span>
-          </div>
-          <div className={styles.kpiValue} style={{ color: '#8b5cf6' }}>
-            {data.counts.readyForEditor}
-          </div>
-          <div className={styles.kpiSubtext}>Shooting Complete — Assign Editor</div>
-        </div>
-
-        {/* 4. Editing in Progress */}
-        <div 
-          className={`${styles.kpiCard} ${styles.kpiCardEditing} ${activeTab === 'EDITING' ? styles.kpiCardActive : ''}`}
-          onClick={() => setActiveTab(activeTab === 'EDITING' ? 'ALL' : 'EDITING')}
-        >
-          <div className={styles.kpiLabel}>
-            <span>Editing in Progress</span>
-            <span>💻</span>
-          </div>
-          <div className={styles.kpiValue} style={{ color: '#d97706' }}>
-            {data.counts.editing}
-          </div>
-          <div className={styles.kpiSubtext}>Post-Production Cutting &amp; Finalizing</div>
-        </div>
-
-        {/* 5. Completed / Ready to Publish */}
+        {/* 3. Completed */}
         <div 
           className={`${styles.kpiCard} ${styles.kpiCardCompleted} ${activeTab === 'COMPLETED' ? styles.kpiCardActive : ''}`}
           onClick={() => setActiveTab(activeTab === 'COMPLETED' ? 'ALL' : 'COMPLETED')}
+          title="Click to filter Completed EPICs"
         >
           <div className={styles.kpiLabel}>
-            <span>Completed EPICs</span>
+            <span>Completed</span>
             <span>🏆</span>
           </div>
           <div className={styles.kpiValue} style={{ color: '#059669' }}>
-            {data.counts.completed}
+            {tabCounts.completed}
           </div>
           <div className={styles.kpiSubtext}>Ready for Final Library Review</div>
         </div>
 
-        {/* 6. Published */}
+        {/* 4. Published */}
         <div 
           className={`${styles.kpiCard} ${styles.kpiCardPublished} ${activeTab === 'PUBLISHED' ? styles.kpiCardActive : ''}`}
           onClick={() => setActiveTab(activeTab === 'PUBLISHED' ? 'ALL' : 'PUBLISHED')}
+          title="Click to filter Published EPICs"
         >
           <div className={styles.kpiLabel}>
-            <span>Published in Library</span>
+            <span>Published</span>
             <span>📼</span>
           </div>
           <div className={styles.kpiValue} style={{ color: '#047857' }}>
-            {data.counts.published}
+            {tabCounts.published}
           </div>
           <div className={styles.kpiSubtext}>Live in Video Content Library</div>
         </div>
       </div>
 
-      {/* Stage Navigation Tabs with Detailed Sub-Filters */}
+      {/* ========================================================
+          B. 5 PRIMARY STATUS FILTERS
+         ======================================================== */}
       <div className={styles.tabNav}>
         <button 
           className={`${styles.tabBtn} ${activeTab === 'ALL' ? styles.tabBtnActive : ''}`}
@@ -702,61 +784,17 @@ export default function ProductionWorkflowClient({
           onClick={() => setActiveTab('UNASSIGNED')}
         >
           <span>⏳ Unassigned</span>
-          <span className={styles.tabBadge} style={{ backgroundColor: '#fee2e2', color: '#b91c1c' }}>
+          <span className={styles.tabBadge} style={{ backgroundColor: activeTab === 'UNASSIGNED' ? 'rgba(255,255,255,0.3)' : '#fee2e2', color: activeTab === 'UNASSIGNED' ? '#ffffff' : '#b91c1c' }}>
             {tabCounts.unassigned}
           </span>
         </button>
         <button 
-          className={`${styles.tabBtn} ${activeTab === 'SHOOTING' ? styles.tabBtnActive : ''}`}
-          onClick={() => setActiveTab('SHOOTING')}
+          className={`${styles.tabBtn} ${activeTab === 'IN_PROGRESS' ? styles.tabBtnActive : ''}`}
+          onClick={() => setActiveTab('IN_PROGRESS')}
         >
-          <span>🎥 Shooting</span>
-          <span className={styles.tabBadge}>{tabCounts.shooting}</span>
-        </button>
-        <button 
-          className={`${styles.tabBtn} ${activeTab === 'READY_FOR_EDITOR' ? styles.tabBtnActive : ''}`}
-          onClick={() => setActiveTab('READY_FOR_EDITOR')}
-        >
-          <span>✂️ Ready for Editor</span>
-          <span className={styles.tabBadge} style={{ backgroundColor: '#ede9fe', color: '#6d28d9' }}>
-            {tabCounts.readyForEditor}
-          </span>
-        </button>
-        <button 
-          className={`${styles.tabBtn} ${activeTab === 'EDITING' ? styles.tabBtnActive : ''}`}
-          onClick={() => setActiveTab('EDITING')}
-        >
-          <span>💻 Editing</span>
-          <span className={styles.tabBadge}>{tabCounts.editing}</span>
-        </button>
-        <button 
-          className={`${styles.tabBtn} ${activeTab === 'SUBMITTED' ? styles.tabBtnActive : ''}`}
-          onClick={() => setActiveTab('SUBMITTED')}
-          title="EPICs with topics submitted awaiting Admin review"
-        >
-          <span>📤 Submitted for Approval</span>
-          <span className={styles.tabBadge} style={{ backgroundColor: '#f3e8ff', color: '#6b21a8' }}>
-            {tabCounts.submitted}
-          </span>
-        </button>
-        <button 
-          className={`${styles.tabBtn} ${activeTab === 'REVISION_REQUIRED' ? styles.tabBtnActive : ''}`}
-          onClick={() => setActiveTab('REVISION_REQUIRED')}
-          title="EPICs with topics requiring editor corrections"
-        >
-          <span>⚠️ Revision Required</span>
-          <span className={styles.tabBadge} style={{ backgroundColor: '#fee2e2', color: '#991b1b' }}>
-            {tabCounts.revisionRequired}
-          </span>
-        </button>
-        <button 
-          className={`${styles.tabBtn} ${activeTab === 'APPROVED' ? styles.tabBtnActive : ''}`}
-          onClick={() => setActiveTab('APPROVED')}
-          title="EPICs with topics approved by Admin"
-        >
-          <span>✓ Approved</span>
-          <span className={styles.tabBadge} style={{ backgroundColor: '#dcfce7', color: '#166534' }}>
-            {tabCounts.approved}
+          <span>⚡ In Progress</span>
+          <span className={styles.tabBadge} style={{ backgroundColor: activeTab === 'IN_PROGRESS' ? 'rgba(255,255,255,0.3)' : '#e0f2fe', color: activeTab === 'IN_PROGRESS' ? '#ffffff' : '#0369a1' }}>
+            {tabCounts.inProgress}
           </span>
         </button>
         <button 
@@ -764,14 +802,18 @@ export default function ProductionWorkflowClient({
           onClick={() => setActiveTab('COMPLETED')}
         >
           <span>🏆 Completed</span>
-          <span className={styles.tabBadge}>{tabCounts.completed}</span>
+          <span className={styles.tabBadge} style={{ backgroundColor: activeTab === 'COMPLETED' ? 'rgba(255,255,255,0.3)' : '#dcfce7', color: activeTab === 'COMPLETED' ? '#ffffff' : '#15803d' }}>
+            {tabCounts.completed}
+          </span>
         </button>
         <button 
           className={`${styles.tabBtn} ${activeTab === 'PUBLISHED' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveTab('PUBLISHED')}
         >
           <span>📼 Published</span>
-          <span className={styles.tabBadge}>{tabCounts.published}</span>
+          <span className={styles.tabBadge} style={{ backgroundColor: activeTab === 'PUBLISHED' ? 'rgba(255,255,255,0.3)' : '#f1f5f9', color: activeTab === 'PUBLISHED' ? '#ffffff' : '#334155' }}>
+            {tabCounts.published}
+          </span>
         </button>
       </div>
 
@@ -826,7 +868,7 @@ export default function ProductionWorkflowClient({
       </div>
 
       {/* ========================================================
-          LEVEL 1 – EPIC SUMMARY TABLE (Executive Compact Row)
+          C. EPIC-WISE MAIN TABLE (EXACT 11 COLUMNS)
          ======================================================== */}
       <div className={styles.cardContainer}>
         <div className={styles.tableWrapper}>
@@ -842,9 +884,8 @@ export default function ProductionWorkflowClient({
                 <th style={{ width: '160px' }}>Cameraman</th>
                 <th style={{ width: '160px' }}>Editor</th>
                 <th style={{ width: '130px', textAlign: 'center' }}>Editing Progress</th>
-                <th style={{ width: '140px' }}>Current Workflow Status</th>
-                <th style={{ width: '140px' }}>Start Date</th>
-                <th style={{ width: '140px', textAlign: 'center' }}>Action</th>
+                <th style={{ width: '150px' }}>Workflow Status</th>
+                <th style={{ width: '150px', textAlign: 'center' }}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -1024,59 +1065,48 @@ export default function ProductionWorkflowClient({
                         </div>
                       </td>
 
-                      {/* 10. Current Workflow Status */}
+                      {/* 10. Workflow Status */}
                       <td>
-                        {epic.workflowStage === 'UNASSIGNED' && (
-                          <span className={`${styles.badge} ${styles.badgeUnassigned}`}>
-                            ⏳ Unassigned
-                          </span>
-                        )}
-                        {epic.workflowStage === 'SHOOTING' && (
-                          <span className={`${styles.badge} ${styles.badgeShooting}`}>
-                            🎥 Shooting
-                          </span>
-                        )}
-                        {epic.workflowStage === 'READY_FOR_EDITOR' && (
-                          <span className={`${styles.badge} ${styles.badgeReadyEditor}`}>
-                            ✂️ Ready for Editor
-                          </span>
-                        )}
-                        {epic.workflowStage === 'EDITING' && (
-                          <span className={`${styles.badge} ${styles.badgeEditing}`}>
-                            💻 Editing
-                          </span>
-                        )}
-                        {epic.workflowStage === 'COMPLETED' && (
-                          <span className={`${styles.badge} ${styles.badgeCompleted}`}>
-                            🏆 Ready to Publish
-                          </span>
-                        )}
-                        {epic.workflowStage === 'PUBLISHED' && (
-                          <span className={`${styles.badge} ${styles.badgePublished}`}>
-                            ✓ Published
-                          </span>
-                        )}
-                      </td>
-
-                      {/* 11. Start Date (Stage-Aware Date Beside Current Status) */}
-                      <td>
-                        {epic.stageStartDate ? (
-                          <div>
-                            <div style={{ fontWeight: 600, color: '#0f2942' }}>
-                              {formatDate(epic.stageStartDate)}
-                            </div>
-                            <div style={{ fontSize: '10.5px', color: '#64748b' }}>
-                              {epic.stageStartDateLabel}
-                            </div>
+                        <div>
+                          {epic.workflowStage === 'UNASSIGNED' && (
+                            <span className={`${styles.badge} ${styles.badgeUnassigned}`}>
+                              ⏳ Unassigned
+                            </span>
+                          )}
+                          {epic.workflowStage === 'SHOOTING' && (
+                            <span className={`${styles.badge} ${styles.badgeShooting}`}>
+                              🎥 Shooting
+                            </span>
+                          )}
+                          {epic.workflowStage === 'READY_FOR_EDITOR' && (
+                            <span className={`${styles.badge} ${styles.badgeReadyEditor}`}>
+                              ✂️ Ready for Editor
+                            </span>
+                          )}
+                          {epic.workflowStage === 'EDITING' && (
+                            <span className={`${styles.badge} ${styles.badgeEditing}`}>
+                              💻 Editing
+                            </span>
+                          )}
+                          {epic.workflowStage === 'COMPLETED' && (
+                            <span className={`${styles.badge} ${styles.badgeCompleted}`}>
+                              🏆 Ready to Publish
+                            </span>
+                          )}
+                          {epic.workflowStage === 'PUBLISHED' && (
+                            <span className={`${styles.badge} ${styles.badgePublished}`}>
+                              ✓ Published
+                            </span>
+                          )}
+                        </div>
+                        {epic.stageStartDate && (
+                          <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px' }}>
+                            {formatDate(epic.stageStartDate)}
                           </div>
-                        ) : (
-                          <span style={{ color: '#94a3b8', fontSize: '11.5px' }}>
-                            — Not Started
-                          </span>
                         )}
                       </td>
 
-                      {/* 12. Action – View Details */}
+                      {/* 11. Action */}
                       <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
                           <button
@@ -1088,8 +1118,30 @@ export default function ProductionWorkflowClient({
                               color: isExpanded ? '#ffffff' : '#334155'
                             }}
                           >
-                            <span>{isExpanded ? '▲ Hide Details' : '▼ View Details'}</span>
+                            <span>{isExpanded ? '▲ Hide Details' : '📋 Manage Videos'}</span>
                           </button>
+
+                          {epic.workflowStage === 'UNASSIGNED' && (
+                            <button
+                              type="button"
+                              className={`${styles.actionBtn} ${styles.btnAssignCam}`}
+                              onClick={() => handleOpenAssignCameramanEpic(epic)}
+                              title="Assign Cameraman to this EPIC"
+                            >
+                              <span>🎥 Assign Cam</span>
+                            </button>
+                          )}
+
+                          {(epic.workflowStage === 'READY_FOR_EDITOR' || (epic.notStartedEditingTopics > 0 && epic.completedShootingTopics > 0)) && (
+                            <button
+                              type="button"
+                              className={`${styles.actionBtn} ${styles.btnAssignEd}`}
+                              onClick={() => handleOpenAssignEditorEpic(epic)}
+                              title="Assign Editor to pending topics"
+                            >
+                              <span>✂️ Assign Ed</span>
+                            </button>
+                          )}
 
                           {epic.workflowStage === 'COMPLETED' && (
                             <button 
@@ -1098,7 +1150,7 @@ export default function ProductionWorkflowClient({
                                 setTargetEpic(epic);
                                 setPublishModalOpen(true);
                               }}
-                              title="Review & Publish Deliverables to Video Content Library"
+                              title="Review &amp; Publish Deliverables to Video Content Library"
                             >
                               <span>🚀</span>
                               <span>Publish</span>
@@ -1109,20 +1161,20 @@ export default function ProductionWorkflowClient({
                     </tr>
 
                     {/* ========================================================
-                        LEVEL 2 – EXPANDABLE VIDEO-WISE DETAILS SUB-TABLE
+                        D. EPIC DETAILS – MANAGE VIDEOS (Level 2 Sub-Table)
                        ======================================================== */}
                     {isExpanded && (
                       <tr style={{ backgroundColor: '#f8fafc' }}>
-                        <td colSpan={12} style={{ padding: '16px 20px', borderBottom: '2px solid #cbd5e1' }}>
+                        <td colSpan={11} style={{ padding: '16px 20px', borderBottom: '2px solid #cbd5e1' }}>
                           <div style={{ background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '16px', boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
                               <div>
                                 <div style={{ fontWeight: 700, color: '#0f2942', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                   <span>📋</span>
-                                  <span>{epic.epicCode} — Video-Wise Workflow &amp; Timeline Monitoring ({epic.totalTopics} Videos)</span>
+                                  <span>{epic.epicCode} — Manage Videos &amp; Production Lifecycle ({epic.totalTopics} Videos)</span>
                                 </div>
                                 <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
-                                  Individual Video Assignment: Cameraman and Video Editor can be assigned separately for each video below.
+                                  Real-Time Lifecycle: Individual Cameraman &amp; Editor assignments, shooting milestones, post-production deliverables, and admin approvals.
                                 </div>
                               </div>
 
@@ -1148,25 +1200,23 @@ export default function ProductionWorkflowClient({
                               </div>
                             </div>
 
-                            {/* Video-Wise Table (All 15 Required Columns) */}
+                            {/* Video-Wise Table with all required attributes */}
                             <div style={{ overflowX: 'auto' }}>
                               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                                 <thead style={{ background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>
                                   <tr>
                                     <th style={{ padding: '8px 10px', textAlign: 'left', width: '30px' }}>S.No</th>
-                                    <th style={{ padding: '8px 10px', textAlign: 'left', width: '80px' }}>Video ID</th>
-                                    <th style={{ padding: '8px 10px', textAlign: 'left', minWidth: '200px' }}>Video Topic</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'left', minWidth: '220px' }}>Video Topic</th>
                                     <th style={{ padding: '8px 10px', textAlign: 'left', width: '130px' }}>Cameraman</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '100px' }}>Shooting Date</th>
                                     <th style={{ padding: '8px 10px', textAlign: 'center', width: '110px' }}>Shooting Status</th>
-                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '100px' }}>Shooting Start</th>
-                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '100px' }}>Shooting End</th>
                                     <th style={{ padding: '8px 10px', textAlign: 'left', width: '130px' }}>Editor</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '90px' }}>Edit Start</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '90px' }}>Edit End</th>
                                     <th style={{ padding: '8px 10px', textAlign: 'center', width: '110px' }}>Editing Status</th>
-                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '100px' }}>Editing Start</th>
-                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '100px' }}>Editing End</th>
-                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '70px' }}>Duration</th>
-                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '140px' }}>Submission Status</th>
-                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '110px' }}>Admin Review</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '90px' }}>Video Link</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '120px' }}>Approval Status</th>
+                                    <th style={{ padding: '8px 10px', textAlign: 'center', width: '100px' }}>Publication</th>
                                     <th style={{ padding: '8px 10px', textAlign: 'center', minWidth: '160px' }}>Action</th>
                                   </tr>
                                 </thead>
@@ -1180,9 +1230,10 @@ export default function ProductionWorkflowClient({
                                     const isAdminApproved = subStatus === 'Admin Approved';
                                     const isRevisionRequired = subStatus === 'Revision Required';
 
-                                    const cleanVidDisplay = t.id.startsWith('shoot-') || t.id.startsWith('ed-')
-                                      ? `VID-${String(tIdx + 1).padStart(2, '0')}`
-                                      : t.id.length > 8 ? `VID-${String(tIdx + 1).padStart(2, '0')}` : t.id;
+                                    // Display formatted shooting date range or single date
+                                    const shootingDateDisplay = t.shootStart && t.shootEnd
+                                      ? (t.shootStart === t.shootEnd ? formatDate(t.shootStart) : `${formatDate(t.shootStart)} - ${formatDate(t.shootEnd)}`)
+                                      : t.shootStart ? formatDate(t.shootStart) : t.shootEnd ? formatDate(t.shootEnd) : '—';
 
                                     return (
                                       <tr key={t.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -1191,14 +1242,14 @@ export default function ProductionWorkflowClient({
                                           {tIdx + 1}
                                         </td>
 
-                                        {/* 2. Video ID */}
-                                        <td style={{ padding: '8px 10px', fontWeight: 700, color: '#0f2942' }}>
-                                          {cleanVidDisplay}
-                                        </td>
-
-                                        {/* 3. Video Topic */}
+                                        {/* 2. Video Topic */}
                                         <td style={{ padding: '8px 10px', fontWeight: 600, color: '#1e293b' }}>
                                           <div>{t.title}</div>
+                                          {t.duration && (
+                                            <span style={{ fontSize: '10.5px', color: '#0284c7', fontWeight: 700 }}>
+                                              ⏱ Duration: {t.duration}
+                                            </span>
+                                          )}
                                           {t.editorialComments && (
                                             <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', fontStyle: 'italic' }}>
                                               💬 Editor: {t.editorialComments}
@@ -1212,7 +1263,7 @@ export default function ProductionWorkflowClient({
                                           )}
                                         </td>
 
-                                        {/* 4. Cameraman */}
+                                        {/* 3. Cameraman */}
                                         <td style={{ padding: '8px 10px', color: '#334155' }}>
                                           {t.cameraman ? (
                                             <div style={{ fontWeight: 600, color: '#0284c7' }}>
@@ -1223,6 +1274,11 @@ export default function ProductionWorkflowClient({
                                               — Unassigned
                                             </span>
                                           )}
+                                        </td>
+
+                                        {/* 4. Shooting Date */}
+                                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#334155', fontSize: '11.5px' }}>
+                                          {shootingDateDisplay}
                                         </td>
 
                                         {/* 5. Shooting Status */}
@@ -1240,17 +1296,7 @@ export default function ProductionWorkflowClient({
                                           </span>
                                         </td>
 
-                                        {/* 6. Shooting Start Date */}
-                                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#334155' }}>
-                                          {formatDate(t.shootStart)}
-                                        </td>
-
-                                        {/* 7. Shooting End Date */}
-                                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#334155' }}>
-                                          {formatDate(t.shootEnd)}
-                                        </td>
-
-                                        {/* 8. Editor */}
+                                        {/* 6. Editor */}
                                         <td style={{ padding: '8px 10px', color: '#334155' }}>
                                           {t.editor ? (
                                             <div style={{ fontWeight: 600, color: '#8b5cf6' }}>
@@ -1261,6 +1307,16 @@ export default function ProductionWorkflowClient({
                                               {shootDone ? '— Unassigned' : 'Awaiting Shoot'}
                                             </span>
                                           )}
+                                        </td>
+
+                                        {/* 7. Editing Start Date */}
+                                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#334155' }}>
+                                          {formatDate(t.editStart)}
+                                        </td>
+
+                                        {/* 8. Editing Completion Date */}
+                                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#334155' }}>
+                                          {formatDate(t.editEnd)}
                                         </td>
 
                                         {/* 9. Editing Status */}
@@ -1278,22 +1334,35 @@ export default function ProductionWorkflowClient({
                                           </span>
                                         </td>
 
-                                        {/* 10. Editing Start Date */}
-                                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#334155' }}>
-                                          {formatDate(t.editStart)}
+                                        {/* 10. Video Storage Link */}
+                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                          {t.finalVideoLink ? (
+                                            <a
+                                              href={t.finalVideoLink}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                padding: '3px 8px',
+                                                backgroundColor: '#e0f2fe',
+                                                color: '#0284c7',
+                                                borderRadius: '4px',
+                                                fontSize: '11px',
+                                                fontWeight: 700,
+                                                textDecoration: 'none'
+                                              }}
+                                              title="Watch video on Google Drive / Storage"
+                                            >
+                                              🔗 Watch
+                                            </a>
+                                          ) : (
+                                            <span style={{ color: '#94a3b8', fontSize: '11px' }}>—</span>
+                                          )}
                                         </td>
 
-                                        {/* 11. Editing End Date */}
-                                        <td style={{ padding: '8px 10px', textAlign: 'center', color: '#334155' }}>
-                                          {formatDate(t.editEnd)}
-                                        </td>
-
-                                        {/* 12. Duration */}
-                                        <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: '#334155' }}>
-                                          {t.duration || '—'}
-                                        </td>
-
-                                        {/* 13. Submission Status */}
+                                        {/* 11. Admin Approval Status */}
                                         <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                                           <span style={{
                                             display: 'inline-block',
@@ -1301,33 +1370,29 @@ export default function ProductionWorkflowClient({
                                             borderRadius: '10px',
                                             fontSize: '11px',
                                             fontWeight: 700,
-                                            backgroundColor: isAdminApproved ? '#dcfce7' : isAwaitingAdmin ? '#f3e8ff' : isRevisionRequired ? '#fee2e2' : subStatus === 'Completed' ? '#e0f2fe' : inProg ? '#fef3c7' : '#f1f5f9',
-                                            color: isAdminApproved ? '#166534' : isAwaitingAdmin ? '#6b21a8' : isRevisionRequired ? '#991b1b' : subStatus === 'Completed' ? '#0369a1' : inProg ? '#b45309' : '#64748b'
+                                            backgroundColor: isAdminApproved ? '#dcfce7' : isAwaitingAdmin ? '#f3e8ff' : isRevisionRequired ? '#fee2e2' : '#f1f5f9',
+                                            color: isAdminApproved ? '#166534' : isAwaitingAdmin ? '#6b21a8' : isRevisionRequired ? '#991b1b' : '#64748b'
                                           }}>
-                                            {isAdminApproved ? '✓ Admin Approved' : isAwaitingAdmin ? '📤 Awaiting Approval' : isRevisionRequired ? '⚠️ Revision Req.' : subStatus}
+                                            {isAdminApproved ? '✓ Approved' : isAwaitingAdmin ? '📤 Awaiting' : isRevisionRequired ? '⚠️ Revision Req.' : 'Pending'}
                                           </span>
                                         </td>
 
-                                        {/* 14. Admin Review */}
+                                        {/* 12. Publication Status */}
                                         <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                                          {isAdminApproved ? (
-                                            <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '11px' }}>
-                                              ✓ Approved
-                                            </span>
-                                          ) : isAwaitingAdmin ? (
-                                            <span style={{ color: '#6b21a8', fontWeight: 700, fontSize: '11px' }}>
-                                              Pending Review
-                                            </span>
-                                          ) : isRevisionRequired ? (
-                                            <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '11px' }}>
-                                              Revision Req.
-                                            </span>
-                                          ) : (
-                                            <span style={{ color: '#94a3b8' }}>—</span>
-                                          )}
+                                          <span style={{
+                                            display: 'inline-block',
+                                            padding: '2px 8px',
+                                            borderRadius: '10px',
+                                            fontSize: '11px',
+                                            fontWeight: 700,
+                                            backgroundColor: epic.isPublished ? '#dcfce7' : editDone && isAdminApproved ? '#e0f2fe' : '#f1f5f9',
+                                            color: epic.isPublished ? '#166534' : editDone && isAdminApproved ? '#0369a1' : '#64748b'
+                                          }}>
+                                            {epic.isPublished ? '✓ Published' : editDone && isAdminApproved ? 'Ready' : 'Pending'}
+                                          </span>
                                         </td>
 
-                                        {/* 15. Action (View / Assign / Review / Timeline) */}
+                                        {/* 13. Action (Assign / Reassign / Review / View Link / Timeline) */}
                                         <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                                           <div style={{ display: 'inline-flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
                                             {/* Assign / Reassign Cameraman */}
@@ -1346,7 +1411,7 @@ export default function ProductionWorkflowClient({
                                                 cursor: 'pointer'
                                               }}
                                             >
-                                              🎥 {t.cameraman ? '↻' : '+ Assign'}
+                                              🎥 {t.cameraman ? '↻' : '+ Cam'}
                                             </button>
 
                                             {/* Assign / Reassign Editor */}
@@ -1366,7 +1431,7 @@ export default function ProductionWorkflowClient({
                                                   cursor: 'pointer'
                                                 }}
                                               >
-                                                ✂️ {t.editor ? '↻' : '+ Assign'}
+                                                ✂️ {t.editor ? '↻' : '+ Ed'}
                                               </button>
                                             ) : (
                                               <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>—</span>
@@ -1428,31 +1493,10 @@ export default function ProductionWorkflowClient({
                                                 fontWeight: 600,
                                                 cursor: 'pointer'
                                               }}
-                                              title="View Complete Production Milestones & Timeline"
+                                              title="View Complete Production Milestones &amp; Timeline"
                                             >
                                               🕒 Timeline
                                             </button>
-
-                                            {/* Deliverable Link */}
-                                            {t.finalVideoLink && (
-                                              <a
-                                                href={t.finalVideoLink}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                style={{
-                                                  padding: '3px 6px',
-                                                  backgroundColor: '#e0f2fe',
-                                                  color: '#0284c7',
-                                                  borderRadius: '4px',
-                                                  fontSize: '11px',
-                                                  fontWeight: 700,
-                                                  textDecoration: 'none'
-                                                }}
-                                                title="Open Video Link"
-                                              >
-                                                🔗 Video
-                                              </a>
-                                            )}
                                           </div>
                                         </td>
                                       </tr>
@@ -1471,9 +1515,9 @@ export default function ProductionWorkflowClient({
 
               {filteredEpics.length === 0 && (
                 <tr>
-                  <td colSpan={12} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                  <td colSpan={11} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
                     <div style={{ fontSize: '24px', marginBottom: '8px' }}>🔍</div>
-                    <strong>No EPIC records match the active stage or search filters.</strong>
+                    <strong>No EPIC records match the active status or search filters.</strong>
                     <p style={{ margin: '6px 0 0 0', fontSize: '12px' }}>
                       Try selecting &apos;All EPICs&apos; or resetting your search keywords.
                     </p>
@@ -1795,7 +1839,7 @@ export default function ProductionWorkflowClient({
                   </div>
                 </div>
 
-                {/* 7. Submitted – Awaiting Admin Approval */}
+                {/* 7. Formal Submission */}
                 <div className={styles.timelineStep}>
                   <div className={styles.timelineLine} />
                   <div className={`${styles.timelineNode} ${targetTopicItem.topic.submittedAt || targetTopicItem.topic.submissionStatus === 'Admin Approved' ? styles.timelineNodeDone : styles.timelineNodePending}`}>
@@ -1813,7 +1857,7 @@ export default function ProductionWorkflowClient({
                   </div>
                 </div>
 
-                {/* 8. Admin Approved */}
+                {/* 8. Admin Approval & Quality Review */}
                 <div className={styles.timelineStep}>
                   <div className={styles.timelineLine} />
                   <div className={`${styles.timelineNode} ${targetTopicItem.topic.submissionStatus === 'Admin Approved' ? styles.timelineNodeDone : targetTopicItem.topic.submissionStatus === 'Revision Required' ? styles.timelineNodePending : styles.timelineNodePending}`}
@@ -2106,7 +2150,7 @@ export default function ProductionWorkflowClient({
                 onClick={handlePublish}
                 disabled={actionLoading}
               >
-                {actionLoading ? 'Publishing...' : 'Confirm & Publish to Library'}
+                {actionLoading ? 'Publishing...' : 'Confirm &amp; Publish to Library'}
               </button>
             </div>
           </div>
