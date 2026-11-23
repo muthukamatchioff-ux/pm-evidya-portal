@@ -23,15 +23,21 @@ export default function ClientLayoutWrapper({
       const originalFetch = window.fetch;
       window.fetch = async function(...args) {
         const response = await originalFetch.apply(this, args);
-        // Only inspect if this was a Next.js Server Action request that returned 500
+        // Only inspect if this was a Next.js Server Action request that returned 404 or 500
         const requestInit = args[1] as RequestInit | undefined;
-        const headers = requestInit?.headers;
-        const hasNextAction = headers && (
-          (headers instanceof Headers && headers.has('Next-Action')) ||
-          (typeof headers === 'object' && ('Next-Action' in headers || 'next-action' in headers))
-        );
+        let hasNextAction = false;
+        if (requestInit?.headers) {
+          const headers = requestInit.headers;
+          hasNextAction = Boolean(
+            (headers instanceof Headers && (headers.has('Next-Action') || headers.has('next-action'))) ||
+            (typeof headers === 'object' && ('Next-Action' in headers || 'next-action' in headers))
+          );
+        } else if (args[0] && typeof args[0] === 'object' && 'headers' in args[0]) {
+          const reqHeaders = (args[0] as Request).headers;
+          hasNextAction = Boolean(reqHeaders && (reqHeaders.has('Next-Action') || reqHeaders.has('next-action')));
+        }
 
-        if (hasNextAction && response && response.status === 500) {
+        if (hasNextAction && response && (response.status === 500 || response.status === 404)) {
           try {
             const clone = response.clone();
             const text = await clone.text();

@@ -1,8 +1,15 @@
 const encoder = new TextEncoder();
+let runtimeSecret: string | null = null;
 
 function getSessionSecret(): string {
-  const secret = process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD_HASH || 'fallback_secret_key_12345';
-  return secret.replace(/^["']|["']$/g, '');
+  const secret = process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD_HASH;
+  if (secret) {
+    return secret.replace(/^["']|["']$/g, '');
+  }
+  if (!runtimeSecret) {
+    runtimeSecret = crypto.randomUUID();
+  }
+  return runtimeSecret;
 }
 
 async function getCryptoKey(): Promise<CryptoKey> {
