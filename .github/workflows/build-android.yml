@@ -117,6 +117,26 @@ jobs:
             exit 1
           fi
 
+          echo "Validating AAB signature with jarsigner..."
+          jarsigner -verify -strict android/build-outputs/in.nimi.pmevidya-v1.0.0-release.aab
+          echo "✔ jarsigner signature verification PASSED."
+
+          echo "Validating AAB signing certificate SHA-256 fingerprint with keytool..."
+          AAB_FP=$(keytool -printcert -jarfile android/build-outputs/in.nimi.pmevidya-v1.0.0-release.aab 2>&1 | grep "SHA256:" | head -n 1 | awk '{print $2}')
+          EXPECTED_FP="AD:E3:1B:02:C1:26:29:FF:54:00:88:FE:05:34:D5:7A:AE:15:11:C5:83:BD:44:61:9E:5D:1F:16:C5:1C:D0:2B"
+          if [ "$AAB_FP" != "$EXPECTED_FP" ]; then
+            echo "::error::AAB signing certificate fingerprint does not match approved upload certificate: $AAB_FP"
+            exit 1
+          fi
+          echo "✔ Certificate fingerprint verified: $EXPECTED_FP"
+
+          echo "Validating AAB bundle contents and security..."
+          if unzip -l "android/build-outputs/in.nimi.pmevidya-v1.0.0-release.aab" | grep -iE "keystore|\.jks|\.key" > /dev/null; then
+            echo "::error::CRITICAL SECURITY ERROR: Private signing files or credentials detected in AAB artifact."
+            exit 1
+          fi
+          echo "✔ No private signing keys or credentials embedded in bundle."
+
           echo "=========================================================="
           echo "SUCCESS: Signed Android App Bundle (AAB) Verified"
           echo "Artifact Path: android/build-outputs/in.nimi.pmevidya-v1.0.0-release.aab"
