@@ -645,28 +645,24 @@
     size: A4 portrait;
     margin: 0;
   }
-  :global(html), :global(body) {
+  .workflowContainer {
     margin: 0 !important;
     padding: 0 !important;
-    height: 100% !important;
-    max-height: 100% !important;
-    overflow: hidden !important;
     background: #ffffff !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
   }
-  :global(body *) {
-    visibility: hidden;
-  }
-  :global(aside), :global(header), :global(nav), :global(button), :global(select), :global(input),
+  .workflowContainer :global(aside),
+  .workflowContainer :global(header),
+  .workflowContainer :global(nav),
+  .workflowContainer :global(button),
+  .workflowContainer :global(select),
+  .workflowContainer :global(input),
   .workflowContainer > :global(header),
   .breadcrumb,
   .pageHeader,
   .epicSelectorCard,
   .stageTabsBar,
   .parametersPanel,
-  .previewToolbar,
-  :global(.no-print) {
+  .previewToolbar {
     display: none !important;
     height: 0 !important;
     max-height: 0 !important;

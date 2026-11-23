@@ -4,13 +4,12 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import styles from './deputation.module.css';
-import {
-  saveCommunicationsStage,
+import type {
   StageAParameters,
   StageBParameters,
   StageCParameters,
   AttendanceSlot
-} from './actions';
+} from '@/lib/deputationService';
 import {
   getLogoBase64,
   exportMhtmlWordDocument,

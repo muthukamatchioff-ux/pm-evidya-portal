@@ -75,6 +75,6 @@ if (process.env.RUN_SYNC_DB === 'true') {
 }
 
 // 4. Run Next.js Build
-console.log('[Build Runner] Executing Next.js optimized production build...');
-execSync('npx next build', { stdio: 'inherit', env: process.env });
+console.log('[Build Runner] Executing Next.js optimized production build (webpack)...');
+execSync('npx next build --webpack', { stdio: 'inherit', env: process.env });
 console.log('[Build Runner] Build completed successfully!');

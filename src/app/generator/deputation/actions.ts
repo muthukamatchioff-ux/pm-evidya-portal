@@ -4,65 +4,9 @@ import { prisma } from '@/lib/prisma';
 import { checkAuth, getEmail } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { revalidatePath } from 'next/cache';
-import { saveCommunicationsStageCore, getEpicId } from '@/lib/deputationService';
+import { saveCommunicationsStageCore, getEpicId, StageAParameters, StageBParameters, StageCParameters, AttendanceSlot } from '@/lib/deputationService';
 
-export interface StageAParameters {
-  refNoPrefix: string;
-  year: string;
-  letterDate: string;
-  recipientDesignation: string;
-  recipientInst: string;
-  recipientLoc: string;
-  duration: string;
-  startDate: string;
-  isExtension: boolean;
-  reasonForExtension: string;
-  extensionDate: string;
-  signatory: string;
-}
-
-export interface AttendanceSlot {
-  id?: string;
-  startDate: string;
-  endDate: string;
-  days?: number;
-  trade?: string;
-}
-
-export interface StageBParameters {
-  programmeName: string;
-  workTitle: string;
-  location: string;
-  startDate: string;
-  endDate: string;
-  topicsCovered: string;
-  ratePerDay?: number;
-  trade?: string;
-  attendanceSlots?: AttendanceSlot[];
-  submissionDate: string;
-  verifierName: string;
-  verifierDesignation: string;
-  verifierOrganisation: string;
-  verificationDate: string;
-}
-
-export interface StageCParameters {
-  programmeName: string;
-  workTitle: string;
-  location: string;
-  trade?: string;
-  attendanceSlots?: AttendanceSlot[];
-  totalDays: number;
-  ratePerDay: number;
-  grossAmount: number;
-  taAmount?: number;
-  otherAmount?: number;
-  totalAmount: number;
-  amountInWords: string;
-  submissionDate: string;
-  verifierName?: string;
-  verifierDesignation?: string;
-}
+export type { StageAParameters, StageBParameters, StageCParameters, AttendanceSlot };
 
 export async function getCommunicationsWorkEntries() {
   try {

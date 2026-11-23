@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import styles from '../deputation/deputation.module.css';
-import { saveSMERecord } from './actions';
 import { exportMhtmlWordDocument, getLogoBase64, buildWordOfficialHeader, buildWordOfficialFooter } from '@/lib/mhtmlDocxExport';
 
 async function saveSMERecordResilient(smeData: any, trades: any[]) {
