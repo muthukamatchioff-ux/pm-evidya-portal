@@ -20,7 +20,7 @@
     "path": "./pmevidya-release.keystore",
     "alias": "pmevidya"
   },
-  "appVersionName": "1",
+  "appVersionName": "1.0.0",
   "appVersionCode": 1,
   "shortcuts": [
     {
@@ -66,5 +66,5 @@
   "fileHandlers": [],
   "launchHandlerClientMode": "",
   "displayOverride": [],
-  "appVersion": "1"
+  "appVersion": "1.0.0"
 }
