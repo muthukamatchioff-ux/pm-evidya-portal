@@ -227,8 +227,7 @@ export async function saveCommunicationsStageCore(
               }
             });
             if (existingDocs.length > 1) {
-              const dupIds = existingDocs.slice(1).map((d: any) => d.id);
-              await prisma.document.deleteMany({ where: { id: { in: dupIds } } }).catch(() => {});
+              console.warn(`[Data Integrity Audit] Detected multiple (${existingDocs.length}) documents of type ${docType} for workEntry ${actualWorkEntryId}. Preserved existing records without deletion; updated latest authoritative record ${existingDocs[0].id}.`);
             }
           } else {
             savedDocument = await prisma.document.create({
@@ -264,8 +263,7 @@ export async function saveCommunicationsStageCore(
               data: { filePath: JSON.stringify(parameters), status: 'SAVED' }
             });
             if (existingComps.length > 1) {
-              const dupIds = existingComps.slice(1).map((d: any) => d.id);
-              await prisma.document.deleteMany({ where: { id: { in: dupIds } } }).catch(() => {});
+              console.warn(`[Data Integrity Audit] Detected multiple (${existingComps.length}) companion documents of type ${companionType} for workEntry ${actualWorkEntryId}. Preserved existing records without deletion; updated latest authoritative record ${existingComps[0].id}.`);
             }
           } else {
             companionDoc = await prisma.document.create({
@@ -310,8 +308,7 @@ export async function saveCommunicationsStageCore(
               }
             });
             if (existingDocs.length > 1) {
-              const dupIds = existingDocs.slice(1).map((d: any) => d.id);
-              await prisma.document.deleteMany({ where: { id: { in: dupIds } } }).catch(() => {});
+              console.warn(`[Data Integrity Audit] Detected multiple (${existingDocs.length}) documents of type ${docType} for workEntry ${actualWorkEntryId}. Preserved existing records without deletion; updated latest authoritative record ${existingDocs[0].id}.`);
             }
           } else {
             savedDocument = await prisma.document.create({
@@ -363,8 +360,7 @@ export async function saveCommunicationsStageCore(
               data: { filePath: JSON.stringify(parameters), status: 'SAVED' }
             });
             if (existingComps.length > 1) {
-              const dupIds = existingComps.slice(1).map((d: any) => d.id);
-              await prisma.document.deleteMany({ where: { id: { in: dupIds } } }).catch(() => {});
+              console.warn(`[Data Integrity Audit] Detected multiple (${existingComps.length}) companion documents of type ${companionType} for workEntry ${actualWorkEntryId}. Preserved existing records without deletion; updated latest authoritative record ${existingComps[0].id}.`);
             }
           } else {
             companionDoc = await prisma.document.create({
@@ -409,8 +405,7 @@ export async function saveCommunicationsStageCore(
               }
             });
             if (existingDocs.length > 1) {
-              const dupIds = existingDocs.slice(1).map((d: any) => d.id);
-              await prisma.document.deleteMany({ where: { id: { in: dupIds } } }).catch(() => {});
+              console.warn(`[Data Integrity Audit] Detected multiple (${existingDocs.length}) documents of type ${docType} for workEntry ${actualWorkEntryId}. Preserved existing records without deletion; updated latest authoritative record ${existingDocs[0].id}.`);
             }
           } else {
             savedDocument = await prisma.document.create({
@@ -484,8 +479,7 @@ export async function saveCommunicationsStageCore(
               }
             });
             if (payments.length > 1) {
-              const dupPaymentIds = payments.slice(1).map((p: any) => p.id);
-              await prisma.payment.deleteMany({ where: { id: { in: dupPaymentIds } } }).catch(() => {});
+              console.warn(`[Data Integrity Audit] Detected multiple (${payments.length}) payments for workEntry ${actualWorkEntryId}. Preserved existing records without deletion; updated latest authoritative record ${payments[0].id}.`);
             }
           } else {
             await prisma.payment.create({
@@ -512,8 +506,7 @@ export async function saveCommunicationsStageCore(
               data: { filePath: JSON.stringify(parameters), status: 'SAVED' }
             });
             if (existingComps.length > 1) {
-              const dupIds = existingComps.slice(1).map((d: any) => d.id);
-              await prisma.document.deleteMany({ where: { id: { in: dupIds } } }).catch(() => {});
+              console.warn(`[Data Integrity Audit] Detected multiple (${existingComps.length}) companion documents of type ${companionType} for workEntry ${actualWorkEntryId}. Preserved existing records without deletion; updated latest authoritative record ${existingComps[0].id}.`);
             }
           } else {
             companionDoc = await prisma.document.create({

@@ -4,7 +4,6 @@
 
 const CACHE_NAME = 'pmevidya-v1';
 const STATIC_ASSETS = [
-  '/',
   '/manifest.json',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',

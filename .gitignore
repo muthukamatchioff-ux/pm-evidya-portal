@@ -51,3 +51,7 @@ prisma/dev.db
 /scratch/
 /logo_base64.txt
 /backups/
+
+# Android Keystore & Private Signing Credentials
+*.keystore
+keystore-info.json

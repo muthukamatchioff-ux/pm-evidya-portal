@@ -33,7 +33,22 @@ jobs:
       - name: Make Gradlew Executable
         run: chmod +x android/gradlew
 
+      - name: Decode Keystore from GitHub Secret
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/pmevidya-release.keystore
+            echo "Release keystore securely restored from GitHub Secret."
+          elif [ -f "android/pmevidya-release.keystore" ]; then
+            echo "Using existing workspace keystore."
+          else
+            echo "::warning::No keystore found. Build will require ANDROID_KEYSTORE_BASE64 secret."
+          fi
+
       - name: Build Signed Release App Bundle (AAB)
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || 'pmevidya' }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           cd android
           ./gradlew bundleRelease --stacktrace

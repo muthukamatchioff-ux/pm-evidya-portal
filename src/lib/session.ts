@@ -1,15 +1,14 @@
 const encoder = new TextEncoder();
-let runtimeSecret: string | null = null;
 
 function getSessionSecret(): string {
   const secret = process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD_HASH;
   if (secret) {
     return secret.replace(/^["']|["']$/g, '');
   }
-  if (!runtimeSecret) {
-    runtimeSecret = crypto.randomUUID();
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('[Security Exception] A persistent, securely configured SESSION_SECRET environment variable is strictly required in production.');
   }
-  return runtimeSecret;
+  return 'dev_ephemeral_session_secret_for_local_testing_only';
 }
 
 async function getCryptoKey(): Promise<CryptoKey> {
