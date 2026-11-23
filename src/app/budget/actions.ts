@@ -10,6 +10,7 @@ import { logAudit } from '@/lib/audit';
 import { COMPONENT_4_COA_MASTER } from '@/lib/coaMaster';
 import { REAL_PM_EVIDYA_BUDGET_COMPONENTS } from '@/lib/fallbackData';
 import { syncBudgetComponentToBudgetHead } from '@/lib/budgetMasterService';
+import { realtimeServer } from '@/lib/realtimeServer';
 // High-performance in-memory cache with instant invalidation on mutations
 interface BudgetCacheEntry {
   data: any;
@@ -37,6 +38,7 @@ export async function revalidateAllFinancialViews(annexurePath?: string) {
     for (let i = 1; i <= 6; i++) {
       revalidatePath(`/budget/annexure-${i}`, 'page');
     }
+    realtimeServer.broadcast('BUDGET_UPDATED');
   } catch (err) {
     console.warn('Revalidation error:', err);
   }

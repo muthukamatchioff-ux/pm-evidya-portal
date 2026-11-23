@@ -1,0 +1,70 @@
+{
+  "packageId": "in.nimi.pmevidya",
+  "host": "pmevidyanimi.online",
+  "name": "PM e-Vidya Portal",
+  "launcherName": "PM e-Vidya",
+  "display": "standalone",
+  "themeColor": "#1E3A8A",
+  "themeColorDark": "#000000",
+  "navigationColor": "#1E3A8A",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#FFFFFF",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://pmevidyanimi.online/icons/icon-512x512.png",
+  "maskableIconUrl": "https://pmevidyanimi.online/icons/icon-maskable-512x512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./pmevidya-release.keystore",
+    "alias": "pmevidya"
+  },
+  "appVersionName": "1",
+  "appVersionCode": 1,
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "shortName": "Dashboard",
+      "url": "https://pmevidyanimi.online/dashboard",
+      "chosenIconUrl": "https://pmevidyanimi.online/icons/icon-192x192.png"
+    },
+    {
+      "name": "Production Workflow",
+      "shortName": "Production W",
+      "url": "https://pmevidyanimi.online/production-workflow",
+      "chosenIconUrl": "https://pmevidyanimi.online/icons/icon-192x192.png"
+    },
+    {
+      "name": "Video Production",
+      "shortName": "Video Produc",
+      "url": "https://pmevidyanimi.online/video-production",
+      "chosenIconUrl": "https://pmevidyanimi.online/icons/icon-192x192.png"
+    }
+  ],
+  "generatorApp": "unknown",
+  "webManifestUrl": "https://pmevidyanimi.online/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://pmevidyanimi.online/",
+  "minSdkVersion": 21,
+  "orientation": "portrait-primary",
+  "fingerprints": [
+    {
+      "value": "AD:E3:1B:02:C1:26:29:FF:54:00:88:FE:05:34:D5:7A:AE:15:11:C5:83:BD:44:61:9E:5D:1F:16:C5:1C:D0:2B"
+    }
+  ],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "",
+  "displayOverride": [],
+  "appVersion": "1"
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "in.nimi.pmevidya",
+      "sha256_cert_fingerprints": [
+        "AD:E3:1B:02:C1:26:29:FF:54:00:88:FE:05:34:D5:7A:AE:15:11:C5:83:BD:44:61:9E:5D:1F:16:C5:1C:D0:2B"
+      ]
+    }
+  }
+]

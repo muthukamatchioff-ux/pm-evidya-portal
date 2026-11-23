@@ -9,6 +9,7 @@ import { logAudit } from '@/lib/audit';
 import { invalidateVideoCatalogCache } from '@/lib/videoCatalogService';
 import { formatDurationSeconds, isHttpVideoLink, parseDurationToSeconds } from '@/lib/knownVideoDurations';
 import { probeVideoDuration } from '@/lib/videoDurationDetector';
+import { realtimeServer } from '@/lib/realtimeServer';
 
 interface TopicProductionCache {
   data: any;
@@ -31,6 +32,7 @@ function safeRevalidate() {
     revalidatePath('/reports');
     revalidatePath('/reports/ncert-report');
     revalidatePath('/reports/monthly-expenditure');
+    realtimeServer.broadcast('WORKFLOW_UPDATE', { source: 'video-production' });
   } catch (_) {}
 }
 

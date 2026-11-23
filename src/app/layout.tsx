@@ -1,4 +1,5 @@
 import './globals.css';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { cookies } from 'next/headers';
 import { verifySession } from '@/lib/session';
@@ -6,13 +7,34 @@ import Header from '@/components/Header';
 import ClientLayoutWrapper from '@/components/ClientLayoutWrapper';
 import SessionWarmer from '@/components/SessionWarmer';
 import TopProgressBar from '@/components/TopProgressBar';
+import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
+import OfflineBanner from '@/components/OfflineBanner';
+import RealtimeSyncProvider from '@/components/RealtimeSyncProvider';
 import { Suspense } from 'react';
 
 const inter = Inter({ subsets: ['latin'] });
 
-export const metadata = {
+export const viewport: Viewport = {
+  themeColor: '#1e3a8a',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+};
+
+export const metadata: Metadata = {
   title: 'PM e-Vidya Accounts & Document Management Portal',
   description: 'Internal Accounts and Document Monitoring System',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'PM e-Vidya',
+  },
+  icons: {
+    icon: '/icons/icon-192x192.png',
+    apple: '/icons/apple-touch-icon.png',
+  },
 };
 
 async function getFastLayoutRole(): Promise<string> {
@@ -43,17 +65,27 @@ export default async function RootLayout({
   
   return (
     <html lang="en">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="application-name" content="PM e-Vidya" />
+      </head>
       <body className={inter.className}>
-        <Suspense fallback={null}>
-          <TopProgressBar />
-        </Suspense>
-        {isAuthenticated && <SessionWarmer role={role} />}
-        <ClientLayoutWrapper
-          sidebar={SidebarComponent ? <SidebarComponent /> : null}
-          header={isAuthenticated ? <Header role={role} /> : null}
-        >
-          {children}
-        </ClientLayoutWrapper>
+        <OfflineBanner />
+        <ServiceWorkerRegister />
+        <RealtimeSyncProvider>
+          <Suspense fallback={null}>
+            <TopProgressBar />
+          </Suspense>
+          {isAuthenticated && <SessionWarmer role={role} />}
+          <ClientLayoutWrapper
+            sidebar={SidebarComponent ? <SidebarComponent /> : null}
+            header={isAuthenticated ? <Header role={role} /> : null}
+          >
+            {children}
+          </ClientLayoutWrapper>
+        </RealtimeSyncProvider>
       </body>
     </html>
   );

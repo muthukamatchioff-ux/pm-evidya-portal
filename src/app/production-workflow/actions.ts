@@ -5,6 +5,7 @@ import { checkAuth, getEmail, getRole } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { invalidateVideoAndProductionCaches } from '@/lib/dataCache';
 import { queueNotification, getRecentNotificationLogs, retryNotification } from '@/lib/notifications';
+import { realtimeServer } from '@/lib/realtimeServer';
 
 function formatEpicCode(epicSeq: number | null | undefined): string {
   if (!epicSeq) return 'EPIC-NEW';
@@ -611,6 +612,7 @@ export async function assignCameramanToEpic(params: {
     invalidateVideoAndProductionCaches();
     revalidatePath('/production-workflow');
     revalidatePath('/video-production');
+    realtimeServer.broadcast('EPIC_UPDATED', { epicId: params.epicId, role: 'CAMERAMAN' });
 
     return {
       success: true,
@@ -775,6 +777,7 @@ export async function assignEditorToEpic(params: {
     invalidateVideoAndProductionCaches();
     revalidatePath('/production-workflow');
     revalidatePath('/video-production');
+    realtimeServer.broadcast('EPIC_UPDATED', { epicId: params.epicId, role: 'EDITOR' });
 
     return {
       success: true,
@@ -947,6 +950,7 @@ export async function publishEpicToLibrary(params: {
     invalidateVideoAndProductionCaches();
     revalidatePath('/production-workflow');
     revalidatePath('/video-production');
+    realtimeServer.broadcast('EPIC_UPDATED', { epicId: params.epicId });
 
     return {
       success: true,
@@ -1062,9 +1066,9 @@ export async function reviewEditorSubmission(params: {
     });
 
     invalidateVideoAndProductionCaches();
-    invalidateVideoAndProductionCaches();
     revalidatePath('/production-workflow');
     revalidatePath('/video-production');
+    realtimeServer.broadcast('EPIC_UPDATED', { epicId: params.workEntryId });
     revalidatePath('/content');
 
     return {
@@ -1196,6 +1200,7 @@ export async function assignCameramanToVideo(params: {
     invalidateVideoAndProductionCaches();
     revalidatePath('/production-workflow');
     revalidatePath('/video-production');
+    realtimeServer.broadcast('EPIC_UPDATED', { epicId: params.workEntryId, role: 'EDITOR' });
 
     return {
       success: true,
@@ -1347,6 +1352,7 @@ export async function assignEditorToVideo(params: {
     invalidateVideoAndProductionCaches();
     revalidatePath('/production-workflow');
     revalidatePath('/video-production');
+    realtimeServer.broadcast('EPIC_UPDATED', { epicId: params.workEntryId, role: 'EDITOR' });
 
     return {
       success: true,
