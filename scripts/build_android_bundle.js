@@ -63,11 +63,12 @@ function runChecks() {
     allPassed = false;
   }
 
-  // 5. Check Android Target SDK (Google Play Compliance: API 34+)
+  // 5. Check Android Target SDK (API 36+)
   if (fs.existsSync(appBuildGradlePath)) {
     const gradleContent = fs.readFileSync(appBuildGradlePath, 'utf8');
-    const hasApiCompliant = gradleContent.includes('compileSdkVersion') && (gradleContent.includes('35') || gradleContent.includes('36'));
-    console.log(`✔ Android API Level verified (Google Play Target SDK 34+: ${hasApiCompliant})`);
+    const hasApi36 = gradleContent.includes('targetSdkVersion 36') && gradleContent.includes('compileSdkVersion 36');
+    console.log(`✔ Android API Level verified (Target SDK 36+: ${hasApi36})`);
+    if (!hasApi36) allPassed = false;
   } else {
     console.error('❌ Missing app/build.gradle');
     allPassed = false;

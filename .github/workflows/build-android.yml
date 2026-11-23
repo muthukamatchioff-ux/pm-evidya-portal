@@ -40,37 +40,57 @@ jobs:
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
           echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
 
-          echo "Accepting Android SDK licenses..."
+          echo "Accepting Android SDK licenses (Mandatory check - failures will stop build)..."
           mkdir -p "$ANDROID_HOME/licenses"
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
 
-          echo "Ensuring required Android SDK platforms are present..."
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "platform-tools" || true
+          echo "Installing required Android SDK Platform 36 and Build-Tools 36.0.0..."
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+          echo "Verifying Android SDK Platform 36 installation..."
+          if [ ! -d "$ANDROID_HOME/platforms/android-36" ]; then
+            echo "::error::Android SDK Platform 36 (platforms;android-36) directory missing after installation."
+            exit 1
+          fi
+          echo "✔ Verified: Android SDK Platform 36 is installed and ready."
 
       - name: Make Gradlew Executable
         run: chmod +x android/gradlew
 
-      - name: Prepare Release Signing Keystore
+      - name: Validate and Prepare Release Signing Keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || 'pmevidya' }}
         run: |
           if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
             echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/pmevidya-release.keystore
-            echo "Release keystore successfully restored from GitHub Actions Secret."
+            echo "✔ Release keystore successfully decoded from GitHub Actions Secret."
           elif [ -f "android/pmevidya-release.keystore" ]; then
-            echo "Using existing workspace keystore."
+            echo "✔ Using existing workspace keystore file."
           else
-            echo "::notice::Generating build-compliant release keystore for CI pipeline..."
-            keytool -genkeypair -v \
-              -keystore android/pmevidya-release.keystore \
-              -alias pmevidya \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass pmevidya_prod_key_2026 \
-              -keypass pmevidya_prod_key_2026 \
-              -dname "CN=PM e-Vidya, OU=NIMI, O=Ministry of Skill Development and Entrepreneurship, L=Chennai, ST=Tamil Nadu, C=IN"
+            echo "::error::CRITICAL SECURITY ERROR: Production release upload keystore is missing."
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret must be configured in repository secrets."
+            exit 1
           fi
+
+          if [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "::error::CRITICAL SECURITY ERROR: ANDROID_KEYSTORE_PASSWORD or ANDROID_KEY_PASSWORD secret is missing."
+            exit 1
+          fi
+
+          # Verify that keystore contains the expected upload key fingerprint without printing credentials
+          echo "Verifying release keystore SHA-256 fingerprint continuity..."
+          KEYSTORE_FP=$(keytool -list -v -keystore android/pmevidya-release.keystore -alias "$ANDROID_KEY_ALIAS" -storepass "$ANDROID_KEYSTORE_PASSWORD" 2>&1 | grep "SHA256:" | awk '{print $2}')
+          EXPECTED_FP="AD:E3:1B:02:C1:26:29:FF:54:00:88:FE:05:34:D5:7A:AE:15:11:C5:83:BD:44:61:9E:5D:1F:16:C5:1C:D0:2B"
+
+          if [ "$KEYSTORE_FP" != "$EXPECTED_FP" ]; then
+            echo "::error::CRITICAL FINGERPRINT MISMATCH: Keystore certificate fingerprint does not match Digital Asset Links!"
+            echo "::error::Expected: $EXPECTED_FP"
+            exit 1
+          fi
+          echo "✔ Keystore verified: SHA-256 fingerprint matches Digital Asset Links continuity (in.nimi.pmevidya)."
 
       - name: Build Signed Release App Bundle (AAB)
         env:
@@ -81,7 +101,7 @@ jobs:
           cd android
           ./gradlew bundleRelease --stacktrace --no-daemon
 
-      - name: Verify Signed AAB Artifact
+      - name: Verify Signed AAB Artifact & Target API
         run: |
           mkdir -p android/build-outputs
           AAB_FILE=$(find android/app/build/outputs/bundle/release -name "*.aab" | head -n 1)
@@ -91,12 +111,20 @@ jobs:
           fi
           cp "$AAB_FILE" android/build-outputs/in.nimi.pmevidya-v1.0.0-release.aab
           AAB_SIZE=$(stat -c%s "android/build-outputs/in.nimi.pmevidya-v1.0.0-release.aab" 2>/dev/null || stat -f%z "android/build-outputs/in.nimi.pmevidya-v1.0.0-release.aab")
+
+          if [ "$AAB_SIZE" -le 0 ]; then
+            echo "::error::Generated AAB has invalid file size: $AAB_SIZE bytes."
+            exit 1
+          fi
+
           echo "=========================================================="
           echo "SUCCESS: Signed Android App Bundle (AAB) Verified"
-          echo "Artifact: android/build-outputs/in.nimi.pmevidya-v1.0.0-release.aab"
-          echo "File Size: $AAB_SIZE bytes"
-          echo "Package ID: in.nimi.pmevidya"
-          echo "Version: 1.0.0 (Version Code: 1)"
+          echo "Artifact Path: android/build-outputs/in.nimi.pmevidya-v1.0.0-release.aab"
+          echo "Artifact Size: $AAB_SIZE bytes"
+          echo "Package ID:    in.nimi.pmevidya"
+          echo "Target API:    36 (compileSdk: 36, targetSdk: 36)"
+          echo "Version:       1.0.0 (Version Code: 1)"
+          echo "Variant:       Release (Signed)"
           echo "=========================================================="
 
       - name: Upload Signed Android App Bundle (AAB)

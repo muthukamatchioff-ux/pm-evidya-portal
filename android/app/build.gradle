@@ -51,12 +51,12 @@ def twaManifest = [
 ]
 
 android {
-    compileSdkVersion (project.findProperty('COMPILE_SDK_VERSION') ? project.COMPILE_SDK_VERSION.toInteger() : 35)
+    compileSdkVersion 36
     namespace "in.nimi.pmevidya"
     defaultConfig {
         applicationId "in.nimi.pmevidya"
         minSdkVersion 21
-        targetSdkVersion (project.findProperty('TARGET_SDK_VERSION') ? project.TARGET_SDK_VERSION.toInteger() : 35)
+        targetSdkVersion 36
         versionCode 1
         versionName "1.0.0"
 
@@ -154,9 +154,9 @@ android {
         release {
             def keystorePath = System.getenv("ANDROID_KEYSTORE_PATH") ?: '../pmevidya-release.keystore'
             storeFile file(keystorePath)
-            storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: (project.findProperty('STORE_PASSWORD') ?: 'pmevidya_prod_key_2026')
+            storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: (project.findProperty('STORE_PASSWORD') ?: '')
             keyAlias System.getenv("ANDROID_KEY_ALIAS") ?: (project.findProperty('KEY_ALIAS') ?: 'pmevidya')
-            keyPassword System.getenv("ANDROID_KEY_PASSWORD") ?: (project.findProperty('KEY_PASSWORD') ?: 'pmevidya_prod_key_2026')
+            keyPassword System.getenv("ANDROID_KEY_PASSWORD") ?: (project.findProperty('KEY_PASSWORD') ?: '')
         }
     }
     buildTypes {
