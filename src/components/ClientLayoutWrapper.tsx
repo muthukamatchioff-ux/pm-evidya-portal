@@ -15,19 +15,55 @@ export default function ClientLayoutWrapper({
   const pathname = usePathname();
   const isAuthPage = pathname === '/login' || pathname === '/register';
 
-  // Global Auto-Recovery from Server Action Reference Mismatch / Deployment Skew
+  // Controlled recovery from Next.js Server Action Deployment Skew
   useEffect(() => {
+    // 1. Network-layer check: only detect true Next-Action skew (HTTP 500 with 'failed-to-find-server-action')
+    if (typeof window !== 'undefined' && !(window as any).__pm_sa_skew_shield) {
+      (window as any).__pm_sa_skew_shield = true;
+      const originalFetch = window.fetch;
+      window.fetch = async function(...args) {
+        const response = await originalFetch.apply(this, args);
+        // Only inspect if this was a Next.js Server Action request that returned 500
+        const requestInit = args[1] as RequestInit | undefined;
+        const headers = requestInit?.headers;
+        const hasNextAction = headers && (
+          (headers instanceof Headers && headers.has('Next-Action')) ||
+          (typeof headers === 'object' && ('Next-Action' in headers || 'next-action' in headers))
+        );
+
+        if (hasNextAction && response && response.status === 500) {
+          try {
+            const clone = response.clone();
+            const text = await clone.text();
+            if (
+              text.includes('failed-to-find-server-action') ||
+              text.includes('was not found on the server')
+            ) {
+              console.warn('[Auto-Recovery] Confirmed stale Server Action ID from previous deployment. Performing controlled reload...');
+              const lastReload = Number(sessionStorage.getItem('pm_last_sa_reload') || '0');
+              const now = Date.now();
+              if (now - lastReload > 8000) {
+                sessionStorage.setItem('pm_last_sa_reload', String(now));
+                window.location.reload();
+              }
+            }
+          } catch (_) {}
+        }
+        return response;
+      };
+    }
+
+    // 2. Global Unhandled Rejection: handle ONLY confirmed Server Action mismatch errors
     const handleRejection = (event: PromiseRejectionEvent) => {
       const reason = event?.reason;
       const msg = String(reason?.message || reason || '');
-      if (
-        msg.includes('Server Action') ||
-        msg.includes('was not found on the server') ||
-        msg.includes('failed-to-find-server-action') ||
-        msg.includes('server reference')
-      ) {
-        console.warn('[Auto-Recovery] Detected stale Server Action reference from a previous deployment. Refreshing active client bundle...');
-        event.preventDefault(); // Suppress the red Next.js error banner
+      const isStaleAction =
+        (msg.includes('was not found on the server') || msg.includes('failed-to-find-server-action')) &&
+        (msg.includes('Server Action') || msg.includes('action'));
+
+      if (isStaleAction) {
+        console.warn('[Auto-Recovery] Confirmed stale Server Action reference from a previous deployment. Controlled refresh...');
+        event.preventDefault();
         try {
           const lastReload = Number(sessionStorage.getItem('pm_last_sa_reload') || '0');
           const now = Date.now();
@@ -39,17 +75,17 @@ export default function ClientLayoutWrapper({
           window.location.reload();
         }
       }
+      // Note: Genuine application errors are left untouched so they propagate to error boundaries
     };
 
     const handleError = (event: ErrorEvent) => {
       const msg = String(event?.message || '');
-      if (
-        msg.includes('Server Action') ||
-        msg.includes('was not found on the server') ||
-        msg.includes('failed-to-find-server-action') ||
-        msg.includes('server reference')
-      ) {
-        console.warn('[Auto-Recovery] Detected stale Server Action error. Refreshing active client bundle...');
+      const isStaleAction =
+        (msg.includes('was not found on the server') || msg.includes('failed-to-find-server-action')) &&
+        (msg.includes('Server Action') || msg.includes('action'));
+
+      if (isStaleAction) {
+        console.warn('[Auto-Recovery] Confirmed stale Server Action error. Controlled refresh...');
         event.preventDefault();
         try {
           const lastReload = Number(sessionStorage.getItem('pm_last_sa_reload') || '0');

@@ -614,13 +614,83 @@ export default function DeputationClient({
     });
   };
 
+// Helper for skew-immune database persistence: uses invariant REST API endpoint with independent HTTP status code handling
+async function saveCommunicationsStageResilient(
+  workEntryId: string,
+  stage: 'STAGE_A' | 'STAGE_B' | 'STAGE_C',
+  parameters: any
+) {
+  let apiRes: Response;
+  try {
+    apiRes = await fetch('/api/generator/deputation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workEntryId, stage, parameters }),
+      credentials: 'same-origin',
+    });
+  } catch (networkErr: any) {
+    console.warn('[DeputationClient] Network failure contacting REST API:', networkErr);
+    return {
+      success: false,
+      error: 'Network connection failure. Please verify your connection and try again.'
+    };
+  }
+
+  // Handle all HTTP status codes independently
+  if (apiRes.status === 200 || apiRes.status === 201) {
+    return await apiRes.json();
+  }
+
+  const errData = await apiRes.json().catch(() => null);
+
+  if (apiRes.status === 400) {
+    return {
+      success: false,
+      error: errData?.error || 'Validation error: invalid parameters provided.'
+    };
+  }
+
+  if (apiRes.status === 401) {
+    return {
+      success: false,
+      error: 'Session expired. Please log in again to save parameters.'
+    };
+  }
+
+  if (apiRes.status === 403) {
+    return {
+      success: false,
+      error: errData?.error || 'Access denied. You do not have permission to modify these parameters.'
+    };
+  }
+
+  if (apiRes.status === 404) {
+    return {
+      success: false,
+      error: errData?.error || 'Record not found for the selected EPIC ID.'
+    };
+  }
+
+  if (apiRes.status >= 500) {
+    return {
+      success: false,
+      error: errData?.error || 'Server error occurred while saving parameters. Please try again.'
+    };
+  }
+
+  return {
+    success: false,
+    error: errData?.error || `Request failed with status ${apiRes.status}`
+  };
+}
+
   // Save Handlers
   const handleSaveStageA = async () => {
-    if (!selectedEntry) return;
+    if (!selectedEntry || isSavingA) return;
     setIsSavingA(true);
     try {
       persistSavedParams('STAGE_A', selectedEntry.id, selectedEntry.epicSequence, stageAParams);
-      const res = await saveCommunicationsStage(selectedEntry.id, 'STAGE_A', stageAParams);
+      const res = await saveCommunicationsStageResilient(selectedEntry.id, 'STAGE_A', stageAParams);
       if (res.success && res.document) {
         setHasSavedDocA(true);
         setIsEditingA(false);
@@ -643,12 +713,12 @@ export default function DeputationClient({
   };
 
   const handleSaveStageB = async () => {
-    if (!selectedEntry) return;
+    if (!selectedEntry || isSavingB) return;
     setIsSavingB(true);
     try {
       persistSavedParams('STAGE_B', selectedEntry.id, selectedEntry.epicSequence, stageBParams);
 
-      const res = await saveCommunicationsStage(selectedEntry.id, 'STAGE_B', stageBParams);
+      const res = await saveCommunicationsStageResilient(selectedEntry.id, 'STAGE_B', stageBParams);
       if (res.success && res.document) {
         setHasSavedDocB(true);
         setIsEditingB(false);
@@ -678,12 +748,12 @@ export default function DeputationClient({
   };
 
   const handleSaveStageC = async () => {
-    if (!selectedEntry) return;
+    if (!selectedEntry || isSavingC) return;
     setIsSavingC(true);
     try {
       persistSavedParams('STAGE_C', selectedEntry.id, selectedEntry.epicSequence, stageCParams);
 
-      const res = await saveCommunicationsStage(selectedEntry.id, 'STAGE_C', stageCParams);
+      const res = await saveCommunicationsStageResilient(selectedEntry.id, 'STAGE_C', stageCParams);
       if (res.success && res.document) {
         setHasSavedDocC(true);
         setIsEditingC(false);

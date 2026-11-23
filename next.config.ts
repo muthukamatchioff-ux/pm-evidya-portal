@@ -11,13 +11,30 @@ if (!currentDbUrl || (!currentDbUrl.startsWith('postgresql://') && !currentDbUrl
   }
 }
 
+import { execSync } from "child_process";
+
+function resolveImmutableBuildId(): string | null {
+  if (process.env.BUILD_ID) return process.env.BUILD_ID;
+  if (process.env.VERCEL_GIT_COMMIT_SHA) return process.env.VERCEL_GIT_COMMIT_SHA;
+  if (process.env.VOROA_COMMIT_SHA) return process.env.VOROA_COMMIT_SHA;
+  if (process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA) return process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA;
+  try {
+    return execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();
+  } catch {
+    return null; // Next.js standard unique build ID generation
+  }
+}
+
 const nextConfig: NextConfig = {
+  generateBuildId: async () => {
+    return resolveImmutableBuildId();
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
     },
     staleTimes: {
-      dynamic: 30,
+      dynamic: 0,
       static: 180,
     },
   },

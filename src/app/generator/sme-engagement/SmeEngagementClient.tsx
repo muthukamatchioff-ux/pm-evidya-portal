@@ -5,6 +5,45 @@ import styles from '../deputation/deputation.module.css';
 import { saveSMERecord } from './actions';
 import { exportMhtmlWordDocument, getLogoBase64, buildWordOfficialHeader, buildWordOfficialFooter } from '@/lib/mhtmlDocxExport';
 
+async function saveSMERecordResilient(smeData: any, trades: any[]) {
+  let res: Response;
+  try {
+    res = await fetch('/api/generator/sme-engagement', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ smeData, trades }),
+      credentials: 'same-origin',
+    });
+  } catch (err: any) {
+    console.warn('[SmeEngagementClient] Network error on REST API save:', err);
+    return { success: false, message: 'Network connection failure. Please try again.' };
+  }
+
+  if (res.status === 200 || res.status === 201) {
+    return await res.json();
+  }
+
+  const errData = await res.json().catch(() => null);
+
+  if (res.status === 400) {
+    return { success: false, message: errData?.error || errData?.message || 'Invalid parameters supplied.' };
+  }
+
+  if (res.status === 401) {
+    return { success: false, message: 'Session expired. Please log in again.' };
+  }
+
+  if (res.status === 403) {
+    return { success: false, message: errData?.error || errData?.message || 'Access denied.' };
+  }
+
+  if (res.status >= 500) {
+    return { success: false, message: errData?.error || errData?.message || 'Server error saving SME record.' };
+  }
+
+  return { success: false, message: errData?.message || `Request failed with status ${res.status}` };
+}
+
 // Helper to convert numbers to Indian Rupee words
 function numberToWords(num: number): string {
   const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
@@ -133,7 +172,7 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
     try {
       // Safe non-blocking database record persistence (never blocks PDF generation)
       try {
-        await saveSMERecord(sme, trades);
+        await saveSMERecordResilient(sme, trades);
       } catch (saveError: any) {
         console.warn('[SmeEngagement] Non-blocking DB save notice:', saveError?.message || saveError);
       }
@@ -162,7 +201,7 @@ export default function SmeEngagementClient({ initialDocType = 'both' }: { initi
 
   const generateDOCX = async () => {
     try {
-      await saveSMERecord(sme, trades);
+      await saveSMERecordResilient(sme, trades);
     } catch (e: any) {
       console.warn("Non-blocking DB save notice on DOCX generation:", e?.message || e);
     }
