@@ -51,12 +51,12 @@ def twaManifest = [
 ]
 
 android {
-    compileSdkVersion 36
+    compileSdkVersion (project.findProperty('COMPILE_SDK_VERSION') ? project.COMPILE_SDK_VERSION.toInteger() : 35)
     namespace "in.nimi.pmevidya"
     defaultConfig {
         applicationId "in.nimi.pmevidya"
         minSdkVersion 21
-        targetSdkVersion 36
+        targetSdkVersion (project.findProperty('TARGET_SDK_VERSION') ? project.TARGET_SDK_VERSION.toInteger() : 35)
         versionCode 1
         versionName "1.0.0"
 
